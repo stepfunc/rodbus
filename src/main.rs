@@ -6,7 +6,7 @@ use tokio::runtime::Runtime;
 use std::rc::Rc;
 
 #[derive(Debug)]
-struct Reply {
+pub struct Reply {
     pub result : usize,
 }
 
@@ -16,19 +16,14 @@ impl Reply {
    }
 }
 
-struct Request {
+pub struct Request {
     id: u16,
     argument : usize,
     reply_to : tokio::sync::oneshot::Sender<Reply>
 }
 
-struct Client {
-    sender: tokio::sync::mpsc::Sender<Request>
-}
-
-
 #[derive(Debug)]
-enum Error {
+pub enum Error {
     Tx,
     Rx
 }
@@ -44,20 +39,6 @@ impl std::convert::From<tokio::sync::mpsc::error::SendError> for Error {
         Error::Tx
     }
 }
-
-
-
-/*impl Client {
-    async fn square(&mut self, x : usize) -> Result<Reply, Error> {
-        let (tx, rx) = oneshot::channel::<Reply>();
-        self.sender.send(Request{argument : x, reply_to :  tx}).await?;
-        rx.await.map_err(|_| { Error::Rx } )
-    }
-
-    fn new(sender: tokio::sync::mpsc::Sender<Request>) -> Client {
-        Client { sender }
-    }
-}*/
 
 pub struct Session {
     id: u16,
@@ -79,17 +60,25 @@ impl Session {
 pub struct Channel {
     addr: SocketAddr,
     tx: Sender<Request>,
-    rx: Receiver<Request>,
 }
 
 impl Channel {
-    fn new(addr: SocketAddr) -> Self {
+    fn new(addr: SocketAddr, runtime: &Runtime) -> Self {
         let (tx, rx) = mpsc::channel(100);
-        Channel { addr, tx, rx }
+        runtime.spawn(Self::run(rx));
+        Channel { addr, tx  }
     }
 
     pub fn create_session(&self, id: u16) -> Session {
         Session::new(id, self.tx.clone())
+    }
+
+    async fn run(mut rx: Receiver<Request>)  {
+        while let Some(request) =  rx.recv().await {
+            if let Err(_e) = request.reply_to.send(Reply::new( request.argument * request.argument)) {
+                // TODO
+            }
+        }
     }
 }
 
@@ -103,18 +92,8 @@ impl ModbusManager {
     }
 
     pub fn create_channel(&self, addr: SocketAddr) -> Channel {
-        Channel::new(addr)
+        Channel::new(addr, &self.rt)
     }
-}
-
-async fn server(mut rx : mpsc::Receiver<Request>) {
-
-    while let Some(request) =  rx.recv().await {
-         if let Err(_e) = request.reply_to.send(Reply::new( request.argument * request.argument)) {
-             // TODO
-         }
-    }
-
 }
 
 fn main() {
@@ -123,18 +102,10 @@ fn main() {
     let channel = manager.create_channel("127.0.0.1:8080".to_socket_addrs().expect("Invalid socket address").next().unwrap());
     let mut session = channel.create_session(0x76);
 
+
     rt.block_on(async move {
         let result = session.send(5).await;
         println!("Result: {:?}", result);
     });
 
-    //let (tx, rx) = mpsc::channel(10);
-
-    //let mut client = Client::new(tx);
-
-    /*let rt = ::new().unwrap();
-
-    rt.spawn(server(rx));
-
-    println!("result is: {:?}", rt.block_on(client.square(4)).unwrap());*/
 }
