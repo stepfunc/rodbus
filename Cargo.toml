@@ -1,5 +1,5 @@
 [package]
-name = "request-response"
+name = "modbus-rs"
 version = "0.1.0"
 authors = ["jadamcrain <jadamcrain@gmail.com>"]
 edition = "2018"
