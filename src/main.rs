@@ -11,7 +11,7 @@ fn main() {
 
 
     rt.block_on(async move {
-        let result = session.send(5).await;
+        let result = session.read_coils(modbus_rs::requests::ReadCoils::new(0,5)).await;
         println!("Result: {:?}", result);
     });
 

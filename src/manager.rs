@@ -4,6 +4,7 @@ use tokio::sync::mpsc::{Sender, Receiver};
 use tokio::sync::oneshot;
 use tokio::runtime::Runtime;
 use std::rc::Rc;
+use crate::requests::ReadCoils;
 
 #[derive(Debug)]
 pub struct Reply {
@@ -16,10 +17,23 @@ impl Reply {
     }
 }
 
-pub struct Request {
+enum Request {
+    ReadCoils(RequestWrapper<crate::requests::ReadCoils>)
+}
+
+struct RequestWrapper<T : crate::requests::RequestInfo> {
     id: u16,
-    argument : usize,
-    reply_to : tokio::sync::oneshot::Sender<Reply>
+    argument : T,
+    reply_to : tokio::sync::oneshot::Sender<T::ResponseType>
+}
+
+impl<T : crate::requests::RequestInfo> RequestWrapper<T> {
+    fn new(id: u16,
+           argument : T,
+           reply_to : tokio::sync::oneshot::Sender<T::ResponseType>) -> RequestWrapper<T>
+    {
+        RequestWrapper { id, argument, reply_to }
+    }
 }
 
 #[derive(Debug)]
@@ -50,9 +64,10 @@ impl Session {
         Session { id, channel_tx }
     }
 
-    pub async fn send(&mut self, arg: usize) -> Result<Reply, Error> {
-        let (tx, rx) = oneshot::channel::<Reply>();
-        self.channel_tx.send(Request{id: self.id, argument: arg, reply_to: tx}).await?;
+    pub async fn read_coils(&mut self, request: ReadCoils) -> Result<Vec<bool>, Error> {
+        let (tx, rx) = oneshot::channel::<Vec<bool>>();
+        let request = Request::ReadCoils(RequestWrapper::new(self.id, request, tx));
+        self.channel_tx.send(request).await?;
         rx.await.map_err(|_| { Error::Rx } )
     }
 }
@@ -74,9 +89,12 @@ impl Channel {
     }
 
     async fn run(mut rx: Receiver<Request>)  {
-        while let Some(request) =  rx.recv().await {
-            if let Err(_e) = request.reply_to.send(Reply::new( request.argument * request.argument)) {
-                // TODO
+        while let Some(Request::ReadCoils(request)) =  rx.recv().await {
+            let mut response : Vec<bool> = Vec::new();
+            for i in 0 .. request.argument.quantity {
+                response.push(true);
+            }
+            if let Err(_e) = request.reply_to.send(response) {
             }
         }
     }
