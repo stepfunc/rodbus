@@ -1,24 +1,14 @@
-pub(crate) trait RequestInfo {
-    type ResponseType;
-    fn function() -> u8;
-}
-
-
-pub struct ReadCoils {
+pub struct ReadCoilsRequest {
     pub start : u16,
     pub quantity: u16,
 }
 
-impl ReadCoils {
-    pub fn new(start : u16, quantity: u16) -> ReadCoils {
-        ReadCoils { start, quantity}
+impl ReadCoilsRequest {
+    pub fn new(start : u16, quantity: u16) -> Self {
+        Self { start, quantity}
     }
 }
 
-impl RequestInfo for ReadCoils {
-    type ResponseType = Vec<bool>;
-
-    fn function() -> u8 {
-        0x01
-    }
+pub struct ReadCoilsResponse {
+    pub statuses: Vec<bool>,
 }
