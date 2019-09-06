@@ -2,12 +2,14 @@ use crate::{Error, Result};
 use crate::requests::*;
 use crate::requests_info::*;
 use crate::session::Session;
+use byteorder::{BE, ReadBytesExt, WriteBytesExt};
+use tokio::io::{AsyncWriteExt, AsyncReadExt};
+use tokio::net::TcpStream;
 use tokio::runtime::Runtime;
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
-use tokio::net::TcpStream;
+use std::io::{Cursor, Seek, SeekFrom};
 use std::net::SocketAddr;
-use tokio::io::{AsyncWriteExt, AsyncReadExt};
 
 /// All the possible requests that can be sent through the channel
 pub(crate) enum Request {
@@ -19,13 +21,13 @@ pub(crate) enum Request {
 /// It contains the session ID, the actual request and
 /// a oneshot channel to receive the reply.
 pub(crate) struct RequestWrapper<T: RequestInfo> {
-    id: u16,
+    id: u8,
     argument : T,
     reply_to : oneshot::Sender<Result<T::ResponseType>>,
 }
 
 impl<T: RequestInfo> RequestWrapper<T> {
-    pub fn new(id: u16, argument : T, reply_to : oneshot::Sender<Result<T::ResponseType>>) -> Self {
+    pub fn new(id: u8, argument : T, reply_to : oneshot::Sender<Result<T::ResponseType>>) -> Self {
         Self { id, argument, reply_to }
     }
 }
@@ -45,7 +47,7 @@ impl Channel {
         Channel { tx  }
     }
 
-    pub fn create_session(&self, id: u16) -> Session {
+    pub fn create_session(&self, id: u8) -> Session {
         Session::new(id, self.tx.clone())
     }
 
@@ -70,12 +72,12 @@ struct ChannelServer {
     addr: SocketAddr,
     rx: mpsc::Receiver<Request>,
     socket: Option<TcpStream>,
-    buffer: Vec<u8>,
+    buffer: [u8; MAX_ADU_SIZE],
 }
 
 impl ChannelServer {
     pub fn new(rx: mpsc::Receiver<Request>, addr: SocketAddr) -> Self {
-        Self { addr, rx, socket: None, buffer: Vec::with_capacity(MAX_ADU_SIZE) }
+        Self { addr, rx, socket: None, buffer: [0; MAX_ADU_SIZE] }
     }
 
     pub async fn run(&mut self) {
@@ -94,11 +96,41 @@ impl ChannelServer {
     async fn handle<Req: RequestInfo>(&mut self, req: &RequestWrapper<Req>) -> Result<Req::ResponseType> {
         self.try_open_socket().await;
         if let Some(socket) = &mut self.socket {
-            self.buffer.clear();
-            req.argument.serialize(self.buffer.as_mut_slice());
-            socket.write(self.buffer.as_slice()).await.map_err(|_| Error::Tx)?;
-            socket.read(self.buffer.as_mut_slice()).await.map_err(|_| Error::Rx)?;
-            Req::ResponseType::parse(self.buffer.as_slice()).ok_or(Error::Rx)
+            // TODO: check serialization results
+            // Write MBAP header
+            let mut cur = Cursor::new(self.buffer.as_mut());
+            cur.write_u16::<BE>(0x0000); // TODO: Write real transaction ID
+            cur.write_u16::<BE>(0x0000);
+            cur.seek(SeekFrom::Current(2)); // Length will be written afterwards
+            cur.write_u8(req.id);
+
+            // Write the PDU
+            cur.write_u8(Req::func_code());
+            req.argument.serialize(&mut cur);
+
+            // Write the length of the request
+            let length = cur.position() as usize - MBAP_SIZE + 1;
+            cur.seek(SeekFrom::Start(4));
+            cur.write_u16::<BE>(length as u16);
+
+            // Send message
+            socket.write(&self.buffer).await.map_err(|_| Error::Tx)?;
+
+            // Read the MBAP header
+            let slice = &mut self.buffer[..MBAP_SIZE + 1];
+            socket.read_exact(slice).await.map_err(|_| Error::Rx)?;
+            let mut cur = Cursor::new(slice);
+            let transaction_id = cur.read_u16::<BE>().unwrap();
+            let protocol_id = cur.read_u16::<BE>().unwrap();
+            let length = cur.read_u16::<BE>().unwrap();
+            let unit_id = cur.read_u8().unwrap();
+            let func_code = cur.read_u8().unwrap();
+            // TODO: Validate stuff
+
+            // Read actual response
+            let slice = &mut self.buffer[..length as usize - 2];
+            socket.read_exact(slice).await.map_err(|_| Error::Rx)?;
+            Req::ResponseType::parse(slice, &req.argument).ok_or(Error::Rx)
         }
         else {
             Err(Error::Connect)

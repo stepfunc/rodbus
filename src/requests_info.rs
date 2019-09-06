@@ -1,9 +1,12 @@
 use crate::requests::*;
+use byteorder::{BE, ReadBytesExt, WriteBytesExt};
+use std::cmp;
+use std::io::{Cursor, Write};
 
-pub trait RequestInfo {
-    type ResponseType: ResponseInfo;
+pub trait RequestInfo: Sized {
+    type ResponseType: ResponseInfo<RequestType = Self>;
     fn func_code() -> u8;
-    fn serialize(&self, buffer: &mut [u8]);
+    fn serialize<W: Write>(&self, cur: &mut W);
 }
 
 impl RequestInfo for ReadCoilsRequest {
@@ -13,20 +16,36 @@ impl RequestInfo for ReadCoilsRequest {
         0x01
     }
 
-    fn serialize(&self, buffer: &mut [u8]) {
-        // TODO: Actually serialize the thing
-        buffer[0] = 76;
-        buffer[1] = 24;
+    fn serialize<W: Write>(&self, cur: &mut W) {
+        cur.write_u16::<BE>(self.start);
+        cur.write_u16::<BE>(self.quantity);
     }
 }
 
 pub trait ResponseInfo: Sized {
-    fn parse(data: &[u8]) -> Option<Self>;
+    type RequestType;
+
+    fn parse(data: &[u8], req: &Self::RequestType) -> Option<Self>;
 }
 
 impl ResponseInfo for ReadCoilsResponse {
-    fn parse(_data: &[u8]) -> Option<Self> {
-        // TODO: Actually parse the thing
-        Some(ReadCoilsResponse { statuses: vec![false, true] })
+    type RequestType = ReadCoilsRequest;
+
+    fn parse(data: &[u8], req: &ReadCoilsRequest) -> Option<Self> {
+        // TODO: lots of validation
+        let mut statuses = Vec::<bool>::with_capacity(req.quantity as usize);
+        let mut cur = Cursor::new(data);
+        let byte_count = cur.read_u8().unwrap();
+
+        while let Ok(value) = cur.read_u8() {
+            let num_bits_to_extract = cmp::min(req.quantity - statuses.len() as u16, 8) as u8;
+
+            for i in 0..num_bits_to_extract {
+                let bit_value = (value >> i) & 0x01 != 0;
+                statuses.push(bit_value);
+            }
+        }
+
+        Some(ReadCoilsResponse { statuses })
     }
 }

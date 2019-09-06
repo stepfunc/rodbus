@@ -4,12 +4,12 @@ use crate::requests::*;
 use tokio::sync::{mpsc, oneshot};
 
 pub struct Session {
-    id: u16,
+    id: u8,
     channel_tx: mpsc::Sender<Request>,
 }
 
 impl Session {
-    pub(crate) fn new(id: u16, channel_tx: mpsc::Sender<Request>) -> Self {
+    pub(crate) fn new(id: u8, channel_tx: mpsc::Sender<Request>) -> Self {
         Session { id, channel_tx }
     }
 
