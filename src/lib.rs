@@ -7,7 +7,9 @@ pub mod channel;
 pub mod requests;
 pub mod session;
 
+
 mod requests_info;
+mod format;
 
 /// General error type
 #[derive(Debug)]
