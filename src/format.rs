@@ -4,11 +4,11 @@ use std::io::{Cursor, Write};
 use byteorder::{BE, ReadBytesExt, WriteBytesExt};
 
 pub (crate) trait Format {
-  fn format<W: Write>(self: &Self, cursor: &mut W) -> Result<usize, std::io::Error>;
+  fn format(self: &Self, cursor: &mut Write) -> Result<u8, std::io::Error>;
 }
 
 impl Format for ReadCoilsRequest {
-  fn format<W: Write>(self: &Self, cursor: &mut W) -> Result<usize, std::io::Error> {
+  fn format(self: &Self, cursor: &mut Write) -> Result<u8, std::io::Error> {
     cursor.write_u8(Self::func_code())?;
     cursor.write_u16::<BE>(self.start)?;
     cursor.write_u16::<BE>(self.quantity)?;
@@ -20,7 +20,6 @@ impl Format for ReadCoilsRequest {
 mod tests {
   use crate::requests::ReadCoilsRequest;
   use crate::format::Format;
-  use tokio::io::ErrorKind;
 
   #[test]
   fn correctly_formats_read_coils_with_minimum_buffer_length() {

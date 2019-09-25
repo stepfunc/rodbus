@@ -10,6 +10,7 @@ pub mod session;
 
 mod requests_info;
 mod format;
+mod frame;
 
 /// General error type
 #[derive(Debug)]
