@@ -1,7 +1,6 @@
 use crate::Error;
 
 impl std::convert::From<std::io::Error> for Error {
-
     fn from(err: std::io::Error) -> Self {
         Error::Stdio(err)
     }

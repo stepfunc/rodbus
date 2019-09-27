@@ -1,12 +1,9 @@
 use crate::format::Format;
 
-use std::io::{Cursor, Write, Seek, SeekFrom};
+use std::io::{Seek, SeekFrom};
 use std::convert::TryFrom;
-use byteorder::{BE, ReadBytesExt, WriteBytesExt};
-use std::num::TryFromIntError;
-use tokio::io::ErrorKind;
+use byteorder::{BE, WriteBytesExt};
 
-use crate::error_conversion;
 
 /**
 *  Defines an interface for writing complete frames (TCP or RTU)
@@ -27,7 +24,7 @@ impl MBAPFrameFormatter {
     // the maximum frame size
     const MAX_FRAME_SIZE : usize = Self::HEADER_LENGTH + Self::MAX_PDU_SIZE;
 
-    pub (crate) fn new() -> Box<dyn FrameFormatter> {
+    pub fn new() -> Box<dyn FrameFormatter> {
         Box::new(MBAPFrameFormatter{ buffer: [0; MBAPFrameFormatter::MAX_FRAME_SIZE]})
     }
 }
@@ -58,11 +55,9 @@ impl FrameFormatter for MBAPFrameFormatter {
 #[cfg(test)]
 mod tests {
     use crate::frame::MBAPFrameFormatter;
-    use crate::requests::ReadCoilsRequest;
     use crate::format::Format;
-    use byteorder::WriteBytesExt;
-    use tokio::io::ErrorKind;
     use crate::error::Error;
+
 
     struct TestData<'a> {
         bytes: &'a[u8]

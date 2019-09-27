@@ -5,11 +5,11 @@ use byteorder::{BE, WriteBytesExt};
 use crate::error::Error;
 
 pub (crate) trait Format {
-  fn format(self: &Self, cursor: &mut Write) -> Result<(), Error>;
+  fn format(self: &Self, cursor: &mut dyn Write) -> Result<(), Error>;
 }
 
 impl Format for ReadCoilsRequest {
-  fn format(self: &Self, cursor: &mut Write) -> Result<(), Error> {
+  fn format(self: &Self, cursor: &mut dyn Write) -> Result<(), Error> {
     cursor.write_u8(Self::func_code())?;
     cursor.write_u16::<BE>(self.start)?;
     cursor.write_u16::<BE>(self.quantity)?;
