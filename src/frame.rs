@@ -1,13 +1,16 @@
 use crate::format::Format;
 
 use std::io::{Cursor, Write, Seek, SeekFrom};
+use std::convert::TryFrom;
 use byteorder::{BE, ReadBytesExt, WriteBytesExt};
+use std::num::TryFromIntError;
+use tokio::io::ErrorKind;
 
 /**
 *  Defines an interface for writing complete frames (TCP or RTU)
 */
 pub (crate) trait FrameFormatter {
-    fn format(self: &mut Self, tx_id : u16, unit_id: u8, msg: &Format) -> Result<&[u8], std::io::Error>;
+    fn format(self: &mut Self, tx_id : u16, unit_id: u8, msg: & dyn Format) -> Result<&[u8], std::io::Error>;
 }
 
 pub (crate) struct MBAPFrameFormatter {
@@ -28,17 +31,23 @@ impl MBAPFrameFormatter {
 }
 
 impl FrameFormatter for MBAPFrameFormatter {
-    fn format(self: &mut Self, tx_id: u16, unit_id: u8, msg: &Format) -> Result<&[u8], std::io::Error> {
+    fn format(self: &mut Self, tx_id: u16, unit_id: u8, msg: & dyn Format) -> Result<&[u8], std::io::Error> {
         let mut cursor = std::io::Cursor::new(self.buffer.as_mut());
         cursor.write_u16::<BE>(tx_id)?;
         cursor.write_u16::<BE>(0)?;
         cursor.seek(SeekFrom::Current(2))?; // write the length later
         cursor.write_u8(unit_id)?;
 
-        let length = msg.format(&mut cursor)?;
+
+        let start = cursor.position();
+        msg.format(&mut cursor)?;
+        let adu_length = cursor.position() - start;
+
+        let frame_length_value = u16::try_from(adu_length + 1).map_err(|e| std::io::Error::from(ErrorKind::InvalidInput))?;
         cursor.seek(SeekFrom::Start(4))?;
-        cursor.write_u16::<BE>(length as u16 + 1)?;
-        let total_length = Self::HEADER_LENGTH + length as usize;
+        cursor.write_u16::<BE>(frame_length_value)?;
+
+        let total_length = Self::HEADER_LENGTH + adu_length as usize;
 
         Ok((&self.buffer[.. total_length]))
     }
@@ -58,13 +67,12 @@ mod tests {
     }
 
     impl<'a> Format for TestData<'a> {
-        fn format(self: &Self, cursor: &mut std::io::Write) -> Result<u8, std::io::Error> {
+        fn format(self: &Self, cursor: &mut dyn std::io::Write) -> Result<(), std::io::Error> {
             if self.bytes.len() > 255 {
                 return Err(std::io::Error::from(ErrorKind::InvalidData))
             }
 
-            cursor.write(self.bytes)?;
-            Ok((self.bytes.len() as u8))
+            cursor.write(self.bytes).map(|x| ())
         }
     }
 
