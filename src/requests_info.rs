@@ -18,8 +18,8 @@ impl RequestInfo for ReadCoilsRequest {
     }
 
     fn serialize<W: Write>(&self, cur: &mut W) -> Result<()> {
-        cur.write_u16::<BE>(self.start).map_err(|_| Error::Serialization)?;
-        cur.write_u16::<BE>(self.quantity).map_err(|_| Error::Serialization)?;
+        cur.write_u16::<BE>(self.start)?;
+        cur.write_u16::<BE>(self.quantity)?;
         Ok(())
     }
 }
@@ -27,13 +27,13 @@ impl RequestInfo for ReadCoilsRequest {
 pub trait ResponseInfo: Sized {
     type RequestType;
 
-    fn parse(data: &[u8], req: &Self::RequestType) -> Option<Self>;
+    fn parse(data: &[u8], req: &Self::RequestType) -> Result<Self>;
 }
 
 impl ResponseInfo for ReadCoilsResponse {
     type RequestType = ReadCoilsRequest;
 
-    fn parse(data: &[u8], req: &ReadCoilsRequest) -> Option<Self> {
+    fn parse(data: &[u8], req: &ReadCoilsRequest) -> Result<Self> {
         // TODO: lots of validation
         let mut statuses = Vec::<bool>::with_capacity(req.quantity as usize);
         let mut cur = Cursor::new(data);
@@ -48,6 +48,6 @@ impl ResponseInfo for ReadCoilsResponse {
             }
         }
 
-        Some(ReadCoilsResponse { statuses })
+        Ok(ReadCoilsResponse { statuses })
     }
 }

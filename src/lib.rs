@@ -8,26 +8,20 @@ pub mod requests;
 pub mod session;
 
 mod requests_info;
-mod format;
-mod frame;
+mod error_conversion;
 
-/// General error type
-#[derive(Clone, Copy, Debug)]
+#[derive(Debug)]
 pub enum Error {
-    /// Connection error
-    Connect,
-    /// Error while serializing the request
-    Serialization,
-    /// Error while sending bytes
-    Tx,
-    /// Error while receiving bytes from the network
-    Rx,
+    InsufficientBuffer,
+    BadSize,
+    ChannelClosed,
+    Stdio(std::io::Error)
 }
 
 /// Result type used everywhere in this library
 pub type Result<T> = std::result::Result<T, Error>;
 
-/// Entrypoint of the library.
+/// Entry point of the library.
 ///
 /// Create a single manager with a runtime, then use it to
 /// create channels and associated sessions. They will all

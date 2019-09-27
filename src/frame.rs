@@ -6,11 +6,13 @@ use byteorder::{BE, ReadBytesExt, WriteBytesExt};
 use std::num::TryFromIntError;
 use tokio::io::ErrorKind;
 
+use crate::error_conversion;
+
 /**
 *  Defines an interface for writing complete frames (TCP or RTU)
 */
 pub (crate) trait FrameFormatter {
-    fn format(self: &mut Self, tx_id : u16, unit_id: u8, msg: & dyn Format) -> Result<&[u8], std::io::Error>;
+    fn format(self: &mut Self, tx_id : u16, unit_id: u8, msg: & dyn Format) -> Result<&[u8], crate::error::Error>;
 }
 
 pub (crate) struct MBAPFrameFormatter {
@@ -31,7 +33,7 @@ impl MBAPFrameFormatter {
 }
 
 impl FrameFormatter for MBAPFrameFormatter {
-    fn format(self: &mut Self, tx_id: u16, unit_id: u8, msg: & dyn Format) -> Result<&[u8], std::io::Error> {
+    fn format(self: &mut Self, tx_id: u16, unit_id: u8, msg: & dyn Format) -> Result<&[u8], crate::error::Error> {
         let mut cursor = std::io::Cursor::new(self.buffer.as_mut());
         cursor.write_u16::<BE>(tx_id)?;
         cursor.write_u16::<BE>(0)?;
@@ -42,7 +44,7 @@ impl FrameFormatter for MBAPFrameFormatter {
         msg.format(&mut cursor)?;
         let adu_length = cursor.position() - start;
 
-        let frame_length_value = u16::try_from(adu_length + 1).map_err(|e| std::io::Error::from(ErrorKind::InvalidInput))?;
+        let frame_length_value = u16::try_from(adu_length + 1)?;
         cursor.seek(SeekFrom::Start(4))?;
         cursor.write_u16::<BE>(frame_length_value)?;
 
@@ -60,18 +62,16 @@ mod tests {
     use crate::format::Format;
     use byteorder::WriteBytesExt;
     use tokio::io::ErrorKind;
+    use crate::error::Error;
 
     struct TestData<'a> {
         bytes: &'a[u8]
     }
 
     impl<'a> Format for TestData<'a> {
-        fn format(self: &Self, cursor: &mut dyn std::io::Write) -> Result<(), std::io::Error> {
-            if self.bytes.len() > 255 {
-                return Err(std::io::Error::from(ErrorKind::InvalidData))
-            }
-
-            cursor.write(self.bytes).map(|x| ())
+        fn format(self: &Self, cursor: &mut dyn std::io::Write) -> Result<(), Error> {
+            cursor.write(self.bytes)?;
+            Ok(())
         }
     }
 

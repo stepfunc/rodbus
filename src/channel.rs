@@ -103,19 +103,22 @@ impl ChannelServer {
 
     async fn handle<Req: RequestInfo>(&mut self, req: &RequestWrapper<Req>) -> Result<Req::ResponseType> {
         if self.socket.is_none() {
-            self.socket = TcpStream::connect(self.addr).await.ok();
+            let stream = TcpStream::connect(self.addr).await?;
+            self.socket = Some(stream);
         }
-        let socket = self.socket.as_mut().ok_or_else(|| Error::Connect)?;
+
+        // can't make it here w/o the socket being Some
+        let socket = self.socket.as_mut().unwrap();
 
         // Serialize request
         let msg = Self::write_request(&mut self.buffer, req.id, 0x0000, &req.argument)?;
 
         // Send message
-        socket.write(msg).await.map_err(|_| Error::Tx)?;
+        socket.write(msg).await?;
 
         // Read the MBAP header
         let slice = &mut self.buffer[..MBAP_SIZE + 1];
-        socket.read_exact(slice).await.map_err(|_| Error::Rx)?;
+        socket.read_exact(slice).await?;
         let mut cur = Cursor::new(slice);
         let transaction_id = cur.read_u16::<BE>().unwrap();
         let protocol_id = cur.read_u16::<BE>().unwrap();
@@ -126,34 +129,27 @@ impl ChannelServer {
 
         // Read actual response
         let slice = &mut self.buffer[..length as usize - 2];
-        socket.read_exact(slice).await.map_err(|_| Error::Rx)?;
-        Req::ResponseType::parse(slice, &req.argument).ok_or(Error::Rx)
+        socket.read_exact(slice).await?;
+        Req::ResponseType::parse(slice, &req.argument)
     }
-
-    /*async fn try_open_socket<'a>(addr: &SocketAddr, socket: Option<TcpStream>) -> Result<&'a mut TcpStream> {
-        if socket.is_none() {
-            socket = TcpStream::connect(addr).await.ok();
-        }
-        socket.as_mut().ok_or(Error::Connect)
-    }*/
 
     fn write_request<'a, Req: RequestInfo>(buffer: &'a mut [u8], id: UnitIdentifier, transaction_id: u16, req: &Req) -> Result<&'a [u8]> {
         let mut cur = Cursor::new(buffer.as_mut());
 
         // Write MBAP header
-        cur.write_u16::<BE>(transaction_id).map_err(|_| Error::Serialization)?;
-        cur.write_u16::<BE>(0x0000).map_err(|_| Error::Serialization)?;
-        cur.seek(SeekFrom::Current(2)).map_err(|_| Error::Serialization)?; // Length will be written afterwards
-        cur.write_u8(id.value()).map_err(|_| Error::Serialization)?;
+        cur.write_u16::<BE>(transaction_id)?;
+        cur.write_u16::<BE>(0x0000)?;
+        cur.seek(SeekFrom::Current(2))?; // Length will be written afterwards
+        cur.write_u8(id.value())?;
 
         // Write the PDU
-        cur.write_u8(Req::func_code()).map_err(|_| Error::Serialization)?;
-        req.serialize(&mut cur).map_err(|_| Error::Serialization)?;
+        cur.write_u8(Req::func_code())?;
+        req.serialize(&mut cur)?;
 
         // Write the length of the request
         let length = cur.position() as usize - MBAP_SIZE + 1;
-        cur.seek(SeekFrom::Start(4)).map_err(|_| Error::Serialization)?;
-        cur.write_u16::<BE>(length as u16).map_err(|_| Error::Serialization)?;
+        cur.seek(SeekFrom::Start(4))?;
+        cur.write_u16::<BE>(length as u16)?;
 
         Ok(&buffer[..MBAP_SIZE + length])
     }

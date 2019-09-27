@@ -35,8 +35,8 @@ impl Session {
     pub async fn read_coils(&mut self, request: ReadCoilsRequest) -> Result<ReadCoilsResponse> {
         let (tx, rx) = oneshot::channel::<Result<ReadCoilsResponse>>();
         let request = Request::ReadCoils(RequestWrapper::new(self.id, request, tx));
-        self.channel_tx.send(request).await.map_err(|_| Error::Tx)?;
-        let result = rx.await.map_err(|_| { Error::Rx })?;
+        self.channel_tx.send(request).await?;
+        let result = rx.await?;
         result
     }
 }
