@@ -10,6 +10,10 @@ use tokio::sync::mpsc;
 use tokio::sync::oneshot;
 use std::io::{Cursor, Seek, SeekFrom};
 use std::net::SocketAddr;
+use std::cell::{RefCell, RefMut};
+use std::borrow::BorrowMut;
+use std::rc::Rc;
+use std::sync::Arc;
 
 /// All the possible requests that can be sent through the channel
 pub(crate) enum Request {
@@ -90,44 +94,48 @@ impl ChannelServer {
 
     async fn handle_request<Req: RequestInfo>(&mut self, req: RequestWrapper<Req>) {
         let result = self.handle(&req).await;
+        if result.is_err() {
+            // TODO: Add ModbusError
+            self.socket = None;
+        }
         req.reply_to.send(result);
     }
 
     async fn handle<Req: RequestInfo>(&mut self, req: &RequestWrapper<Req>) -> Result<Req::ResponseType> {
-        self.try_open_socket().await;
-        if let Some(socket) = &mut self.socket {
-            // Serialize request
-            let msg = Self::write_request(&mut self.buffer, req.id, 0x0000, &req.argument)?;
-
-            // Send message
-            socket.write(msg).await.map_err(|_| Error::Tx)?;
-
-            // Read the MBAP header
-            let slice = &mut self.buffer[..MBAP_SIZE + 1];
-            socket.read_exact(slice).await.map_err(|_| Error::Rx)?;
-            let mut cur = Cursor::new(slice);
-            let transaction_id = cur.read_u16::<BE>().unwrap();
-            let protocol_id = cur.read_u16::<BE>().unwrap();
-            let length = cur.read_u16::<BE>().unwrap();
-            let unit_id = cur.read_u8().unwrap();
-            let func_code = cur.read_u8().unwrap();
-            // TODO: Validate stuff
-
-            // Read actual response
-            let slice = &mut self.buffer[..length as usize - 2];
-            socket.read_exact(slice).await.map_err(|_| Error::Rx)?;
-            Req::ResponseType::parse(slice, &req.argument).ok_or(Error::Rx)
-        }
-        else {
-            Err(Error::Connect)
-        }
-    }
-
-    async fn try_open_socket(&mut self) {
         if self.socket.is_none() {
             self.socket = TcpStream::connect(self.addr).await.ok();
         }
+        let socket = self.socket.as_mut().ok_or_else(|| Error::Connect)?;
+
+        // Serialize request
+        let msg = Self::write_request(&mut self.buffer, req.id, 0x0000, &req.argument)?;
+
+        // Send message
+        socket.write(msg).await.map_err(|_| Error::Tx)?;
+
+        // Read the MBAP header
+        let slice = &mut self.buffer[..MBAP_SIZE + 1];
+        socket.read_exact(slice).await.map_err(|_| Error::Rx)?;
+        let mut cur = Cursor::new(slice);
+        let transaction_id = cur.read_u16::<BE>().unwrap();
+        let protocol_id = cur.read_u16::<BE>().unwrap();
+        let length = cur.read_u16::<BE>().unwrap();
+        let unit_id = cur.read_u8().unwrap();
+        let func_code = cur.read_u8().unwrap();
+        // TODO: Validate stuff
+
+        // Read actual response
+        let slice = &mut self.buffer[..length as usize - 2];
+        socket.read_exact(slice).await.map_err(|_| Error::Rx)?;
+        Req::ResponseType::parse(slice, &req.argument).ok_or(Error::Rx)
     }
+
+    /*async fn try_open_socket<'a>(addr: &SocketAddr, socket: Option<TcpStream>) -> Result<&'a mut TcpStream> {
+        if socket.is_none() {
+            socket = TcpStream::connect(addr).await.ok();
+        }
+        socket.as_mut().ok_or(Error::Connect)
+    }*/
 
     fn write_request<'a, Req: RequestInfo>(buffer: &'a mut [u8], id: UnitIdentifier, transaction_id: u16, req: &Req) -> Result<&'a [u8]> {
         let mut cur = Cursor::new(buffer.as_mut());

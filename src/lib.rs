@@ -7,13 +7,12 @@ pub mod channel;
 pub mod requests;
 pub mod session;
 
-
 mod requests_info;
 mod format;
 mod frame;
 
 /// General error type
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug)]
 pub enum Error {
     /// Connection error
     Connect,

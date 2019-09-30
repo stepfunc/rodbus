@@ -38,7 +38,6 @@ impl FrameFormatter for MBAPFrameFormatter {
         cursor.seek(SeekFrom::Current(2))?; // write the length later
         cursor.write_u8(unit_id)?;
 
-
         let start = cursor.position();
         msg.format(&mut cursor)?;
         let adu_length = cursor.position() - start;
@@ -49,7 +48,7 @@ impl FrameFormatter for MBAPFrameFormatter {
 
         let total_length = Self::HEADER_LENGTH + adu_length as usize;
 
-        Ok((&self.buffer[.. total_length]))
+        Ok(&self.buffer[.. total_length])
     }
 }
 

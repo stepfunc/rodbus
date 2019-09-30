@@ -8,6 +8,7 @@ use modbus_rs::session::UnitIdentifier;
 fn main() {
     let rt = Rc::new(Runtime::new().expect("unable to create runtime."));
     let manager = ModbusManager::new(rt.clone());
+    // TODO: Move the to_socket_addrs thing to when we connect and do it async
     let channel = manager.create_channel("127.0.0.1:8080".to_socket_addrs().expect("Invalid socket address").next().unwrap());
     let mut session = channel.create_session(UnitIdentifier::new(0x02));
 
