@@ -1,3 +1,4 @@
+use crate::{Error, Result};
 use crate::requests::*;
 use byteorder::{BE, ReadBytesExt, WriteBytesExt};
 use std::cmp;
@@ -6,7 +7,7 @@ use std::io::{Cursor, Write};
 pub trait RequestInfo: Sized {
     type ResponseType: ResponseInfo<RequestType = Self>;
     fn func_code() -> u8;
-    fn serialize<W: Write>(&self, cur: &mut W);
+    fn serialize<W: Write>(&self, cur: &mut W) -> Result<()>;
 }
 
 impl RequestInfo for ReadCoilsRequest {
@@ -16,9 +17,10 @@ impl RequestInfo for ReadCoilsRequest {
         0x01
     }
 
-    fn serialize<W: Write>(&self, cur: &mut W) {
-        cur.write_u16::<BE>(self.start);
-        cur.write_u16::<BE>(self.quantity);
+    fn serialize<W: Write>(&self, cur: &mut W) -> Result<()> {
+        cur.write_u16::<BE>(self.start).map_err(|_| Error::Serialization)?;
+        cur.write_u16::<BE>(self.quantity).map_err(|_| Error::Serialization)?;
+        Ok(())
     }
 }
 

@@ -3,13 +3,32 @@ use crate::channel::{Request, RequestWrapper};
 use crate::requests::*;
 use tokio::sync::{mpsc, oneshot};
 
-pub struct Session {
+#[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
+pub struct UnitIdentifier {
     id: u8,
+}
+
+impl UnitIdentifier {
+    pub fn new(unit_id: u8) -> Self {
+        Self { id: unit_id }
+    }
+
+    pub fn default() -> Self {
+        Self { id: 0xFF }
+    }
+
+    pub fn value(&self) -> u8 {
+        self.id
+    }
+}
+
+pub struct Session {
+    id: UnitIdentifier,
     channel_tx: mpsc::Sender<Request>,
 }
 
 impl Session {
-    pub(crate) fn new(id: u8, channel_tx: mpsc::Sender<Request>) -> Self {
+    pub(crate) fn new(id: UnitIdentifier, channel_tx: mpsc::Sender<Request>) -> Self {
         Session { id, channel_tx }
     }
 

@@ -1,7 +1,7 @@
 use crate::{Error, Result};
 use crate::requests::*;
 use crate::requests_info::*;
-use crate::session::Session;
+use crate::session::{Session, UnitIdentifier};
 use byteorder::{BE, ReadBytesExt, WriteBytesExt};
 use tokio::io::{AsyncWriteExt, AsyncReadExt};
 use tokio::net::TcpStream;
@@ -21,13 +21,13 @@ pub(crate) enum Request {
 /// It contains the session ID, the actual request and
 /// a oneshot channel to receive the reply.
 pub(crate) struct RequestWrapper<T: RequestInfo> {
-    id: u8,
+    id: UnitIdentifier,
     argument : T,
     reply_to : oneshot::Sender<Result<T::ResponseType>>,
 }
 
 impl<T: RequestInfo> RequestWrapper<T> {
-    pub fn new(id: u8, argument : T, reply_to : oneshot::Sender<Result<T::ResponseType>>) -> Self {
+    pub fn new(id: UnitIdentifier, argument : T, reply_to : oneshot::Sender<Result<T::ResponseType>>) -> Self {
         Self { id, argument, reply_to }
     }
 }
@@ -47,7 +47,7 @@ impl Channel {
         Channel { tx  }
     }
 
-    pub fn create_session(&self, id: u8) -> Session {
+    pub fn create_session(&self, id: UnitIdentifier) -> Session {
         Session::new(id, self.tx.clone())
     }
 
@@ -57,6 +57,23 @@ impl Channel {
         let mut server = ChannelServer::new(rx, addr);
         server.run().await;
     }
+}
+
+struct MbapHeader {
+    pub transaction_id: u16,
+    pub protocol_id: u16,
+    pub length: u16,
+    pub unit_id: UnitIdentifier,
+}
+
+impl MbapHeader {
+    pub fn write_to(&self, buffer: &mut [u8]) -> Result<()> {
+
+    }
+}
+
+struct MbapMessage {
+
 }
 
 const MAX_PDU_SIZE: usize = 253;
@@ -96,25 +113,11 @@ impl ChannelServer {
     async fn handle<Req: RequestInfo>(&mut self, req: &RequestWrapper<Req>) -> Result<Req::ResponseType> {
         self.try_open_socket().await;
         if let Some(socket) = &mut self.socket {
-            // TODO: check serialization results
-            // Write MBAP header
-            let mut cur = Cursor::new(self.buffer.as_mut());
-            cur.write_u16::<BE>(0x0000); // TODO: Write real transaction ID
-            cur.write_u16::<BE>(0x0000);
-            cur.seek(SeekFrom::Current(2)); // Length will be written afterwards
-            cur.write_u8(req.id);
-
-            // Write the PDU
-            cur.write_u8(Req::func_code());
-            req.argument.serialize(&mut cur);
-
-            // Write the length of the request
-            let length = cur.position() as usize - MBAP_SIZE + 1;
-            cur.seek(SeekFrom::Start(4));
-            cur.write_u16::<BE>(length as u16);
+            // Serialize request
+            let msg = Self::write_request(&mut self.buffer, req.id, 0x0000, &req.argument)?;
 
             // Send message
-            socket.write(&self.buffer).await.map_err(|_| Error::Tx)?;
+            socket.write(msg).await.map_err(|_| Error::Tx)?;
 
             // Read the MBAP header
             let slice = &mut self.buffer[..MBAP_SIZE + 1];
@@ -141,5 +144,26 @@ impl ChannelServer {
         if self.socket.is_none() {
             self.socket = TcpStream::connect(self.addr).await.ok();
         }
+    }
+
+    fn write_request<'a, Req: RequestInfo>(buffer: &'a mut [u8], id: UnitIdentifier, transaction_id: u16, req: &Req) -> Result<&'a [u8]> {
+        let mut cur = Cursor::new(buffer.as_mut());
+
+        // Write MBAP header
+        cur.write_u16::<BE>(transaction_id).map_err(|_| Error::Serialization)?;
+        cur.write_u16::<BE>(0x0000).map_err(|_| Error::Serialization)?;
+        cur.seek(SeekFrom::Current(2)).map_err(|_| Error::Serialization)?; // Length will be written afterwards
+        cur.write_u8(id.value()).map_err(|_| Error::Serialization)?;
+
+        // Write the PDU
+        cur.write_u8(Req::func_code()).map_err(|_| Error::Serialization)?;
+        req.serialize(&mut cur).map_err(|_| Error::Serialization)?;
+
+        // Write the length of the request
+        let length = cur.position() as usize - MBAP_SIZE + 1;
+        cur.seek(SeekFrom::Start(4)).map_err(|_| Error::Serialization)?;
+        cur.write_u16::<BE>(length as u16).map_err(|_| Error::Serialization)?;
+
+        Ok(&buffer[..MBAP_SIZE + length])
     }
 }

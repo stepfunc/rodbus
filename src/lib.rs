@@ -14,6 +14,8 @@ mod requests_info;
 pub enum Error {
     /// Connection error
     Connect,
+    /// Error while serializing the request
+    Serialization,
     /// Error while sending bytes
     Tx,
     /// Error while receiving bytes from the network
