@@ -59,23 +59,6 @@ impl Channel {
     }
 }
 
-struct MbapHeader {
-    pub transaction_id: u16,
-    pub protocol_id: u16,
-    pub length: u16,
-    pub unit_id: UnitIdentifier,
-}
-
-impl MbapHeader {
-    pub fn write_to(&self, buffer: &mut [u8]) -> Result<()> {
-
-    }
-}
-
-struct MbapMessage {
-
-}
-
 const MAX_PDU_SIZE: usize = 253;
 const MBAP_SIZE: usize = 7;
 const MAX_ADU_SIZE: usize = MAX_PDU_SIZE + MBAP_SIZE;
