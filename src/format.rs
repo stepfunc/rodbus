@@ -26,24 +26,25 @@ mod tests {
   use super::*;
   use crate::{Error, LogicError};
 
+  fn write_to_buffer(buf: &mut [u8]) -> Result<u64> {
+      let mut cursor = std::io::Cursor::new(buf);
+      let request = ReadCoilsRequest::new(7, 511);
+      let start = cursor.position();
+      request.format(&mut cursor)?;
+      Ok(cursor.position() - start)
+  }
+
   #[test]
   fn correctly_formats_read_coils_with_minimum_buffer_length() {
      let mut buffer : [u8; 5] = [0; 5];
-     let mut cursor = std::io::Cursor::new(buffer.as_mut());
-     let request = ReadCoilsRequest::new(7, 511);
-     let start = cursor.position();
-     request.format(&mut cursor).unwrap();
-     let length = cursor.position() - start;
-     assert_eq!(length, 5);
+     assert_eq!(write_to_buffer(buffer.as_mut()).unwrap(), 5);
      assert_eq!(&buffer, &[0x01, 0x00, 0x07, 0x01, 0xFF]);
   }
 
   #[test]
   fn fails_with_expected_error_on_insufficient_buffer_length() {
     let mut buffer : [u8; 4] = [0; 4];
-    let mut cursor = std::io::Cursor::new(buffer.as_mut());
-    let request = ReadCoilsRequest::new(7, 511);
-    assert_matches!(request.format(&mut cursor), Err(Error::Logic(LogicError::InsufficientBuffer)));
+    assert_matches!(write_to_buffer(buffer.as_mut()), Err(Error::Logic(LogicError::InsufficientBuffer)));
   }
 
 }
