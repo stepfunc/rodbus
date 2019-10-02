@@ -1,4 +1,4 @@
-use crate::Error;
+use crate::{Error, LogicError};
 
 impl std::convert::From<std::io::Error> for Error {
     fn from(err: std::io::Error) -> Self {
@@ -6,9 +6,15 @@ impl std::convert::From<std::io::Error> for Error {
     }
 }
 
+impl std::convert::From<crate::LogicError> for Error {
+    fn from(err: crate::LogicError) -> Self {
+        Error::Logic(err)
+    }
+}
+
 impl std::convert::From<std::num::TryFromIntError> for Error {
     fn from(_: std::num::TryFromIntError) -> Self {
-        Error::BadSize
+        Error::Logic(LogicError::BadWriteSize)
     }
 }
 

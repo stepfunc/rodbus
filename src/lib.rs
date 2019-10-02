@@ -1,4 +1,9 @@
 use crate::channel::Channel;
+
+#[macro_use]
+#[cfg(test)]
+extern crate assert_matches;
+
 use tokio::runtime::Runtime;
 use std::net::SocketAddr;
 use std::rc::Rc;
@@ -9,13 +14,38 @@ pub mod session;
 
 mod requests_info;
 mod error_conversion;
+mod format;
+
+/// errors that should only occur
+/// if there is a logic error in the library
+/// but need to be handled regardless
+#[derive(Debug)]
+pub enum LogicError {
+    /// We tried to write
+    InsufficientBuffer,
+    /// Frame or ADU had a bad size (outgoing)
+    BadWriteSize,
+    /// Logic error from underlying type that couldn't be converted
+    Stdio(std::io::Error)
+}
+
+impl LogicError {
+    pub fn from(err: std::io::Error) -> LogicError {
+        match err.kind() {
+            std::io::ErrorKind::WriteZero => LogicError::InsufficientBuffer,
+            _ => LogicError::Stdio(err)
+        }
+    }
+}
 
 #[derive(Debug)]
 pub enum Error {
-    InsufficientBuffer,
-    BadSize,
+    /// We just bubble up std errors from reading/writing/connecting/etc
+    Stdio(std::io::Error),
+    /// Logic errors that shouldn't happen
+    Logic(LogicError),
+    /// Occurs when a channel is used after close
     ChannelClosed,
-    Stdio(std::io::Error)
 }
 
 /// Result type used everywhere in this library
