@@ -15,6 +15,8 @@ pub mod session;
 mod requests_info;
 mod error_conversion;
 mod format;
+mod frame;
+mod cursor;
 
 /// errors that should only occur
 /// if there is a logic error in the library
@@ -25,6 +27,8 @@ pub enum LogicError {
     InsufficientBuffer,
     /// Frame or ADU had a bad size (outgoing)
     BadWriteSize,
+    /// Bad cursor seek
+    InvalidSeek,
     /// Logic error from underlying type that couldn't be converted
     Stdio(std::io::Error)
 }
@@ -33,6 +37,7 @@ impl LogicError {
     pub fn from(err: std::io::Error) -> LogicError {
         match err.kind() {
             std::io::ErrorKind::WriteZero => LogicError::InsufficientBuffer,
+            std::io::ErrorKind::InvalidInput => LogicError::InvalidSeek,
             _ => LogicError::Stdio(err)
         }
     }

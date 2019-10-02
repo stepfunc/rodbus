@@ -1,21 +1,26 @@
 
+use crate::Result;
 use crate::requests_info::*;
 use crate::requests::ReadCoilsRequest;
-use std::io::Write;
-use byteorder::{BE, WriteBytesExt};
-use crate::{Result, Error, LogicError};
+use crate::cursor::Cursor;
 
 
+pub trait Format {
 
-pub (crate) trait Format {
-  fn format(self: &Self, cursor: &mut dyn Write) -> Result<()>;
+  fn format(self: &Self, cursor: &mut Cursor) -> Result<()>;
+
+  fn format_with_length(self: &Self, cursor: &mut Cursor) -> Result<u64> {
+      let start = cursor.position();
+      self.format(cursor)?;
+      Ok(cursor.position() - start)
+  }
 }
 
 impl Format for ReadCoilsRequest {
-  fn format(self: &Self, cursor: &mut dyn Write) -> Result<()> {
-    cursor.write_u8(Self::func_code()).map_err(LogicError::from)?;
-    cursor.write_u16::<BE>(self.start).map_err(LogicError::from)?;
-    cursor.write_u16::<BE>(self.quantity).map_err(LogicError::from)?;
+  fn format(self: &Self, cursor: &mut Cursor) -> Result<()> {
+    cursor.write_u8(Self::func_code())?;
+    cursor.write_u16(self.start)?;
+    cursor.write_u16(self.quantity)?;
     Ok(())
   }
 }
@@ -27,7 +32,7 @@ mod tests {
   use crate::{Error, LogicError};
 
   fn write_to_buffer(buf: &mut [u8]) -> Result<u64> {
-      let mut cursor = std::io::Cursor::new(buf);
+      let mut cursor = Cursor::new(buf);
       let request = ReadCoilsRequest::new(7, 511);
       let start = cursor.position();
       request.format(&mut cursor)?;
