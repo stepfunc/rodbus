@@ -1,4 +1,4 @@
-use crate::{Error, Result};
+use crate::Result;
 use crate::channel::{Request, RequestWrapper};
 use crate::requests::*;
 use tokio::sync::{mpsc, oneshot};

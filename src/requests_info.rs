@@ -1,4 +1,4 @@
-use crate::{Error, Result};
+use crate::Result;
 use crate::requests::*;
 use byteorder::{BE, ReadBytesExt, WriteBytesExt};
 use std::cmp;

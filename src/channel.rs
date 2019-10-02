@@ -1,4 +1,4 @@
-use crate::{Error, Result};
+use crate::Result;
 use crate::requests::*;
 use crate::requests_info::*;
 use crate::session::{Session, UnitIdentifier};
@@ -10,10 +10,6 @@ use tokio::sync::mpsc;
 use tokio::sync::oneshot;
 use std::io::{Cursor, Seek, SeekFrom};
 use std::net::SocketAddr;
-use std::cell::{RefCell, RefMut};
-use std::borrow::BorrowMut;
-use std::rc::Rc;
-use std::sync::Arc;
 
 /// All the possible requests that can be sent through the channel
 pub(crate) enum Request {
@@ -98,7 +94,7 @@ impl ChannelServer {
             // TODO: Add ModbusError
             self.socket = None;
         }
-        req.reply_to.send(result);
+        req.reply_to.send(result).ok();
     }
 
     async fn handle<Req: RequestInfo>(&mut self, req: &RequestWrapper<Req>) -> Result<Req::ResponseType> {
