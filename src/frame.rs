@@ -7,7 +7,7 @@ use std::convert::TryFrom;
 /**
 *  Defines an interface for writing complete frames (TCP or RTU)
 */
-pub (crate) trait FrameFormatter {
+pub (crate) trait FrameFormatter : Send { // TODO - why isn't it Send automatically?
     fn format(self: &mut Self, tx_id : u16, unit_id: u8, msg: & dyn Format) -> Result<&[u8]>;
 }
 

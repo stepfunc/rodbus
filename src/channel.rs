@@ -1,7 +1,8 @@
-use crate::{Result};
+use crate::{Result, Error};
 use crate::requests::*;
 use crate::requests_info::*;
 use crate::session::{Session, UnitIdentifier};
+use crate::frame::{FrameFormatter, MBAPFrameFormatter};
 
 use byteorder::{BE, ReadBytesExt, WriteBytesExt};
 use tokio::io::{AsyncWriteExt, AsyncReadExt};
@@ -11,6 +12,7 @@ use tokio::sync::mpsc;
 use tokio::sync::oneshot;
 use std::io::{Cursor, Seek, SeekFrom};
 use std::net::SocketAddr;
+use crate::format::Format;
 
 /// All the possible requests that can be sent through the channel
 pub(crate) enum Request {
@@ -74,11 +76,12 @@ struct ChannelServer {
     rx: mpsc::Receiver<Request>,
     socket: Option<TcpStream>,
     buffer: [u8; MAX_ADU_SIZE],
+    formatter: Box<dyn FrameFormatter>
 }
 
 impl ChannelServer {
     pub fn new(rx: mpsc::Receiver<Request>, addr: SocketAddr) -> Self {
-        Self { addr, rx, socket: None, buffer: [0; MAX_ADU_SIZE] }
+        Self { addr, rx, socket: None, buffer: [0; MAX_ADU_SIZE], formatter: MBAPFrameFormatter::new() }
     }
 
     pub async fn run(&mut self) {
@@ -89,16 +92,16 @@ impl ChannelServer {
         }
     }
 
-    async fn handle_request<Req: RequestInfo>(&mut self, req: RequestWrapper<Req>) {
+    async fn handle_request<Req: RequestInfo + Format>(&mut self, req: RequestWrapper<Req>) {
         let result = self.handle(&req).await;
-        if result.is_err() {
-            // TODO: Add ModbusError
+        if let Err(Error::Stdio(_)) = result {
+            // if any kind of io error occurs we close the socket
             self.socket = None;
         }
         req.reply_to.send(result).ok();
     }
 
-    async fn handle<Req: RequestInfo>(&mut self, req: &RequestWrapper<Req>) -> Result<Req::ResponseType> {
+    async fn handle<Req: RequestInfo + Format>(&mut self, req: &RequestWrapper<Req>) -> Result<Req::ResponseType> {
         if self.socket.is_none() {
             let stream = TcpStream::connect(self.addr).await?;
             self.socket = Some(stream);
@@ -108,7 +111,7 @@ impl ChannelServer {
         let socket = self.socket.as_mut().unwrap();
 
         // Serialize request
-        let msg = Self::write_request(&mut self.buffer, req.id, 0x0000, &req.argument)?;
+        let msg = self.formatter.format(0x0000, req.id.value(), &req.argument)?;
 
         // Send message
         socket.write(msg).await?;
