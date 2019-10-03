@@ -6,7 +6,7 @@ impl std::convert::From<std::io::Error> for Error {
     }
 }
 
-impl std::convert::From<crate::LogicError> for Error {
+impl std::convert::From<LogicError> for Error {
     fn from(err: crate::LogicError) -> Self {
         Error::Logic(err)
     }

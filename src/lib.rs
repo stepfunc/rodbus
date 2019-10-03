@@ -29,6 +29,8 @@ pub enum LogicError {
     BadWriteSize,
     /// Bad cursor seek
     InvalidSeek,
+    /// We expected a None to be Some
+    NoneError,
     /// Logic error from underlying type that couldn't be converted
     Stdio(std::io::Error)
 }

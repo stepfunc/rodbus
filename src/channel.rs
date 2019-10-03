@@ -102,13 +102,15 @@ impl ChannelServer {
     }
 
     async fn handle<Req: RequestInfo + Format>(&mut self, req: &RequestWrapper<Req>) -> Result<Req::ResponseType> {
-        if self.socket.is_none() {
-            let stream = TcpStream::connect(self.addr).await?;
-            self.socket = Some(stream);
-        }
 
-        // can't make it here w/o the socket being Some
-        let socket = self.socket.as_mut().unwrap();
+        let socket = match self.socket.as_mut() {
+            Some(s) => s,
+            None => {
+                let stream = TcpStream::connect(self.addr).await?;
+                self.socket = Some(stream);
+                self.socket.as_mut().unwrap()
+            }
+        };
 
         // Serialize request
         let msg = self.formatter.format(0x0000, req.id.value(), &req.argument)?;
@@ -132,25 +134,5 @@ impl ChannelServer {
         socket.read_exact(slice).await?;
         Req::ResponseType::parse(slice, &req.argument)
     }
-
-    fn write_request<'a, Req: RequestInfo>(buffer: &'a mut [u8], id: UnitIdentifier, transaction_id: u16, req: &Req) -> Result<&'a [u8]> {
-        let mut cur = Cursor::new(buffer.as_mut());
-
-        // Write MBAP header
-        cur.write_u16::<BE>(transaction_id)?;
-        cur.write_u16::<BE>(0x0000)?;
-        cur.seek(SeekFrom::Current(2))?; // Length will be written afterwards
-        cur.write_u8(id.value())?;
-
-        // Write the PDU
-        cur.write_u8(Req::func_code())?;
-        req.serialize(&mut cur)?;
-
-        // Write the length of the request
-        let length = cur.position() as usize - MBAP_SIZE + 1;
-        cur.seek(SeekFrom::Start(4))?;
-        cur.write_u16::<BE>(length as u16)?;
-
-        Ok(&buffer[..MBAP_SIZE + length])
-    }
+    
 }
