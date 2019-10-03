@@ -2,7 +2,7 @@ use crate::{Result, Error};
 use crate::requests::*;
 use crate::requests_info::*;
 use crate::session::{Session, UnitIdentifier};
-use crate::frame::{FrameFormatter, MBAPFrameFormatter};
+use crate::frame::{FrameHandler, MBAPFrameHandler};
 
 use byteorder::{BE, ReadBytesExt, WriteBytesExt};
 use tokio::io::{AsyncWriteExt, AsyncReadExt};
@@ -76,12 +76,12 @@ struct ChannelServer {
     rx: mpsc::Receiver<Request>,
     socket: Option<TcpStream>,
     buffer: [u8; MAX_ADU_SIZE],
-    formatter: Box<dyn FrameFormatter>
+    formatter: Box<dyn FrameHandler>
 }
 
 impl ChannelServer {
     pub fn new(rx: mpsc::Receiver<Request>, addr: SocketAddr) -> Self {
-        Self { addr, rx, socket: None, buffer: [0; MAX_ADU_SIZE], formatter: MBAPFrameFormatter::new() }
+        Self { addr, rx, socket: None, buffer: [0; MAX_ADU_SIZE], formatter: MBAPFrameHandler::new() }
     }
 
     pub async fn run(&mut self) {
@@ -134,5 +134,5 @@ impl ChannelServer {
         socket.read_exact(slice).await?;
         Req::ResponseType::parse(slice, &req.argument)
     }
-    
+
 }
