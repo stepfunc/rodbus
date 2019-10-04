@@ -4,13 +4,13 @@ use crate::requests_info::*;
 use crate::session::{Session, UnitIdentifier};
 use crate::frame::{FrameHandler, MBAPFrameHandler};
 
-use byteorder::{BE, ReadBytesExt, WriteBytesExt};
+use byteorder::{BE, ReadBytesExt};
 use tokio::io::{AsyncWriteExt, AsyncReadExt};
 use tokio::net::TcpStream;
 use tokio::runtime::Runtime;
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
-use std::io::{Cursor, Seek, SeekFrom};
+use std::io::Cursor;
 use std::net::SocketAddr;
 use crate::format::Format;
 

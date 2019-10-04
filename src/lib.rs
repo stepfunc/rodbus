@@ -18,9 +18,7 @@ mod format;
 mod frame;
 mod cursor;
 
-/// errors that should only occur
-/// if there is a logic error in the library
-/// but need to be handled regardless
+/// errors that should only occur if there is a logic error in the library
 #[derive(Debug)]
 pub enum LogicError {
     /// We tried to write
@@ -33,6 +31,12 @@ pub enum LogicError {
     NoneError,
     /// Logic error from underlying type that couldn't be converted
     Stdio(std::io::Error)
+}
+
+/// errors that occur while parsing a frame off a stream (TCP or serial)
+#[derive(Debug)]
+pub enum FrameError {
+    BadADULength(u16)
 }
 
 impl LogicError {
@@ -51,6 +55,8 @@ pub enum Error {
     Stdio(std::io::Error),
     /// Logic errors that shouldn't happen
     Logic(LogicError),
+    /// Framing errors
+    Frame(FrameError),
     /// Occurs when a channel is used after close
     ChannelClosed,
 }
