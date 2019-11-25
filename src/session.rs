@@ -36,7 +36,6 @@ impl Session {
         let (tx, rx) = oneshot::channel::<Result<ReadCoilsResponse>>();
         let request = Request::ReadCoils(RequestWrapper::new(self.id, request, tx));
         self.channel_tx.send(request).await?;
-        let result = rx.await?;
-        result
+        rx.await?
     }
 }
