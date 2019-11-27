@@ -18,8 +18,8 @@ impl std::convert::From<std::num::TryFromIntError> for Error {
     }
 }
 
-impl std::convert::From<tokio::sync::mpsc::error::SendError> for Error {
-    fn from(_: tokio::sync::mpsc::error::SendError) -> Self {
+impl<T> std::convert::From<tokio::sync::mpsc::error::SendError<T>> for Error {
+    fn from(_: tokio::sync::mpsc::error::SendError<T>) -> Self {
         Error::ChannelClosed
     }
 }

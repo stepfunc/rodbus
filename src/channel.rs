@@ -46,19 +46,16 @@ pub struct Channel {
 impl Channel {
     pub fn new(addr: SocketAddr, runtime: &Runtime) -> Self {
         let (tx, rx) = mpsc::channel(100);
-        runtime.spawn(Self::run(rx, addr));
+        let mut server = ChannelServer::new(rx, addr);
+        runtime.spawn(async move {
+
+            server.run().await
+        });
         Channel { tx  }
     }
 
     pub fn create_session(&self, id: UnitIdentifier) -> Session {
         Session::new(id, self.tx.clone())
-    }
-
-    async fn run(rx: mpsc::Receiver<Request>, addr: SocketAddr)  {
-        // TODO: if ChannelServer could implement Future itself, we wouldn't need this method.
-        // We could simply `runtime.spawn(ChannelServer::new(...))`.
-        let mut server = ChannelServer::new(rx, addr);
-        server.run().await;
     }
 }
 
