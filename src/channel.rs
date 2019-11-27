@@ -44,13 +44,10 @@ pub struct Channel {
 }
 
 impl Channel {
-    pub fn new(addr: SocketAddr, runtime: &Runtime) -> Self {
+    pub fn new(addr: SocketAddr) -> Self {
         let (tx, rx) = mpsc::channel(100);
         let mut server = ChannelServer::new(rx, addr);
-        runtime.spawn(async move {
-
-            server.run().await
-        });
+        tokio::spawn(async move { server.run().await });
         Channel { tx  }
     }
 

@@ -72,17 +72,15 @@ pub type Result<T> = std::result::Result<T, Error>;
 ///
 /// When the manager is dropped, all the channels (and their
 /// associated sessions) are shutdown automatically.
-pub struct ModbusManager {
-    rt: Rc<Runtime>,
-}
+pub struct ModbusManager;
 
 impl ModbusManager {
     /// Create a new manager with the runtime.
-    pub fn new(rt: Rc<Runtime>) -> Self {
-        ModbusManager { rt }
+    pub fn new() -> Self {
+        ModbusManager {}
     }
 
     pub fn create_channel(&self, addr: SocketAddr) -> Channel {
-        Channel::new(addr, &self.rt)
+        Channel::new(addr)
     }
 }
