@@ -1,6 +1,5 @@
 use modbus_rs::ModbusManager;
 use modbus_rs::requests::*;
-use tokio::runtime::Runtime;
 use std::net::ToSocketAddrs;
 use modbus_rs::session::UnitIdentifier;
 
