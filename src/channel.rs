@@ -9,7 +9,7 @@ use tokio::io::{AsyncWriteExt, AsyncReadExt};
 use tokio::net::TcpStream;
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
-use std::io::{Cursor, Read};
+use std::io::{Cursor, Read, Write};
 use std::net::SocketAddr;
 use crate::format::Format;
 
@@ -109,7 +109,7 @@ impl ChannelServer {
         let msg = self.formatter.format(0x0000, req.id.value(), &req.argument)?;
 
         // Send message
-        socket.write(msg).await?;
+        socket.write_all(msg).await?;
 
         // Read the MBAP header
         let slice = &mut self.buffer[..MBAP_SIZE + 1];

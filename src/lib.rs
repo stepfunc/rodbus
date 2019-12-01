@@ -6,7 +6,6 @@ extern crate assert_matches;
 
 use tokio::runtime::Runtime;
 use std::net::SocketAddr;
-use std::rc::Rc;
 
 pub mod channel;
 pub mod requests;
@@ -17,6 +16,7 @@ mod error_conversion;
 mod format;
 mod frame;
 mod cursor;
+mod async_reader;
 
 /// errors that should only occur if there is a logic error in the library
 #[derive(Debug)]
