@@ -9,7 +9,7 @@ use tokio::io::{AsyncWriteExt, AsyncReadExt};
 use tokio::net::TcpStream;
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
-use std::io::{Cursor, Read, Write};
+use std::io::{Cursor, Read};
 use std::net::SocketAddr;
 use crate::format::Format;
 

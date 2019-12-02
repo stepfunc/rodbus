@@ -4,7 +4,6 @@ use crate::channel::Channel;
 #[cfg(test)]
 extern crate assert_matches;
 
-use tokio::runtime::Runtime;
 use std::net::SocketAddr;
 
 pub mod channel;
@@ -16,7 +15,7 @@ mod error_conversion;
 mod format;
 mod frame;
 mod cursor;
-mod async_reader;
+mod async_util;
 
 /// errors that should only occur if there is a logic error in the library
 #[derive(Debug)]
