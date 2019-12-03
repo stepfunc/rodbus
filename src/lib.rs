@@ -15,6 +15,7 @@ mod error_conversion;
 mod format;
 mod frame;
 mod cursor;
+mod mbap;
 
 /// errors that should only occur if there is a logic error in the library
 #[derive(Debug)]

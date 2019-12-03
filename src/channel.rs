@@ -2,7 +2,8 @@ use crate::{Result, Error};
 use crate::requests::*;
 use crate::requests_info::*;
 use crate::session::{Session, UnitIdentifier};
-use crate::frame::{FrameParser, MBAPParser, FrameFormatter, MBAPFormatter, FramedReader};
+use crate::frame::{FrameParser, FrameFormatter, FramedReader};
+use crate::mbap::{MBAPParser, MBAPFormatter};
 
 use tokio::io::{AsyncWriteExt, AsyncReadExt};
 use tokio::net::TcpStream;
