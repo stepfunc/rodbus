@@ -5,8 +5,8 @@ use crate::cursor::{WriteCursor, ReadBuffer};
 use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
 
 pub struct Frame {
-    unit_id: u8,
-    tx_id: u16,
+    pub unit_id: u8,
+    pub tx_id: u16,
     length: usize,
     adu: [u8; Self::MAX_ADU_LENGTH]
 }
@@ -78,7 +78,7 @@ impl FramedReader {
         }
     }
 
-    pub async fn read<T>(&mut self, io : &mut T) -> Result<Frame> where T : AsyncRead + Unpin {
+    pub async fn next_frame<T>(&mut self, io : &mut T) -> Result<Frame> where T : AsyncRead + Unpin {
 
         loop {
             match self.parser.parse(&mut self.buffer)? {

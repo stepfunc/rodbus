@@ -132,7 +132,13 @@ mod tests {
     use super::*;
     use crate::format::Format;
     use crate::Result;
+    use crate::frame::FramedReader;
 
+    use tokio_test::io::Builder;
+    use tokio_test::block_on;
+
+    //                            |   tx id  |  proto id |  length   | unit |  payload  |
+    const SIMPLE_FRAME : &[u8] = &[0x00, 0x07, 0x00, 0x00, 0x00, 0x03, 0x2A, 0x03, 0x04];
 
     impl Format for &[u8] {
         fn format(self: &Self, cursor: &mut WriteCursor) -> Result<()> {
@@ -146,12 +152,18 @@ mod tests {
         let mut formatter = MBAPFormatter::new();
         let output = formatter.format(7, 42, &[0x03u8, 0x04].as_ref()).unwrap();
 
-        //                   tx id       proto id    length      unit  payload
-        assert_eq!(output, &[0x00, 0x07, 0x00, 0x00, 0x00, 0x03, 0x2A, 0x03, 0x04])
+
+        assert_eq!(output, SIMPLE_FRAME)
     }
 
     #[test]
     fn can_parse_frame_from_stream() {
+        let mut io = Builder::new().read(SIMPLE_FRAME).build();
+        let mut reader = FramedReader::new(MBAPParser::new());
+        let frame = block_on(reader.next_frame(&mut io)).unwrap();
 
+        assert_eq!(frame.tx_id, 0x0007);
+        assert_eq!(frame.unit_id, 0x2A);
+        assert_eq!(frame.payload(), &[0x03, 0x04]);
     }
 }
