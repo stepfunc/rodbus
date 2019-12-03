@@ -1,4 +1,4 @@
-use crate::{Error, LogicError};
+use crate::{Error, LogicError, FrameError};
 
 impl std::convert::From<std::io::Error> for Error {
     fn from(err: std::io::Error) -> Self {
@@ -9,6 +9,12 @@ impl std::convert::From<std::io::Error> for Error {
 impl std::convert::From<LogicError> for Error {
     fn from(err: crate::LogicError) -> Self {
         Error::Logic(err)
+    }
+}
+
+impl std::convert::From<FrameError> for Error {
+    fn from(err: crate::FrameError) -> Self {
+        Error::Frame(err)
     }
 }
 

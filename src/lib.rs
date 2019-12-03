@@ -35,7 +35,8 @@ pub enum LogicError {
 /// errors that occur while parsing a frame off a stream (TCP or serial)
 #[derive(Debug)]
 pub enum FrameError {
-    BadADULength(u16)
+    BadADULength(u16),
+    UnknownProtocolId(u16)
 }
 
 impl LogicError {

@@ -2,14 +2,14 @@
 use crate::Result;
 use crate::requests_info::*;
 use crate::requests::ReadCoilsRequest;
-use crate::cursor::Cursor;
+use crate::cursor::WriteCursor;
 
 
 pub trait Format {
 
-  fn format(self: &Self, cursor: &mut Cursor) -> Result<()>;
+  fn format(self: &Self, cursor: &mut WriteCursor) -> Result<()>;
 
-  fn format_with_length(self: &Self, cursor: &mut Cursor) -> Result<u64> {
+  fn format_with_length(self: &Self, cursor: &mut WriteCursor) -> Result<u64> {
       let start = cursor.position();
       self.format(cursor)?;
       Ok(cursor.position() - start)
@@ -17,7 +17,7 @@ pub trait Format {
 }
 
 impl Format for ReadCoilsRequest {
-  fn format(self: &Self, cursor: &mut Cursor) -> Result<()> {
+  fn format(self: &Self, cursor: &mut WriteCursor) -> Result<()> {
     cursor.write_u8(Self::func_code())?;
     cursor.write_u16(self.start)?;
     cursor.write_u16(self.quantity)?;
@@ -32,7 +32,7 @@ mod tests {
   use crate::{Error, LogicError};
 
   fn write_to_buffer(buf: &mut [u8]) -> Result<u64> {
-      let mut cursor = Cursor::new(buf);
+      let mut cursor = WriteCursor::new(buf);
       let request = ReadCoilsRequest::new(7, 511);
       let start = cursor.position();
       request.format(&mut cursor)?;

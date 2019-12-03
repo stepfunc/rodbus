@@ -9,7 +9,7 @@ use tokio::io::{AsyncWriteExt, AsyncReadExt};
 use tokio::net::TcpStream;
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
-use std::io::{Cursor, Read};
+use std::io::Cursor;
 use std::net::SocketAddr;
 use crate::format::Format;
 
@@ -45,8 +45,8 @@ pub struct Channel {
 impl Channel {
     pub fn new(addr: SocketAddr) -> Self {
         let (tx, rx) = mpsc::channel(100);
-        let mut server = ChannelServer::new(rx, addr);
-        tokio::spawn(async move { server.run().await });
+        //let mut server = ChannelServer::new(rx, addr);
+        tokio::spawn(async move { ChannelServer::new(rx, addr).run().await });
         Channel { tx  }
     }
 
@@ -69,7 +69,7 @@ struct ChannelServer {
     rx: mpsc::Receiver<Request>,
     socket: Option<TcpStream>,
     buffer: [u8; MAX_ADU_SIZE],
-    formatter: Box<dyn FrameHandler>
+    formatter: Box<dyn FrameHandler + Send>
 }
 
 impl ChannelServer {
