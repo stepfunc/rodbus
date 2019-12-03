@@ -15,7 +15,6 @@ mod error_conversion;
 mod format;
 mod frame;
 mod cursor;
-mod async_util;
 
 /// errors that should only occur if there is a logic error in the library
 #[derive(Debug)]

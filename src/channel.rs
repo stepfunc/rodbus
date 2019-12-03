@@ -2,14 +2,13 @@ use crate::{Result, Error};
 use crate::requests::*;
 use crate::requests_info::*;
 use crate::session::{Session, UnitIdentifier};
-use crate::frame::{FrameHandler, MBAPFrameHandler};
+use crate::frame::{FrameParser, MBAPParser, FrameFormatter, MBAPFormatter, FramedReader};
 
-use byteorder::{BE, ReadBytesExt};
 use tokio::io::{AsyncWriteExt, AsyncReadExt};
 use tokio::net::TcpStream;
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
-use std::io::Cursor;
+use std::io::{Cursor, ErrorKind};
 use std::net::SocketAddr;
 use crate::format::Format;
 
@@ -46,7 +45,7 @@ impl Channel {
     pub fn new(addr: SocketAddr) -> Self {
         let (tx, rx) = mpsc::channel(100);
         //let mut server = ChannelServer::new(rx, addr);
-        tokio::spawn(async move { ChannelServer::new(rx, addr).run().await });
+        tokio::spawn(async move { ChannelServer::new(addr, rx).run().await });
         Channel { tx  }
     }
 
@@ -67,14 +66,13 @@ const MAX_ADU_SIZE: usize = MAX_PDU_SIZE + MBAP_SIZE;
 struct ChannelServer {
     addr: SocketAddr,
     rx: mpsc::Receiver<Request>,
-    socket: Option<TcpStream>,
-    buffer: [u8; MAX_ADU_SIZE],
-    formatter: Box<dyn FrameHandler + Send>
+    formatter: Box<dyn FrameFormatter + Send>,
+    reader: FramedReader
 }
 
 impl ChannelServer {
-    pub fn new(rx: mpsc::Receiver<Request>, addr: SocketAddr) -> Self {
-        Self { addr, rx, socket: None, buffer: [0; MAX_ADU_SIZE], formatter: MBAPFrameHandler::new() }
+    pub fn new(addr: SocketAddr, rx: mpsc::Receiver<Request>) -> Self {
+        Self { addr, rx, formatter : MBAPFormatter::new(), reader : FramedReader::new(MBAPParser::new()) }
     }
 
     pub async fn run(&mut self) {
@@ -87,45 +85,11 @@ impl ChannelServer {
 
     async fn handle_request<Req: RequestInfo + Format>(&mut self, req: RequestWrapper<Req>) {
         let result = self.handle(&req).await;
-        if let Err(Error::Stdio(_)) = result {
-            // if any kind of io error occurs we close the socket
-            self.socket = None;
-        }
         req.reply_to.send(result).ok();
     }
 
     async fn handle<Req: RequestInfo + Format>(&mut self, req: &RequestWrapper<Req>) -> Result<Req::ResponseType> {
-
-        let socket = match self.socket.as_mut() {
-            Some(s) => s,
-            None => {
-                let stream = TcpStream::connect(self.addr).await?;
-                self.socket = Some(stream);
-                self.socket.as_mut().unwrap()
-            }
-        };
-
-        // Serialize request
-        let msg = self.formatter.format(0x0000, req.id.value(), &req.argument)?;
-
-        // Send message
-        socket.write_all(msg).await?;
-
-        // Read the MBAP header
-        let slice = &mut self.buffer[..MBAP_SIZE + 1];
-        socket.read_exact(slice).await?;
-        let mut cur = Cursor::new(slice);
-        let transaction_id = cur.read_u16::<BE>().unwrap();
-        let protocol_id = cur.read_u16::<BE>().unwrap();
-        let length = cur.read_u16::<BE>().unwrap();
-        let unit_id = cur.read_u8().unwrap();
-        let func_code = cur.read_u8().unwrap();
-        // TODO: Validate stuff
-
-        // Read actual response
-        let slice = &mut self.buffer[..length as usize - 2];
-        socket.read_exact(slice).await?;
-        Req::ResponseType::parse(slice, &req.argument)
+        Err(Error::ChannelClosed)
     }
 
 }

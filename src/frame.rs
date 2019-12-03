@@ -5,8 +5,6 @@ use crate::cursor::{WriteCursor, ReadBuffer};
 use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
 use std::convert::TryFrom;
 
-
-
 pub struct Frame {
     unit_id: u8,
     tx_id: u16,
@@ -44,11 +42,9 @@ impl Frame {
 /**
 *  Defines an interface for reading and writing complete frames (TCP or RTU)
 */
-pub trait FrameHandler {
+pub trait FrameParser {
 
   fn max_frame_size(&self) -> usize;
-
-  fn format(&mut self, tx_id : u16, unit_id: u8, msg: & dyn Format) -> Result<&[u8]>;
 
   /**
   * Parse bytes using the provided cursor. Advancing the cursor always implies that the bytes
@@ -59,6 +55,12 @@ pub trait FrameHandler {
   * Ok(Some(..)) will contain a fully parsed frame and will advance the Cursor appropriately
   */
   fn parse(&mut self, cursor: &mut ReadBuffer) -> Result<Option<Frame>>;
+
+}
+
+pub trait FrameFormatter {
+
+    fn format(&mut self, tx_id : u16, unit_id: u8, msg: & dyn Format) -> Result<&[u8]>;
 
 }
 
@@ -75,24 +77,27 @@ enum ParseState {
     Header(MBAPHeader)
 }
 
-pub struct MBAPFrameHandler {
-    buffer : [u8; MBAPFrameHandler::MAX_FRAME_LENGTH],
+const MBAP_HEADER_LENGTH : usize = 7;
+const MAX_MBAP_FRAME_LENGTH : usize = MBAP_HEADER_LENGTH + Frame::MAX_ADU_LENGTH;
+
+pub struct MBAPParser {
     state: ParseState
 }
 
-impl MBAPFrameHandler {
-    // the length of the MBAP header
-    const HEADER_LENGTH : usize = 7;
-    // the maximum frame size
-    const MAX_FRAME_LENGTH : usize = Self::HEADER_LENGTH + Frame::MAX_ADU_LENGTH;
+pub struct MBAPFormatter {
+    buffer : [u8; MAX_MBAP_FRAME_LENGTH]
+}
 
-    pub fn new() -> Box<dyn FrameHandler + Send> {
-        Box::new(
-            MBAPFrameHandler{
-                state : ParseState::Begin,
-                buffer: [0; MBAPFrameHandler::MAX_FRAME_LENGTH]
-            }
-        )
+impl MBAPFormatter {
+    pub fn new() -> Box<dyn FrameFormatter + Send> {
+        Box::new(MBAPFormatter { buffer: [0; MAX_MBAP_FRAME_LENGTH] })
+    }
+}
+
+impl MBAPParser {
+
+    pub fn new() -> Box<dyn FrameParser + Send> {
+        Box::new(MBAPParser { state : ParseState::Begin } )
     }
 
     fn parse_header(cursor: &mut ReadBuffer) -> Result<MBAPHeader> {
@@ -123,29 +128,11 @@ impl MBAPFrameHandler {
     }
 }
 
-impl FrameHandler for MBAPFrameHandler {
+
+impl FrameParser for MBAPParser {
 
     fn max_frame_size(&self) -> usize {
-        Self::MAX_FRAME_LENGTH
-    }
-
-    fn format(&mut self, tx_id: u16, unit_id: u8, msg: & dyn Format) -> Result<&[u8]> {
-        let mut cursor = WriteCursor::new(self.buffer.as_mut());
-        cursor.write_u16(tx_id)?;
-        cursor.write_u16(0)?;
-        cursor.skip(2)?; // write the length later
-        cursor.write_u8(unit_id)?;
-
-        let adu_length : u64 = msg.format_with_length(&mut cursor)?;
-
-
-        let frame_length_value = u16::try_from(adu_length + 1)?;
-        cursor.seek_from_start(4)?;
-        cursor.write_u16(frame_length_value)?;
-
-        let total_length = Self::HEADER_LENGTH + adu_length as usize;
-
-        Ok(&self.buffer[.. total_length])
+        MAX_MBAP_FRAME_LENGTH
     }
 
     fn parse(&mut self, cursor: &mut ReadBuffer) -> Result<Option<Frame>> {
@@ -161,7 +148,7 @@ impl FrameHandler for MBAPFrameHandler {
                 Ok(Some(ret))
             },
             ParseState::Begin => {
-                if cursor.len() < Self::HEADER_LENGTH {
+                if cursor.len() <MBAP_HEADER_LENGTH {
                     return Ok(None);
                 }
 
@@ -173,35 +160,50 @@ impl FrameHandler for MBAPFrameHandler {
     }
 }
 
-struct FramedStream<T> {
-    handler: Box<dyn FrameHandler + Send>,
-    buffer : ReadBuffer,
-    stream : T
+impl FrameFormatter for MBAPFormatter {
+
+    fn format(&mut self, tx_id: u16, unit_id: u8, msg: & dyn Format) -> Result<&[u8]> {
+        let mut cursor = WriteCursor::new(self.buffer.as_mut());
+        cursor.write_u16(tx_id)?;
+        cursor.write_u16(0)?;
+        cursor.skip(2)?; // write the length later
+        cursor.write_u8(unit_id)?;
+
+        let adu_length : u64 = msg.format_with_length(&mut cursor)?;
+
+
+        let frame_length_value = u16::try_from(adu_length + 1)?;
+        cursor.seek_from_start(4)?;
+        cursor.write_u16(frame_length_value)?;
+
+        let total_length = MBAP_HEADER_LENGTH + adu_length as usize;
+
+        Ok(&self.buffer[.. total_length])
+    }
 }
 
-impl<T> FramedStream<T> where T : AsyncRead + AsyncWrite + Unpin {
+pub struct FramedReader {
+    parser: Box<dyn FrameParser + Send>,
+    buffer : ReadBuffer
+}
 
-    pub fn new(handler: Box<dyn FrameHandler + Send>, stream: T) -> FramedStream<T> {
-        let size = handler.max_frame_size();
-        FramedStream {
-            handler,
-            buffer : ReadBuffer::new(size),
-            stream
+impl FramedReader {
+
+    pub fn new(parser: Box<dyn FrameParser + Send>) -> FramedReader {
+        let size = parser.max_frame_size();
+        FramedReader {
+            parser,
+            buffer: ReadBuffer::new(size)
         }
     }
 
-    pub async fn write<F>(&mut self, tx_id : u16, unit_id: u8, msg: &F) -> Result<()> where F : Format {
-        let bytes = self.handler.format(tx_id, unit_id, msg)?;
-        self.stream.write_all(bytes).await.map_err(|e| Error::from(e))
-    }
-
-    pub async fn read(&mut self) -> Result<Frame> {
+    pub async fn read<T>(&mut self, io : &mut T) -> Result<Frame> where T : AsyncRead + Unpin {
 
         loop {
-            match self.handler.parse(&mut self.buffer)? {
+            match self.parser.parse(&mut self.buffer)? {
                 Some(frame) => return Ok(frame),
                 None => {
-                    self.buffer.read_some(&mut self.stream).await?;
+                    self.buffer.read_some(io).await?;
                     ()
                 }
             }
@@ -215,6 +217,7 @@ impl<T> FramedStream<T> where T : AsyncRead + AsyncWrite + Unpin {
 
 #[cfg(test)]
 mod tests {
+
     use super::*;
     use crate::format::Format;
     use crate::Result;
@@ -229,10 +232,15 @@ mod tests {
 
     #[test]
     fn correctly_formats_frame() {
-        let mut formatter = MBAPFrameHandler::new();
+        let mut formatter = MBAPFormatter::new();
         let output = formatter.format(7, 42, &[0x03u8, 0x04].as_ref()).unwrap();
 
         //                   tx id       proto id    length      unit  payload
         assert_eq!(output, &[0x00, 0x07, 0x00, 0x00, 0x00, 0x03, 0x2A, 0x03, 0x04])
+    }
+
+    #[test]
+    fn can_parse_frame_from_stream() {
+
     }
 }
