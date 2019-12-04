@@ -30,6 +30,7 @@ impl Frame {
         }
 
         self.adu[0..src.len()].copy_from_slice(src);
+        self.length = src.len();
         true
     }
 
@@ -82,7 +83,9 @@ impl FramedReader {
 
         loop {
             match self.parser.parse(&mut self.buffer)? {
-                Some(frame) => return Ok(frame),
+                Some(frame) => {
+                    return Ok(frame)
+                },
                 None => {
                     self.buffer.read_some(io).await?;
                     ()

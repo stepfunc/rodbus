@@ -8,12 +8,14 @@ use crate::Result;
 use std::convert::TryFrom;
 
 const MBAP_HEADER_LENGTH : usize = 7;
-const MAX_MBAP_FRAME_LENGTH : usize = MBAP_HEADER_LENGTH + Frame::MAX_ADU_LENGTH;
+const MAX_MBAP_FRAME_LENGTH : usize = MBAP_HEADER_LENGTH + Frame::MAX_ADU_LENGTH; // cannot be < 1 b/c of the unit identifier
+const MBAP_MAX_LENGTH_FIELD : usize = Frame::MAX_ADU_LENGTH + 1; // includes the 1 byte unit id
+
 
 #[derive(Clone, Copy)]
 struct MBAPHeader {
     tx_id: u16,
-    length: u16,
+    adu_length: usize,
     unit_id: u8
 }
 
@@ -48,26 +50,28 @@ impl MBAPParser {
 
         let tx_id = cursor.read_u16_be()?;
         let protocol_id = cursor.read_u16_be()?;
-        let length = cursor.read_u16_be()?;
+        let length = cursor.read_u16_be()? as usize;
         let unit_id = cursor.read_u8()?;
 
         if protocol_id != 0 {
             return Err(Error::Frame(FrameError::UnknownProtocolId(protocol_id)));
         }
 
-        if length as usize > Frame::MAX_ADU_LENGTH {
-            return Err(Error::Frame(FrameError::BadADULength(length)))
+        if (length) > MBAP_MAX_LENGTH_FIELD {
+            return Err(Error::Frame(FrameError::MBAPLengthTooBig(length)));
         }
 
-        Ok(MBAPHeader{ tx_id, length, unit_id })
+        // must be > 0 b/c the 1-byte unit identifier counts towards length
+        if (length) == 0 {
+            return Err(Error::Frame(FrameError::MBAPLengthTooSmall(length)));
+        }
+
+        Ok(MBAPHeader{ tx_id, adu_length: length - 1, unit_id })
     }
 
     fn parse_body(header: &MBAPHeader, cursor: &mut ReadBuffer) -> Result<Frame> {
-
         let mut frame = Frame::new(header.unit_id, header.tx_id);
-
-        frame.set(cursor.read(header.length as usize)?);
-
+        frame.set(cursor.read(header.adu_length)?);
         Ok(frame)
     }
 }
@@ -83,7 +87,7 @@ impl FrameParser for MBAPParser {
 
         match self.state {
             ParseState::Header(header) => {
-                if cursor.len() < header.length as usize {
+                if cursor.len() < header.adu_length {
                     return Ok(None);
                 }
 
@@ -92,7 +96,7 @@ impl FrameParser for MBAPParser {
                 Ok(Some(ret))
             },
             ParseState::Begin => {
-                if cursor.len() <MBAP_HEADER_LENGTH {
+                if cursor.len() < MBAP_HEADER_LENGTH {
                     return Ok(None);
                 }
 
@@ -137,7 +141,7 @@ mod tests {
     use tokio_test::io::Builder;
     use tokio_test::block_on;
 
-    //                            |   tx id  |  proto id |  length   | unit |  payload  |
+    //                            |   tx id  |  proto id |  length  | unit |  payload   |
     const SIMPLE_FRAME : &[u8] = &[0x00, 0x07, 0x00, 0x00, 0x00, 0x03, 0x2A, 0x03, 0x04];
 
     impl Format for &[u8] {

@@ -34,7 +34,13 @@ impl ReadBuffer {
     }
 
     pub fn read(&mut self, count: usize)-> std::result::Result<&[u8], LogicError> {
-        Err(LogicError::InsufficientBuffer)
+        if self.len() < count {
+            return Err(LogicError::InsufficientBuffer);
+        }
+
+        let ret = &self.buffer[self.begin .. (self.begin + count)];
+        self.begin += count;
+        Ok(ret)
     }
     pub fn read_u8(&mut self) -> std::result::Result<u8, LogicError> {
         if self.is_empty() {
