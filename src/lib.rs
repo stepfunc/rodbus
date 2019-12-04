@@ -35,8 +35,8 @@ pub enum LogicError {
 /// errors that occur while parsing a frame off a stream (TCP or serial)
 #[derive(Debug)]
 pub enum FrameError {
+    MBAPLengthZero,
     MBAPLengthTooBig(usize),
-    MBAPLengthTooSmall(usize),
     UnknownProtocolId(u16)
 }
 

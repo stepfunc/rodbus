@@ -63,7 +63,7 @@ impl MBAPParser {
 
         // must be > 0 b/c the 1-byte unit identifier counts towards length
         if (length) == 0 {
-            return Err(Error::Frame(FrameError::MBAPLengthTooSmall(length)));
+            return Err(Error::Frame(FrameError::MBAPLengthZero));
         }
 
         Ok(MBAPHeader{ tx_id, adu_length: length - 1, unit_id })
@@ -151,6 +151,28 @@ mod tests {
         }
     }
 
+    fn assert_equals_simple_frame(frame: &Frame) {
+        assert_eq!(frame.tx_id, 0x0007);
+        assert_eq!(frame.unit_id, 0x2A);
+        assert_eq!(frame.payload(), &[0x03, 0x04]);
+    }
+
+    fn test_segmented_parse(split_at: usize) {
+        let (f1, f2) = SIMPLE_FRAME.split_at(split_at);
+        let mut io = Builder::new().read(f1).read(f2).build();
+        let mut reader = FramedReader::new(MBAPParser::new());
+        let frame = block_on(reader.next_frame(&mut io)).unwrap();
+
+        assert_equals_simple_frame(&frame);
+    }
+
+    fn test_error(input: &[u8], matcher : fn (err: Error) -> ()) {
+        let mut io = Builder::new().read(input).build();
+        let mut reader = FramedReader::new(MBAPParser::new());
+        let err = block_on(reader.next_frame(&mut io)).err().unwrap();
+        matcher(err);
+    }
+
     #[test]
     fn correctly_formats_frame() {
         let mut formatter = MBAPFormatter::new();
@@ -166,8 +188,47 @@ mod tests {
         let mut reader = FramedReader::new(MBAPParser::new());
         let frame = block_on(reader.next_frame(&mut io)).unwrap();
 
-        assert_eq!(frame.tx_id, 0x0007);
-        assert_eq!(frame.unit_id, 0x2A);
-        assert_eq!(frame.payload(), &[0x03, 0x04]);
+        assert_equals_simple_frame(&frame);
+    }
+
+    #[test]
+    fn can_parse_maximum_size_frame() {
+        // maximum ADU length is 253, so max MBAP length value is 254 which is 0xFE
+        let header = &[0x00, 0x07, 0x00, 0x00, 0x00, 0xFE, 0x2A];
+        let payload = &[0xCC; 253];
+
+        let mut io = Builder::new().read(header).read(payload).build();
+        let mut reader = FramedReader::new(MBAPParser::new());
+        let frame = block_on(reader.next_frame(&mut io)).unwrap();
+
+        assert_eq!(frame.payload(), payload.as_ref());
+    }
+
+    #[test]
+    fn can_parse_frame_if_segmented_in_header() {
+        test_segmented_parse(4);
+    }
+
+    #[test]
+    fn can_parse_frame_if_segmented_in_payload() {
+        test_segmented_parse(8);
+    }
+
+    #[test]
+    fn errors_on_bad_protocol_id() {
+        let frame = &[0x00, 0x07, 0xCA, 0xFE, 0x00, 0x01, 0x2A];
+        test_error(frame, |err| assert_matches!(err, Error::Frame(FrameError::UnknownProtocolId(0xCAFE))));
+    }
+
+    #[test]
+    fn errors_on_length_of_zero() {
+        let frame = &[0x00, 0x07, 0x00, 0x00, 0x00, 0x00, 0x2A];
+        test_error(frame, |err| assert_matches!(err, Error::Frame(FrameError::MBAPLengthZero)));
+    }
+
+    #[test]
+    fn errors_when_mbap_length_too_big() {
+        let frame = &[0x00, 0x07, 0x00, 0x00, 0x00, 0xFF, 0x2A];
+        test_error(frame, |err| assert_matches!(err, Error::Frame(FrameError::MBAPLengthTooBig(0xFF))));
     }
 }
