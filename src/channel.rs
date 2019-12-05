@@ -1,4 +1,4 @@
-use crate::Result;
+use crate::{Result, Error};
 use crate::requests::*;
 use crate::requests_info::*;
 use crate::session::{Session, UnitIdentifier};
@@ -10,10 +10,11 @@ use tokio::io::{AsyncWriteExt};
 use tokio::net::TcpStream;
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
-use tokio::time::delay_for;
+use tokio::time::Timeout;
 
 use std::net::SocketAddr;
-use std::time::Duration;
+use std::time::{Duration, Instant};
+
 
 /// All the possible requests that can be sent through the channel
 pub(crate) enum Request {
@@ -115,14 +116,13 @@ impl ChannelServer {
         Self { addr, rx, formatter : MBAPFormatter::new(), connect_retry, reader : FramedReader::new(MBAPParser::new()) }
     }
 
-    pub async fn run(&mut self) -> () {
-
+    pub async fn run(&mut self) -> Result<()> {
         // try to connect
         loop {
             match tokio::net::TcpStream::connect(self.addr).await {
                 Err(_err) => {
-                    self.fail_pending_requests();
-                    delay_for(self.connect_retry.fail()).await
+                    let delay = self.connect_retry.fail();
+                    self.wait(delay).await?
                 },
                 Ok(stream) => self.run_with_stream(stream).await
             }
@@ -149,18 +149,34 @@ impl ChannelServer {
         Ok(Req::ResponseType::parse(frame.payload(), request)?)
     }
 
-    fn fail_pending_requests(&mut self) -> () {
-        /*
-        TODO - how to peek into an MPSC without having to await?!
-        for request in self.rx.iter() {
-            match request {
-                Request::ReadCoils(req) => {
-                    req.reply_to.send(Err(Error::NoConnection));
-                }
+    async fn wait(&mut self, duration: Duration) -> Result<()> {
+
+        let start = Instant::now();
+        let end = start + duration;
+
+        loop {
+            let current = Instant::now();
+            if current >= end {
+                return Ok(())
+            }
+            let timeout = end - current;
+
+            match tokio::time::timeout(timeout, self.rx.recv()).await {
+                Err(x) => return Ok(()),
+                Ok(None) => return Err(Error::ChannelClosed),
+                Ok(Some(request)) => Self::fail_request(request)
             }
         }
-        */
-        ()
+
     }
+
+    fn fail_request(request: Request) -> () {
+        match request {
+            Request::ReadCoils(wrapper) => {
+                wrapper.reply_to.send(Err(Error::NoConnection))
+            }
+        };
+    }
+
 
 }
