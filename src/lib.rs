@@ -1,4 +1,4 @@
-use crate::channel::Channel;
+use crate::channel::{Channel, BoxedRetryStrategy};
 
 #[macro_use]
 #[cfg(test)]
@@ -58,6 +58,8 @@ pub enum Error {
     Logic(LogicError),
     /// Framing errors
     Frame(FrameError),
+    /// No connection exists
+    NoConnection,
     /// Occurs when a channel is used after close
     ChannelClosed,
 }
@@ -65,23 +67,6 @@ pub enum Error {
 /// Result type used everywhere in this library
 pub type Result<T> = std::result::Result<T, Error>;
 
-/// Entry point of the library.
-///
-/// Create a single manager with a runtime, then use it to
-/// create channels and associated sessions. They will all
-/// share the same runtime.
-///
-/// When the manager is dropped, all the channels (and their
-/// associated sessions) are shutdown automatically.
-pub struct ModbusManager;
-
-impl ModbusManager {
-    /// Create a new manager with the runtime.
-    pub fn new() -> Self {
-        ModbusManager {}
-    }
-
-    pub fn create_channel(&self, addr: SocketAddr) -> Channel {
-        Channel::new(addr)
-    }
+pub fn create_client_tcp_channel(addr: SocketAddr, retry: BoxedRetryStrategy) -> Channel {
+    Channel::new(addr, retry)
 }

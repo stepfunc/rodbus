@@ -10,5 +10,5 @@ impl ReadCoilsRequest {
 }
 
 pub struct ReadCoilsResponse {
-    pub statuses: Vec<bool>,
+    pub values: Vec<bool>
 }

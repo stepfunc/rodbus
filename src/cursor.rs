@@ -3,6 +3,12 @@ use crate::{Error, Result, LogicError};
 use byteorder::{BE, WriteBytesExt};
 use std::io::{Write, Seek, SeekFrom};
 use tokio::io::{AsyncRead, AsyncReadExt};
+use crate::Error::Logic;
+
+/// custom read-only cursor
+pub struct ReadCursor<'a> {
+    src : &'a[u8]
+}
 
 /// wraps std::io::Cursor mapping errors and limiting exposed methods
 pub struct WriteCursor<'a> {
@@ -15,9 +21,43 @@ pub struct ReadBuffer {
     end: usize
 }
 
+impl<'a> ReadCursor<'a> {
+    pub fn new(src: &'a[u8]) -> ReadCursor {
+        ReadCursor {
+            src
+        }
+    }
+
+    pub fn read_u8(&mut self) -> Result<u8> {
+        if self.src.is_empty() {
+            return Err(Logic(LogicError::InsufficientBuffer));
+        }
+
+        let ret = self.src[0];
+        self.src = &self.src[1..];
+        Ok(ret)
+    }
+
+    pub fn read_u16_be(&mut self) -> Result<u16> {
+        let b1 = self.read_u8()? as u16;
+        let b2 = self.read_u8()? as u16;
+        Ok(b1 << 8 | b2)
+    }
+
+    pub fn read_bytes(&mut self, count: usize) -> Result<&'a[u8]> {
+        if self.src.len() < count {
+            return Err(Logic(LogicError::InsufficientBuffer));
+        }
+
+        let ret = &self.src[0 .. count];
+        self.src = &self.src[count..];
+        Ok(ret)
+    }
+}
+
 impl ReadBuffer {
 
-    pub fn new(capacity: usize) -> ReadBuffer {
+    pub fn new(capacity: usize) -> Self {
         ReadBuffer {
             buffer: vec![0; capacity],
             begin: 0,
@@ -107,4 +147,5 @@ impl<'a> WriteCursor<'a> {
     }
 
 }
+
 

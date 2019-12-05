@@ -1,17 +1,19 @@
-use crate::{Result, Error};
+use crate::Result;
 use crate::requests::*;
 use crate::requests_info::*;
 use crate::session::{Session, UnitIdentifier};
-use crate::frame::{FrameParser, FrameFormatter, FramedReader};
+use crate::frame::{FrameFormatter, FramedReader};
 use crate::mbap::{MBAPParser, MBAPFormatter};
+use crate::format::Format;
 
-use tokio::io::{AsyncWriteExt, AsyncReadExt};
+use tokio::io::{AsyncWriteExt};
 use tokio::net::TcpStream;
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
-use std::io::{Cursor, ErrorKind};
+use tokio::time::delay_for;
+
 use std::net::SocketAddr;
-use crate::format::Format;
+use std::time::Duration;
 
 /// All the possible requests that can be sent through the channel
 pub(crate) enum Request {
@@ -23,14 +25,55 @@ pub(crate) enum Request {
 /// It contains the session ID, the actual request and
 /// a oneshot channel to receive the reply.
 pub(crate) struct RequestWrapper<T: RequestInfo> {
-    id: UnitIdentifier,
+    unit_id: UnitIdentifier,
     argument : T,
     reply_to : oneshot::Sender<Result<T::ResponseType>>,
 }
 
 impl<T: RequestInfo> RequestWrapper<T> {
-    pub fn new(id: UnitIdentifier, argument : T, reply_to : oneshot::Sender<Result<T::ResponseType>>) -> Self {
-        Self { id, argument, reply_to }
+    pub fn new(unit_id: UnitIdentifier, argument : T, reply_to : oneshot::Sender<Result<T::ResponseType>>) -> Self {
+        Self { unit_id, argument, reply_to }
+    }
+}
+
+pub trait RetryStrategy {
+
+    fn current_delay(&self) -> Duration;
+    fn reset(&mut self) -> ();
+
+    // returns the current delay and doubles the delay for the next retry
+    fn fail(&mut self) -> Duration;
+
+}
+
+pub type BoxedRetryStrategy = Box<dyn RetryStrategy + Send>;
+
+pub struct DoublingRetryStrategy {
+    min : Duration,
+    max : Duration,
+    current: Duration
+}
+
+impl DoublingRetryStrategy {
+    pub fn create(min : Duration, max: Duration) -> BoxedRetryStrategy {
+        Box::new(DoublingRetryStrategy { min, max, current : min })
+    }
+}
+
+impl RetryStrategy for DoublingRetryStrategy {
+
+    fn current_delay(&self) -> Duration {
+        self.current
+    }
+
+    fn reset(&mut self) -> () {
+        self.current = self.min;
+    }
+
+    fn fail(&mut self) -> Duration {
+        let ret = self.current;
+        self.current = std::cmp::min(2*self.current, self.max);
+        ret
     }
 }
 
@@ -43,21 +86,16 @@ pub struct Channel {
 }
 
 impl Channel {
-    pub fn new(addr: SocketAddr) -> Self {
+    pub fn new(addr: SocketAddr, connect_retry: BoxedRetryStrategy) -> Self {
         let (tx, rx) = mpsc::channel(100);
-        //let mut server = ChannelServer::new(rx, addr);
-        tokio::spawn(async move { ChannelServer::new(addr, rx).run().await });
-        Channel { tx  }
+        tokio::spawn(async move { ChannelServer::new(addr, rx, connect_retry).run().await });
+        Channel { tx }
     }
 
     pub fn create_session(&self, id: UnitIdentifier) -> Session {
         Session::new(id, self.tx.clone())
     }
 }
-
-const MAX_PDU_SIZE: usize = 253;
-const MBAP_SIZE: usize = 7;
-const MAX_ADU_SIZE: usize = MAX_PDU_SIZE + MBAP_SIZE;
 
 /// Channel loop
 ///
@@ -67,30 +105,62 @@ const MAX_ADU_SIZE: usize = MAX_PDU_SIZE + MBAP_SIZE;
 struct ChannelServer {
     addr: SocketAddr,
     rx: mpsc::Receiver<Request>,
+    connect_retry: BoxedRetryStrategy,
     formatter: Box<dyn FrameFormatter + Send>,
     reader: FramedReader
 }
 
 impl ChannelServer {
-    pub fn new(addr: SocketAddr, rx: mpsc::Receiver<Request>) -> Self {
-        Self { addr, rx, formatter : MBAPFormatter::new(), reader : FramedReader::new(MBAPParser::new()) }
+    pub fn new(addr: SocketAddr, rx: mpsc::Receiver<Request>, connect_retry: BoxedRetryStrategy) -> Self {
+        Self { addr, rx, formatter : MBAPFormatter::new(), connect_retry, reader : FramedReader::new(MBAPParser::new()) }
     }
 
-    pub async fn run(&mut self) {
-        while let Some(req) =  self.rx.recv().await {
-            match req {
-                Request::ReadCoils(req) => self.handle_request(req).await,
+    pub async fn run(&mut self) -> () {
+
+        // try to connect
+        loop {
+            match tokio::net::TcpStream::connect(self.addr).await {
+                Err(_err) => {
+                    self.fail_pending_requests();
+                    delay_for(self.connect_retry.fail()).await
+                },
+                Ok(stream) => self.run_with_stream(stream).await
+            }
+        }
+    }
+
+    async fn run_with_stream(&mut self, mut io : TcpStream) -> () {
+        while let Some(value) =  self.rx.recv().await {
+            match value {
+                Request::ReadCoils(wrapper) => self.handle_request(&mut io, wrapper).await,
             };
         }
     }
 
-    async fn handle_request<Req: RequestInfo + Format>(&mut self, req: RequestWrapper<Req>) {
-        let result = self.handle(&req).await;
-        req.reply_to.send(result).ok();
+    async fn handle_request<Req: RequestInfo + Format>(&mut self, io: &mut TcpStream, wrapper: RequestWrapper<Req>) {
+        let result = self.handle(io, wrapper.unit_id, &wrapper.argument).await;
+        wrapper.reply_to.send(result).ok();
     }
 
-    async fn handle<Req: RequestInfo + Format>(&mut self, req: &RequestWrapper<Req>) -> Result<Req::ResponseType> {
-        Err(Error::ChannelClosed)
+    async fn handle<Req: RequestInfo + Format>(&mut self, io: &mut TcpStream, unit_id: UnitIdentifier, request: &Req) -> Result<Req::ResponseType> {
+        let bytes = self.formatter.format(0, unit_id.value(), request)?;
+        io.write_all(bytes).await?;
+        let frame = self.reader.next_frame(io).await?;
+        Ok(Req::ResponseType::parse(frame.payload(), request)?)
+    }
+
+    fn fail_pending_requests(&mut self) -> () {
+        /*
+        TODO - how to peek into an MPSC without having to await?!
+        for request in self.rx.iter() {
+            match request {
+                Request::ReadCoils(req) => {
+                    req.reply_to.send(Err(Error::NoConnection));
+                }
+            }
+        }
+        */
+        ()
     }
 
 }
