@@ -1,7 +1,7 @@
-use crate::Result;
 use crate::channel::{Request, RequestWrapper};
 use crate::requests::*;
 use tokio::sync::{mpsc, oneshot};
+use crate::Error;
 
 #[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
 pub struct UnitIdentifier {
@@ -32,8 +32,8 @@ impl Session {
         Session { id, channel_tx }
     }
 
-    pub async fn read_coils(&mut self, request: ReadCoilsRequest) -> Result<ReadCoilsResponse> {
-        let (tx, rx) = oneshot::channel::<Result<ReadCoilsResponse>>();
+    pub async fn read_coils(&mut self, request: ReadCoilsRequest) -> Result<ReadCoilsResponse, Error> {
+        let (tx, rx) = oneshot::channel::<Result<ReadCoilsResponse, Error>>();
         let request = Request::ReadCoils(RequestWrapper::new(self.id, request, tx));
         self.channel_tx.send(request).await?;
         rx.await?

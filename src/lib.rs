@@ -9,13 +9,15 @@ use std::net::SocketAddr;
 pub mod channel;
 pub mod requests;
 pub mod session;
+pub mod exception;
+pub mod function;
 
-mod requests_info;
-mod error_conversion;
-mod format;
-mod frame;
+mod buffer;
 mod cursor;
+mod error_conversion;
+mod frame;
 mod mbap;
+mod request_meta;
 
 /// errors that should only occur if there is a logic error in the library
 #[derive(Debug)]
@@ -40,6 +42,12 @@ pub enum FrameError {
     UnknownProtocolId(u16)
 }
 
+#[derive(Debug)]
+pub enum ADUParseError {
+    TooFewValueBytes,
+    ByteCountMismatch
+}
+
 impl LogicError {
     pub fn from(err: std::io::Error) -> LogicError {
         match err.kind() {
@@ -53,19 +61,18 @@ impl LogicError {
 #[derive(Debug)]
 pub enum Error {
     /// We just bubble up std errors from reading/writing/connecting/etc
-    Stdio(std::io::Error),
-    /// Logic errors that shouldn't happen
+    IO(std::io::Error),
+    /// Logic errors that shouldn't happen, but we capture nonetheless
     Logic(LogicError),
     /// Framing errors
     Frame(FrameError),
+    /// Errors resulting from ADU parsing
+    ADU(ADUParseError),
     /// No connection exists
     NoConnection,
     /// Occurs when a channel is used after close
     ChannelClosed,
 }
-
-/// Result type used everywhere in this library
-pub type Result<T> = std::result::Result<T, Error>;
 
 pub fn create_client_tcp_channel(addr: SocketAddr, retry: BoxedRetryStrategy) -> Channel {
     Channel::new(addr, retry)

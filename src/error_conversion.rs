@@ -1,14 +1,20 @@
-use crate::{Error, LogicError, FrameError};
+use crate::{Error, LogicError, FrameError, ADUParseError};
 
 impl std::convert::From<std::io::Error> for Error {
     fn from(err: std::io::Error) -> Self {
-        Error::Stdio(err)
+        Error::IO(err)
     }
 }
 
 impl std::convert::From<LogicError> for Error {
     fn from(err: crate::LogicError) -> Self {
         Error::Logic(err)
+    }
+}
+
+impl std::convert::From<ADUParseError> for Error {
+    fn from(err: crate::ADUParseError) -> Self {
+        Error::ADU(err)
     }
 }
 

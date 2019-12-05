@@ -1,16 +1,17 @@
 use crate::frame::{Frame, FrameFormatter, FrameParser};
 
 use crate::{Error, FrameError};
-use crate::cursor::{ReadBuffer, WriteCursor};
-use crate::format::Format;
-use crate::Result;
+use crate::cursor::WriteCursor;
+use crate::buffer::ReadBuffer;
 
 use std::convert::TryFrom;
+use crate::request_meta::Serialize;
 
-const MBAP_HEADER_LENGTH : usize = 7;
-const MAX_MBAP_FRAME_LENGTH : usize = MBAP_HEADER_LENGTH + Frame::MAX_ADU_LENGTH; // cannot be < 1 b/c of the unit identifier
-const MBAP_MAX_LENGTH_FIELD : usize = Frame::MAX_ADU_LENGTH + 1; // includes the 1 byte unit id
-
+pub mod constants {
+    pub const MBAP_HEADER_LENGTH : usize = 7;
+    pub const MAX_MBAP_FRAME_LENGTH : usize = MBAP_HEADER_LENGTH + crate::frame::constants::MAX_ADU_LENGTH; // cannot be < 1 b/c of the unit identifier
+    pub const MBAP_MAX_LENGTH_FIELD : usize = crate::frame::constants::MAX_ADU_LENGTH + 1; // includes the 1 byte unit id
+}
 
 #[derive(Clone, Copy)]
 struct MBAPHeader {
@@ -31,12 +32,12 @@ pub struct MBAPParser {
 }
 
 pub struct MBAPFormatter {
-    buffer : [u8; MAX_MBAP_FRAME_LENGTH]
+    buffer : [u8; constants::MAX_MBAP_FRAME_LENGTH]
 }
 
 impl MBAPFormatter {
     pub fn new() -> Box<dyn FrameFormatter + Send> {
-        Box::new(MBAPFormatter { buffer: [0; MAX_MBAP_FRAME_LENGTH] })
+        Box::new(MBAPFormatter { buffer: [0; constants::MAX_MBAP_FRAME_LENGTH] })
     }
 }
 
@@ -46,7 +47,7 @@ impl MBAPParser {
         Box::new(MBAPParser { state : ParseState::Begin } )
     }
 
-    fn parse_header(cursor: &mut ReadBuffer) -> crate::Result<MBAPHeader> {
+    fn parse_header(cursor: &mut ReadBuffer) -> Result<MBAPHeader, Error> {
 
         let tx_id = cursor.read_u16_be()?;
         let protocol_id = cursor.read_u16_be()?;
@@ -57,7 +58,7 @@ impl MBAPParser {
             return Err(Error::Frame(FrameError::UnknownProtocolId(protocol_id)));
         }
 
-        if (length) > MBAP_MAX_LENGTH_FIELD {
+        if (length) > constants::MBAP_MAX_LENGTH_FIELD {
             return Err(Error::Frame(FrameError::MBAPLengthTooBig(length)));
         }
 
@@ -69,7 +70,7 @@ impl MBAPParser {
         Ok(MBAPHeader{ tx_id, adu_length: length - 1, unit_id })
     }
 
-    fn parse_body(header: &MBAPHeader, cursor: &mut ReadBuffer) -> Result<Frame> {
+    fn parse_body(header: &MBAPHeader, cursor: &mut ReadBuffer) -> Result<Frame, Error> {
         let mut frame = Frame::new(header.unit_id, header.tx_id);
         frame.set(cursor.read(header.adu_length)?);
         Ok(frame)
@@ -80,10 +81,10 @@ impl MBAPParser {
 impl FrameParser for MBAPParser {
 
     fn max_frame_size(&self) -> usize {
-        MAX_MBAP_FRAME_LENGTH
+        constants::MAX_MBAP_FRAME_LENGTH
     }
 
-    fn parse(&mut self, cursor: &mut ReadBuffer) -> Result<Option<Frame>> {
+    fn parse(&mut self, cursor: &mut ReadBuffer) -> Result<Option<Frame>, Error> {
 
         match self.state {
             ParseState::Header(header) => {
@@ -96,7 +97,7 @@ impl FrameParser for MBAPParser {
                 Ok(Some(ret))
             },
             ParseState::Begin => {
-                if cursor.len() < MBAP_HEADER_LENGTH {
+                if cursor.len() < constants::MBAP_HEADER_LENGTH {
                     return Ok(None);
                 }
 
@@ -110,21 +111,20 @@ impl FrameParser for MBAPParser {
 
 impl FrameFormatter for MBAPFormatter {
 
-    fn format(&mut self, tx_id: u16, unit_id: u8, msg: & dyn Format) -> Result<&[u8]> {
+    fn format(&mut self, tx_id: u16, unit_id: u8, msg: & dyn Serialize) -> Result<&[u8], Error> {
         let mut cursor = WriteCursor::new(self.buffer.as_mut());
-        cursor.write_u16(tx_id)?;
-        cursor.write_u16(0)?;
+        cursor.write_u16_be(tx_id)?;
+        cursor.write_u16_be(0)?;
         cursor.skip(2)?; // write the length later
         cursor.write_u8(unit_id)?;
 
-        let adu_length : u64 = msg.format_with_length(&mut cursor)?;
-
+        let adu_length = msg.serialize(&mut cursor)?;
 
         let frame_length_value = u16::try_from(adu_length + 1)?;
         cursor.seek_from_start(4)?;
-        cursor.write_u16(frame_length_value)?;
+        cursor.write_u16_be(frame_length_value)?;
 
-        let total_length = MBAP_HEADER_LENGTH + adu_length as usize;
+        let total_length = constants::MBAP_HEADER_LENGTH + adu_length as usize;
 
         Ok(&self.buffer[.. total_length])
     }
@@ -134,19 +134,18 @@ impl FrameFormatter for MBAPFormatter {
 mod tests {
 
     use super::*;
-    use crate::format::Format;
-    use crate::Result;
     use crate::frame::FramedReader;
 
     use tokio_test::io::Builder;
     use tokio_test::block_on;
+    use crate::request_meta::Serialize;
 
     //                            |   tx id  |  proto id |  length  | unit |  payload   |
     const SIMPLE_FRAME : &[u8] = &[0x00, 0x07, 0x00, 0x00, 0x00, 0x03, 0x2A, 0x03, 0x04];
 
-    impl Format for &[u8] {
-        fn format(self: &Self, cursor: &mut WriteCursor) -> Result<()> {
-            cursor.write(self)?;
+    impl Serialize for &[u8] {
+        fn serialize_inner(self: &Self, cursor: &mut WriteCursor) -> Result<(), Error> {
+            cursor.write_bytes(self)?;
             Ok(())
         }
     }

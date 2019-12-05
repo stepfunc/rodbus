@@ -1,19 +1,18 @@
-use crate::{Result, Error};
+use crate::Error;
 use crate::requests::*;
-use crate::requests_info::*;
+use crate::request_meta::*;
 use crate::session::{Session, UnitIdentifier};
 use crate::frame::{FrameFormatter, FramedReader};
 use crate::mbap::{MBAPParser, MBAPFormatter};
-use crate::format::Format;
 
 use tokio::io::{AsyncWriteExt};
 use tokio::net::TcpStream;
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
-use tokio::time::Timeout;
 
 use std::net::SocketAddr;
 use std::time::{Duration, Instant};
+use crate::cursor::ReadCursor;
 
 
 /// All the possible requests that can be sent through the channel
@@ -28,11 +27,11 @@ pub(crate) enum Request {
 pub(crate) struct RequestWrapper<T: RequestInfo> {
     unit_id: UnitIdentifier,
     argument : T,
-    reply_to : oneshot::Sender<Result<T::ResponseType>>,
+    reply_to : oneshot::Sender<Result<T::ResponseType, Error>>,
 }
 
 impl<T: RequestInfo> RequestWrapper<T> {
-    pub fn new(unit_id: UnitIdentifier, argument : T, reply_to : oneshot::Sender<Result<T::ResponseType>>) -> Self {
+    pub fn new(unit_id: UnitIdentifier, argument : T, reply_to : oneshot::Sender<Result<T::ResponseType, Error>>) -> Self {
         Self { unit_id, argument, reply_to }
     }
 }
@@ -116,7 +115,7 @@ impl ChannelServer {
         Self { addr, rx, formatter : MBAPFormatter::new(), connect_retry, reader : FramedReader::new(MBAPParser::new()) }
     }
 
-    pub async fn run(&mut self) -> Result<()> {
+    pub async fn run(&mut self) -> Result<(), Error> {
         // try to connect
         loop {
             match tokio::net::TcpStream::connect(self.addr).await {
@@ -137,19 +136,20 @@ impl ChannelServer {
         }
     }
 
-    async fn handle_request<Req: RequestInfo + Format>(&mut self, io: &mut TcpStream, wrapper: RequestWrapper<Req>) {
+    async fn handle_request<Req: RequestInfo>(&mut self, io: &mut TcpStream, wrapper: RequestWrapper<Req>) {
         let result = self.handle(io, wrapper.unit_id, &wrapper.argument).await;
         wrapper.reply_to.send(result).ok();
     }
 
-    async fn handle<Req: RequestInfo + Format>(&mut self, io: &mut TcpStream, unit_id: UnitIdentifier, request: &Req) -> Result<Req::ResponseType> {
+    async fn handle<Req: RequestInfo>(&mut self, io: &mut TcpStream, unit_id: UnitIdentifier, request: &Req) -> Result<Req::ResponseType, Error> {
         let bytes = self.formatter.format(0, unit_id.value(), request)?;
         io.write_all(bytes).await?;
         let frame = self.reader.next_frame(io).await?;
-        Ok(Req::ResponseType::parse(frame.payload(), request)?)
+        let mut cursor = ReadCursor::new(frame.payload());
+        Ok(Req::ResponseType::parse(&mut cursor, request)?)
     }
 
-    async fn wait(&mut self, duration: Duration) -> Result<()> {
+    async fn wait(&mut self, duration: Duration) -> Result<(), Error> {
 
         let start = Instant::now();
         let end = start + duration;
@@ -162,7 +162,7 @@ impl ChannelServer {
             let timeout = end - current;
 
             match tokio::time::timeout(timeout, self.rx.recv()).await {
-                Err(x) => return Ok(()),
+                Err(_timeout_err) => return Ok(()),
                 Ok(None) => return Err(Error::ChannelClosed),
                 Ok(Some(request)) => Self::fail_request(request)
             }
@@ -173,7 +173,7 @@ impl ChannelServer {
     fn fail_request(request: Request) -> () {
         match request {
             Request::ReadCoils(wrapper) => {
-                wrapper.reply_to.send(Err(Error::NoConnection))
+                wrapper.reply_to.send(Err(Error::NoConnection)).ok()
             }
         };
     }

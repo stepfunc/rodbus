@@ -1,26 +1,29 @@
-use crate::format::Format;
-use crate::Result;
-use crate::cursor::{ReadBuffer};
+
+use crate::Error;
+use crate::buffer::ReadBuffer;
 
 use tokio::io::AsyncRead;
+use crate::request_meta::Serialize;
+
+pub mod constants {
+    pub const MAX_ADU_LENGTH : usize = 253;
+}
 
 pub struct Frame {
     pub unit_id: u8,
     pub tx_id: u16,
     length: usize,
-    adu: [u8; Self::MAX_ADU_LENGTH]
+    adu: [u8; constants::MAX_ADU_LENGTH]
 }
 
 impl Frame {
-
-    pub const MAX_ADU_LENGTH : usize = 253;
 
     pub fn new(unit_id: u8, tx_id: u16) -> Frame {
         Frame {
             unit_id,
             tx_id,
             length: 0,
-            adu: [0; Self::MAX_ADU_LENGTH]
+            adu: [0; constants::MAX_ADU_LENGTH]
         }
     }
 
@@ -54,13 +57,13 @@ pub trait FrameParser {
   * Ok(None) implies that more data is required to complete parsing
   * Ok(Some(..)) will contain a fully parsed frame and will advance the Cursor appropriately
   */
-  fn parse(&mut self, cursor: &mut ReadBuffer) -> Result<Option<Frame>>;
+  fn parse(&mut self, cursor: &mut ReadBuffer) -> Result<Option<Frame>, Error>;
 
 }
 
 pub trait FrameFormatter {
 
-    fn format(&mut self, tx_id : u16, unit_id: u8, msg: & dyn Format) -> Result<&[u8]>;
+    fn format(&mut self, tx_id : u16, unit_id: u8, msg: &dyn Serialize) -> Result<&[u8], Error>;
 
 }
 
@@ -79,7 +82,7 @@ impl FramedReader {
         }
     }
 
-    pub async fn next_frame<T>(&mut self, io : &mut T) -> Result<Frame> where T : AsyncRead + Unpin {
+    pub async fn next_frame<T>(&mut self, io : &mut T) -> Result<Frame, Error> where T : AsyncRead + Unpin {
 
         loop {
             match self.parser.parse(&mut self.buffer)? {
