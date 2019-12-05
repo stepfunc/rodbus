@@ -1,3 +1,4 @@
+
 pub struct ReadCoilsRequest {
     pub start : u16,
     pub quantity: u16,
@@ -12,3 +13,4 @@ impl ReadCoilsRequest {
 pub struct ReadCoilsResponse {
     pub values: Vec<bool>
 }
+

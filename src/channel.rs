@@ -1,6 +1,6 @@
-use crate::Error;
-use crate::requests::*;
-use crate::request_meta::*;
+use crate::error::Error;
+use crate::request::traits::{RequestInfo, ResponseInfo};
+use crate::request::read_coils::ReadCoilsRequest;
 use crate::session::{Session, UnitIdentifier};
 use crate::frame::{FrameFormatter, FramedReader};
 use crate::mbap::{MBAPParser, MBAPFormatter};
@@ -15,12 +15,12 @@ use std::time::{Duration, Instant};
 use crate::cursor::ReadCursor;
 
 
-/// All the possible requests that can be sent through the channel
+/// All the possible request that can be sent through the channel
 pub(crate) enum Request {
     ReadCoils(RequestWrapper<ReadCoilsRequest>),
 }
 
-/// Wrapper for the requests sent through the channel
+/// Wrapper for the request sent through the channel
 ///
 /// It contains the session ID, the actual request and
 /// a oneshot channel to receive the reply.
@@ -79,8 +79,8 @@ impl RetryStrategy for DoublingRetryStrategy {
 
 /// Channel of communication
 ///
-/// To actually send requests to the channel, the user must create
-/// a session send the requests through it.
+/// To actually send request to the channel, the user must create
+/// a session send the request through it.
 pub struct Channel {
     tx: mpsc::Sender<Request>,
 }
@@ -99,7 +99,7 @@ impl Channel {
 
 /// Channel loop
 ///
-/// This loop handles the requests one by one. It serializes the request
+/// This loop handles the request one by one. It serializes the request
 /// and sends it through the socket. It then waits for a response, deserialize
 /// it and sends it back to the oneshot provided by the caller.
 struct ChannelServer {
@@ -136,17 +136,17 @@ impl ChannelServer {
         }
     }
 
-    async fn handle_request<Req: RequestInfo>(&mut self, io: &mut TcpStream, wrapper: RequestWrapper<Req>) {
+    async fn handle_request<R: RequestInfo>(&mut self, io: &mut TcpStream, wrapper: RequestWrapper<R>) {
         let result = self.handle(io, wrapper.unit_id, &wrapper.argument).await;
         wrapper.reply_to.send(result).ok();
     }
 
-    async fn handle<Req: RequestInfo>(&mut self, io: &mut TcpStream, unit_id: UnitIdentifier, request: &Req) -> Result<Req::ResponseType, Error> {
+    async fn handle<R: RequestInfo>(&mut self, io: &mut TcpStream, unit_id: UnitIdentifier, request: &R) -> Result<R::ResponseType, Error> {
         let bytes = self.formatter.format(0, unit_id.value(), request)?;
         io.write_all(bytes).await?;
         let frame = self.reader.next_frame(io).await?;
         let mut cursor = ReadCursor::new(frame.payload());
-        Ok(Req::ResponseType::parse(&mut cursor, request)?)
+        Ok(R::ResponseType::parse(&mut cursor, request)?)
     }
 
     async fn wait(&mut self, duration: Duration) -> Result<(), Error> {

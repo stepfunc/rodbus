@@ -1,5 +1,5 @@
 use modbus_rs::create_client_tcp_channel;
-use modbus_rs::requests::*;
+use modbus_rs::request::read_coils::ReadCoilsRequest;
 
 use modbus_rs::session::UnitIdentifier;
 use modbus_rs::channel::DoublingRetryStrategy;

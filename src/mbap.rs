@@ -1,11 +1,11 @@
 use crate::frame::{Frame, FrameFormatter, FrameParser};
 
-use crate::{Error, FrameError};
+use crate::error::{Error, FrameError};
 use crate::cursor::WriteCursor;
 use crate::buffer::ReadBuffer;
 
 use std::convert::TryFrom;
-use crate::request_meta::Serialize;
+use crate::request::traits::Serialize;
 
 pub mod constants {
     pub const MBAP_HEADER_LENGTH : usize = 7;
@@ -115,7 +115,7 @@ impl FrameFormatter for MBAPFormatter {
         let mut cursor = WriteCursor::new(self.buffer.as_mut());
         cursor.write_u16_be(tx_id)?;
         cursor.write_u16_be(0)?;
-        cursor.skip(2)?; // write the length later
+        cursor.seek_from_current(2)?; // write the length later
         cursor.write_u8(unit_id)?;
 
         let adu_length = msg.serialize(&mut cursor)?;
@@ -138,7 +138,7 @@ mod tests {
 
     use tokio_test::io::Builder;
     use tokio_test::block_on;
-    use crate::request_meta::Serialize;
+    use crate::request::traits::Serialize;
 
     //                            |   tx id  |  proto id |  length  | unit |  payload   |
     const SIMPLE_FRAME : &[u8] = &[0x00, 0x07, 0x00, 0x00, 0x00, 0x03, 0x2A, 0x03, 0x04];

@@ -1,4 +1,4 @@
-use crate::LogicError;
+use crate::error::LogicError;
 
 use tokio::io::{AsyncRead, AsyncReadExt};
 

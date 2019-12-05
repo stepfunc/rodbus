@@ -1,8 +1,4 @@
-use crate::{Error, LogicError};
-
-use byteorder::{BE, WriteBytesExt};
-use std::io::{Write, Seek, SeekFrom};
-use crate::Error::Logic;
+use crate::error::{Error, LogicError, WriteError};
 
 /// custom read-only cursor
 pub struct ReadCursor<'a> {
@@ -10,9 +6,9 @@ pub struct ReadCursor<'a> {
 }
 
 /// custom write cursor
-/// wraps std::io::Cursor mapping errors and limiting exposed methods
 pub struct WriteCursor<'a> {
-    inner : std::io::Cursor<&'a mut [u8]>
+    dest : &'a mut [u8],
+    pos: usize
 }
 
 impl<'a> ReadCursor<'a> {
@@ -28,7 +24,7 @@ impl<'a> ReadCursor<'a> {
 
     pub fn read_u8(&mut self) -> Result<u8, Error> {
         if self.src.is_empty() {
-            return Err(Logic(LogicError::InsufficientBuffer));
+            return Err(Error::Logic(LogicError::InsufficientBuffer));
         }
 
         let ret = self.src[0];
@@ -38,7 +34,7 @@ impl<'a> ReadCursor<'a> {
 
     pub fn read_bytes(&mut self, count: usize) -> Result<&'a[u8], Error> {
         if self.src.len() < count {
-            return Err(Logic(LogicError::InsufficientBuffer));
+            return Err(LogicError::InsufficientBuffer)?;
         }
 
         let ret = &self.src[0 .. count];
@@ -50,32 +46,61 @@ impl<'a> ReadCursor<'a> {
 impl<'a> WriteCursor<'a> {
     pub fn new(dest: &'a mut [u8]) -> WriteCursor<'a> {
         WriteCursor {
-            inner : std::io::Cursor::new(dest)
+            dest,
+            pos : 0
         }
     }
 
-    pub fn position(&self) -> u64 {
-        self.inner.position()
+    pub fn position(&self) -> usize {
+        self.pos
     }
 
-    pub fn skip(&mut self, count: u32) -> Result<(), Error> {
-        self.inner.seek(SeekFrom::Current(count as i64)).map_err(|err| Error::Logic(LogicError::from(err)) ).map(|_| ())
+    pub fn remaining(&self) -> usize {
+        self.dest.len() - self.pos
     }
 
-    pub fn seek_from_start(&mut self, count: u64) -> Result<u64, Error> {
-        self.inner.seek(SeekFrom::Start(count)).map_err(|err| Error::Logic(LogicError::from(err)) )
-    }
-    
-    pub fn write_bytes(&mut self, value: &[u8]) -> Result<usize, Error> {
-        self.inner.write(value).map_err(|err| Error::Logic(LogicError::from(err)) )
-    }
-
-    pub fn write_u8(&mut self, value: u8) -> Result<(), Error> {
-        self.inner.write_u8(value).map_err(|err| Error::Logic(LogicError::from(err)) )
+    pub fn seek_from_current(&mut self, count: usize) -> Result<(), WriteError> {
+        if self.remaining() <  count {
+            return Err(WriteError::InvalidSeek);
+        }
+        self.pos += count;
+        Ok(())
     }
 
-    pub fn write_u16_be(&mut self, value: u16) -> Result<(), Error> {
-        self.inner.write_u16::<BE>(value).map_err(|err| Error::Logic(LogicError::from(err)) )
+    pub fn seek_from_start(&mut self, count: usize) -> Result<(), WriteError> {
+        if self.dest.len() <  count {
+            return Err(WriteError::InvalidSeek);
+        }
+        self.pos = count;
+        Ok(())
+    }
+
+    pub fn write_bytes(&mut self, value: &[u8]) -> Result<(), WriteError> {
+        if self.remaining() < value.len() {
+            return Err(WriteError::InsufficientBuffer);
+        }
+        self.dest[self.pos .. self.pos + value.len()].copy_from_slice(value);
+        self.pos += value.len();
+        Ok(())
+    }
+
+    pub fn write_u8(&mut self, value: u8) -> Result<(), WriteError> {
+        if self.remaining() == 0 {
+            return Err(WriteError::InsufficientBuffer);
+        }
+        self.dest[self.pos] = value;
+        self.pos += 1;
+        Ok(())
+    }
+
+    pub fn write_u16_be(&mut self, value: u16) -> Result<(), WriteError> {
+        if self.remaining() < 2 {  // don't write any bytes if there's isn't space for the whole thing
+            return Err(WriteError::InsufficientBuffer);
+        }
+        let upper = ((value & 0xFF00) >> 8) as u8;
+        let lower = (value & 0x00FF) as u8;
+        self.write_u8(upper)?;
+        self.write_u8(lower)
     }
 
 }

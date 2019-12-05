@@ -1,43 +1,8 @@
-use crate::{Error, ADUParseError};
-use crate::requests::*;
-use crate::cursor::{WriteCursor, ReadCursor};
-use std::convert::TryFrom;
+use crate::error::{Error, ADUParseError};
+use crate::request::traits::*;
+use crate::cursor::*;
+use crate::request::read_coils::*;
 
-pub trait Serialize {
-    fn serialize(&self, cursor: &mut WriteCursor) -> Result<usize, Error> {
-        let begin = cursor.position();
-        self.serialize_inner(cursor)?;
-        Ok(usize::try_from(cursor.position() - begin)?)
-    }
-
-    fn serialize_inner(&self, cursor: &mut WriteCursor) -> Result<(), Error>;
-}
-
-pub trait RequestInfo : Serialize + Sized {
-    type ResponseType: ResponseInfo<RequestType = Self>;
-}
-
-pub trait ResponseInfo: Sized {
-    type RequestType;
-    const REQUEST_FUNCTION_CODE : u8;
-    const RESPONSE_ERROR_CODE : u8 = Self::REQUEST_FUNCTION_CODE | crate::function::constants::ERROR_DELIMITER;
-
-    fn parse(cursor: &mut ReadCursor, request: &Self::RequestType) -> Result<Self, Error> {
-
-        let function = cursor.read_u8()?;
-
-        if function == Self::REQUEST_FUNCTION_CODE {
-            Self::parse_inner(cursor, request)
-        }
-        else if function == Self::RESPONSE_ERROR_CODE {
-            Err(ADUParseError::ByteCountMismatch)?
-        } else {
-            Err(ADUParseError::ByteCountMismatch)?
-        }
-    }
-
-    fn parse_inner(cursor: &mut ReadCursor, request: &Self::RequestType) -> Result<Self, Error>;
-}
 
 impl RequestInfo for ReadCoilsRequest {
     type ResponseType = ReadCoilsResponse;
@@ -68,11 +33,11 @@ impl ResponseInfo for ReadCoilsResponse {
         };
 
         if byte_count as u16 != expected_byte_count {
-            return Err(Error::ADU(ADUParseError::TooFewValueBytes));
+            return Err(ADUParseError::TooFewValueBytes)?;
         }
 
         if byte_count as usize != cursor.len() {
-            return Err(Error::ADU(ADUParseError::ByteCountMismatch));
+            return Err(ADUParseError::ByteCountMismatch)?;
         }
 
         let bytes = cursor.read_bytes(byte_count as usize)?;

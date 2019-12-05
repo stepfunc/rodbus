@@ -1,7 +1,7 @@
 use crate::channel::{Request, RequestWrapper};
-use crate::requests::*;
+use crate::request::read_coils::*;
 use tokio::sync::{mpsc, oneshot};
-use crate::Error;
+use crate::error::Error;
 
 #[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
 pub struct UnitIdentifier {
