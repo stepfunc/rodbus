@@ -12,8 +12,7 @@ impl Service for crate::request::services::ReadCoils {
 }
 
 impl SerializeRequest for AddressRange {
-    fn serialize_inner(&self, cur: &mut WriteCursor) -> Result<(), Error> {
-        cur.write_u8(crate::function::constants::READ_COILS)?;
+    fn serialize_after_function(&self, cur: &mut WriteCursor) -> Result<(), Error> {
         cur.write_u16_be(self.start)?;
         cur.write_u16_be(self.count)?;
         Ok(())
@@ -22,7 +21,7 @@ impl SerializeRequest for AddressRange {
 
 impl ParseResponse<AddressRange> for Vec<Indexed<bool>> {
 
-    fn parse_inner(cursor: &mut ReadCursor, request: &AddressRange) -> Result<Self, Error> {
+    fn parse_after_function(cursor: &mut ReadCursor, request: &AddressRange) -> Result<Self, Error> {
 
         let byte_count = cursor.read_u8()?;
 

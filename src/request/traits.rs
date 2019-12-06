@@ -2,14 +2,11 @@ use crate::error::{Error, ADUParseError};
 use crate::cursor::{WriteCursor, ReadCursor};
 
 pub trait SerializeRequest {
+    fn serialize_after_function(&self, cursor: &mut WriteCursor) -> Result<(), Error>;
+}
 
-    fn serialize(&self, cursor: &mut WriteCursor) -> Result<usize, Error> {
-        let begin = cursor.position();
-        self.serialize_inner(cursor)?;
-        Ok(cursor.position() - begin)
-    }
-
-    fn serialize_inner(&self, cursor: &mut WriteCursor) -> Result<(), Error>;
+pub trait ParseResponse<T> : Sized {
+    fn parse_after_function(cursor: &mut ReadCursor, request: &T) -> Result<Self, Error>;
 }
 
 pub trait Service {
@@ -25,7 +22,7 @@ pub trait Service {
         let function = cursor.read_u8()?;
 
         if function == Self::REQUEST_FUNCTION_CODE {
-            Self::Response::parse_inner(cursor, request)
+            Self::Response::parse_after_function(cursor, request)
         }
         else if function == Self::RESPONSE_ERROR_CODE {
             Err(ADUParseError::ByteCountMismatch)?
@@ -35,8 +32,6 @@ pub trait Service {
     }
 }
 
-pub trait ParseResponse<T> : Sized {
-    fn parse_inner(cursor: &mut ReadCursor, request: &T) -> Result<Self, Error>;
-}
+
 
 

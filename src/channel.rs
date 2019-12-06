@@ -144,7 +144,7 @@ impl ChannelServer {
     }
 
     async fn handle<S: Service>(&mut self, io: &mut TcpStream, unit_id: UnitIdentifier, request: &S::Request) -> Result<S::Response, Error> {
-        let bytes = self.formatter.format(0, unit_id.value(), request)?;
+        let bytes = self.formatter.format(0, unit_id.value(), S::REQUEST_FUNCTION_CODE, request)?;
         io.write_all(bytes).await?;
         let frame = self.reader.next_frame(io).await?;
         let mut cursor = ReadCursor::new(frame.payload());

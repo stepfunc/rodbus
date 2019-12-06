@@ -111,14 +111,19 @@ impl FrameParser for MBAPParser {
 
 impl FrameFormatter for MBAPFormatter {
 
-    fn format(&mut self, tx_id: u16, unit_id: u8, msg: &dyn SerializeRequest) -> Result<&[u8], Error> {
+    fn format(&mut self, tx_id: u16, unit_id: u8, function: u8, msg: &dyn SerializeRequest) -> Result<&[u8], Error> {
         let mut cursor = WriteCursor::new(self.buffer.as_mut());
         cursor.write_u16_be(tx_id)?;
         cursor.write_u16_be(0)?;
         cursor.seek_from_current(2)?; // write the length later
         cursor.write_u8(unit_id)?;
 
-        let adu_length = msg.serialize(&mut cursor)?;
+        let adu_length : usize = {
+            let start = cursor.position();
+            cursor.write_u8(function)?;
+            msg.serialize_after_function(&mut cursor)?;
+            cursor.position() - start
+        };
 
         let frame_length_value = u16::try_from(adu_length + 1)?;
         cursor.seek_from_start(4)?;
@@ -145,13 +150,11 @@ mod tests {
 
     struct MockMessage {
         a: u8,
-        b: u8
     }
 
     impl SerializeRequest for MockMessage {
-        fn serialize_inner(self: &Self, cursor: &mut WriteCursor) -> Result<(), Error> {
+        fn serialize_after_function(self: &Self, cursor: &mut WriteCursor) -> Result<(), Error> {
             cursor.write_u8(self.a)?;
-            cursor.write_u8(self.b)?;
             Ok(())
         }
     }
@@ -181,8 +184,8 @@ mod tests {
     #[test]
     fn correctly_formats_frame() {
         let mut formatter = MBAPFormatter::new();
-        let msg = MockMessage { a : 0x03, b : 0x04 };
-        let output = formatter.format(7, 42, &msg).unwrap();
+        let msg = MockMessage { a : 0x04 };
+        let output = formatter.format(7, 42, 0x03, &msg).unwrap();
 
 
         assert_eq!(output, SIMPLE_FRAME)
