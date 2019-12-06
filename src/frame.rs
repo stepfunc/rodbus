@@ -3,7 +3,7 @@ use crate::error::Error;
 use crate::buffer::ReadBuffer;
 
 use tokio::io::AsyncRead;
-use crate::request::traits::Serialize;
+use crate::request::traits::SerializeRequest;
 
 pub mod constants {
     pub const MAX_ADU_LENGTH : usize = 253;
@@ -63,7 +63,7 @@ pub trait FrameParser {
 
 pub trait FrameFormatter {
 
-    fn format(&mut self, tx_id : u16, unit_id: u8, msg: &dyn Serialize) -> Result<&[u8], Error>;
+    fn format(&mut self, tx_id : u16, unit_id: u8, msg: &dyn SerializeRequest) -> Result<&[u8], Error>;
 
 }
 

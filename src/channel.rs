@@ -1,5 +1,5 @@
 use crate::error::Error;
-use crate::request::traits::{Service, Parse};
+use crate::request::traits::Service;
 use crate::session::{Session, UnitIdentifier};
 use crate::frame::{FrameFormatter, FramedReader};
 use crate::mbap::{MBAPParser, MBAPFormatter};
@@ -148,7 +148,7 @@ impl ChannelServer {
         io.write_all(bytes).await?;
         let frame = self.reader.next_frame(io).await?;
         let mut cursor = ReadCursor::new(frame.payload());
-        Ok(S::Response::parse(&mut cursor, request)?)
+        Ok(S::parse_response(&mut cursor, request)?)
     }
 
     async fn wait(&mut self, duration: Duration) -> Result<(), Error> {

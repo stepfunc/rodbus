@@ -5,7 +5,7 @@ use crate::cursor::WriteCursor;
 use crate::buffer::ReadBuffer;
 
 use std::convert::TryFrom;
-use crate::request::traits::Serialize;
+use crate::request::traits::SerializeRequest;
 
 pub mod constants {
     pub const MBAP_HEADER_LENGTH : usize = 7;
@@ -111,7 +111,7 @@ impl FrameParser for MBAPParser {
 
 impl FrameFormatter for MBAPFormatter {
 
-    fn format(&mut self, tx_id: u16, unit_id: u8, msg: & dyn Serialize) -> Result<&[u8], Error> {
+    fn format(&mut self, tx_id: u16, unit_id: u8, msg: &dyn SerializeRequest) -> Result<&[u8], Error> {
         let mut cursor = WriteCursor::new(self.buffer.as_mut());
         cursor.write_u16_be(tx_id)?;
         cursor.write_u16_be(0)?;
@@ -138,7 +138,7 @@ mod tests {
 
     use tokio_test::io::Builder;
     use tokio_test::block_on;
-    use crate::request::traits::Serialize;
+    use crate::request::traits::SerializeRequest;
 
     //                            |   tx id  |  proto id |  length  | unit |  payload   |
     const SIMPLE_FRAME : &[u8] = &[0x00, 0x07, 0x00, 0x00, 0x00, 0x03, 0x2A, 0x03, 0x04];
@@ -148,7 +148,7 @@ mod tests {
         b: u8
     }
 
-    impl Serialize for MockMessage {
+    impl SerializeRequest for MockMessage {
         fn serialize_inner(self: &Self, cursor: &mut WriteCursor) -> Result<(), Error> {
             cursor.write_u8(self.a)?;
             cursor.write_u8(self.b)?;

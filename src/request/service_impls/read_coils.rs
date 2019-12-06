@@ -4,11 +4,14 @@ use crate::cursor::*;
 use crate::request::types::{AddressRange, Indexed};
 
 impl Service for crate::request::services::ReadCoils {
+
+    const REQUEST_FUNCTION_CODE: u8 = crate::function::constants::READ_COILS;
+
     type Request = AddressRange;
     type Response = Vec<Indexed<bool>>;
 }
 
-impl Serialize for AddressRange {
+impl SerializeRequest for AddressRange {
     fn serialize_inner(&self, cur: &mut WriteCursor) -> Result<(), Error> {
         cur.write_u8(crate::function::constants::READ_COILS)?;
         cur.write_u16_be(self.start)?;
@@ -17,9 +20,7 @@ impl Serialize for AddressRange {
     }
 }
 
-impl Parse<AddressRange> for Vec<Indexed<bool>> {
-
-    const REQUEST_FUNCTION_CODE: u8 = crate::function::constants::READ_COILS;
+impl ParseResponse<AddressRange> for Vec<Indexed<bool>> {
 
     fn parse_inner(cursor: &mut ReadCursor, request: &AddressRange) -> Result<Self, Error> {
 
