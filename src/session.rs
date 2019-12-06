@@ -1,7 +1,7 @@
-use crate::channel::{Request, RequestWrapper};
-use crate::request::read_coils::*;
+use crate::channel::{Request, ServiceRequest};
 use tokio::sync::{mpsc, oneshot};
 use crate::error::Error;
+use crate::request::types::{AddressRange, Indexed};
 
 #[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
 pub struct UnitIdentifier {
@@ -32,9 +32,9 @@ impl Session {
         Session { id, channel_tx }
     }
 
-    pub async fn read_coils(&mut self, request: ReadCoilsRequest) -> Result<ReadCoilsResponse, Error> {
-        let (tx, rx) = oneshot::channel::<Result<ReadCoilsResponse, Error>>();
-        let request = Request::ReadCoils(RequestWrapper::new(self.id, request, tx));
+    pub async fn read_coils(&mut self, range: AddressRange) -> Result<Vec<Indexed<bool>>, Error> {
+        let (tx, rx) = oneshot::channel::<Result<Vec<Indexed<bool>>, Error>>();
+        let request = Request::ReadCoils(ServiceRequest::new(self.id, range, tx));
         self.channel_tx.send(request).await?;
         rx.await?
     }

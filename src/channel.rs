@@ -1,6 +1,5 @@
 use crate::error::Error;
-use crate::request::traits::{RequestInfo, ResponseInfo};
-use crate::request::read_coils::ReadCoilsRequest;
+use crate::request::traits::{Service, Parse};
 use crate::session::{Session, UnitIdentifier};
 use crate::frame::{FrameFormatter, FramedReader};
 use crate::mbap::{MBAPParser, MBAPFormatter};
@@ -13,25 +12,26 @@ use tokio::sync::oneshot;
 use std::net::SocketAddr;
 use std::time::{Duration, Instant};
 use crate::cursor::ReadCursor;
+use crate::request::services::ReadCoils;
 
 
 /// All the possible request that can be sent through the channel
 pub(crate) enum Request {
-    ReadCoils(RequestWrapper<ReadCoilsRequest>),
+    ReadCoils(ServiceRequest<ReadCoils>),
 }
 
 /// Wrapper for the request sent through the channel
 ///
 /// It contains the session ID, the actual request and
 /// a oneshot channel to receive the reply.
-pub(crate) struct RequestWrapper<T: RequestInfo> {
+pub(crate) struct ServiceRequest<S: Service> {
     unit_id: UnitIdentifier,
-    argument : T,
-    reply_to : oneshot::Sender<Result<T::ResponseType, Error>>,
+    argument : S::Request,
+    reply_to : oneshot::Sender<Result<S::Response, Error>>,
 }
 
-impl<T: RequestInfo> RequestWrapper<T> {
-    pub fn new(unit_id: UnitIdentifier, argument : T, reply_to : oneshot::Sender<Result<T::ResponseType, Error>>) -> Self {
+impl<S: Service> ServiceRequest<S> {
+    pub fn new(unit_id: UnitIdentifier, argument : S::Request, reply_to : oneshot::Sender<Result<S::Response, Error>>) -> Self {
         Self { unit_id, argument, reply_to }
     }
 }
@@ -131,22 +131,24 @@ impl ChannelServer {
     async fn run_with_stream(&mut self, mut io : TcpStream) -> () {
         while let Some(value) =  self.rx.recv().await {
             match value {
-                Request::ReadCoils(wrapper) => self.handle_request(&mut io, wrapper).await,
+                Request::ReadCoils(srv) => {
+                    self.handle_request::<crate::request::services::ReadCoils>(&mut io, srv).await
+                }
             };
         }
     }
 
-    async fn handle_request<R: RequestInfo>(&mut self, io: &mut TcpStream, wrapper: RequestWrapper<R>) {
-        let result = self.handle(io, wrapper.unit_id, &wrapper.argument).await;
-        wrapper.reply_to.send(result).ok();
+    async fn handle_request<S: Service>(&mut self, io: &mut TcpStream, srv: ServiceRequest<S>) {
+        let result = self.handle::<S>(io, srv.unit_id, &srv.argument).await;
+        srv.reply_to.send(result).ok();
     }
 
-    async fn handle<R: RequestInfo>(&mut self, io: &mut TcpStream, unit_id: UnitIdentifier, request: &R) -> Result<R::ResponseType, Error> {
+    async fn handle<S: Service>(&mut self, io: &mut TcpStream, unit_id: UnitIdentifier, request: &S::Request) -> Result<S::Response, Error> {
         let bytes = self.formatter.format(0, unit_id.value(), request)?;
         io.write_all(bytes).await?;
         let frame = self.reader.next_frame(io).await?;
         let mut cursor = ReadCursor::new(frame.payload());
-        Ok(R::ResponseType::parse(&mut cursor, request)?)
+        Ok(S::Response::parse(&mut cursor, request)?)
     }
 
     async fn wait(&mut self, duration: Duration) -> Result<(), Error> {

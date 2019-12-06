@@ -1,5 +1,4 @@
 use modbus_rs::create_client_tcp_channel;
-use modbus_rs::request::read_coils::ReadCoilsRequest;
 
 use modbus_rs::session::UnitIdentifier;
 use modbus_rs::channel::DoublingRetryStrategy;
@@ -8,6 +7,7 @@ use std::net::{SocketAddr, IpAddr, Ipv4Addr};
 use std::time::Duration;
 
 use tokio::time::delay_for;
+use modbus_rs::request::types::AddressRange;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -19,8 +19,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // try to poll for some coils every 3 seconds
     loop {
-        match session.read_coils(ReadCoilsRequest::new(0,5)).await {
-            Ok(response) => println!("Result: {:?}", response.values),
+        match session.read_coils(AddressRange::new(0, 5)).await {
+            Ok(values) => {
+                for x in values {
+                    println!("index: {} value: {}", x.index, x.value)
+                }
+            },
             Err(err) => println!("Error: {:?}", err)
         }
 
