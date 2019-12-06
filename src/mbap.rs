@@ -143,9 +143,15 @@ mod tests {
     //                            |   tx id  |  proto id |  length  | unit |  payload   |
     const SIMPLE_FRAME : &[u8] = &[0x00, 0x07, 0x00, 0x00, 0x00, 0x03, 0x2A, 0x03, 0x04];
 
-    impl Serialize for &[u8] {
+    struct MockMessage {
+        a: u8,
+        b: u8
+    }
+
+    impl Serialize for MockMessage {
         fn serialize_inner(self: &Self, cursor: &mut WriteCursor) -> Result<(), Error> {
-            cursor.write_bytes(self)?;
+            cursor.write_u8(self.a)?;
+            cursor.write_u8(self.b)?;
             Ok(())
         }
     }
@@ -175,7 +181,8 @@ mod tests {
     #[test]
     fn correctly_formats_frame() {
         let mut formatter = MBAPFormatter::new();
-        let output = formatter.format(7, 42, &[0x03u8, 0x04].as_ref()).unwrap();
+        let msg = MockMessage { a : 0x03, b : 0x04 };
+        let output = formatter.format(7, 42, &msg).unwrap();
 
 
         assert_eq!(output, SIMPLE_FRAME)

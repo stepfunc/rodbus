@@ -75,15 +75,6 @@ impl<'a> WriteCursor<'a> {
         Ok(())
     }
 
-    pub fn write_bytes(&mut self, value: &[u8]) -> Result<(), WriteError> {
-        if self.remaining() < value.len() {
-            return Err(WriteError::InsufficientBuffer);
-        }
-        self.dest[self.pos .. self.pos + value.len()].copy_from_slice(value);
-        self.pos += value.len();
-        Ok(())
-    }
-
     pub fn write_u8(&mut self, value: u8) -> Result<(), WriteError> {
         if self.remaining() == 0 {
             return Err(WriteError::InsufficientBuffer);
