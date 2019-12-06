@@ -16,24 +16,24 @@ impl ParseResponse<AddressRange> for Vec<Indexed<bool>> {
 
     fn parse_after_function(cursor: &mut ReadCursor, request: &AddressRange) -> Result<Self, Error> {
 
-        let byte_count = cursor.read_u8()?;
+        let byte_count = cursor.read_u8()? as usize;
 
         // how many bytes should we have?
         let expected_byte_count = if request.count % 8 == 0 {
             request.count / 8
         } else {
             (request.count / 8) + 1
-        };
+        } as usize;
 
-        if byte_count as u16 != expected_byte_count {
+        if byte_count != expected_byte_count {
             return Err(ADUParseError::TooFewValueBytes)?;
         }
 
-        if byte_count as usize != cursor.len() {
+        if byte_count != cursor.len() {
             return Err(ADUParseError::ByteCountMismatch)?;
         }
 
-        let bytes = cursor.read_bytes(byte_count as usize)?;
+        let bytes = cursor.read_bytes(byte_count)?;
 
         let mut values = Vec::<Indexed<bool>>::with_capacity(request.count as usize);
 
@@ -69,5 +69,5 @@ mod tests {
         range.serialize_after_function(&mut cursor).unwrap();
         assert_eq!(buffer, [0x00, 0x03, 0x02, 0x00]);
     }
-    
+
 }
