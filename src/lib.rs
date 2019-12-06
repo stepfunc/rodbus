@@ -8,9 +8,9 @@ extern crate assert_matches;
 pub mod channel;
 pub mod request {
     pub mod types;
-    pub(super) mod traits; // only visible in service
+    pub(super) mod traits; // only visible in service_impls
     pub(crate) mod services;
-    mod service {
+    mod service_impls {
         mod read_coils;
     }
 }
