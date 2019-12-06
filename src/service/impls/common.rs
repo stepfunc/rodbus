@@ -55,3 +55,19 @@ impl ParseResponse<AddressRange> for Vec<Indexed<bool>> {
         Ok(values)
     }
 }
+
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+
+    #[test]
+    fn serializes_address_range() {
+        let range = AddressRange::new(3, 512);
+        let mut buffer = [0u8; 4];
+        let mut cursor = WriteCursor::new(&mut buffer);
+        range.serialize_after_function(&mut cursor).unwrap();
+        assert_eq!(buffer, [0x00, 0x03, 0x02, 0x00]);
+    }
+    
+}
