@@ -1,8 +1,8 @@
 use crate::error::Error;
-use crate::request::traits::Service;
+use crate::service::traits::Service;
 use crate::session::{Session, UnitIdentifier};
-use crate::frame::{FrameFormatter, FramedReader};
-use crate::mbap::{MBAPParser, MBAPFormatter};
+use crate::util::frame::{FrameFormatter, FramedReader};
+use crate::tcp::frame::{MBAPParser, MBAPFormatter};
 
 use tokio::io::{AsyncWriteExt};
 use tokio::net::TcpStream;
@@ -11,8 +11,8 @@ use tokio::sync::oneshot;
 
 use std::net::SocketAddr;
 use std::time::{Duration, Instant};
-use crate::cursor::ReadCursor;
-use crate::request::services::ReadCoils;
+use crate::util::cursor::ReadCursor;
+use crate::service::services::ReadCoils;
 
 
 /// All the possible request that can be sent through the channel
@@ -132,7 +132,7 @@ impl ChannelServer {
         while let Some(value) =  self.rx.recv().await {
             match value {
                 Request::ReadCoils(srv) => {
-                    self.handle_request::<crate::request::services::ReadCoils>(&mut io, srv).await
+                    self.handle_request::<crate::service::services::ReadCoils>(&mut io, srv).await
                 }
             };
         }

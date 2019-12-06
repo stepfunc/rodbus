@@ -1,15 +1,8 @@
+
+use crate::service::types::{AddressRange, Indexed};
 use crate::error::{Error, ADUParseError};
-use crate::request::traits::*;
-use crate::cursor::*;
-use crate::request::types::{AddressRange, Indexed};
-
-impl Service for crate::request::services::ReadCoils {
-
-    const REQUEST_FUNCTION_CODE: u8 = crate::function::constants::READ_COILS;
-
-    type Request = AddressRange;
-    type Response = Vec<Indexed<bool>>;
-}
+use crate::util::cursor::*;
+use crate::service::traits::{SerializeRequest, ParseResponse};
 
 impl SerializeRequest for AddressRange {
     fn serialize_after_function(&self, cur: &mut WriteCursor) -> Result<(), Error> {

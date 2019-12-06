@@ -1,5 +1,5 @@
 use crate::error::{Error, ADUParseError};
-use crate::cursor::{WriteCursor, ReadCursor};
+use crate::util::cursor::{WriteCursor, ReadCursor};
 
 pub trait SerializeRequest {
     fn serialize_after_function(&self, cursor: &mut WriteCursor) -> Result<(), Error>;

@@ -1,9 +1,9 @@
 
 use crate::error::Error;
-use crate::buffer::ReadBuffer;
+use crate::util::buffer::ReadBuffer;
 
 use tokio::io::AsyncRead;
-use crate::request::traits::SerializeRequest;
+use crate::service::traits::SerializeRequest;
 
 pub mod constants {
     pub const MAX_ADU_LENGTH : usize = 253;

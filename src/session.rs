@@ -1,7 +1,7 @@
 use crate::channel::{Request, ServiceRequest};
 use tokio::sync::{mpsc, oneshot};
 use crate::error::Error;
-use crate::request::types::{AddressRange, Indexed};
+use crate::service::types::{AddressRange, Indexed};
 
 #[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
 pub struct UnitIdentifier {
