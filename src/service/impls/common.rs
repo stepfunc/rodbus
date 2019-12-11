@@ -60,6 +60,7 @@ impl ParseResponse<AddressRange> for Vec<Indexed<bool>> {
 mod tests {
 
     use super::*;
+    use crate::error::InvalidRequestReason;
 
     #[test]
     fn serializes_address_range() {
@@ -72,24 +73,23 @@ mod tests {
 
     #[test]
     fn address_range_validates_correctly_for_bits() {
-        assert!(AddressRange::new(0, AddressRange::MAX_BINARY_BITS).is_valid_for_bits());
-        assert!(!AddressRange::new(0, AddressRange::MAX_BINARY_BITS + 1).is_valid_for_bits());
+        assert_eq!(AddressRange::new(0, AddressRange::MAX_BINARY_BITS).check_validity_for_bits(), Ok(()));
+        assert_eq!(AddressRange::new(0, AddressRange::MAX_BINARY_BITS + 1).check_validity_for_bits(), Err(InvalidRequestReason::CountTooBigForType));
     }
 
     #[test]
     fn address_range_validates_correctly_for_registers() {
-        assert!(AddressRange::new(0, AddressRange::MAX_REGISTERS).is_valid_for_registers());
-        assert!(!AddressRange::new(0, AddressRange::MAX_REGISTERS + 1).is_valid_for_registers());
+        assert_eq!(AddressRange::new(0, AddressRange::MAX_REGISTERS).check_validity_for_registers(), Ok(()));
+        assert_eq!(AddressRange::new(0, AddressRange::MAX_REGISTERS + 1).check_validity_for_registers(), Err(InvalidRequestReason::CountTooBigForType));
     }
 
     #[test]
     fn address_range_catches_zero_and_overflow() {
-        // a single item starting at the max index is allowed
-        assert!(AddressRange::new(std::u16::MAX, 1).is_valid_for_bits());
-        // count of zero is never valid
-        assert!(!AddressRange::new(0, 0).is_valid_for_bits());
+        assert_eq!(AddressRange::new(std::u16::MAX, 1).check_validity_for_bits(), Ok(()));
+
+        assert_eq!(AddressRange::new(0, 0).check_validity_for_bits(), Err(InvalidRequestReason::CountOfZero));
         // 2 items starting at the max index would overflow
-        assert!(!AddressRange::new(std::u16::MAX, 2).is_valid_for_bits());
+        assert_eq!(AddressRange::new(std::u16::MAX, 2).check_validity_for_bits(), Err(InvalidRequestReason::AddressOverflow));
 
     }
 

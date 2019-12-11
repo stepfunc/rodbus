@@ -35,9 +35,7 @@ impl Session {
     }
 
     async fn make_service_call<S : Service>(&mut self, request: S::Request) -> Result<S::Response, Error> {
-        if !S::is_request_valid(&request) {
-            return Err(Error::InvalidRequest);
-        }
+        S::check_request_validity(&request)?;
         let (tx, rx) = oneshot::channel::<Result<S::Response, Error>>();
         let request = S::create_request(self.id, request, tx);
         self.channel_tx.send(request).await.map_err(|_| Error::Shutdown)?;

@@ -35,6 +35,13 @@ pub enum ADUParseError {
     UnknownResponseFunction(u8)
 }
 
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub enum InvalidRequestReason {
+    CountOfZero,
+    AddressOverflow,
+    CountTooBigForType
+}
+
 #[derive(Debug, Copy, Clone)]
 pub enum Error {
     /// We just bubble up std errors from reading/writing/connecting/etc
@@ -50,7 +57,7 @@ pub enum Error {
     /// The server replied with an exception response
     Exception(ExceptionCode),
     /// The request provided by the user was invalid
-    InvalidRequest,
+    InvalidRequest(InvalidRequestReason),
     /// Server failed to respond within the timeout
     ResponseTimeout,
     /// No connection exists to the Modbus server
@@ -58,6 +65,12 @@ pub enum Error {
     /// Occurs when all session handles are dropped and
     /// the channel can no longer receive requests to process
     Shutdown
+}
+
+impl std::convert::From<InvalidRequestReason> for Error {
+    fn from(reason: InvalidRequestReason) -> Self {
+        Error::InvalidRequest(reason)
+    }
 }
 
 impl std::convert::From<tokio::time::Elapsed> for Error {

@@ -1,4 +1,4 @@
-use crate::error::{Error, ADUParseError};
+use crate::error::{Error, ADUParseError, InvalidRequestReason};
 use crate::util::cursor::{WriteCursor, ReadCursor};
 use crate::channel::Request;
 use crate::session::UnitIdentifier;
@@ -23,7 +23,7 @@ pub(crate) trait Service {
 
     const RESPONSE_ERROR_CODE : u8 = Self::REQUEST_FUNCTION_CODE | crate::function::constants::ERROR_DELIMITER;
 
-    fn is_request_valid(request: &Self::Request) -> bool;
+    fn check_request_validity(request: &Self::Request) -> Result<(), InvalidRequestReason>;
 
     fn create_request(unit_id: UnitIdentifier, argument : Self::Request, reply_to : oneshot::Sender<Result<Self::Response, Error>>) -> Request;
 
