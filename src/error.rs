@@ -1,7 +1,7 @@
 use crate::exception::ExceptionCode;
 
 /// errors that should only occur if there is a logic error in the library
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub enum LogicError {
     /// We tried to write, but there was insufficient space
     InsufficientBuffer,
@@ -13,21 +13,21 @@ pub enum LogicError {
     NoneError
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub enum WriteError {
     InsufficientBuffer,
     InvalidSeek
 }
 
 /// errors that occur while parsing a frame off a stream (TCP or serial)
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub enum FrameError {
     MBAPLengthZero,
     MBAPLengthTooBig(usize),
     UnknownProtocolId(u16)
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub enum ADUParseError {
     TooFewValueBytes,
     TooManyBytes,
@@ -42,7 +42,7 @@ pub enum InvalidRequestReason {
     CountTooBigForType
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub enum Error {
     /// We just bubble up std errors from reading/writing/connecting/etc
     IO(std::io::ErrorKind),

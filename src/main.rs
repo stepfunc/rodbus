@@ -7,7 +7,7 @@ use std::net::{SocketAddr, IpAddr, Ipv4Addr};
 use std::time::Duration;
 
 use tokio::time::delay_for;
-use rodbus::types::AddressRange;
+use rodbus::session::AddressRange;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

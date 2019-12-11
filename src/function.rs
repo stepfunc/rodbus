@@ -1,6 +1,6 @@
 use crate::function::FunctionCode::Unknown;
 
-pub(crate) mod constants {
+pub mod constants {
     pub const READ_COILS : u8 = 1;
     pub const READ_DISCRETE_INPUTS : u8 = 2;
     pub const READ_HOLDING_REGISTERS : u8 = 3;
