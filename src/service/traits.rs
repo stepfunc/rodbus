@@ -4,6 +4,8 @@ use crate::channel::Request;
 use crate::session::UnitIdentifier;
 
 use tokio::sync::oneshot;
+use crate::error::Error::Exception;
+use crate::exception::ExceptionCode;
 
 pub (crate) trait SerializeRequest {
     fn serialize_after_function(&self, cursor: &mut WriteCursor) -> Result<(), Error>;
@@ -28,13 +30,17 @@ pub(crate) trait Service {
         let function = cursor.read_u8()?;
 
         if function == Self::REQUEST_FUNCTION_CODE {
-            Self::Response::parse_after_function(cursor, request)
+            return Self::Response::parse_after_function(cursor, request);
         }
-        else if function == Self::RESPONSE_ERROR_CODE {
-            Err(ADUParseError::ByteCountMismatch)?
-        } else {
-            Err(ADUParseError::UnknownResponseFunction(function))?
+
+        if function == Self::RESPONSE_ERROR_CODE {
+            if cursor.len() > 1 {
+                return Err(ADUParseError::TooManyBytes)?
+            }
+            return Err(Exception(ExceptionCode::from_u8(cursor.read_u8()?)));
         }
+
+        Err(ADUParseError::UnknownResponseFunction(function))?
     }
 }
 

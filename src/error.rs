@@ -30,6 +30,7 @@ pub enum FrameError {
 #[derive(Debug, Copy, Clone)]
 pub enum ADUParseError {
     TooFewValueBytes,
+    TooManyBytes,
     ByteCountMismatch,
     UnknownResponseFunction(u8)
 }
