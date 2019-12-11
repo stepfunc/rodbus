@@ -6,3 +6,4 @@
 */
 
 pub struct ReadCoils;
+pub struct ReadDiscreteInputs;

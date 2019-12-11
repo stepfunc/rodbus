@@ -31,7 +31,7 @@ pub struct MBAPParser {
     state: ParseState
 }
 
-pub struct MBAPFormatter {
+pub(crate) struct MBAPFormatter {
     buffer : [u8; constants::MAX_FRAME_LENGTH]
 }
 

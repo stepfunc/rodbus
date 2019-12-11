@@ -12,6 +12,7 @@ pub mod service {
     pub(crate) mod services;
     mod impls {
         mod read_coils;
+        mod read_discrete_inputs;
         mod common;
     }
 }

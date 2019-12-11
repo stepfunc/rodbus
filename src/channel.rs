@@ -12,11 +12,12 @@ use tokio::sync::oneshot;
 use std::net::SocketAddr;
 use std::time::Duration;
 use crate::util::cursor::ReadCursor;
-use crate::service::services::ReadCoils;
+use crate::service::services::{ReadCoils, ReadDiscreteInputs};
 
 /// All the possible request that can be sent through the channel
 pub(crate) enum Request {
     ReadCoils(ServiceRequest<ReadCoils>),
+    ReadDiscreteInputs(ServiceRequest<ReadDiscreteInputs>)
 }
 
 /// Wrapper for the request sent through the channel
@@ -97,6 +98,15 @@ enum SessionError {
     Shutdown
 }
 
+impl SessionError {
+    pub fn from(err: &Error) -> Option<Self> {
+        match err {
+            Error::IO(_) | Error::Frame(_) => Some(SessionError::IOError),
+            _ => None
+        }
+    }
+}
+
 /// Channel loop
 ///
 /// This loop handles the request one by one. It serializes the request
@@ -165,6 +175,11 @@ impl ChannelServer {
                    if let Some(err) = self.handle_request::<crate::service::services::ReadCoils>(&mut io, srv).await {
                        return err;
                    }
+                },
+                Request::ReadDiscreteInputs(srv) => {
+                    if let Some(err) = self.handle_request::<crate::service::services::ReadDiscreteInputs>(&mut io, srv).await {
+                        return err;
+                    }
                 }
             }
         }
@@ -174,15 +189,7 @@ impl ChannelServer {
     async fn handle_request<S: Service>(&mut self, io: &mut TcpStream, srv: ServiceRequest<S>) -> Option<SessionError> {
         let result = self.send_and_receive::<S>(io, srv.unit_id, &srv.argument).await;
 
-        let ret = match result.as_ref() {
-            Ok(_) => None,
-            Err(err) => match err {
-                // only IO and framing errors should kill the session
-                Error::Frame(_) => Some(SessionError::IOError),
-                Error::IO(_) => Some(SessionError::IOError),
-                _ => None
-            }
-        };
+        let ret = result.as_ref().err().and_then(|e| SessionError::from(e) );
 
         // we always send the result, no matter what happened
         srv.reply_to.send(result).ok();
@@ -231,8 +238,11 @@ impl ChannelServer {
 
     fn fail_request(request: Request) -> () {
         match request {
-            Request::ReadCoils(wrapper) => {
-                wrapper.reply_to.send(Err(Error::NoConnection)).ok()
+            Request::ReadCoils(srv) => {
+                srv.reply_to.send(Err(Error::NoConnection)).ok()
+            },
+            Request::ReadDiscreteInputs(srv) => {
+                srv.reply_to.send(Err(Error::NoConnection)).ok()
             }
         };
     }

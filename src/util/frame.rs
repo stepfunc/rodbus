@@ -61,7 +61,7 @@ pub trait FrameParser {
 
 }
 
-pub trait FrameFormatter {
+pub (crate) trait FrameFormatter {
 
     fn format(&mut self, tx_id : u16, unit_id: u8, function: u8, msg: &dyn SerializeRequest) -> Result<&[u8], Error>;
 
