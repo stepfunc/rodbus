@@ -36,13 +36,8 @@ impl<S: Service> ServiceRequest<S> {
 }
 
 pub trait RetryStrategy {
-
-    fn current_delay(&self) -> Duration;
     fn reset(&mut self) -> ();
-
-    // returns the current delay and doubles the delay for the next retry
-    fn fail(&mut self) -> Duration;
-
+    fn next_delay(&mut self) -> Duration;
 }
 
 pub type BoxedRetryStrategy = Box<dyn RetryStrategy + Send>;
@@ -61,15 +56,11 @@ impl DoublingRetryStrategy {
 
 impl RetryStrategy for DoublingRetryStrategy {
 
-    fn current_delay(&self) -> Duration {
-        self.current
-    }
-
     fn reset(&mut self) -> () {
         self.current = self.min;
     }
 
-    fn fail(&mut self) -> Duration {
+    fn next_delay(&mut self) -> Duration {
         let ret = self.current;
         self.current = std::cmp::min(2*self.current, self.max);
         ret
@@ -149,7 +140,7 @@ impl ChannelServer {
         loop {
             match tokio::net::TcpStream::connect(self.addr).await {
                 Err(_) => {
-                    let delay = self.connect_retry.fail();
+                    let delay = self.connect_retry.next_delay();
                     if self.fail_requests_for(delay).await.is_err() {
                         // this occurs when the mpsc is dropped, so the task can exit
                         return ();
