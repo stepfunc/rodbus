@@ -56,6 +56,36 @@ impl ParseResponse<AddressRange> for Vec<Indexed<bool>> {
     }
 }
 
+impl ParseResponse<AddressRange> for Vec<Indexed<u16>> {
+
+    fn parse_after_function(cursor: &mut ReadCursor, request: &AddressRange) -> Result<Self, Error> {
+
+        let byte_count = cursor.read_u8()? as usize;
+
+        // how many bytes should we have?
+        let expected_byte_count = 2*request.count as usize;
+
+        if byte_count != expected_byte_count {
+            return Err(ADUParseError::TooFewValueBytes)?;
+        }
+
+        if expected_byte_count != cursor.len() {
+            return Err(ADUParseError::ByteCountMismatch)?;
+        }
+
+        let mut values = Vec::<Indexed<u16>>::with_capacity(request.count as usize);
+
+        let mut index = request.start;
+
+        while !cursor.is_empty() {
+            values.push(Indexed::new(index, cursor.read_u16_be()?));
+            index += 1;
+        }
+
+        Ok(values)
+    }
+}
+
 #[cfg(test)]
 mod tests {
 

@@ -3,7 +3,7 @@ use tokio::sync::{mpsc, oneshot};
 use crate::error::Error;
 use crate::service::types::{AddressRange, Indexed};
 use crate::service::traits::Service;
-use crate::service::services::{ReadCoils, ReadDiscreteInputs};
+use crate::service::services::{ReadCoils, ReadDiscreteInputs, ReadHoldingRegisters, ReadInputRegisters};
 
 #[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
 pub struct UnitIdentifier {
@@ -48,5 +48,13 @@ impl Session {
 
     pub async fn read_discrete_inputs(&mut self, range: AddressRange) -> Result<Vec<Indexed<bool>>, Error> {
         self.make_service_call::<ReadDiscreteInputs>(range).await
+    }
+
+    pub async fn read_holding_registers(&mut self, range: AddressRange) -> Result<Vec<Indexed<u16>>, Error> {
+        self.make_service_call::<ReadHoldingRegisters>(range).await
+    }
+
+    pub async fn read_input_registers(&mut self, range: AddressRange) -> Result<Vec<Indexed<u16>>, Error> {
+        self.make_service_call::<ReadInputRegisters>(range).await
     }
 }

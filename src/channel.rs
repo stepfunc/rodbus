@@ -12,12 +12,14 @@ use tokio::sync::oneshot;
 use std::net::SocketAddr;
 use std::time::Duration;
 use crate::util::cursor::ReadCursor;
-use crate::service::services::{ReadCoils, ReadDiscreteInputs};
+use crate::service::services::*;
 
 /// All the possible request that can be sent through the channel
 pub(crate) enum Request {
     ReadCoils(ServiceRequest<ReadCoils>),
-    ReadDiscreteInputs(ServiceRequest<ReadDiscreteInputs>)
+    ReadDiscreteInputs(ServiceRequest<ReadDiscreteInputs>),
+    ReadHoldingRegisters(ServiceRequest<ReadHoldingRegisters>),
+    ReadInputRegisters(ServiceRequest<ReadInputRegisters>)
 }
 
 /// Wrapper for the request sent through the channel
@@ -180,6 +182,16 @@ impl ChannelServer {
                     if let Some(err) = self.handle_request::<crate::service::services::ReadDiscreteInputs>(&mut io, srv).await {
                         return err;
                     }
+                },
+                Request::ReadHoldingRegisters(srv) => {
+                    if let Some(err) = self.handle_request::<crate::service::services::ReadHoldingRegisters>(&mut io, srv).await {
+                        return err;
+                    }
+                },
+                Request::ReadInputRegisters(srv) => {
+                    if let Some(err) = self.handle_request::<crate::service::services::ReadInputRegisters>(&mut io, srv).await {
+                        return err;
+                    }
                 }
             }
         }
@@ -243,7 +255,13 @@ impl ChannelServer {
             },
             Request::ReadDiscreteInputs(srv) => {
                 srv.reply_to.send(Err(Error::NoConnection)).ok()
-            }
+            },
+            Request::ReadHoldingRegisters(srv) => {
+                srv.reply_to.send(Err(Error::NoConnection)).ok()
+            },
+            Request::ReadInputRegisters(srv) => {
+                srv.reply_to.send(Err(Error::NoConnection)).ok()
+            },
         };
     }
 

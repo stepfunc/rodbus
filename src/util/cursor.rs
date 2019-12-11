@@ -36,6 +36,12 @@ impl<'a> ReadCursor<'a> {
         Ok(ret)
     }
 
+    pub fn read_u16_be(&mut self) -> Result<u16, Error> {
+        let high = self.read_u8()?;
+        let low = self.read_u8()?;
+        Ok((high as u16) << 8 | (low as u16))
+    }
+
     pub fn read_bytes(&mut self, count: usize) -> Result<&'a[u8], Error> {
         if self.src.len() < count {
             return Err(LogicError::InsufficientBuffer)?;

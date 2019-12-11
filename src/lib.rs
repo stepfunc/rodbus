@@ -13,6 +13,8 @@ pub mod service {
     mod impls {
         mod read_coils;
         mod read_discrete_inputs;
+        mod read_holding_registers;
+        mod read_input_registers;
         mod common;
     }
 }
