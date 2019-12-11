@@ -51,6 +51,14 @@ impl ReadBuffer {
     }
 
     pub async fn read_some<T : AsyncRead + Unpin>(&mut self, io: &mut T) -> std::result::Result<usize, std::io::Error> {
+
+        // before we read any data, check to see if the buffer is empty and adjust the indices
+        // this allows use to make the biggest read possible, and avoids subsequent buffer shifting later
+        if self.is_empty() {
+            self.begin = 0;
+            self.end = 0;
+        }
+
         // if we've reached capacity, but still need more data we have to shift
         if self.end == self.buffer.capacity() {
             let length = self.len();
