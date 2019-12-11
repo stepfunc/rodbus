@@ -1,4 +1,4 @@
-use rodbus::create_client_tcp_channel;
+use rodbus::main::create_client_tcp_channel;
 
 use rodbus::session::UnitIdentifier;
 use rodbus::channel::DoublingRetryStrategy;

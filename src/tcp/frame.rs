@@ -1,6 +1,7 @@
 use crate::util::frame::{Frame, FrameFormatter, FrameParser};
 
-use crate::error::{Error, FrameError};
+use crate::error::Error;
+use crate::error::details::FrameError;
 use crate::util::cursor::WriteCursor;
 use crate::util::buffer::ReadBuffer;
 

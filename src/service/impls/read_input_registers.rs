@@ -2,7 +2,8 @@
 use crate::service::traits::Service;
 use crate::session::*;
 use crate::channel::{Request, ServiceRequest};
-use crate::error::{Error, InvalidRequestReason};
+use crate::error::Error;
+use crate::error::details::InvalidRequestReason;
 
 use tokio::sync::oneshot;
 use crate::function::FunctionCode;

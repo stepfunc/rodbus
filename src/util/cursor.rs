@@ -1,4 +1,5 @@
-use crate::error::{Error, LogicError, WriteError};
+use crate::error::details::{LogicError, WriteError};
+use crate::error::Error;
 
 /// custom read-only cursor
 pub struct ReadCursor<'a> {

@@ -1,6 +1,7 @@
 
 use crate::session::{AddressRange, Indexed};
-use crate::error::{Error, ADUParseError};
+use crate::error::Error;
+use crate::error::details::ADUParseError;
 use crate::util::cursor::*;
 use crate::service::traits::{SerializeRequest, ParseResponse};
 
@@ -90,7 +91,7 @@ impl ParseResponse<AddressRange> for Vec<Indexed<u16>> {
 mod tests {
 
     use super::*;
-    use crate::error::InvalidRequestReason;
+    use crate::error::details::InvalidRequestReason;
 
     #[test]
     fn serializes_address_range() {

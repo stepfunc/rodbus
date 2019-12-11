@@ -1,6 +1,7 @@
 use crate::channel::Request;
 use tokio::sync::{mpsc, oneshot};
-use crate::error::{Error, InvalidRequestReason};
+use crate::error::Error;
+use crate::error::details::InvalidRequestReason;
 use crate::service::traits::Service;
 use crate::service::services::{ReadCoils, ReadDiscreteInputs, ReadHoldingRegisters, ReadInputRegisters};
 

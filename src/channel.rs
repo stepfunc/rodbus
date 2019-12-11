@@ -14,6 +14,12 @@ use std::time::Duration;
 use crate::util::cursor::ReadCursor;
 use crate::service::services::*;
 
+/// Models a communication channel from which communication a `Session`
+/// can be created.
+pub struct Channel {
+    tx: mpsc::Sender<Request>,
+}
+
 /// All the possible request that can be sent through the channel
 pub(crate) enum Request {
     ReadCoils(ServiceRequest<ReadCoils>),
@@ -43,8 +49,6 @@ pub trait RetryStrategy {
     fn next_delay(&mut self) -> Duration;
 }
 
-pub type BoxedRetryStrategy = Box<dyn RetryStrategy + Send>;
-
 pub struct DoublingRetryStrategy {
     min : Duration,
     max : Duration,
@@ -52,7 +56,7 @@ pub struct DoublingRetryStrategy {
 }
 
 impl DoublingRetryStrategy {
-    pub fn create(min : Duration, max: Duration) -> BoxedRetryStrategy {
+    pub fn create(min : Duration, max: Duration) -> Box<dyn RetryStrategy + Send> {
         Box::new(DoublingRetryStrategy { min, max, current : min })
     }
 }
@@ -70,16 +74,8 @@ impl RetryStrategy for DoublingRetryStrategy {
     }
 }
 
-/// Channel of communication
-///
-/// To actually send request to the channel, the user must create
-/// a session send the request through it.
-pub struct Channel {
-    tx: mpsc::Sender<Request>,
-}
-
 impl Channel {
-    pub fn new(addr: SocketAddr, connect_retry: BoxedRetryStrategy) -> Self {
+    pub fn new(addr: SocketAddr, connect_retry: Box<dyn RetryStrategy + Send>) -> Self {
         let (tx, rx) = mpsc::channel(100);
         tokio::spawn(async move { ChannelServer::new(addr, rx, connect_retry).run().await });
         Channel { tx }
@@ -117,14 +113,14 @@ impl SessionError {
 struct ChannelServer {
     addr: SocketAddr,
     rx: mpsc::Receiver<Request>,
-    connect_retry: BoxedRetryStrategy,
+    connect_retry: Box<dyn RetryStrategy + Send>,
     formatter: Box<dyn FrameFormatter + Send>,
     reader: FramedReader,
     tx_id: u16
 }
 
 impl ChannelServer {
-    pub fn new(addr: SocketAddr, rx: mpsc::Receiver<Request>, connect_retry: BoxedRetryStrategy) -> Self {
+    pub fn new(addr: SocketAddr, rx: mpsc::Receiver<Request>, connect_retry: Box<dyn RetryStrategy + Send>) -> Self {
         Self {
             addr,
             rx,
