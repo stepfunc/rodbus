@@ -1,19 +1,13 @@
 use crate::channel::{Channel, BoxedRetryStrategy};
 use std::net::SocketAddr;
 
-/*
-#[macro_use]
-#[cfg(test)]
-*/
-
 // api modules
 pub mod channel;
 pub mod session;
 pub mod error;
-pub mod exception;
-pub mod function;
 
-// inernal modules
+// internal modules
+mod function;
 mod service {
     pub(super) mod traits; // only visible in impls
     pub(crate) mod services;

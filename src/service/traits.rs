@@ -1,11 +1,10 @@
-use crate::error::{Error, ADUParseError, InvalidRequestReason};
+use crate::error::{Error, ADUParseError, InvalidRequestReason, ExceptionCode};
 use crate::util::cursor::{WriteCursor, ReadCursor};
 use crate::channel::Request;
 use crate::session::UnitIdentifier;
+use crate::function::FunctionCode;
 
 use tokio::sync::oneshot;
-use crate::error::Error::Exception;
-use crate::exception::ExceptionCode;
 
 pub (crate) trait SerializeRequest {
     fn serialize_after_function(&self, cursor: &mut WriteCursor) -> Result<(), Error>;
@@ -17,11 +16,12 @@ pub (crate) trait ParseResponse<T> : Sized {
 
 pub(crate) trait Service {
 
-    const REQUEST_FUNCTION_CODE : u8;
+    const REQUEST_FUNCTION_CODE : FunctionCode;
+    const REQUEST_FUNCTION_CODE_VALUE : u8 = Self::REQUEST_FUNCTION_CODE.get_value();
+    const RESPONSE_ERROR_CODE_VALUE : u8 = Self::REQUEST_FUNCTION_CODE_VALUE | crate::function::constants::ERROR_DELIMITER;
+
     type Request : SerializeRequest;
     type Response : ParseResponse<Self::Request>;
-
-    const RESPONSE_ERROR_CODE : u8 = Self::REQUEST_FUNCTION_CODE | crate::function::constants::ERROR_DELIMITER;
 
     fn check_request_validity(request: &Self::Request) -> Result<(), InvalidRequestReason>;
 
@@ -31,7 +31,7 @@ pub(crate) trait Service {
 
         let function = cursor.read_u8()?;
 
-        if function == Self::REQUEST_FUNCTION_CODE {
+        if function == Self::REQUEST_FUNCTION_CODE_VALUE {
             let response = Self::Response::parse_after_function(cursor, request)?;
             if !cursor.is_empty() {
                 return Err(ADUParseError::TooManyBytes)?;
@@ -39,8 +39,8 @@ pub(crate) trait Service {
             return Ok(response);
         }
 
-        if function ==  Self::RESPONSE_ERROR_CODE {
-            let exception = Exception(ExceptionCode::from_u8(cursor.read_u8()?));
+        if function ==  Self::RESPONSE_ERROR_CODE_VALUE {
+            let exception = Error::Exception(ExceptionCode::from_u8(cursor.read_u8()?));
             if !cursor.is_empty() {
                 return Err(ADUParseError::TooManyBytes)?;
             }

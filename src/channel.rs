@@ -211,7 +211,7 @@ impl ChannelServer {
 
     async fn send_and_receive<S: Service>(&mut self, io: &mut TcpStream, unit_id: UnitIdentifier, request: &S::Request) -> Result<S::Response, Error> {
         let tx_id = self.next_tx_id();
-        let bytes = self.formatter.format(tx_id, unit_id.value(), S::REQUEST_FUNCTION_CODE, request)?;
+        let bytes = self.formatter.format(tx_id, unit_id.value(), S::REQUEST_FUNCTION_CODE_VALUE, request)?;
         io.write_all(bytes).await?;
 
         // TODO - get this from self or via ServiceWrapper

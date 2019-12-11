@@ -5,10 +5,11 @@ use crate::channel::{Request, ServiceRequest};
 use crate::error::{Error, InvalidRequestReason};
 
 use tokio::sync::oneshot;
+use crate::function::FunctionCode;
 
 impl Service for crate::service::services::ReadCoils {
 
-    const REQUEST_FUNCTION_CODE: u8 = crate::function::constants::READ_COILS;
+    const REQUEST_FUNCTION_CODE: FunctionCode = crate::function::FunctionCode::ReadCoils;
 
     type Request = AddressRange;
     type Response = Vec<Indexed<bool>>;
