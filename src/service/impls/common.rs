@@ -1,5 +1,5 @@
 
-use crate::service::types::{AddressRange, Indexed};
+use crate::types::{AddressRange, Indexed};
 use crate::error::{Error, ADUParseError};
 use crate::util::cursor::*;
 use crate::service::traits::{SerializeRequest, ParseResponse};

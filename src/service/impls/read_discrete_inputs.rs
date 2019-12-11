@@ -1,6 +1,6 @@
 
 use crate::service::traits::Service;
-use crate::service::types::{AddressRange, Indexed};
+use crate::types::{AddressRange, Indexed};
 use crate::session::UnitIdentifier;
 use crate::error::{Error, InvalidRequestReason};
 use crate::channel::{Request, ServiceRequest};

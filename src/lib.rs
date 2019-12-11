@@ -5,9 +5,9 @@ use std::net::SocketAddr;
 #[cfg(test)]
 extern crate assert_matches;
 
+pub mod types;
 pub mod channel;
-pub mod service {
-    pub mod types;
+mod service {
     pub(super) mod traits; // only visible in impls
     pub(crate) mod services;
     mod impls {
