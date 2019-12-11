@@ -10,10 +10,9 @@ use tokio::sync::mpsc;
 use tokio::sync::oneshot;
 
 use std::net::SocketAddr;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 use crate::util::cursor::ReadCursor;
 use crate::service::services::ReadCoils;
-
 
 /// All the possible request that can be sent through the channel
 pub(crate) enum Request {
@@ -97,6 +96,16 @@ impl Channel {
     }
 }
 
+/**
+* We always service requests in a TCP session until one of the following occurs
+*/
+enum SessionError {
+    // the stream errors or there is an unrecoverable framing issue
+    IOError,
+    // the mpsc is closed (dropped)  on the sender side
+    Shutdown
+}
+
 /// Channel loop
 ///
 /// This loop handles the request one by one. It serializes the request
@@ -107,69 +116,126 @@ struct ChannelServer {
     rx: mpsc::Receiver<Request>,
     connect_retry: BoxedRetryStrategy,
     formatter: Box<dyn FrameFormatter + Send>,
-    reader: FramedReader
+    reader: FramedReader,
+    tx_id: u16
 }
 
 impl ChannelServer {
     pub fn new(addr: SocketAddr, rx: mpsc::Receiver<Request>, connect_retry: BoxedRetryStrategy) -> Self {
-        Self { addr, rx, formatter : MBAPFormatter::new(), connect_retry, reader : FramedReader::new(MBAPParser::new()) }
+        Self {
+            addr,
+            rx,
+            formatter : MBAPFormatter::new(),
+            connect_retry,
+            reader : FramedReader::new(MBAPParser::new()),
+            tx_id : 0
+        }
     }
 
-    pub async fn run(&mut self) -> Result<(), Error> {
+    fn next_tx_id(&mut self) -> u16 {
+        // can't blindly increment b/c of Rust's overflow protections
+        if self.tx_id == u16::max_value() {
+            self.tx_id = u16::min_value();
+            u16::max_value()
+        } else {
+            let ret = self.tx_id;
+            self.tx_id += 1;
+            ret
+        }
+    }
+
+    pub async fn run(&mut self) {
         // try to connect
         loop {
             match tokio::net::TcpStream::connect(self.addr).await {
-                Err(_err) => {
+                Err(_) => {
                     let delay = self.connect_retry.fail();
-                    self.wait(delay).await?
+                    if self.fail_requests_for(delay).await.is_err() {
+                        // this occurs when the mpsc is dropped, so the task can exit
+                        return ();
+                    }
                 },
-                Ok(stream) => self.run_with_stream(stream).await
+                Ok(stream) => {
+                    match self.run_session(stream).await {
+                        // the mpsc was closed, end the task
+                        SessionError::Shutdown => return (),
+                        // re-establish the connection
+                        SessionError::IOError => {},
+                    }
+                }
             }
         }
     }
 
-    async fn run_with_stream(&mut self, mut io : TcpStream) -> () {
+    async fn run_session(&mut self, mut io : TcpStream) -> SessionError {
         while let Some(value) =  self.rx.recv().await {
             match value {
                 Request::ReadCoils(srv) => {
-                    self.handle_request::<crate::service::services::ReadCoils>(&mut io, srv).await
+                   if let Some(err) = self.handle_request::<crate::service::services::ReadCoils>(&mut io, srv).await {
+                       return err;
+                   }
                 }
-            };
+            }
         }
+        SessionError::Shutdown
     }
 
-    async fn handle_request<S: Service>(&mut self, io: &mut TcpStream, srv: ServiceRequest<S>) {
-        let result = self.handle::<S>(io, srv.unit_id, &srv.argument).await;
+    async fn handle_request<S: Service>(&mut self, io: &mut TcpStream, srv: ServiceRequest<S>) -> Option<SessionError> {
+        let result = self.send_and_receive::<S>(io, srv.unit_id, &srv.argument).await;
+
+        let ret = match result.as_ref() {
+            Ok(_) => None,
+            Err(err) => match err {
+                // only IO and framing errors should kill the session
+                Error::Frame(_) => Some(SessionError::IOError),
+                Error::IO(_) => Some(SessionError::IOError),
+                _ => None
+            }
+        };
+
+        // we always send the result, no matter what happened
         srv.reply_to.send(result).ok();
+
+        ret
     }
 
-    async fn handle<S: Service>(&mut self, io: &mut TcpStream, unit_id: UnitIdentifier, request: &S::Request) -> Result<S::Response, Error> {
-        let bytes = self.formatter.format(0, unit_id.value(), S::REQUEST_FUNCTION_CODE, request)?;
+    async fn send_and_receive<S: Service>(&mut self, io: &mut TcpStream, unit_id: UnitIdentifier, request: &S::Request) -> Result<S::Response, Error> {
+        let tx_id = self.next_tx_id();
+        let bytes = self.formatter.format(tx_id, unit_id.value(), S::REQUEST_FUNCTION_CODE, request)?;
         io.write_all(bytes).await?;
-        let frame = self.reader.next_frame(io).await?;
-        let mut cursor = ReadCursor::new(frame.payload());
-        Ok(S::parse_response(&mut cursor, request)?)
+
+        // TODO - get this from self or via ServiceWrapper
+        let deadline = tokio::time::Instant::now() + Duration::from_secs(5);
+
+        // loop until we get a response with the correct tx id or we timeout
+        loop {
+
+            let frame = tokio::time::timeout_at(deadline, self.reader.next_frame(io)).await??;
+
+            // TODO - log that non-matching tx_id found
+            if frame.tx_id == tx_id {
+                let mut cursor = ReadCursor::new(frame.payload());
+                return S::parse_response(&mut cursor, request);
+            }
+
+        }
+
     }
 
-    async fn wait(&mut self, duration: Duration) -> Result<(), Error> {
+    async fn fail_requests_for(&mut self, duration: Duration) -> Result<(), ()> {
 
-        let start = Instant::now();
-        let end = start + duration;
+        let deadline = tokio::time::Instant::now() + duration;
 
         loop {
-            let current = Instant::now();
-            if current >= end {
-                return Ok(())
-            }
-            let timeout = end - current;
-
-            match tokio::time::timeout(timeout, self.rx.recv()).await {
-                Err(_timeout_err) => return Ok(()),
-                Ok(None) => return Err(Error::ChannelClosed),
+            match tokio::time::timeout_at(deadline, self.rx.recv()).await {
+                // timeout occurred
+                Err(_) => return Ok(()),
+                // channel was closed
+                Ok(None) => return Err(()),
+                // fail request, do another iteration
                 Ok(Some(request)) => Self::fail_request(request)
             }
         }
-
     }
 
     fn fail_request(request: Request) -> () {

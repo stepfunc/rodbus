@@ -13,7 +13,7 @@ pub (crate) mod constants {
 
 
 /// errors that should only occur if there is a logic error in the library
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub enum ExceptionCode {
     IllegalFunction,
     IllegalDataAddress,

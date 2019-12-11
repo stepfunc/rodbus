@@ -35,7 +35,7 @@ impl Session {
     pub async fn read_coils(&mut self, range: AddressRange) -> Result<Vec<Indexed<bool>>, Error> {
         let (tx, rx) = oneshot::channel::<Result<Vec<Indexed<bool>>, Error>>();
         let request = Request::ReadCoils(ServiceRequest::new(self.id, range, tx));
-        self.channel_tx.send(request).await?;
-        rx.await?
+        self.channel_tx.send(request).await.map_err(|_| Error::Shutdown)?;
+        rx.await.map_err(|_| Error::Shutdown)?
     }
 }
