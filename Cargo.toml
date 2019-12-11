@@ -1,5 +1,5 @@
 [package]
-name = "modbus-rs"
+name = "rodbus"
 version = "0.1.0"
 authors = ["Adam Crain <jadamcrain@automatak.com>", "Émile Grégoire <emile@automatak.com>"]
 edition = "2018"
