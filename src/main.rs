@@ -1,13 +1,13 @@
-use modbus_rs::create_client_tcp_channel;
+use rodbus::create_client_tcp_channel;
 
-use modbus_rs::session::UnitIdentifier;
-use modbus_rs::channel::DoublingRetryStrategy;
+use rodbus::session::UnitIdentifier;
+use rodbus::channel::DoublingRetryStrategy;
 
 use std::net::{SocketAddr, IpAddr, Ipv4Addr};
 use std::time::Duration;
 
 use tokio::time::delay_for;
-use modbus_rs::types::AddressRange;
+use rodbus::types::AddressRange;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
