@@ -23,6 +23,8 @@ pub(crate) trait Service {
 
     const RESPONSE_ERROR_CODE : u8 = Self::REQUEST_FUNCTION_CODE | crate::function::constants::ERROR_DELIMITER;
 
+    fn is_request_valid(request: &Self::Request) -> bool;
+
     fn create_request(unit_id: UnitIdentifier, argument : Self::Request, reply_to : oneshot::Sender<Result<Self::Response, Error>>) -> Request;
 
     fn parse_response(cursor: &mut ReadCursor, request: &Self::Request) -> Result<Self::Response, Error> {

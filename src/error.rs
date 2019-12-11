@@ -49,6 +49,8 @@ pub enum Error {
     ADU(ADUParseError),
     /// The server replied with an exception response
     Exception(ExceptionCode),
+    /// The request provided by the user was invalid
+    InvalidRequest,
     /// Server failed to respond within the timeout
     ResponseTimeout,
     /// No connection exists to the Modbus server

@@ -14,6 +14,10 @@ impl Service for crate::service::services::ReadCoils {
     type Request = AddressRange;
     type Response = Vec<Indexed<bool>>;
 
+    fn is_request_valid(request: &Self::Request) -> bool {
+        request.is_valid_for_bits()
+    }
+
     fn create_request(unit_id: UnitIdentifier, argument: Self::Request, reply_to: oneshot::Sender<Result<Self::Response, Error>>) -> Request {
         Request::ReadCoils(ServiceRequest::new(unit_id, argument, reply_to))
     }

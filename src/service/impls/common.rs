@@ -70,4 +70,27 @@ mod tests {
         assert_eq!(buffer, [0x00, 0x03, 0x02, 0x00]);
     }
 
+    #[test]
+    fn address_range_validates_correctly_for_bits() {
+        assert!(AddressRange::new(0, AddressRange::MAX_BINARY_BITS).is_valid_for_bits());
+        assert!(!AddressRange::new(0, AddressRange::MAX_BINARY_BITS + 1).is_valid_for_bits());
+    }
+
+    #[test]
+    fn address_range_validates_correctly_for_registers() {
+        assert!(AddressRange::new(0, AddressRange::MAX_REGISTERS).is_valid_for_registers());
+        assert!(!AddressRange::new(0, AddressRange::MAX_REGISTERS + 1).is_valid_for_registers());
+    }
+
+    #[test]
+    fn address_range_catches_zero_and_overflow() {
+        // a single item starting at the max index is allowed
+        assert!(AddressRange::new(std::u16::MAX, 1).is_valid_for_bits());
+        // count of zero is never valid
+        assert!(!AddressRange::new(0, 0).is_valid_for_bits());
+        // 2 items starting at the max index would overflow
+        assert!(!AddressRange::new(std::u16::MAX, 2).is_valid_for_bits());
+
+    }
+
 }
