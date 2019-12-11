@@ -30,14 +30,19 @@ pub(crate) trait Service {
         let function = cursor.read_u8()?;
 
         if function == Self::REQUEST_FUNCTION_CODE {
-            return Self::Response::parse_after_function(cursor, request);
+            let response = Self::Response::parse_after_function(cursor, request)?;
+            if !cursor.is_empty() {
+                return Err(ADUParseError::TooManyBytes)?;
+            }
+            return Ok(response);
         }
 
-        if function == Self::RESPONSE_ERROR_CODE {
-            if cursor.len() > 1 {
-                return Err(ADUParseError::TooManyBytes)?
+        if function ==  Self::RESPONSE_ERROR_CODE {
+            let exception = Exception(ExceptionCode::from_u8(cursor.read_u8()?));
+            if !cursor.is_empty() {
+                return Err(ADUParseError::TooManyBytes)?;
             }
-            return Err(Exception(ExceptionCode::from_u8(cursor.read_u8()?)));
+            return Err(exception);
         }
 
         Err(ADUParseError::UnknownResponseFunction(function))?

@@ -22,6 +22,10 @@ impl<'a> ReadCursor<'a> {
         self.src.len()
     }
 
+    pub fn is_empty(&self) -> bool {
+        return self.src.is_empty()
+    }
+
     pub fn read_u8(&mut self) -> Result<u8, Error> {
         if self.src.is_empty() {
             return Err(Error::Logic(LogicError::InsufficientBuffer));
