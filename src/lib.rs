@@ -12,7 +12,7 @@
 //! # Supported modes
 //!
 //! * TCP client only
-//! * Future supported planned for:
+//! * Future support:
 //!   * TCP Server
 //!   * TLS Client / TLS Server complying with the new Secure Modbus specification
 //!   * Modbus RTU over serial
