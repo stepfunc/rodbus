@@ -25,7 +25,20 @@ pub(crate) enum Request {
     ReadCoils(ServiceRequest<ReadCoils>),
     ReadDiscreteInputs(ServiceRequest<ReadDiscreteInputs>),
     ReadHoldingRegisters(ServiceRequest<ReadHoldingRegisters>),
-    ReadInputRegisters(ServiceRequest<ReadInputRegisters>)
+    ReadInputRegisters(ServiceRequest<ReadInputRegisters>),
+    WriteSingleCoil(ServiceRequest<WriteSingleCoil>)
+}
+
+impl Request {
+    pub fn fail(self) -> () {
+        match self {
+            Request::ReadCoils(r) => r.reply_to.send(Err(Error::NoConnection)).ok(),
+            Request::ReadDiscreteInputs(r) => r.reply_to.send(Err(Error::NoConnection)).ok(),
+            Request::ReadHoldingRegisters(r) => r.reply_to.send(Err(Error::NoConnection)).ok(),
+            Request::ReadInputRegisters(r) => r.reply_to.send(Err(Error::NoConnection)).ok(),
+            Request::WriteSingleCoil(r) => r.reply_to.send(Err(Error::NoConnection)).ok(),
+        };
+    }
 }
 
 /// Wrapper for the request sent through the channel
@@ -189,6 +202,11 @@ impl ChannelServer {
                     if let Some(err) = self.handle_request::<crate::service::services::ReadInputRegisters>(&mut io, srv).await {
                         return err;
                     }
+                },
+                Request::WriteSingleCoil(srv) => {
+                    if let Some(err) = self.handle_request::<crate::service::services::WriteSingleCoil>(&mut io, srv).await {
+                        return err;
+                    }
                 }
             }
         }
@@ -239,27 +257,8 @@ impl ChannelServer {
                 // channel was closed
                 Ok(None) => return Err(()),
                 // fail request, do another iteration
-                Ok(Some(request)) => Self::fail_request(request)
+                Ok(Some(request)) => request.fail()
             }
         }
     }
-
-    fn fail_request(request: Request) -> () {
-        match request {
-            Request::ReadCoils(srv) => {
-                srv.reply_to.send(Err(Error::NoConnection)).ok()
-            },
-            Request::ReadDiscreteInputs(srv) => {
-                srv.reply_to.send(Err(Error::NoConnection)).ok()
-            },
-            Request::ReadHoldingRegisters(srv) => {
-                srv.reply_to.send(Err(Error::NoConnection)).ok()
-            },
-            Request::ReadInputRegisters(srv) => {
-                srv.reply_to.send(Err(Error::NoConnection)).ok()
-            },
-        };
-    }
-
-
 }

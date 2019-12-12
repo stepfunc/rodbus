@@ -9,3 +9,4 @@ pub struct ReadDiscreteInputs;
 pub struct ReadCoils;
 pub struct ReadInputRegisters;
 pub struct ReadHoldingRegisters;
+pub struct WriteSingleCoil;

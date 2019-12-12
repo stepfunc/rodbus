@@ -1,5 +1,5 @@
 
-use crate::session::{AddressRange, Indexed};
+use crate::session::{AddressRange, Indexed, CoilState};
 use crate::error::Error;
 use crate::error::details::ADUParseError;
 use crate::util::cursor::*;
@@ -10,6 +10,24 @@ impl SerializeRequest for AddressRange {
         cur.write_u16_be(self.start)?;
         cur.write_u16_be(self.count)?;
         Ok(())
+    }
+}
+
+impl SerializeRequest for Indexed<CoilState> {
+    fn serialize_after_function(&self, cur: &mut WriteCursor) -> Result<(), Error> {
+      cur.write_u16_be(self.index)?;
+      cur.write_u16_be(self.value.to_u16())?;
+      Ok(())
+    }
+}
+
+impl ParseResponse<Indexed<CoilState>> for u16 {
+    fn parse_after_function(cursor: &mut ReadCursor, request: &Indexed<CoilState>) -> Result<Self, Error> {
+        let index = cursor.read_u16_be()?;
+        if index != request.index {
+            return Err(Error::ADU(ADUParseError::ByteCountMismatch));
+        }
+        Ok(index)
     }
 }
 

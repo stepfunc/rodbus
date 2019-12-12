@@ -3,7 +3,7 @@ use tokio::sync::{mpsc, oneshot};
 use crate::error::Error;
 use crate::error::details::InvalidRequestReason;
 use crate::service::traits::Service;
-use crate::service::services::{ReadCoils, ReadDiscreteInputs, ReadHoldingRegisters, ReadInputRegisters};
+use crate::service::services::{ReadCoils, ReadDiscreteInputs, ReadHoldingRegisters, ReadInputRegisters, WriteSingleCoil};
 use std::time::Duration;
 
 #[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
@@ -14,6 +14,23 @@ pub struct UnitIdentifier {
 pub struct AddressRange {
     pub start: u16,
     pub count: u16
+}
+
+#[repr(u16)]
+#[derive(Copy, Clone, PartialEq, Debug)]
+pub enum CoilState {
+    On = 0xFF00,
+    Off = 0x0000
+}
+
+impl CoilState {
+    pub fn from(value : bool) -> Self {
+        if value { CoilState::On } else { CoilState::Off }
+    }
+
+    pub fn to_u16(&self) -> u16 {
+        *self as u16
+    }
 }
 
 impl AddressRange {
@@ -111,5 +128,9 @@ impl Session {
 
     pub async fn read_input_registers(&mut self, range: AddressRange) -> Result<Vec<Indexed<u16>>, Error> {
         self.make_service_call::<ReadInputRegisters>(range).await
+    }
+
+    pub async fn write_single_coil(&mut self, value: Indexed<CoilState>) -> Result<u16, Error> {
+        self.make_service_call::<WriteSingleCoil>(value).await
     }
 }

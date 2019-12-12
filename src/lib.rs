@@ -28,7 +28,17 @@
 //!
 //! A simple client application that periodically polls for some Coils
 //!
-//! ```
+//! ```no_run
+//! use rodbus::main::create_client_tcp_channel;
+//! use rodbus::session::AddressRange;
+//! use rodbus::session::UnitIdentifier;
+//! use rodbus::channel::DoublingRetryStrategy;
+//!
+//! use std::net::{SocketAddr, IpAddr, Ipv4Addr};
+//! use std::time::Duration;
+//!
+//! use tokio::time::delay_for;
+//!
 //! #[tokio::main]
 //! async fn main() -> Result<(), Box<dyn std::error::Error>> {
 //!
@@ -82,11 +92,12 @@ mod service {
     pub(super) mod traits; // only visible in impls
     pub(crate) mod services;
     mod impls {
+        mod common;
         mod read_coils;
         mod read_discrete_inputs;
         mod read_holding_registers;
         mod read_input_registers;
-        mod common;
+        mod write_single_coil;
     }
 }
 mod util {
