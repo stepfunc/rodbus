@@ -6,7 +6,7 @@
 //!
 //! * Automatic connection management with configurable reconnect strategy
 //! * Panic-free parsing
-//! * Focus on maximal compliance to the specification and correctness
+//! * Focus on maximal correctness and compliance to the specification
 //! * High-performance via Tokio's multi-threaded executor
 //!
 //! # Supported modes

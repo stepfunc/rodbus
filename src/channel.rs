@@ -32,12 +32,12 @@ pub(crate) enum Request {
 impl Request {
     pub fn fail(self) -> () {
         match self {
-            Request::ReadCoils(r) => r.reply_to.send(Err(Error::NoConnection)).ok(),
-            Request::ReadDiscreteInputs(r) => r.reply_to.send(Err(Error::NoConnection)).ok(),
-            Request::ReadHoldingRegisters(r) => r.reply_to.send(Err(Error::NoConnection)).ok(),
-            Request::ReadInputRegisters(r) => r.reply_to.send(Err(Error::NoConnection)).ok(),
-            Request::WriteSingleCoil(r) => r.reply_to.send(Err(Error::NoConnection)).ok(),
-        };
+            Request::ReadCoils(r) => r.reply(Err(Error::NoConnection)),
+            Request::ReadDiscreteInputs(r) => r.reply(Err(Error::NoConnection)),
+            Request::ReadHoldingRegisters(r)  => r.reply(Err(Error::NoConnection)),
+            Request::ReadInputRegisters(r)  => r.reply(Err(Error::NoConnection)),
+            Request::WriteSingleCoil(r) => r.reply(Err(Error::NoConnection)),
+        }
     }
 }
 
@@ -55,6 +55,10 @@ pub(crate) struct ServiceRequest<S: Service> {
 impl<S: Service> ServiceRequest<S> {
     pub fn new(unit_id: UnitIdentifier, timeout: Duration, argument : S::Request, reply_to : oneshot::Sender<Result<S::Response, Error>>) -> Self {
         Self { unit_id, timeout, argument, reply_to }
+    }
+
+    pub fn reply(self, value: Result<S::Response, Error>) -> () {
+        self.reply_to.send(value).ok();
     }
 }
 
