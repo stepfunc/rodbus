@@ -108,7 +108,7 @@ pub mod details {
         TooFewValueBytes,
         TooManyBytes,
         ByteCountMismatch,
-        EchoedIndexMismatch,
+        ReplyEchoMismatch,
         UnknownResponseFunction(u8)
     }
 

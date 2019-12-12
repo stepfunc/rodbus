@@ -98,6 +98,7 @@ mod service {
         mod read_holding_registers;
         mod read_input_registers;
         mod write_single_coil;
+        mod write_single_register;
     }
 }
 mod util {

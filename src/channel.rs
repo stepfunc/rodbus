@@ -26,7 +26,8 @@ pub(crate) enum Request {
     ReadDiscreteInputs(ServiceRequest<ReadDiscreteInputs>),
     ReadHoldingRegisters(ServiceRequest<ReadHoldingRegisters>),
     ReadInputRegisters(ServiceRequest<ReadInputRegisters>),
-    WriteSingleCoil(ServiceRequest<WriteSingleCoil>)
+    WriteSingleCoil(ServiceRequest<WriteSingleCoil>),
+    WriteSingleRegister(ServiceRequest<WriteSingleRegister>)
 }
 
 impl Request {
@@ -37,6 +38,7 @@ impl Request {
             Request::ReadHoldingRegisters(r)  => r.reply(Err(Error::NoConnection)),
             Request::ReadInputRegisters(r)  => r.reply(Err(Error::NoConnection)),
             Request::WriteSingleCoil(r) => r.reply(Err(Error::NoConnection)),
+            Request::WriteSingleRegister(r) => r.reply(Err(Error::NoConnection)),
         }
     }
 }
@@ -209,6 +211,11 @@ impl ChannelServer {
                 },
                 Request::WriteSingleCoil(srv) => {
                     if let Some(err) = self.handle_request::<crate::service::services::WriteSingleCoil>(&mut io, srv).await {
+                        return err;
+                    }
+                },
+                Request::WriteSingleRegister(srv) => {
+                    if let Some(err) = self.handle_request::<crate::service::services::WriteSingleRegister>(&mut io, srv).await {
                         return err;
                     }
                 }
