@@ -3,6 +3,11 @@ name = "rodbus"
 version = "0.1.0"
 authors = ["Adam Crain <jadamcrain@automatak.com>", "Émile Grégoire <emile@automatak.com>"]
 edition = "2018"
+license = "BSD-3-Clause"
+description = "A high-performance implementation of the Modbus protocol using Tokio and async/await"
+keywords = ["modbus", "scada", "plc", "security"]
+categories = ["network-programming"]
+repository = "https://www.github.com/grid-io/rodbus"
 
 [dependencies]
 tokio = { version = "0.2.0", features = ["tcp", "sync", "io-util", "rt-core", "macros"]}
