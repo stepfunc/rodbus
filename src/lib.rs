@@ -1,4 +1,57 @@
 
+//! A high-performance implementation of the [Modbus](http://modbus.org/) protocol
+//! using [Tokio](https://docs.rs/tokio) and Rust's `async/await` syntax.
+//!
+//! # Features
+//!
+//! * Automatic connection management with configurable reconnect strategy
+//! * Panic-free parsing
+//! * Focus on maximal compliance to the specification and correctness
+//! * High-performance via Tokio's multi-threaded executor
+//!
+//! # Supported modes
+//!
+//! * TCP client only
+//! * Future supported planned for:
+//!   * TCP Server
+//!   * TLS Client / TLS Server complying with the new Secure Modbus specification
+//!   * Modbus RTU over serial
+//!
+//! # Supported Functions
+//!
+//! * Read Coils
+//! * Read Discrete Inputs
+//! * Read Holding Registers
+//! * Read Input Registers
+//!
+//! # Examples
+//!
+//! A simple client application that periodically polls for some Coils
+//!
+//! ```
+//! #[tokio::main]
+//! async fn main() -> Result<(), Box<dyn std::error::Error>> {
+//!
+//!    let address = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 502);
+//!
+//!    let channel = create_client_tcp_channel(address, DoublingRetryStrategy::create(Duration::from_secs(1), Duration::from_secs(5)));
+//!    let mut session = channel.create_session(Duration::from_secs(1), UnitIdentifier::new(0x02));
+//!
+//!    // try to poll for some coils every 3 seconds
+//!    loop {
+//!        match session.read_coils(AddressRange::new(0, 5)).await {
+//!            Ok(values) => {
+//!                for x in values {
+//!                    println!("index: {} value: {}", x.index, x.value)
+//!                }
+//!            },
+//!            Err(err) => println!("Error: {:?}", err)
+//!        }
+//!
+//!        delay_for(std::time::Duration::from_secs(3)).await
+//!    }
+//!}
+
 // ------  api modules --------
 /// Types that represent a persistent communication channel such as a TCP connection
 pub mod channel;
