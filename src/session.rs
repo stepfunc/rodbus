@@ -1,4 +1,4 @@
-use crate::channel::Request;
+use crate::channel::{Request, ServiceRequest};
 use tokio::sync::{mpsc, oneshot};
 use crate::error::Error;
 use crate::error::details::InvalidRequestReason;
@@ -92,7 +92,7 @@ impl Session {
     async fn make_service_call<S : Service>(&mut self, request: S::Request) -> Result<S::Response, Error> {
         S::check_request_validity(&request)?;
         let (tx, rx) = oneshot::channel::<Result<S::Response, Error>>();
-        let request = S::create_request(self.id, self.response_timeout,request, tx);
+        let request = S::create_request(ServiceRequest::new(self.id, self.response_timeout,request, tx));
         self.request_channel.send(request).await.map_err(|_| Error::Shutdown)?;
         rx.await.map_err(|_| Error::Shutdown)?
     }

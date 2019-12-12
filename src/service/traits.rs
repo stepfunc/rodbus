@@ -1,12 +1,8 @@
 use crate::error::Error;
 use crate::error::details::*;
 use crate::util::cursor::*;
-use crate::channel::Request;
-use crate::session::UnitIdentifier;
+use crate::channel::{Request, ServiceRequest};
 use crate::function::FunctionCode;
-
-use tokio::sync::oneshot;
-use std::time::Duration;
 
 pub (crate) trait SerializeRequest {
     fn serialize_after_function(&self, cursor: &mut WriteCursor) -> Result<(), Error>;
@@ -16,7 +12,7 @@ pub (crate) trait ParseResponse<T> : Sized {
     fn parse_after_function(cursor: &mut ReadCursor, request: &T) -> Result<Self, Error>;
 }
 
-pub(crate) trait Service {
+pub(crate) trait Service : Sized {
 
     const REQUEST_FUNCTION_CODE : FunctionCode;
     const REQUEST_FUNCTION_CODE_VALUE : u8 = Self::REQUEST_FUNCTION_CODE.get_value();
@@ -27,7 +23,7 @@ pub(crate) trait Service {
 
     fn check_request_validity(request: &Self::Request) -> Result<(), InvalidRequestReason>;
 
-    fn create_request(unit_id: UnitIdentifier, timeout: Duration, argument : Self::Request, reply_to : oneshot::Sender<Result<Self::Response, Error>>) -> Request;
+    fn create_request(request: ServiceRequest<Self>) -> Request;
 
     fn parse_response(cursor: &mut ReadCursor, request: &Self::Request) -> Result<Self::Response, Error> {
 

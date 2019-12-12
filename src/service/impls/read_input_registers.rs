@@ -2,12 +2,9 @@
 use crate::service::traits::Service;
 use crate::session::*;
 use crate::channel::{Request, ServiceRequest};
-use crate::error::Error;
 use crate::error::details::InvalidRequestReason;
 
-use tokio::sync::oneshot;
 use crate::function::FunctionCode;
-use std::time::Duration;
 
 impl Service for crate::service::services::ReadInputRegisters {
 
@@ -20,8 +17,8 @@ impl Service for crate::service::services::ReadInputRegisters {
         request.check_validity_for_registers()
     }
 
-    fn create_request(unit_id: UnitIdentifier, timeout: Duration, argument: Self::Request, reply_to: oneshot::Sender<Result<Self::Response, Error>>) -> Request {
-        Request::ReadInputRegisters(ServiceRequest::new(unit_id, timeout, argument, reply_to))
+    fn create_request(request: ServiceRequest<Self>) -> Request {
+        Request::ReadInputRegisters(request)
     }
 }
 

@@ -1,13 +1,10 @@
 
 use crate::service::traits::Service;
 use crate::session::*;
-use crate::error::Error;
 use crate::error::details::InvalidRequestReason;
 use crate::channel::{Request, ServiceRequest};
 
-use tokio::sync::oneshot;
 use crate::function::FunctionCode;
-use std::time::Duration;
 
 impl Service for crate::service::services::ReadDiscreteInputs {
 
@@ -20,8 +17,8 @@ impl Service for crate::service::services::ReadDiscreteInputs {
         request.check_validity_for_bits()
     }
 
-    fn create_request(unit_id: UnitIdentifier, timeout: Duration, argument: Self::Request, reply_to: oneshot::Sender<Result<Self::Response, Error>>) -> Request {
-        Request::ReadDiscreteInputs(ServiceRequest::new(unit_id, timeout, argument, reply_to))
+    fn create_request(request: ServiceRequest<Self>) -> Request {
+        Request::ReadDiscreteInputs(request)
     }
 }
 
