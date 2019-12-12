@@ -1,12 +1,9 @@
+use rodbus::prelude::*;
+
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::time::Duration;
 
 use tokio::time::delay_for;
-
-use rodbus::channel::DoublingRetryStrategy;
-use rodbus::main::create_client_tcp_channel;
-use rodbus::session::AddressRange;
-use rodbus::session::UnitIdentifier;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

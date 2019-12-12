@@ -31,10 +31,7 @@
 //! A simple client application that periodically polls for some Coils
 //!
 //! ```no_run
-//! use rodbus::main::create_client_tcp_channel;
-//! use rodbus::session::AddressRange;
-//! use rodbus::session::UnitIdentifier;
-//! use rodbus::channel::DoublingRetryStrategy;
+//! use rodbus::prelude::*;
 //!
 //! use std::net::{SocketAddr, IpAddr, Ipv4Addr};
 //! use std::time::Duration;
@@ -65,6 +62,8 @@
 //!}
 
 // ------  api modules --------
+/// A prelude that can be used to include all of the API types
+pub mod prelude;
 /// Types that represent a persistent communication channel such as a TCP connection
 pub mod channel;
 /// Types that users interact with to make requests to a Modbus server
