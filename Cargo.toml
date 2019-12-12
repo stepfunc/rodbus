@@ -5,7 +5,7 @@ authors = ["Adam Crain <jadamcrain@automatak.com>", "Émile Grégoire <emile@aut
 edition = "2018"
 license = "BSD-3-Clause"
 description = "A high-performance implementation of the Modbus protocol using Tokio and async/await"
-keywords = ["modbus", "scada", "plc", "security"]
+keywords = ["modbus", "ics", "industrial", "plc", "security"]
 categories = ["network-programming"]
 repository = "https://www.github.com/grid-io/rodbus"
 
