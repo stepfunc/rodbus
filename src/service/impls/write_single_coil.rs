@@ -1,8 +1,8 @@
+use crate::channel::{Request, ServiceRequest};
+use crate::error::details::InvalidRequestReason;
+use crate::function::FunctionCode;
 use crate::service::services::WriteSingleCoil;
 use crate::service::traits::Service;
-use crate::error::details::InvalidRequestReason;
-use crate::channel::{Request, ServiceRequest};
-use crate::function::FunctionCode;
 use crate::session::{CoilState, Indexed};
 
 impl Service for WriteSingleCoil {

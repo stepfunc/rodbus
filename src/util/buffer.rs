@@ -1,6 +1,6 @@
-use crate::error::details::LogicError;
-
 use tokio::io::{AsyncRead, AsyncReadExt};
+
+use crate::error::details::LogicError;
 
 pub struct ReadBuffer {
     buffer: Vec<u8>,

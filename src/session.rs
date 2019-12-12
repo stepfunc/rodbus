@@ -1,10 +1,12 @@
-use crate::channel::{Request, ServiceRequest};
-use tokio::sync::{mpsc, oneshot};
-use crate::error::Error;
-use crate::error::details::InvalidRequestReason;
-use crate::service::traits::Service;
-use crate::service::services::*;
 use std::time::Duration;
+
+use tokio::sync::{mpsc, oneshot};
+
+use crate::channel::{Request, ServiceRequest};
+use crate::error::details::InvalidRequestReason;
+use crate::error::Error;
+use crate::service::services::*;
+use crate::service::traits::Service;
 
 #[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
 pub struct UnitIdentifier {

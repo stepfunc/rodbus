@@ -74,15 +74,16 @@ pub mod error;
 
 /// Functions that act as entry points into the library
 pub mod main {
-    use crate::channel::{Channel, RetryStrategy};
     use std::net::SocketAddr;
 
+    use crate::channel::{Channel, RetryStrategy};
+
     /// Create a Channel that attempts to maintain a TCP connection
-    ///
-    /// The channel uses the provided RetryStrategy to pause between failed connection attempts
-    ///
-    /// * `addr` - Socket address of the remote server
-    /// * `retry` - A boxed trait object that controls when the connection is retried on failure
+        ///
+        /// The channel uses the provided RetryStrategy to pause between failed connection attempts
+        ///
+        /// * `addr` - Socket address of the remote server
+        /// * `retry` - A boxed trait object that controls when the connection is retried on failure
     pub fn create_client_tcp_channel(addr: SocketAddr, retry: Box<dyn RetryStrategy + Send>) -> Channel {
         Channel::new(addr, retry)
     }

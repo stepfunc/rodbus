@@ -28,7 +28,6 @@ pub enum Error {
 
 /// Detailed definitions for lower-level error types
 pub mod details {
-
     use super::Error;
 
     pub (crate) mod constants {

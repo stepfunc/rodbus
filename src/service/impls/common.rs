@@ -1,9 +1,8 @@
-
-use crate::session::{AddressRange, Indexed, CoilState, RegisterValue};
-use crate::error::Error;
 use crate::error::details::ADUParseError;
+use crate::error::Error;
+use crate::service::traits::{ParseResponse, SerializeRequest};
+use crate::session::{AddressRange, CoilState, Indexed, RegisterValue};
 use crate::util::cursor::*;
-use crate::service::traits::{SerializeRequest, ParseResponse};
 
 impl SerializeRequest for AddressRange {
     fn serialize_after_function(&self, cur: &mut WriteCursor) -> Result<(), Error> {
@@ -130,9 +129,9 @@ impl ParseResponse<AddressRange> for Vec<Indexed<u16>> {
 
 #[cfg(test)]
 mod tests {
+    use crate::error::details::InvalidRequestReason;
 
     use super::*;
-    use crate::error::details::InvalidRequestReason;
 
     #[test]
     fn serializes_address_range() {

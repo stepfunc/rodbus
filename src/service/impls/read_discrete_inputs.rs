@@ -1,10 +1,8 @@
-
+use crate::channel::{Request, ServiceRequest};
+use crate::error::details::InvalidRequestReason;
+use crate::function::FunctionCode;
 use crate::service::traits::Service;
 use crate::session::*;
-use crate::error::details::InvalidRequestReason;
-use crate::channel::{Request, ServiceRequest};
-
-use crate::function::FunctionCode;
 
 impl Service for crate::service::services::ReadDiscreteInputs {
 

@@ -1,8 +1,8 @@
-use crate::error::Error;
-use crate::error::details::*;
-use crate::util::cursor::*;
 use crate::channel::{Request, ServiceRequest};
+use crate::error::details::*;
+use crate::error::Error;
 use crate::function::FunctionCode;
+use crate::util::cursor::*;
 
 pub (crate) trait SerializeRequest {
     fn serialize_after_function(&self, cursor: &mut WriteCursor) -> Result<(), Error>;

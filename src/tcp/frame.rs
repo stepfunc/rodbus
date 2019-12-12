@@ -1,12 +1,11 @@
-use crate::util::frame::{Frame, FrameFormatter, FrameParser};
-
-use crate::error::Error;
-use crate::error::details::FrameError;
-use crate::util::cursor::WriteCursor;
-use crate::util::buffer::ReadBuffer;
-
 use std::convert::TryFrom;
+
+use crate::error::details::FrameError;
+use crate::error::Error;
 use crate::service::traits::SerializeRequest;
+use crate::util::buffer::ReadBuffer;
+use crate::util::cursor::WriteCursor;
+use crate::util::frame::{Frame, FrameFormatter, FrameParser};
 
 pub mod constants {
     pub const HEADER_LENGTH : usize = 7;
@@ -138,13 +137,13 @@ impl FrameFormatter for MBAPFormatter {
 
 #[cfg(test)]
 mod tests {
+    use tokio_test::block_on;
+    use tokio_test::io::Builder;
 
-    use super::*;
+    use crate::service::traits::SerializeRequest;
     use crate::util::frame::FramedReader;
 
-    use tokio_test::io::Builder;
-    use tokio_test::block_on;
-    use crate::service::traits::SerializeRequest;
+    use super::*;
 
     //                            |   tx id  |  proto id |  length  | unit |  payload   |
     const SIMPLE_FRAME : &[u8] = &[0x00, 0x07, 0x00, 0x00, 0x00, 0x03, 0x2A, 0x03, 0x04];
