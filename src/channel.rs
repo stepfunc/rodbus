@@ -34,13 +34,14 @@ pub(crate) enum Request {
 /// a oneshot channel to receive the reply.
 pub(crate) struct ServiceRequest<S: Service> {
     unit_id: UnitIdentifier,
+    timeout: Duration,
     argument : S::Request,
     reply_to : oneshot::Sender<Result<S::Response, Error>>,
 }
 
 impl<S: Service> ServiceRequest<S> {
-    pub fn new(unit_id: UnitIdentifier, argument : S::Request, reply_to : oneshot::Sender<Result<S::Response, Error>>) -> Self {
-        Self { unit_id, argument, reply_to }
+    pub fn new(unit_id: UnitIdentifier, timeout: Duration, argument : S::Request, reply_to : oneshot::Sender<Result<S::Response, Error>>) -> Self {
+        Self { unit_id, timeout, argument, reply_to }
     }
 }
 
@@ -81,8 +82,8 @@ impl Channel {
         Channel { tx }
     }
 
-    pub fn create_session(&self, id: UnitIdentifier) -> Session {
-        Session::new(id, self.tx.clone())
+    pub fn create_session(&self, response_timeout: Duration, id: UnitIdentifier) -> Session {
+        Session::new(id, response_timeout,self.tx.clone())
     }
 }
 
@@ -195,7 +196,7 @@ impl ChannelServer {
     }
 
     async fn handle_request<S: Service>(&mut self, io: &mut TcpStream, srv: ServiceRequest<S>) -> Option<SessionError> {
-        let result = self.send_and_receive::<S>(io, srv.unit_id, &srv.argument).await;
+        let result = self.send_and_receive::<S>(io, srv.unit_id, srv.timeout, &srv.argument).await;
 
         let ret = result.as_ref().err().and_then(|e| SessionError::from(e) );
 
@@ -205,13 +206,12 @@ impl ChannelServer {
         ret
     }
 
-    async fn send_and_receive<S: Service>(&mut self, io: &mut TcpStream, unit_id: UnitIdentifier, request: &S::Request) -> Result<S::Response, Error> {
+    async fn send_and_receive<S: Service>(&mut self, io: &mut TcpStream, unit_id: UnitIdentifier, timeout: Duration, request: &S::Request) -> Result<S::Response, Error> {
         let tx_id = self.next_tx_id();
         let bytes = self.formatter.format(tx_id, unit_id.value(), S::REQUEST_FUNCTION_CODE_VALUE, request)?;
         io.write_all(bytes).await?;
 
-        // TODO - get this from self or via ServiceWrapper
-        let deadline = tokio::time::Instant::now() + Duration::from_secs(5);
+        let deadline = tokio::time::Instant::now() + timeout;
 
         // loop until we get a response with the correct tx id or we timeout
         loop {

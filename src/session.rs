@@ -4,6 +4,7 @@ use crate::error::Error;
 use crate::error::details::InvalidRequestReason;
 use crate::service::traits::Service;
 use crate::service::services::{ReadCoils, ReadDiscreteInputs, ReadHoldingRegisters, ReadInputRegisters};
+use std::time::Duration;
 
 #[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
 pub struct UnitIdentifier {
@@ -79,19 +80,20 @@ impl UnitIdentifier {
 
 pub struct Session {
     id: UnitIdentifier,
-    channel_tx: mpsc::Sender<Request>,
+    response_timeout: Duration,
+    request_channel: mpsc::Sender<Request>,
 }
 
 impl Session {
-    pub(crate) fn new(id: UnitIdentifier, channel_tx: mpsc::Sender<Request>) -> Self {
-        Session { id, channel_tx }
+    pub(crate) fn new(id: UnitIdentifier, response_timeout: Duration, request_channel: mpsc::Sender<Request>) -> Self {
+        Session { id, response_timeout, request_channel }
     }
 
     async fn make_service_call<S : Service>(&mut self, request: S::Request) -> Result<S::Response, Error> {
         S::check_request_validity(&request)?;
         let (tx, rx) = oneshot::channel::<Result<S::Response, Error>>();
-        let request = S::create_request(self.id, request, tx);
-        self.channel_tx.send(request).await.map_err(|_| Error::Shutdown)?;
+        let request = S::create_request(self.id, self.response_timeout,request, tx);
+        self.request_channel.send(request).await.map_err(|_| Error::Shutdown)?;
         rx.await.map_err(|_| Error::Shutdown)?
     }
 
