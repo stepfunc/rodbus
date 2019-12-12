@@ -23,6 +23,8 @@
 //! * Read Discrete Inputs
 //! * Read Holding Registers
 //! * Read Input Registers
+//! * Write Single Coil
+//! * Write Single Register
 //!
 //! # Examples
 //!

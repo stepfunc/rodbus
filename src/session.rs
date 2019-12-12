@@ -3,7 +3,7 @@ use tokio::sync::{mpsc, oneshot};
 use crate::error::Error;
 use crate::error::details::InvalidRequestReason;
 use crate::service::traits::Service;
-use crate::service::services::{ReadCoils, ReadDiscreteInputs, ReadHoldingRegisters, ReadInputRegisters, WriteSingleCoil, WriteSingleRegister};
+use crate::service::services::*;
 use std::time::Duration;
 
 #[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
