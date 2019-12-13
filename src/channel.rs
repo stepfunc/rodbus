@@ -182,7 +182,7 @@ impl ChannelServer {
             match tokio::net::TcpStream::connect(self.addr).await {
                 Err(_) => {
                     let delay = self.connect_retry.next_delay();
-                    if !self.fail_requests_for(delay).await {
+                    if self.fail_requests_for(delay).await.is_err() {
                         // this occurs when the mpsc is dropped, so the task can exit
                         return ();
                     }
@@ -270,16 +270,16 @@ impl ChannelServer {
 
     }
 
-    async fn fail_requests_for(&mut self, duration: Duration) -> bool {
+    async fn fail_requests_for(&mut self, duration: Duration) -> Result<(),()> {
 
         let deadline = tokio::time::Instant::now() + duration;
 
         loop {
             match tokio::time::timeout_at(deadline, self.rx.recv()).await {
                 // timeout occurred
-                Err(_) => return false,
+                Err(_) => return Ok(()),
                 // channel was closed
-                Ok(None) => return true,
+                Ok(None) => return Err(()),
                 // fail request, do another iteration
                 Ok(Some(request)) => request.fail()
             }
