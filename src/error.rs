@@ -1,3 +1,4 @@
+use std::fmt::Formatter;
 
 /// The primary error type returned when requests
 /// are made from client to server
@@ -24,6 +25,18 @@ pub enum Error {
     /// Occurs when all session handles are dropped and
     /// the channel can no longer receive requests to process
     Shutdown
+}
+
+// TODO - properly implement all of this using error_chain!
+impl std::fmt::Display for Error {
+    fn fmt(&self, f: &mut Formatter) -> std::result::Result<(), std::fmt::Error> {
+        f.write_str("an error!")?;
+        Ok(())
+    }
+}
+
+impl std::error::Error for Error {
+
 }
 
 /// Detailed definitions for lower-level error types
