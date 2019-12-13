@@ -9,7 +9,7 @@ use tokio::sync::oneshot;
 use crate::error::Error;
 use crate::service::services::*;
 use crate::service::traits::Service;
-use crate::session::{Session, UnitIdentifier};
+use crate::session::{Session, UnitId};
 use crate::tcp::frame::{MBAPFormatter, MBAPParser};
 use crate::util::cursor::ReadCursor;
 use crate::util::frame::{FramedReader, FrameFormatter};
@@ -48,15 +48,15 @@ impl Request {
 /// It contains the session ID, the actual request and
 /// a oneshot channel to receive the reply.
 pub(crate) struct ServiceRequest<S: Service> {
-    unit_id: UnitIdentifier,
+    id: UnitId,
     timeout: Duration,
     argument : S::Request,
     reply_to : oneshot::Sender<Result<S::Response, Error>>,
 }
 
 impl<S: Service> ServiceRequest<S> {
-    pub fn new(unit_id: UnitIdentifier, timeout: Duration, argument : S::Request, reply_to : oneshot::Sender<Result<S::Response, Error>>) -> Self {
-        Self { unit_id, timeout, argument, reply_to }
+    pub fn new(id: UnitId, timeout: Duration, argument : S::Request, reply_to : oneshot::Sender<Result<S::Response, Error>>) -> Self {
+        Self { id, timeout, argument, reply_to }
     }
 
     pub fn reply(self, value: Result<S::Response, Error>) -> () {
@@ -64,44 +64,57 @@ impl<S: Service> ServiceRequest<S> {
     }
 }
 
-pub trait RetryStrategy {
+pub trait ReconnectStrategy {
     fn reset(&mut self) -> ();
     fn next_delay(&mut self) -> Duration;
 }
 
-pub struct DoublingRetryStrategy {
-    min : Duration,
-    max : Duration,
-    current: Duration
-}
+pub mod strategy {
+    use super::ReconnectStrategy;
+    use std::time::Duration;
 
-impl DoublingRetryStrategy {
-    pub fn create(min : Duration, max: Duration) -> Box<dyn RetryStrategy + Send> {
-        Box::new(DoublingRetryStrategy { min, max, current : min })
-    }
-}
-
-impl RetryStrategy for DoublingRetryStrategy {
-
-    fn reset(&mut self) -> () {
-        self.current = self.min;
+    pub fn default() -> Box<dyn ReconnectStrategy + Send> {
+        doubling(Duration::from_millis(100), Duration::from_secs(5))
     }
 
-    fn next_delay(&mut self) -> Duration {
-        let ret = self.current;
-        self.current = std::cmp::min(2*self.current, self.max);
-        ret
+    pub fn doubling(min : Duration, max : Duration) -> Box<dyn ReconnectStrategy + Send> {
+        Doubling::create(min, max)
+    }
+
+    struct Doubling {
+        min : Duration,
+        max : Duration,
+        current: Duration
+    }
+
+    impl Doubling {
+        pub fn create(min : Duration, max: Duration) -> Box<dyn ReconnectStrategy + Send> {
+            Box::new(Doubling { min, max, current : min })
+        }
+    }
+
+    impl ReconnectStrategy for Doubling {
+
+        fn reset(&mut self) -> () {
+            self.current = self.min;
+        }
+
+        fn next_delay(&mut self) -> Duration {
+            let ret = self.current;
+            self.current = std::cmp::min(2*self.current, self.max);
+            ret
+        }
     }
 }
 
 impl Channel {
-    pub fn new(addr: SocketAddr, connect_retry: Box<dyn RetryStrategy + Send>) -> Self {
+    pub fn new(addr: SocketAddr, connect_retry: Box<dyn ReconnectStrategy + Send>) -> Self {
         let (tx, rx) = mpsc::channel(100);
         tokio::spawn(async move { ChannelServer::new(addr, rx, connect_retry).run().await });
         Channel { tx }
     }
 
-    pub fn create_session(&self, response_timeout: Duration, id: UnitIdentifier) -> Session {
+    pub fn create_session(&self, id: UnitId, response_timeout: Duration) -> Session {
         Session::new(id, response_timeout,self.tx.clone())
     }
 }
@@ -133,14 +146,14 @@ impl SessionError {
 struct ChannelServer {
     addr: SocketAddr,
     rx: mpsc::Receiver<Request>,
-    connect_retry: Box<dyn RetryStrategy + Send>,
+    connect_retry: Box<dyn ReconnectStrategy + Send>,
     formatter: Box<dyn FrameFormatter + Send>,
     reader: FramedReader,
     tx_id: u16
 }
 
 impl ChannelServer {
-    pub fn new(addr: SocketAddr, rx: mpsc::Receiver<Request>, connect_retry: Box<dyn RetryStrategy + Send>) -> Self {
+    pub fn new(addr: SocketAddr, rx: mpsc::Receiver<Request>, connect_retry: Box<dyn ReconnectStrategy + Send>) -> Self {
         Self {
             addr,
             rx,
@@ -225,7 +238,7 @@ impl ChannelServer {
     }
 
     async fn handle_request<S: Service>(&mut self, io: &mut TcpStream, srv: ServiceRequest<S>) -> Option<SessionError> {
-        let result = self.send_and_receive::<S>(io, srv.unit_id, srv.timeout, &srv.argument).await;
+        let result = self.send_and_receive::<S>(io, srv.id, srv.timeout, &srv.argument).await;
 
         let ret = result.as_ref().err().and_then(|e| SessionError::from(e) );
 
@@ -235,7 +248,7 @@ impl ChannelServer {
         ret
     }
 
-    async fn send_and_receive<S: Service>(&mut self, io: &mut TcpStream, unit_id: UnitIdentifier, timeout: Duration, request: &S::Request) -> Result<S::Response, Error> {
+    async fn send_and_receive<S: Service>(&mut self, io: &mut TcpStream, unit_id: UnitId, timeout: Duration, request: &S::Request) -> Result<S::Response, Error> {
         let tx_id = self.next_tx_id();
         let bytes = self.formatter.format(tx_id, unit_id.value(), S::REQUEST_FUNCTION_CODE_VALUE, request)?;
         io.write_all(bytes).await?;

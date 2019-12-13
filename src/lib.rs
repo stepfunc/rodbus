@@ -31,20 +31,27 @@
 //! A simple client application that periodically polls for some Coils
 //!
 //! ```no_run
-//! use rodbus::prelude::*;
+//!use rodbus::prelude::*;
 //!
-//! use std::net::{SocketAddr, IpAddr, Ipv4Addr};
-//! use std::time::Duration;
+//!use std::net::SocketAddr;
+//!use std::time::Duration;
+//!use std::str::FromStr;
 //!
-//! use tokio::time::delay_for;
 //!
-//! #[tokio::main]
-//! async fn main() -> Result<(), Box<dyn std::error::Error>> {
+//!use tokio::time::delay_for;
 //!
-//!    let address = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 502);
+//!#[tokio::main]
+//!async fn main() -> Result<(), Box<dyn std::error::Error>> {
 //!
-//!    let channel = create_client_tcp_channel(address, DoublingRetryStrategy::create(Duration::from_secs(1), Duration::from_secs(5)));
-//!    let mut session = channel.create_session(Duration::from_secs(1), UnitIdentifier::new(0x02));
+//!    let channel = create_client_tcp_channel(
+//!        SocketAddr::from_str("127.0.0.1:502")?,
+//!        strategy::default()
+//!    );
+//!
+//!    let mut session = channel.create_session(
+//!        UnitId::new(0x02),
+//!        Duration::from_secs(1)
+//!    );
 //!
 //!    // try to poll for some coils every 3 seconds
 //!    loop {
@@ -60,6 +67,7 @@
 //!        delay_for(std::time::Duration::from_secs(3)).await
 //!    }
 //!}
+//! ```
 
 // ------  api modules --------
 /// A prelude that can be used to include all of the API types
@@ -75,7 +83,7 @@ pub mod error;
 pub mod main {
     use std::net::SocketAddr;
 
-    use crate::channel::{Channel, RetryStrategy};
+    use crate::channel::{Channel, ReconnectStrategy};
 
     /// Create a Channel that attempts to maintain a TCP connection
         ///
@@ -83,7 +91,7 @@ pub mod main {
         ///
         /// * `addr` - Socket address of the remote server
         /// * `retry` - A boxed trait object that controls when the connection is retried on failure
-    pub fn create_client_tcp_channel(addr: SocketAddr, retry: Box<dyn RetryStrategy + Send>) -> Channel {
+    pub fn create_client_tcp_channel(addr: SocketAddr, retry: Box<dyn ReconnectStrategy + Send>) -> Channel {
         Channel::new(addr, retry)
     }
 }

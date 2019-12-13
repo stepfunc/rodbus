@@ -1,17 +1,23 @@
 use rodbus::prelude::*;
 
-use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+use std::net::SocketAddr;
 use std::time::Duration;
+use std::str::FromStr;
 
 use tokio::time::delay_for;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
-    let address = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 502);
+    let channel = create_client_tcp_channel(
+        SocketAddr::from_str("127.0.0.1:502")?,
+        strategy::default()
+    );
 
-    let channel = create_client_tcp_channel(address, DoublingRetryStrategy::create(Duration::from_secs(1), Duration::from_secs(5)));
-    let mut session = channel.create_session(Duration::from_secs(1), UnitIdentifier::new(0x02));
+    let mut session = channel.create_session(
+        UnitId::new(0x02),
+        Duration::from_secs(1)
+    );
 
     // try to poll for some coils every 3 seconds
     loop {

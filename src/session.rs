@@ -9,7 +9,7 @@ use crate::service::services::*;
 use crate::service::traits::Service;
 
 #[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
-pub struct UnitIdentifier {
+pub struct UnitId {
     id: u8,
 }
 
@@ -95,7 +95,7 @@ impl<T> Indexed<T> {
     }
 }
 
-impl UnitIdentifier {
+impl UnitId {
     pub fn new(unit_id: u8) -> Self {
         Self { id: unit_id }
     }
@@ -110,13 +110,13 @@ impl UnitIdentifier {
 }
 
 pub struct Session {
-    id: UnitIdentifier,
+    id: UnitId,
     response_timeout: Duration,
     request_channel: mpsc::Sender<Request>,
 }
 
 impl Session {
-    pub(crate) fn new(id: UnitIdentifier, response_timeout: Duration, request_channel: mpsc::Sender<Request>) -> Self {
+    pub(crate) fn new(id: UnitId, response_timeout: Duration, request_channel: mpsc::Sender<Request>) -> Self {
         Session { id, response_timeout, request_channel }
     }
 
