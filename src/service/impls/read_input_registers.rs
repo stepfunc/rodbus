@@ -1,5 +1,5 @@
 use crate::channel::{Request, ServiceRequest};
-use crate::error::details::InvalidRequestReason;
+use crate::error::details::InvalidRequest;
 use crate::function::FunctionCode;
 use crate::service::traits::Service;
 use crate::session::*;
@@ -11,7 +11,7 @@ impl Service for crate::service::services::ReadInputRegisters {
     type Request = AddressRange;
     type Response = Vec<Indexed<u16>>;
 
-    fn check_request_validity(request: &Self::Request) -> Result<(), InvalidRequestReason> {
+    fn check_request_validity(request: &Self::Request) -> Result<(), InvalidRequest> {
         request.check_validity_for_registers()
     }
 

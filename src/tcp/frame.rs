@@ -1,7 +1,6 @@
 use std::convert::TryFrom;
 
-use crate::error::details::FrameError;
-use crate::error::Error;
+use crate::error::*;
 use crate::service::traits::SerializeRequest;
 use crate::util::buffer::ReadBuffer;
 use crate::util::cursor::WriteCursor;
@@ -55,16 +54,16 @@ impl MBAPParser {
         let unit_id = cursor.read_u8()?;
 
         if protocol_id != 0 {
-            return Err(Error::Frame(FrameError::UnknownProtocolId(protocol_id)));
+            return Err(details::FrameParseError::UnknownProtocolId(protocol_id))?;
         }
 
-        if (length) > constants::MAX_LENGTH_FIELD {
-            return Err(Error::Frame(FrameError::MBAPLengthTooBig(length)));
+        if length > constants::MAX_LENGTH_FIELD {
+            return Err(details::FrameParseError::MBAPLengthTooBig(length, constants::MAX_LENGTH_FIELD))?;
         }
 
         // must be > 0 b/c the 1-byte unit identifier counts towards length
-        if (length) == 0 {
-            return Err(Error::Frame(FrameError::MBAPLengthZero));
+        if length == 0 {
+            return Err(details::FrameParseError::MBAPLengthZero)?;
         }
 
         Ok(MBAPHeader{ tx_id, adu_length: length - 1, unit_id })
@@ -125,9 +124,14 @@ impl FrameFormatter for MBAPFormatter {
             cursor.position() - start
         };
 
-        let frame_length_value = u16::try_from(adu_length + 1)?;
-        cursor.seek_from_start(4)?;
-        cursor.write_u16_be(frame_length_value)?;
+        {
+            // write the resulting length
+            let result : Result<u16, bugs::Error> = u16::try_from(adu_length + 1).map_err(|_err| bugs::ErrorKind::ADUTooBig(adu_length).into());
+            let frame_length_value = result?;
+            cursor.seek_from_start(4)?;
+            cursor.write_u16_be(frame_length_value)?;
+        }
+
 
         let total_length = constants::HEADER_LENGTH + adu_length as usize;
 
@@ -142,6 +146,7 @@ mod tests {
 
     use crate::service::traits::SerializeRequest;
     use crate::util::frame::FramedReader;
+    use crate::error::*;
 
     use super::*;
 
@@ -225,18 +230,27 @@ mod tests {
     #[test]
     fn errors_on_bad_protocol_id() {
         let frame = &[0x00, 0x07, 0xCA, 0xFE, 0x00, 0x01, 0x2A];
-        assert_eq!(test_error(frame), Error::Frame(FrameError::UnknownProtocolId(0xCAFE)));
+        match test_error(frame) {
+            Error(ErrorKind::BadFrame(details::FrameParseError::UnknownProtocolId(0xCAFE)), _) => {},
+            err => panic!("error did not match: {}", err),
+        }
     }
 
     #[test]
     fn errors_on_length_of_zero() {
         let frame = &[0x00, 0x07, 0x00, 0x00, 0x00, 0x00, 0x2A];
-        assert_eq!(test_error(frame), Error::Frame(FrameError::MBAPLengthZero));
+        match test_error(frame) {
+            Error(ErrorKind::BadFrame(details::FrameParseError::MBAPLengthZero), _) => {},
+            err => panic!("error did not match: {}", err),
+        }
     }
 
     #[test]
     fn errors_when_mbap_length_too_big() {
         let frame = &[0x00, 0x07, 0x00, 0x00, 0x00, 0xFF, 0x2A];
-        assert_eq!(test_error(frame), Error::Frame(FrameError::MBAPLengthTooBig(0xFF)));
+        match test_error(frame) {
+            Error(ErrorKind::BadFrame(details::FrameParseError::MBAPLengthTooBig(0xFF, constants::MAX_LENGTH_FIELD)), _) => {},
+            err => panic!("error did not match: {}", err),
+        }
     }
 }

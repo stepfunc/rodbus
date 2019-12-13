@@ -14,6 +14,7 @@ pub(super) mod constants {
     pub const ERROR_DELIMITER: u8 = 0x80;
 }
 
+#[derive(Debug, Copy, Clone, PartialEq)]
 #[repr(u8)]
 pub enum FunctionCode {
     ReadCoils = constants::READ_COILS,

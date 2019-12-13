@@ -6,7 +6,7 @@ use tokio::net::TcpStream;
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
 
-use crate::error::Error;
+use crate::error::*;
 use crate::service::services::*;
 use crate::service::traits::Service;
 use crate::session::{Session, UnitId};
@@ -33,12 +33,12 @@ pub(crate) enum Request {
 impl Request {
     pub fn fail(self) -> () {
         match self {
-            Request::ReadCoils(r) => r.reply(Err(Error::NoConnection)),
-            Request::ReadDiscreteInputs(r) => r.reply(Err(Error::NoConnection)),
-            Request::ReadHoldingRegisters(r)  => r.reply(Err(Error::NoConnection)),
-            Request::ReadInputRegisters(r)  => r.reply(Err(Error::NoConnection)),
-            Request::WriteSingleCoil(r) => r.reply(Err(Error::NoConnection)),
-            Request::WriteSingleRegister(r) => r.reply(Err(Error::NoConnection)),
+            Request::ReadCoils(r) => r.fail(ErrorKind::NoConnection.into()),
+            Request::ReadDiscreteInputs(r) => r.fail(ErrorKind::NoConnection.into()),
+            Request::ReadHoldingRegisters(r)  => r.fail(ErrorKind::NoConnection.into()),
+            Request::ReadInputRegisters(r)  => r.fail(ErrorKind::NoConnection.into()),
+            Request::WriteSingleCoil(r) => r.fail(ErrorKind::NoConnection.into()),
+            Request::WriteSingleRegister(r) => r.fail(ErrorKind::NoConnection.into()),
         }
     }
 }
@@ -61,6 +61,10 @@ impl<S: Service> ServiceRequest<S> {
 
     pub fn reply(self, value: Result<S::Response, Error>) -> () {
         self.reply_to.send(value).ok();
+    }
+
+    pub fn fail(self, err: Error) -> () {
+        self.reply(Err(err))
     }
 }
 
@@ -131,8 +135,8 @@ enum SessionError {
 
 impl SessionError {
     pub fn from(err: &Error) -> Option<Self> {
-        match err {
-            Error::IO(_) | Error::Frame(_) => Some(SessionError::IOError),
+        match err.kind() {
+            ErrorKind::Io(_) | ErrorKind::BadFrame(_) => Some(SessionError::IOError),
             _ => None
         }
     }
@@ -258,7 +262,9 @@ impl ChannelServer {
         // loop until we get a response with the correct tx id or we timeout
         loop {
 
-            let frame = tokio::time::timeout_at(deadline, self.reader.next_frame(io)).await??;
+            let frame = tokio::time::timeout_at(deadline, self.reader.next_frame(io)).await.map_err(|_err| ErrorKind::ResponseTimeout)??;
+
+            //let frame = .map_err() await??;
 
             // TODO - log that non-matching tx_id found
             if frame.tx_id == tx_id {

@@ -1,5 +1,5 @@
 use crate::channel::{Request, ServiceRequest};
-use crate::error::details::InvalidRequestReason;
+use crate::error::details::InvalidRequest;
 use crate::function::FunctionCode;
 use crate::service::services::WriteSingleCoil;
 use crate::service::traits::Service;
@@ -10,7 +10,7 @@ impl Service for WriteSingleCoil {
     type Request = Indexed<CoilState>;
     type Response = u16;
 
-    fn check_request_validity(_request: &Self::Request) -> Result<(), InvalidRequestReason> {
+    fn check_request_validity(_request: &Self::Request) -> Result<(), InvalidRequest> {
         Ok(()) // can't be invalid
     }
 

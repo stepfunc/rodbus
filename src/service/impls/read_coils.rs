@@ -11,7 +11,7 @@ impl Service for crate::service::services::ReadCoils {
     type Request = AddressRange;
     type Response = Vec<Indexed<bool>>;
 
-    fn check_request_validity(request: &Self::Request) -> Result<(), details::InvalidRequestReason> {
+    fn check_request_validity(request: &Self::Request) -> Result<(), details::InvalidRequest> {
         request.check_validity_for_bits()
     }
 

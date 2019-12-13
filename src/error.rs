@@ -1,47 +1,83 @@
-use std::fmt::Formatter;
 
-/// The primary error type returned when requests
-/// are made from client to server
-#[derive(Debug, Copy, Clone, PartialEq)]
-pub enum Error {
-    /// I/O errors that bubble up from the underlying I/O resource
-    IO(std::io::ErrorKind),
-    /// Logic errors that shouldn't happen, but are captured nonetheless
-    Logic(details::LogicError),
-    /// Errors that could occur when serializing
-    Write(details::WriteError),
-    /// Framing errors
-    Frame(details::FrameError),
-    /// Errors resulting from ADU parsing
-    ADU(details::ADUParseError),
-    /// The server replied with an exception response
-    Exception(details::ExceptionCode),
-    /// The request provided by the user was invalid
-    InvalidRequest(details::InvalidRequestReason),
-    /// Server failed to respond within the timeout
-    ResponseTimeout,
-    /// No connection exists to the Modbus server
-    NoConnection,
-    /// Occurs when all session handles are dropped and
-    /// the channel can no longer receive requests to process
-    Shutdown
-}
+// Create the Error, ErrorKind, ResultExt, and Result types
+error_chain! {
+   types {
+       Error, ErrorKind, ResultExt;
+   }
 
-// TODO - properly implement all of this using error_chain!
-impl std::fmt::Display for Error {
-    fn fmt(&self, f: &mut Formatter) -> std::result::Result<(), std::fmt::Error> {
-        f.write_str("an error!")?;
-        Ok(())
+   foreign_links {
+        Io(::std::io::Error);
+        Exception(details::ExceptionCode);
+        BadRequest(details::InvalidRequest);
+        BadFrame(details::FrameParseError);
+        BadResponse(details::ResponseParseError);
+   }
+
+   links {
+      Bug(bugs::Error, bugs::ErrorKind);
+   }
+
+   errors {
+        /// timeout occurred before receiving a response from the server
+        ResponseTimeout {
+            description("timeout occurred before receiving a response from the server")
+            display("timeout occurred before receiving a response from the server")
+        }
+
+         /// no connection exists to the Modbus server
+        NoConnection {
+            description("no connection exists to the Modbus server")
+            display("no connection exists to the Modbus server")
+        }
+
+        /// the task processing requests has unexpectedly shutdown
+        Shutdown {
+            description("he task processing requests has unexpectedly shutdown")
+            display("he task processing requests has unexpectedly shutdown")
+        }
     }
 }
 
-impl std::error::Error for Error {
+/// Error chain for possible **bugs** in the library itself as it writes types to buffers.
+pub mod bugs {
+    error_chain! {
+        types {
+            Error, ErrorKind, ResultExt;
+        }
 
+        errors {
+            /// Attempted to write more bytes than allowed
+            InsufficientWriteSpace(write_size: usize, remaining: usize) {
+                description("insufficient space for write operation")
+                display("attempted to write {} bytes with {} bytes remaining", write_size, remaining)
+            }
+            /// The calculated ADU size exceeds what is allowed by the spec
+            ADUTooBig(size: usize) {
+                description("ADU size is larger than the maximum allowed size")
+                display("ADU length of {} exceeds the maximum allowed length", size)
+            }
+            /// The calculated frame size exceeds what is allowed by the spec
+            FrameTooBig(size: usize, max: usize) {
+                description("Frame size is larger than the maximum allowed size")
+                display("Frame length of {} exceeds the maximum allowed length of {}", size, max)
+            }
+            /// Attempted to read more bytes than present
+            InsufficientBytesForRead(requested: usize, remaining: usize) {
+                description("attempted to read more bytes than present")
+                display("attempted to read {} bytes with only {} remaing", requested, remaining)
+            }
+            /// Cursor seek operation exceeded the bounds of the underlying buffer
+            BadSeekOperation {
+                description("Cursor seek operation exceeded the bounds of the underlying buffer")
+                display("Cursor seek operation exceeded the bounds of the underlying buffer")
+            }
+        }
+    }
 }
 
-/// Detailed definitions for lower-level error types
+/// Simple errors that occur normally and do not indicate bugs in the library
 pub mod details {
-    use super::Error;
+    use std::fmt::{Formatter, Error};
 
     pub (crate) mod constants {
         pub const ILLEGAL_FUNCTION: u8 = 0x01;
@@ -56,18 +92,36 @@ pub mod details {
     }
 
 
-    /// errors that should only occur if there is a logic error in the library
+    /// Exception codes defined in the Modbus specification
     #[derive(Debug, Copy, Clone, PartialEq)]
     pub enum ExceptionCode {
+        /// The function code received in the query is not an allowable action for the server
         IllegalFunction,
+        /// The data address received in the query is not an allowable address for the server
         IllegalDataAddress,
+        /// A value contained in the request is not an allowable value for server
         IllegalDataValue,
+        /// An unrecoverable error occurred while the server was attempting to perform the requested
+        /// action
         ServerDeviceFailure,
+        /// Specialized use in conjunction with  programming commands
+        /// The server has accepted the request and is processing it
         Acknowledge,
+        /// Specialized use in conjunction with  programming commands
+        /// The server is engaged in processing a long–duration program command, try again later
         ServerDeviceBusy,
+        /// Specialized use in conjunction with function codes 20 and 21 and reference type 6, to
+        /// indicate that the extended file area failed to pass a consistency check.
+        /// The server attempted to read a record file, but detected a parity error in the memory
         MemoryParityError,
+        /// Specialized use in conjunction with gateways, indicates that the gateway was unable to
+        /// allocate an internal communication path from the input port to the output port for
+        /// processing the request. Usually means that the gateway is mis-configured or overloaded
         GatewayPathUnavailable,
+        /// Specialized use in conjunction with gateways, indicates that no response was obtained
+        /// from the target device. Usually means that the device is not present on the network.
         GatewayTargetDeviceFailedToRespond,
+        /// The exception code received is not defined in the standard
         Unknown(u8)
     }
 
@@ -88,96 +142,109 @@ pub mod details {
         }
     }
 
-    /// errors that should only occur if there is a logic error in the library
-    #[derive(Debug, Copy, Clone, PartialEq)]
-    pub enum LogicError {
-        /// We tried to write, but there was insufficient space
-        InsufficientBuffer,
-        /// Frame or ADU had a bad size (outgoing)
-        BadWriteSize,
-        /// Bad cursor seek
-        InvalidSeek,
-        /// We expected a None to be Some
-        NoneError
-    }
+    impl std::error::Error for ExceptionCode {}
 
-    #[derive(Debug, Copy, Clone, PartialEq)]
-    pub enum WriteError {
-        InsufficientBuffer,
-        InvalidSeek
+    impl std::fmt::Display for ExceptionCode {
+        fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
+            match self {
+                ExceptionCode::IllegalFunction=> f.write_str("function code received in the query is not an allowable action for the server"),
+                ExceptionCode::IllegalDataAddress=> f.write_str("data address received in the query is not an allowable address for the server"),
+                ExceptionCode::IllegalDataValue=> f.write_str("value contained in the request is not an allowable value for server"),
+                ExceptionCode::ServerDeviceFailure=> f.write_str("unrecoverable error occurred while the server was attempting to perform the requested action"),
+                ExceptionCode::Acknowledge=> f.write_str("server has accepted the request and is processing it"),
+                ExceptionCode::ServerDeviceBusy=> f.write_str("server is engaged in processing a long–duration program command, try again later"),
+                ExceptionCode::MemoryParityError=> f.write_str("server attempted to read a record file, but detected a parity error in the memory"),
+                ExceptionCode::GatewayPathUnavailable=> f.write_str("gateway was unable to allocate an internal communication path from the input port to the output port for processing the request"),
+                ExceptionCode::GatewayTargetDeviceFailedToRespond=> f.write_str("gateway did not receive a response from the target device"),
+                ExceptionCode::Unknown(code) => write!(f, "received unknown exception code: {}", code)
+            }
+        }
     }
 
     /// errors that occur while parsing a frame off a stream (TCP or serial)
     #[derive(Debug, Copy, Clone, PartialEq)]
-    pub enum FrameError {
+    pub enum FrameParseError {
+        /// Received TCP frame with the length field set to zero
         MBAPLengthZero,
-        MBAPLengthTooBig(usize),
+        /// Received TCP frame with length that exceeds max allowed size
+        MBAPLengthTooBig(usize, usize),     // actual size and the maximum size
+        /// Received TCP frame within non-Modbus protocol id
         UnknownProtocolId(u16)
     }
 
+    impl std::error::Error for FrameParseError {}
+
+    impl std::fmt::Display for FrameParseError {
+        fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
+            match self {
+                FrameParseError::MBAPLengthZero => f.write_str("Received TCP frame with the length field set to zero"),
+                FrameParseError::MBAPLengthTooBig(size, max) => write!(f, "Received TCP frame with length ({}) that exceeds max allowed size ({})", size, max),
+                FrameParseError::UnknownProtocolId(id) => write!(f, "Received TCP frame with non-Modbus protocol id: {}", id)
+            }
+        }
+    }
+
+    /// errors that occur while parsing requests and responses
     #[derive(Debug, Copy, Clone, PartialEq)]
-    pub enum ADUParseError {
-        TooFewValueBytes,
-        TooManyBytes,
-        ByteCountMismatch,
+    pub enum ResponseParseError {
+        /// response is too short to be valid
+        InsufficientBytes,
+        /// byte count doesn't match what is expected based on request
+        RequestByteCountMismatch(usize, usize),              // expected count / actual count
+        /// byte count doesn't match the actual number of bytes present
+        InsufficientBytesForByteCount(usize, usize),        // count / remaining
+        /// response parser completed without consuming all the bytes
+        TooManyBytes(usize),
+        /// a parameter expected to be echoed in the reply did not match
         ReplyEchoMismatch,
-        UnknownResponseFunction(u8)
+        /// an unknown response function code was received
+        UnknownResponseFunction(u8, u8, u8)  // actual, expected, expected error
     }
 
+    impl std::error::Error for ResponseParseError {}
+
+    impl std::fmt::Display for ResponseParseError {
+        fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
+            match self {
+                ResponseParseError::InsufficientBytes => {
+                    f.write_str("response is too short to be valid")
+                }
+                ResponseParseError::RequestByteCountMismatch(request, response) => {
+                    write!(f, "byte count ({}) doesn't match what is expected based on request ({})", response, request)
+                },
+                ResponseParseError::InsufficientBytesForByteCount(count, remaining) => {
+                    write!(f, "byte count ({}) doesn't match the actual number of bytes remaining ({})", count, remaining)
+                },
+                ResponseParseError::TooManyBytes(remaining) => {
+                    write!(f, "response parser completed without consuming all the bytes, {} remain", remaining)
+                },
+                ResponseParseError::ReplyEchoMismatch => {
+                    f.write_str("a parameter expected to be echoed in the reply did not match")
+                },
+                ResponseParseError::UnknownResponseFunction(actual , expected, error) => {
+                    write!(f, "received unknown response function code: {}. Expected {} or {}", actual, expected, error)
+                },
+            }
+        }
+    }
+
+    /// errors that result because of bad request parameter
     #[derive(Debug, Copy, Clone, PartialEq)]
-    pub enum InvalidRequestReason {
+    pub enum InvalidRequest {
         CountOfZero,
-        AddressOverflow,
-        CountTooBigForType
+        AddressOverflow(u16, u16),                    // start / count
+        CountTooBigForType(u16, u16)                  // count / max
     }
 
-    impl std::convert::From<InvalidRequestReason> for Error {
-        fn from(reason: InvalidRequestReason) -> Self {
-            Error::InvalidRequest(reason)
-        }
-    }
+    impl std::error::Error for InvalidRequest {}
 
-    impl std::convert::From<tokio::time::Elapsed> for Error {
-        fn from(_: tokio::time::Elapsed) -> Self {
-            Error::ResponseTimeout
-        }
-    }
-
-    impl std::convert::From<std::io::Error> for Error {
-        fn from(err: std::io::Error) -> Self {
-            Error::IO(err.kind())
-        }
-    }
-
-    impl std::convert::From<LogicError> for Error {
-        fn from(err: LogicError) -> Self {
-            Error::Logic(err)
-        }
-    }
-
-    impl std::convert::From<ADUParseError> for Error {
-        fn from(err: ADUParseError) -> Self {
-            Error::ADU(err)
-        }
-    }
-
-    impl std::convert::From<WriteError> for Error {
-        fn from(err: WriteError) -> Self {
-            Error::Write(err)
-        }
-    }
-
-    impl std::convert::From<FrameError> for Error {
-        fn from(err: FrameError) -> Self {
-            Error::Frame(err)
-        }
-    }
-
-    impl std::convert::From<std::num::TryFromIntError> for Error {
-        fn from(_: std::num::TryFromIntError) -> Self {
-            Error::Logic(LogicError::BadWriteSize)
+    impl std::fmt::Display for InvalidRequest {
+        fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
+            match self {
+                InvalidRequest::CountOfZero => f.write_str("request contains a count of zero"),
+                InvalidRequest::AddressOverflow(start, count) => write!(f, "start == {} and count == {} would overflow the representation of u16", start, count),
+                InvalidRequest::CountTooBigForType(count, max) => write!(f, "the request count of {} exceeds maximum allowed count of {} for this type", count, max)
+            }
         }
     }
 }
-
-

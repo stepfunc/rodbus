@@ -1,6 +1,5 @@
 use crate::channel::{Request, ServiceRequest};
-use crate::error::details::*;
-use crate::error::Error;
+use crate::error::*;
 use crate::function::FunctionCode;
 use crate::util::cursor::*;
 
@@ -21,7 +20,7 @@ pub(crate) trait Service : Sized {
     type Request : SerializeRequest;
     type Response : ParseResponse<Self::Request>;
 
-    fn check_request_validity(request: &Self::Request) -> Result<(), InvalidRequestReason>;
+    fn check_request_validity(request: &Self::Request) -> Result<(), details::InvalidRequest>;
 
     fn create_request(request: ServiceRequest<Self>) -> Request;
 
@@ -32,20 +31,20 @@ pub(crate) trait Service : Sized {
         if function == Self::REQUEST_FUNCTION_CODE_VALUE {
             let response = Self::Response::parse_after_function(cursor, request)?;
             if !cursor.is_empty() {
-                return Err(ADUParseError::TooManyBytes)?;
+                return Err(details::ResponseParseError::TooManyBytes(cursor.len()))?;
             }
             return Ok(response);
         }
 
         if function ==  Self::RESPONSE_ERROR_CODE_VALUE {
-            let exception = Error::Exception(ExceptionCode::from_u8(cursor.read_u8()?));
+            let exception = details::ExceptionCode::from_u8(cursor.read_u8()?);
             if !cursor.is_empty() {
-                return Err(ADUParseError::TooManyBytes)?;
+                return Err(details::ResponseParseError::TooManyBytes(cursor.len()))?;
             }
-            return Err(exception);
+            return Err(exception)?;
         }
 
-        Err(ADUParseError::UnknownResponseFunction(function))?
+        Err(details::ResponseParseError::UnknownResponseFunction(function, Self::REQUEST_FUNCTION_CODE_VALUE, Self::RESPONSE_ERROR_CODE_VALUE))?
     }
 }
 

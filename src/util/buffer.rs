@@ -1,6 +1,6 @@
 use tokio::io::{AsyncRead, AsyncReadExt};
 
-use crate::error::details::LogicError;
+use crate::error::*;
 
 pub struct ReadBuffer {
     buffer: Vec<u8>,
@@ -26,25 +26,25 @@ impl ReadBuffer {
         self.begin == self.end
     }
 
-    pub fn read(&mut self, count: usize)-> std::result::Result<&[u8], LogicError> {
+    pub fn read(&mut self, count: usize)-> std::result::Result<&[u8], bugs::Error> {
         if self.len() < count {
-            return Err(LogicError::InsufficientBuffer);
+            return Err(bugs::ErrorKind::InsufficientBytesForRead(count, self.len()))?;
         }
 
         let ret = &self.buffer[self.begin .. (self.begin + count)];
         self.begin += count;
         Ok(ret)
     }
-    pub fn read_u8(&mut self) -> std::result::Result<u8, LogicError> {
+    pub fn read_u8(&mut self) -> std::result::Result<u8, bugs::Error> {
         if self.is_empty() {
-            return Err(LogicError::InsufficientBuffer);
+            return Err(bugs::ErrorKind::InsufficientBytesForRead(1, 0))?;
         }
 
         let ret = self.buffer[self.begin];
         self.begin += 1;
         Ok(ret)
     }
-    pub fn read_u16_be(&mut self) -> std::result::Result<u16, LogicError> {
+    pub fn read_u16_be(&mut self) -> std::result::Result<u16, bugs::Error> {
         let b1 = self.read_u8()? as u16;
         let b2 = self.read_u8()? as u16;
         Ok((b1 << 8) | b2)

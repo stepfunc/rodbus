@@ -3,8 +3,8 @@ use std::time::Duration;
 use tokio::sync::{mpsc, oneshot};
 
 use crate::channel::{Request, ServiceRequest};
-use crate::error::details::InvalidRequestReason;
-use crate::error::Error;
+use crate::error::details::InvalidRequest;
+use crate::error::*;
 use crate::service::services::*;
 use crate::service::traits::Service;
 
@@ -55,30 +55,30 @@ impl AddressRange {
         AddressRange { start, count }
     }
 
-    fn check_validity(&self, max_count: u16) -> Result<(), InvalidRequestReason> {
+    fn check_validity(&self, max_count: u16) -> Result<(), InvalidRequest> {
         // a count of zero is never valid
         if self.count == 0 {
-            return Err(InvalidRequestReason::CountOfZero);
+            return Err(InvalidRequest::CountOfZero);
         }
 
         // check that start/count don't overflow u16
         let last_address = (self.start as u32) + (self.count as u32 - 1);
         if last_address > (std::u16::MAX as u32) {
-            return Err(InvalidRequestReason::AddressOverflow);
+            return Err(InvalidRequest::AddressOverflow(self.start, self.count));
         }
 
         if self.count > max_count {
-            return Err(InvalidRequestReason::CountTooBigForType);
+            return Err(InvalidRequest::CountTooBigForType(self.count, max_count));
         }
 
         Ok(())
     }
 
-    pub fn check_validity_for_bits(&self) -> Result<(), InvalidRequestReason> {
+    pub fn check_validity_for_bits(&self) -> Result<(), InvalidRequest> {
         self.check_validity(Self::MAX_BINARY_BITS)
     }
 
-    pub fn check_validity_for_registers(&self) -> Result<(), InvalidRequestReason> {
+    pub fn check_validity_for_registers(&self) -> Result<(), InvalidRequest> {
         self.check_validity(Self::MAX_REGISTERS)
     }
 }
@@ -124,8 +124,8 @@ impl Session {
         S::check_request_validity(&request)?;
         let (tx, rx) = oneshot::channel::<Result<S::Response, Error>>();
         let request = S::create_request(ServiceRequest::new(self.id, self.response_timeout,request, tx));
-        self.request_channel.send(request).await.map_err(|_| Error::Shutdown)?;
-        rx.await.map_err(|_| Error::Shutdown)?
+        self.request_channel.send(request).await.map_err(|_| ErrorKind::Shutdown)?;
+        rx.await.map_err(|_| ErrorKind::Shutdown)?
     }
 
     pub async fn read_coils(&mut self, range: AddressRange) -> Result<Vec<Indexed<bool>>, Error> {

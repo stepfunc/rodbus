@@ -69,6 +69,11 @@
 //!}
 //! ```
 
+// `error_chain!` can recurse deeply
+#![recursion_limit = "1024"]
+#[macro_use]
+extern crate error_chain;
+
 // ------  api modules --------
 /// A prelude that can be used to include all of the API types
 pub mod prelude;
