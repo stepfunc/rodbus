@@ -1,12 +1,12 @@
 use crate::channel::{Request, ServiceRequest};
 use crate::error::details::InvalidRequest;
-use crate::function::FunctionCode;
+use crate::service::function::FunctionCode;
 use crate::service::traits::Service;
 use crate::session::*;
 
 impl Service for crate::service::services::ReadHoldingRegisters {
 
-    const REQUEST_FUNCTION_CODE: FunctionCode = crate::function::FunctionCode::ReadHoldingRegisters;
+    const REQUEST_FUNCTION_CODE: FunctionCode = FunctionCode::ReadHoldingRegisters;
 
     type Request = AddressRange;
     type Response = Vec<Indexed<u16>>;

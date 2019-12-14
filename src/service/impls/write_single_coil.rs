@@ -1,6 +1,6 @@
 use crate::channel::{Request, ServiceRequest};
 use crate::error::details::InvalidRequest;
-use crate::function::FunctionCode;
+use crate::service::function::FunctionCode;
 use crate::service::services::WriteSingleCoil;
 use crate::service::traits::Service;
 use crate::session::{CoilState, Indexed};

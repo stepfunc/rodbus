@@ -1,6 +1,6 @@
 use crate::channel::{Request, ServiceRequest};
 use crate::error::*;
-use crate::function::FunctionCode;
+use crate::service::function::FunctionCode;
 use crate::util::cursor::*;
 
 pub (crate) trait SerializeRequest {
@@ -15,7 +15,7 @@ pub(crate) trait Service : Sized {
 
     const REQUEST_FUNCTION_CODE : FunctionCode;
     const REQUEST_FUNCTION_CODE_VALUE : u8 = Self::REQUEST_FUNCTION_CODE.get_value();
-    const RESPONSE_ERROR_CODE_VALUE : u8 = Self::REQUEST_FUNCTION_CODE_VALUE | crate::function::constants::ERROR_DELIMITER;
+    const RESPONSE_ERROR_CODE_VALUE : u8 = Self::REQUEST_FUNCTION_CODE_VALUE | crate::service::function::constants::ERROR_DELIMITER;
 
     type Request : SerializeRequest + Send + Sync + 'static;
     type Response : ParseResponse<Self::Request> + Send + Sync + 'static;

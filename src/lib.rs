@@ -102,8 +102,8 @@ pub mod main {
 }
 
 // internal modules
-mod function;
 mod service {
+    mod function;
     pub(super) mod traits; // only visible in impls
     pub(crate) mod services;
     mod impls {

@@ -1,12 +1,12 @@
 use crate::channel::*;
 use crate::error::*;
-use crate::function::FunctionCode;
+use crate::service::function::FunctionCode;
 use crate::service::traits::Service;
 use crate::session::*;
 
 impl Service for crate::service::services::ReadCoils {
 
-    const REQUEST_FUNCTION_CODE: FunctionCode = crate::function::FunctionCode::ReadCoils;
+    const REQUEST_FUNCTION_CODE: FunctionCode = FunctionCode::ReadCoils;
 
     type Request = AddressRange;
     type Response = Vec<Indexed<bool>>;
