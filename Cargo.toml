@@ -2,5 +2,5 @@
 
 members = [
   "rodbus",
-  "rodbus-examples/client",
+  "examples/client",
 ]
