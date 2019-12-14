@@ -17,8 +17,8 @@ pub(crate) trait Service : Sized {
     const REQUEST_FUNCTION_CODE_VALUE : u8 = Self::REQUEST_FUNCTION_CODE.get_value();
     const RESPONSE_ERROR_CODE_VALUE : u8 = Self::REQUEST_FUNCTION_CODE_VALUE | crate::function::constants::ERROR_DELIMITER;
 
-    type Request : SerializeRequest;
-    type Response : ParseResponse<Self::Request>;
+    type Request : SerializeRequest + Send + Sync + 'static;
+    type Response : ParseResponse<Self::Request> + Send + Sync + 'static;
 
     fn check_request_validity(request: &Self::Request) -> Result<(), details::InvalidRequest>;
 

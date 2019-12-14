@@ -129,6 +129,11 @@ pub struct Session {
     request_channel: mpsc::Sender<Request>,
 }
 
+#[derive(Clone)]
+pub struct CallbackSession {
+    inner: Session
+}
+
 impl Session {
     pub(crate) fn new(id: UnitId, response_timeout: Duration, request_channel: mpsc::Sender<Request>) -> Self {
         Session { id, response_timeout, request_channel }
@@ -140,11 +145,6 @@ impl Session {
         let request = S::create_request(ServiceRequest::new(self.id, self.response_timeout,request, tx));
         self.request_channel.send(request).await.map_err(|_| ErrorKind::Shutdown)?;
         rx.await.map_err(|_| ErrorKind::Shutdown)?
-    }
-
-    /// Create a session that uses callbacks instead of async fns
-    pub fn with_callbacks(&self) -> CallbackSession {
-        CallbackSession::new(self.clone())
     }
 
     pub async fn read_coils(&mut self, range: AddressRange) -> Result<Vec<Indexed<bool>>, Error> {
@@ -172,25 +172,45 @@ impl Session {
     }
 }
 
-
-pub struct CallbackSession {
-   inner: Session
+pub trait Handler<T> {
+    fn handle(&self, result: T);
 }
 
 impl CallbackSession {
-    fn new(inner : Session) -> Self {
+
+    pub fn new(inner : Session) -> Self {
         CallbackSession { inner }
     }
 
-    async fn compose<F, C, R>(future : F, callback: C)
-        where F : std::future::Future<Output = R> + Send,
-              C : FnOnce(R) -> ()
-    {
-        callback(future.await)
+    async fn create_callback_future<S: Service>(mut session: Session, request: S::Request, callback: Box<dyn Handler<Result<S::Response, Error>> + Send>) -> () {
+
+        let result : Result<S::Response, Error> = match S::check_request_validity(&request) {
+            Err(e) => Err(Error::from(ErrorKind::BadRequest(e))),
+            Ok(()) => {
+                let (tx, rx) = oneshot::channel::<Result<S::Response, Error>>();
+                let req = S::create_request(ServiceRequest::new(session.id, session.response_timeout, request, tx));
+                match session.request_channel.send(req).await {
+                    Err(_) => Err(Error::from(ErrorKind::Shutdown)),
+                    Ok(()) => {
+                        match rx.await {
+                            Err(_) => Err(Error::from(ErrorKind::Shutdown)),
+                            Ok(r) => r
+                        }
+                    }
+                }
+            }
+        };
+
+        callback.handle(result);
     }
 
-    pub fn read_coils<C>(&mut self, range: AddressRange, callback: C) -> () where C : FnOnce(Result<Vec<Indexed<bool>>, Error>) + Send{
-        let task = Self::compose(self.inner.read_coils(range), callback);
-        //tokio::spawn(task);
+    fn start<S: Service + 'static>(&mut self, request: S::Request, callback: Box<dyn Handler<Result<S::Response, Error>> + Send>) -> ()  {
+        tokio::spawn(
+            Self::create_callback_future::<S>(self.inner.clone(), request, callback)
+        );
+    }
+
+    pub fn read_coils(&mut self, range: AddressRange, callback: Box<dyn Handler<Result<Vec<Indexed<bool>>, Error>> + Send>) -> () {
+        self.start::<ReadCoils>(range, callback);
     }
 }
