@@ -182,35 +182,17 @@ impl CallbackSession {
         CallbackSession { inner }
     }
 
-    async fn create_callback_future<S: Service>(mut session: Session, request: S::Request, callback: Box<dyn Handler<Result<S::Response, Error>> + Send>) -> () {
-
-        let result : Result<S::Response, Error> = match S::check_request_validity(&request) {
-            Err(e) => Err(Error::from(ErrorKind::BadRequest(e))),
-            Ok(()) => {
-                let (tx, rx) = oneshot::channel::<Result<S::Response, Error>>();
-                let req = S::create_request(ServiceRequest::new(session.id, session.response_timeout, request, tx));
-                match session.request_channel.send(req).await {
-                    Err(_) => Err(Error::from(ErrorKind::Shutdown)),
-                    Ok(()) => {
-                        match rx.await {
-                            Err(_) => Err(Error::from(ErrorKind::Shutdown)),
-                            Ok(r) => r
-                        }
-                    }
-                }
-            }
-        };
-
-        callback.handle(result);
+    async fn create_callback_future<S: Service>(mut session: Session, request: S::Request, callback: Box<dyn Handler<Result<S::Response, Error>> + Send + Sync>) -> () {
+        callback.handle(session.make_service_call::<S>(request).await);
     }
 
-    fn start<S: Service + 'static>(&mut self, request: S::Request, callback: Box<dyn Handler<Result<S::Response, Error>> + Send>) -> ()  {
+    fn start<S: Service + 'static>(&mut self, request: S::Request, callback: Box<dyn Handler<Result<S::Response, Error>> + Send + Sync>) -> ()  {
         tokio::spawn(
             Self::create_callback_future::<S>(self.inner.clone(), request, callback)
         );
     }
 
-    pub fn read_coils(&mut self, range: AddressRange, callback: Box<dyn Handler<Result<Vec<Indexed<bool>>, Error>> + Send>) -> () {
+    pub fn read_coils(&mut self, range: AddressRange, callback: Box<dyn Handler<Result<Vec<Indexed<bool>>, Error>> + Send + Sync>) -> () {
         self.start::<ReadCoils>(range, callback);
     }
 }
