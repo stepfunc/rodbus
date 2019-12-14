@@ -122,6 +122,7 @@ impl UnitId {
     }
 }
 
+#[derive(Clone)]
 pub struct Session {
     id: UnitId,
     response_timeout: Duration,
@@ -139,6 +140,11 @@ impl Session {
         let request = S::create_request(ServiceRequest::new(self.id, self.response_timeout,request, tx));
         self.request_channel.send(request).await.map_err(|_| ErrorKind::Shutdown)?;
         rx.await.map_err(|_| ErrorKind::Shutdown)?
+    }
+
+    /// Create a session that uses callbacks instead of async fns
+    pub fn with_callbacks(&self) -> CallbackSession {
+        CallbackSession::new(self.clone())
     }
 
     pub async fn read_coils(&mut self, range: AddressRange) -> Result<Vec<Indexed<bool>>, Error> {
@@ -163,5 +169,28 @@ impl Session {
 
     pub async fn write_single_register(&mut self, value: Indexed<RegisterValue>) -> Result<Indexed<RegisterValue>, Error> {
         self.make_service_call::<WriteSingleRegister>(value).await
+    }
+}
+
+
+pub struct CallbackSession {
+   inner: Session
+}
+
+impl CallbackSession {
+    fn new(inner : Session) -> Self {
+        CallbackSession { inner }
+    }
+
+    async fn compose<F, C, R>(future : F, callback: C)
+        where F : std::future::Future<Output = R> + Send,
+              C : FnOnce(R) -> ()
+    {
+        callback(future.await)
+    }
+
+    pub fn read_coils<C>(&mut self, range: AddressRange, callback: C) -> () where C : FnOnce(Result<Vec<Indexed<bool>>, Error>) + Send{
+        let task = Self::compose(self.inner.read_coils(range), callback);
+        //tokio::spawn(task);
     }
 }
