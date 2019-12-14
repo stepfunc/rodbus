@@ -1,8 +1,8 @@
-use crate::channel::*;
+use crate::client::channel::*;
 use crate::error::*;
 use crate::service::function::FunctionCode;
 use crate::service::traits::Service;
-use crate::session::*;
+use crate::client::session::*;
 
 impl Service for crate::service::services::ReadCoils {
 

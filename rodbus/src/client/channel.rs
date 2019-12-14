@@ -9,7 +9,7 @@ use tokio::sync::oneshot;
 use crate::error::*;
 use crate::service::services::*;
 use crate::service::traits::Service;
-use crate::session::{Session, UnitId};
+use crate::client::session::{Session, UnitId};
 use crate::tcp::frame::{MBAPFormatter, MBAPParser};
 use crate::util::cursor::ReadCursor;
 use crate::util::frame::{FramedReader, FrameFormatter};

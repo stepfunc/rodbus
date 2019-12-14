@@ -1,12 +1,12 @@
-use crate::channel::{Request, ServiceRequest};
+use crate::client::channel::{Request, ServiceRequest};
 use crate::error::details::InvalidRequest;
 use crate::service::function::FunctionCode;
 use crate::service::traits::Service;
-use crate::session::*;
+use crate::client::session::*;
 
-impl Service for crate::service::services::ReadInputRegisters {
+impl Service for crate::service::services::ReadHoldingRegisters {
 
-    const REQUEST_FUNCTION_CODE: FunctionCode = FunctionCode::ReadInputRegisters;
+    const REQUEST_FUNCTION_CODE: FunctionCode = FunctionCode::ReadHoldingRegisters;
 
     type Request = AddressRange;
     type Response = Vec<Indexed<u16>>;
@@ -16,7 +16,7 @@ impl Service for crate::service::services::ReadInputRegisters {
     }
 
     fn create_request(request: ServiceRequest<Self>) -> Request {
-        Request::ReadInputRegisters(request)
+        Request::ReadHoldingRegisters(request)
     }
 }
 

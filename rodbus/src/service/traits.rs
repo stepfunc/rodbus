@@ -1,4 +1,4 @@
-use crate::channel::{Request, ServiceRequest};
+use crate::client::channel::{Request, ServiceRequest};
 use crate::error::*;
 use crate::service::function::FunctionCode;
 use crate::util::cursor::*;

@@ -75,20 +75,18 @@
 extern crate error_chain;
 
 // ------  api modules --------
-/// A prelude that can be used to include all of the API types
+/// prelude that can be used to include all of the API types
 pub mod prelude;
-/// Types that represent a persistent communication channel such as a TCP connection
-pub mod channel;
-/// Types that users interact with to make requests to a Modbus server
-pub mod session;
-/// Error types associated with making requests
-pub mod error;
+/// client api
+pub mod client {
+    /// Types that represent a persistent communication channel such as a TCP connection
+    pub mod channel;
+    /// Types that users interact with to make requests to a Modbus server
+    pub mod session;
 
-/// Functions that act as entry points into the library
-pub mod main {
     use std::net::SocketAddr;
 
-    use crate::channel::{Channel, ReconnectStrategy};
+    use crate::client::channel::{Channel, ReconnectStrategy};
 
     /// Create a Channel that attempts to maintain a TCP connection
         ///
@@ -100,6 +98,9 @@ pub mod main {
         Channel::new(addr, retry)
     }
 }
+
+/// Error types associated with making requests
+pub mod error;
 
 // internal modules
 mod service {

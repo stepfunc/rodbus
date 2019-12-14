@@ -1,0 +1,20 @@
+[package]
+name = "rodbus-client"
+version = "0.1.0"
+authors = ["Adam Crain <jadamcrain@automatak.com>", "Émile Grégoire <emile@automatak.com>"]
+edition = "2018"
+license = "BSD-3-Clause"
+description = "A command line program for making Modbus client requests using the Rodbus crate"
+keywords = ["modbus", "ics", "industrial", "plc", "security"]
+categories = ["network-programming"]
+repository = "https://www.github.com/grid-io/rodbus"
+
+[[bin]]
+name = "rodbus-client"
+path = "src/main.rs"
+
+[dependencies]
+rodbus = { version = "0.1.0", path = "../../rodbus" }
+clap = "2.33.0"
+error-chain = "0.12.1"
+tokio = { version = "0.2.0", features = ["macros"]}

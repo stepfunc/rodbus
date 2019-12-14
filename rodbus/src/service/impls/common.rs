@@ -1,7 +1,7 @@
 use crate::error::details::ResponseParseError;
 use crate::error::Error;
 use crate::service::traits::{ParseResponse, SerializeRequest};
-use crate::session::{AddressRange, CoilState, Indexed, RegisterValue};
+use crate::client::session::{AddressRange, CoilState, Indexed, RegisterValue};
 use crate::util::cursor::*;
 
 impl SerializeRequest for AddressRange {
