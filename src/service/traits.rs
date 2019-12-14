@@ -31,7 +31,7 @@ pub(crate) trait Service : Sized {
         if function == Self::REQUEST_FUNCTION_CODE_VALUE {
             let response = Self::Response::parse_after_function(cursor, request)?;
             if !cursor.is_empty() {
-                return Err(details::ResponseParseError::TooManyBytes(cursor.len()))?;
+                return Err(details::ResponseParseError::TrailingBytes(cursor.len()))?;
             }
             return Ok(response);
         }
@@ -39,7 +39,7 @@ pub(crate) trait Service : Sized {
         if function ==  Self::RESPONSE_ERROR_CODE_VALUE {
             let exception = details::ExceptionCode::from_u8(cursor.read_u8()?);
             if !cursor.is_empty() {
-                return Err(details::ResponseParseError::TooManyBytes(cursor.len()))?;
+                return Err(details::ResponseParseError::TrailingBytes(cursor.len()))?;
             }
             return Err(exception)?;
         }

@@ -193,8 +193,8 @@ pub mod details {
         RequestByteCountMismatch(usize, usize),              // expected count / actual count
         /// byte count doesn't match the actual number of bytes present
         InsufficientBytesForByteCount(usize, usize),        // count / remaining
-        /// response parser completed without consuming all the bytes
-        TooManyBytes(usize),
+        /// response contains extra trailing bytes
+        TrailingBytes(usize),
         /// a parameter expected to be echoed in the reply did not match
         ReplyEchoMismatch,
         /// an unknown response function code was received
@@ -217,8 +217,8 @@ pub mod details {
                 ResponseParseError::InsufficientBytesForByteCount(count, remaining) => {
                     write!(f, "byte count ({}) doesn't match the actual number of bytes remaining ({})", count, remaining)
                 },
-                ResponseParseError::TooManyBytes(remaining) => {
-                    write!(f, "response parser completed without consuming all the bytes, {} remain", remaining)
+                ResponseParseError::TrailingBytes(remaining) => {
+                    write!(f, "response contains {} extra trailing bytes", remaining)
                 },
                 ResponseParseError::ReplyEchoMismatch => {
                     f.write_str("a parameter expected to be echoed in the reply did not match")
