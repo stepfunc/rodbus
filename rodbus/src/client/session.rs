@@ -43,8 +43,8 @@ impl CoilState {
         }
     }
 
-    pub fn to_u16(&self) -> u16 {
-        *self as u16
+    pub fn to_u16(self) -> u16 {
+        self as u16
     }
 }
 
@@ -117,7 +117,7 @@ impl UnitId {
         Self { id: 0xFF }
     }
 
-    pub fn value(&self) -> u8 {
+    pub fn value(self) -> u8 {
         self.id
     }
 }
@@ -178,7 +178,7 @@ impl CallbackSession {
         CallbackSession { inner }
     }
 
-    fn start_request<S, C>(&mut self, request: S::Request, callback: C)-> ()
+    fn start_request<S, C>(&mut self, request: S::Request, callback: C)
         where S : Service + 'static,
               C : FnOnce(Result<S::Response, Error>) + Send + Sync + 'static
     {
@@ -190,7 +190,7 @@ impl CallbackSession {
         );
     }
 
-    pub fn read_coils<C>(&mut self, range: AddressRange, callback: C) -> ()
+    pub fn read_coils<C>(&mut self, range: AddressRange, callback: C)
         where C : FnOnce(Result<Vec<Indexed<bool>>, Error>) + Send + Sync + 'static
     {
         self.start_request::<ReadCoils, C>(range, callback);

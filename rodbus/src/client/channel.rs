@@ -31,7 +31,7 @@ pub(crate) enum Request {
 }
 
 impl Request {
-    pub fn fail(self) -> () {
+    pub fn fail(self) {
         match self {
             Request::ReadCoils(r) => r.fail(ErrorKind::NoConnection.into()),
             Request::ReadDiscreteInputs(r) => r.fail(ErrorKind::NoConnection.into()),
@@ -59,17 +59,17 @@ impl<S: Service> ServiceRequest<S> {
         Self { id, timeout, argument, reply_to }
     }
 
-    pub fn reply(self, value: Result<S::Response, Error>) -> () {
+    pub fn reply(self, value: Result<S::Response, Error>) {
         self.reply_to.send(value).ok();
     }
 
-    pub fn fail(self, err: Error) -> () {
+    pub fn fail(self, err: Error) {
         self.reply(Err(err))
     }
 }
 
 pub trait ReconnectStrategy {
-    fn reset(&mut self) -> ();
+    fn reset(&mut self);
     fn next_delay(&mut self) -> Duration;
 }
 
@@ -99,7 +99,7 @@ pub mod strategy {
 
     impl ReconnectStrategy for Doubling {
 
-        fn reset(&mut self) -> () {
+        fn reset(&mut self) {
             self.current = self.min;
         }
 
@@ -161,9 +161,9 @@ impl ChannelServer {
         Self {
             addr,
             rx,
-            formatter : MBAPFormatter::new(),
+            formatter : MBAPFormatter::boxed(),
             connect_retry,
-            reader : FramedReader::new(MBAPParser::new()),
+            reader : FramedReader::new(MBAPParser::boxed()),
             tx_id : 0
         }
     }
@@ -188,13 +188,13 @@ impl ChannelServer {
                     let delay = self.connect_retry.next_delay();
                     if self.fail_requests_for(delay).await.is_err() {
                         // this occurs when the mpsc is dropped, so the task can exit
-                        return ();
+                        return;
                     }
                 },
                 Ok(stream) => {
                     match self.run_session(stream).await {
                         // the mpsc was closed, end the task
-                        SessionError::Shutdown => return (),
+                        SessionError::Shutdown => return,
                         // re-establish the connection
                         SessionError::IOError => {},
                     }

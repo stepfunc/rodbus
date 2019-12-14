@@ -90,7 +90,6 @@ impl FramedReader {
                 },
                 None => {
                     self.buffer.read_some(io).await?;
-                    ()
                 }
             }
         }

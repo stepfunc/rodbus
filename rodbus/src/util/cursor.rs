@@ -23,7 +23,7 @@ impl<'a> ReadCursor<'a> {
     }
 
     pub fn is_empty(&self) -> bool {
-        return self.src.is_empty()
+        self.src.is_empty()
     }
 
     pub fn read_u8(&mut self) -> Result<u8, details::ResponseParseError> {
@@ -44,7 +44,7 @@ impl<'a> ReadCursor<'a> {
 
     pub fn read_bytes(&mut self, count: usize) -> Result<&'a[u8], details::ResponseParseError> {
         if self.src.len() < count {
-            return Err(details::ResponseParseError::InsufficientBytes)?;
+            return Err(details::ResponseParseError::InsufficientBytes);
         }
 
         let ret = &self.src[0 .. count];
@@ -71,7 +71,7 @@ impl<'a> WriteCursor<'a> {
 
     pub fn seek_from_current(&mut self, count: usize) -> Result<(), bugs::Error> {
         if self.remaining() <  count {
-            return Err(bugs::ErrorKind::BadSeekOperation)?;
+            return Err(bugs::ErrorKind::BadSeekOperation.into());
         }
         self.pos += count;
         Ok(())
@@ -79,7 +79,7 @@ impl<'a> WriteCursor<'a> {
 
     pub fn seek_from_start(&mut self, count: usize) -> Result<(), bugs::Error> {
         if self.dest.len() <  count {
-            return Err(bugs::ErrorKind::BadSeekOperation)?;
+            return Err(bugs::ErrorKind::BadSeekOperation.into());
         }
         self.pos = count;
         Ok(())
@@ -87,7 +87,7 @@ impl<'a> WriteCursor<'a> {
 
     pub fn write_u8(&mut self, value: u8) -> Result<(), bugs::Error> {
         if self.remaining() == 0 {
-            return Err(bugs::ErrorKind::InsufficientWriteSpace(1, 0))?;
+            return Err(bugs::ErrorKind::InsufficientWriteSpace(1, 0).into());
         }
         self.dest[self.pos] = value;
         self.pos += 1;
@@ -96,7 +96,7 @@ impl<'a> WriteCursor<'a> {
 
     pub fn write_u16_be(&mut self, value: u16) -> Result<(), bugs::Error> {
         if self.remaining() < 2 {  // don't write any bytes if there's isn't space for the whole thing
-            return Err(bugs::ErrorKind::InsufficientWriteSpace(2, self.remaining()))?;
+            return Err(bugs::ErrorKind::InsufficientWriteSpace(2, self.remaining()).into());
         }
         let upper = ((value & 0xFF00) >> 8) as u8;
         let lower = (value & 0x00FF) as u8;

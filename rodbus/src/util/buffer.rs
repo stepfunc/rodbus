@@ -28,7 +28,7 @@ impl ReadBuffer {
 
     pub fn read(&mut self, count: usize)-> std::result::Result<&[u8], bugs::Error> {
         if self.len() < count {
-            return Err(bugs::ErrorKind::InsufficientBytesForRead(count, self.len()))?;
+            return Err(bugs::ErrorKind::InsufficientBytesForRead(count, self.len()).into());
         }
 
         let ret = &self.buffer[self.begin .. (self.begin + count)];
@@ -37,7 +37,7 @@ impl ReadBuffer {
     }
     pub fn read_u8(&mut self) -> std::result::Result<u8, bugs::Error> {
         if self.is_empty() {
-            return Err(bugs::ErrorKind::InsufficientBytesForRead(1, 0))?;
+            return Err(bugs::ErrorKind::InsufficientBytesForRead(1, 0).into());
         }
 
         let ret = self.buffer[self.begin];

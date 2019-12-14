@@ -36,7 +36,7 @@ impl ParseResponse<Indexed<RegisterValue>> for Indexed<RegisterValue> {
         );
 
         if request != &response {
-            return Err(ResponseParseError::ReplyEchoMismatch)?;
+            return Err(ResponseParseError::ReplyEchoMismatch.into());
         }
 
         Ok(response)
@@ -49,7 +49,7 @@ impl ParseResponse<Indexed<CoilState>> for Indexed<CoilState> {
         let response : Indexed<CoilState> = Indexed::new(cursor.read_u16_be()?, CoilState::from_u16(cursor.read_u16_be()?)?);
 
         if &response != request {
-            return Err(ResponseParseError::ReplyEchoMismatch)?;
+            return Err(ResponseParseError::ReplyEchoMismatch.into());
         }
 
         Ok(response)
@@ -70,11 +70,11 @@ impl ParseResponse<AddressRange> for Vec<Indexed<bool>> {
         } as usize;
 
         if byte_count != expected_byte_count {
-            return Err(ResponseParseError::RequestByteCountMismatch(expected_byte_count, byte_count))?;
+            return Err(ResponseParseError::RequestByteCountMismatch(expected_byte_count, byte_count).into());
         }
 
         if byte_count != cursor.len() {
-            return Err(ResponseParseError::InsufficientBytesForByteCount(byte_count, cursor.len()))?;
+            return Err(ResponseParseError::InsufficientBytesForByteCount(byte_count, cursor.len()).into());
         }
 
         let bytes = cursor.read_bytes(byte_count)?;
@@ -110,11 +110,11 @@ impl ParseResponse<AddressRange> for Vec<Indexed<u16>> {
         let expected_byte_count = 2*request.count as usize;
 
         if byte_count != expected_byte_count {
-            return Err(ResponseParseError::RequestByteCountMismatch(expected_byte_count, byte_count))?;
+            return Err(ResponseParseError::RequestByteCountMismatch(expected_byte_count, byte_count).into());
         }
 
         if expected_byte_count != cursor.len() {
-            return Err(ResponseParseError::InsufficientBytesForByteCount(byte_count, cursor.len()))?;
+            return Err(ResponseParseError::InsufficientBytesForByteCount(byte_count, cursor.len()).into());
         }
 
         let mut values = Vec::<Indexed<u16>>::with_capacity(request.count as usize);

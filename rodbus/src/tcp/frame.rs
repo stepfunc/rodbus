@@ -35,14 +35,14 @@ pub(crate) struct MBAPFormatter {
 }
 
 impl MBAPFormatter {
-    pub fn new() -> Box<dyn FrameFormatter + Send> {
+    pub fn boxed() -> Box<dyn FrameFormatter + Send> {
         Box::new(MBAPFormatter { buffer: [0; constants::MAX_FRAME_LENGTH] })
     }
 }
 
 impl MBAPParser {
 
-    pub fn new() -> Box<dyn FrameParser + Send> {
+    pub fn boxed() -> Box<dyn FrameParser + Send> {
         Box::new(MBAPParser { state : ParseState::Begin } )
     }
 
@@ -54,16 +54,16 @@ impl MBAPParser {
         let unit_id = cursor.read_u8()?;
 
         if protocol_id != 0 {
-            return Err(details::FrameParseError::UnknownProtocolId(protocol_id))?;
+            return Err(details::FrameParseError::UnknownProtocolId(protocol_id).into());
         }
 
         if length > constants::MAX_LENGTH_FIELD {
-            return Err(details::FrameParseError::MBAPLengthTooBig(length, constants::MAX_LENGTH_FIELD))?;
+            return Err(details::FrameParseError::MBAPLengthTooBig(length, constants::MAX_LENGTH_FIELD).into());
         }
 
         // must be > 0 b/c the 1-byte unit identifier counts towards length
         if length == 0 {
-            return Err(details::FrameParseError::MBAPLengthZero)?;
+            return Err(details::FrameParseError::MBAPLengthZero.into());
         }
 
         Ok(MBAPHeader{ tx_id, adu_length: length - 1, unit_id })
@@ -173,7 +173,7 @@ mod tests {
     fn test_segmented_parse(split_at: usize) {
         let (f1, f2) = SIMPLE_FRAME.split_at(split_at);
         let mut io = Builder::new().read(f1).read(f2).build();
-        let mut reader = FramedReader::new(MBAPParser::new());
+        let mut reader = FramedReader::new(MBAPParser::boxed());
         let frame = block_on(reader.next_frame(&mut io)).unwrap();
 
         assert_equals_simple_frame(&frame);
@@ -181,13 +181,13 @@ mod tests {
 
     fn test_error(input: &[u8]) -> Error {
         let mut io = Builder::new().read(input).build();
-        let mut reader = FramedReader::new(MBAPParser::new());
+        let mut reader = FramedReader::new(MBAPParser::boxed());
         block_on(reader.next_frame(&mut io)).err().unwrap()
     }
 
     #[test]
     fn correctly_formats_frame() {
-        let mut formatter = MBAPFormatter::new();
+        let mut formatter = MBAPFormatter::boxed();
         let msg = MockMessage { a : 0x04 };
         let output = formatter.format(7, 42, 0x03, &msg).unwrap();
 
@@ -198,7 +198,7 @@ mod tests {
     #[test]
     fn can_parse_frame_from_stream() {
         let mut io = Builder::new().read(SIMPLE_FRAME).build();
-        let mut reader = FramedReader::new(MBAPParser::new());
+        let mut reader = FramedReader::new(MBAPParser::boxed());
         let frame = block_on(reader.next_frame(&mut io)).unwrap();
 
         assert_equals_simple_frame(&frame);
@@ -211,7 +211,7 @@ mod tests {
         let payload = &[0xCC; 253];
 
         let mut io = Builder::new().read(header).read(payload).build();
-        let mut reader = FramedReader::new(MBAPParser::new());
+        let mut reader = FramedReader::new(MBAPParser::boxed());
         let frame = block_on(reader.next_frame(&mut io)).unwrap();
 
         assert_eq!(frame.payload(), payload.as_ref());
