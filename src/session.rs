@@ -172,26 +172,28 @@ impl Session {
     }
 }
 
-pub trait Handler<T> {
-    fn handle(&self, result: T);
-}
-
 impl CallbackSession {
 
     pub fn new(inner : Session) -> Self {
         CallbackSession { inner }
     }
 
-    fn start_request<S: Service + 'static>(&mut self, request: S::Request, callback: Box<dyn Handler<Result<S::Response, Error>> + Send + Sync>) -> ()  {
+    fn start_request<S, C>(&mut self, request: S::Request, callback: C)-> ()
+        where S : Service + 'static,
+              C : FnOnce(Result<S::Response, Error>) + Send + Sync + 'static
+    {
         let mut session = self.inner.clone();
         tokio::spawn(
             async move {
-                callback.handle(session.make_service_call::<S>(request).await);
+                callback(session.make_service_call::<S>(request).await);
             }
         );
     }
 
-    pub fn read_coils(&mut self, range: AddressRange, callback: Box<dyn Handler<Result<Vec<Indexed<bool>>, Error>> + Send + Sync>) -> () {
-        self.start_request::<ReadCoils>(range, callback);
+    pub fn read_coils<C>(&mut self, range: AddressRange, callback: C) -> ()
+        where C : FnOnce(Result<Vec<Indexed<bool>>, Error>) + Send + Sync + 'static
+    {
+        self.start_request::<ReadCoils, C>(range, callback);
     }
+
 }
