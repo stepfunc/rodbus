@@ -9,7 +9,8 @@ use std::net::SocketAddr;
 use std::time::Duration;
 use std::str::FromStr;
 
-use clap::{Arg, App, SubCommand};
+use clap::{Arg, App, SubCommand, ArgMatches};
+
 
 error_chain! {
    types {
@@ -33,6 +34,7 @@ error_chain! {
         }
     }
 }
+
 enum Command {
     ReadCoils(AddressRange),
     ReadDiscreteInputs(AddressRange),
@@ -46,6 +48,12 @@ struct Args {
     address: SocketAddr,
     id : UnitId,
     command: Command,
+}
+
+impl Args {
+    fn new(address: SocketAddr, id : UnitId, command: Command) -> Self {
+        Self { address, id, command }
+    }
 }
 
 #[tokio::main]
@@ -101,6 +109,38 @@ async fn run() -> Result<(), Error> {
     }
 
     Ok(())
+}
+
+fn get_index(arg: &ArgMatches) -> Result<u16, Error> {
+    u16::from_str(arg.value_of("index").unwrap()).map_err(
+        |e| Error::from(ErrorKind::BadInt(e)).chain_err(|| "index out of bounds")
+    )
+}
+
+fn get_start(arg: &ArgMatches) -> Result<u16, Error> {
+    u16::from_str(arg.value_of("start").unwrap()).map_err(
+        |e| Error::from(ErrorKind::BadInt(e)).chain_err(|| "start out of bounds")
+    )
+}
+
+fn get_value(arg: &ArgMatches) -> Result<u16, Error> {
+    u16::from_str(arg.value_of("value").unwrap()).map_err(
+        |e| Error::from(ErrorKind::BadInt(e)).chain_err(|| "value out of bounds")
+    )
+}
+
+fn get_quantity(arg: &ArgMatches) -> Result<u16, Error> {
+    u16::from_str(arg.value_of("quantity").unwrap()).map_err(
+        |e| Error::from(ErrorKind::BadInt(e)).chain_err(|| "quantity out of bounds")
+    )
+}
+
+fn get_address_range(arg: &ArgMatches) -> Result<AddressRange, Error> {
+    Ok(AddressRange::new(get_start(arg)?, get_quantity(arg)?))
+}
+
+fn get_indexed_register_value(arg: &ArgMatches) -> Result<Indexed<RegisterValue>, Error> {
+    Ok(Indexed::new(get_index(arg)?, RegisterValue::new(get_value(arg)?)))
 }
 
 fn parse_args() -> Result<Args, Error> {
@@ -211,37 +251,27 @@ fn parse_args() -> Result<Args, Error> {
     let id = UnitId::new(u8::from_str(matches.value_of("id").unwrap())?);
 
     if let Some(matches) = matches.subcommand_matches("rc") {
-        let start = u16::from_str(matches.value_of("start").unwrap())?;
-        let count = u16::from_str(matches.value_of("quantity").unwrap())?;
-        return  Ok(Args { address, id, command : Command::ReadCoils(AddressRange::new(start, count)) })
+        return  Ok(Args::new(address, id, Command::ReadCoils(get_address_range(matches)?)));
     }
 
     if let Some(matches) = matches.subcommand_matches("rdi") {
-        let start = u16::from_str(matches.value_of("start").unwrap())?;
-        let count = u16::from_str(matches.value_of("quantity").unwrap())?;
-        return  Ok(Args { address, id, command : Command::ReadDiscreteInputs(AddressRange::new(start, count)) })
+        return  Ok(Args::new(address, id, Command::ReadDiscreteInputs(get_address_range(matches)?)));
     }
 
     if let Some(matches) = matches.subcommand_matches("rhr") {
-        let start = u16::from_str(matches.value_of("start").unwrap())?;
-        let count = u16::from_str(matches.value_of("quantity").unwrap())?;
-        return  Ok(Args { address, id, command : Command::ReadHoldingRegisters(AddressRange::new(start, count)) })
+        return  Ok(Args::new(address, id, Command::ReadHoldingRegisters(get_address_range(matches)?)));
     }
 
     if let Some(matches) = matches.subcommand_matches("rir") {
-        let start = u16::from_str(matches.value_of("start").unwrap())?;
-        let count = u16::from_str(matches.value_of("quantity").unwrap())?;
-        return  Ok(Args { address, id, command : Command::ReadInputRegisters(AddressRange::new(start, count)) })
+        return  Ok(Args::new(address, id, Command::ReadInputRegisters(get_address_range(matches)?)));
     }
 
     if let Some(matches) = matches.subcommand_matches("wsr") {
-        let index = u16::from_str(matches.value_of("index").unwrap())?;
-        let value = u16::from_str(matches.value_of("value").unwrap())?;
-        return  Ok(Args { address, id, command : Command::WriteSingleRegister(Indexed::new(index, RegisterValue::new(value))) })
+        return  Ok(Args::new(address, id, Command::WriteSingleRegister(get_indexed_register_value(matches)?)));
     }
 
     if let Some(matches) = matches.subcommand_matches("wsc") {
-        let index = u16::from_str(matches.value_of("index").unwrap())?;
+        let index = get_index(matches)?;
         let value = bool::from_str(matches.value_of("value").unwrap())?;
         return  Ok(Args { address, id, command : Command::WriteSingleCoil(Indexed::new(index, CoilState::from_bool(value))) })
     }
