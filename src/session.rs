@@ -3,7 +3,7 @@ use std::time::Duration;
 use tokio::sync::{mpsc, oneshot};
 
 use crate::channel::{Request, ServiceRequest};
-use crate::error::details::InvalidRequest;
+use crate::error::details::{InvalidRequest, ResponseParseError};
 use crate::error::*;
 use crate::service::services::*;
 use crate::service::traits::Service;
@@ -18,16 +18,29 @@ pub struct AddressRange {
     pub count: u16
 }
 
+mod constants {
+    pub const ON : u16 = 0xFF00;
+    pub const OFF : u16 = 0x0000;
+}
+
 #[repr(u16)]
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub enum CoilState {
-    On = 0xFF00,
-    Off = 0x0000
+    On = constants::ON,
+    Off = constants::OFF
 }
 
 impl CoilState {
-    pub fn from(value : bool) -> Self {
+    pub fn from_bool(value : bool) -> Self {
         if value { CoilState::On } else { CoilState::Off }
+    }
+
+    pub fn from_u16(value : u16) -> Result<Self, ResponseParseError> {
+        match value {
+            constants::ON => Ok(CoilState::On),
+            constants::OFF => Ok(CoilState::Off),
+            _ => Err(ResponseParseError::UnknownCoilState(value))
+        }
     }
 
     pub fn to_u16(&self) -> u16 {
@@ -144,7 +157,7 @@ impl Session {
         self.make_service_call::<ReadInputRegisters>(range).await
     }
 
-    pub async fn write_single_coil(&mut self, value: Indexed<CoilState>) -> Result<u16, Error> {
+    pub async fn write_single_coil(&mut self, value: Indexed<CoilState>) -> Result<Indexed<CoilState>, Error> {
         self.make_service_call::<WriteSingleCoil>(value).await
     }
 

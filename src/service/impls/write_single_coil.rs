@@ -8,7 +8,7 @@ use crate::session::{CoilState, Indexed};
 impl Service for WriteSingleCoil {
     const REQUEST_FUNCTION_CODE: FunctionCode = FunctionCode::WriteSingleCoil;
     type Request = Indexed<CoilState>;
-    type Response = u16;
+    type Response = Indexed<CoilState>;
 
     fn check_request_validity(_request: &Self::Request) -> Result<(), InvalidRequest> {
         Ok(()) // can't be invalid

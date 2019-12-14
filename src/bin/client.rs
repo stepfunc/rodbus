@@ -243,7 +243,7 @@ fn parse_args() -> Result<Args, Error> {
     if let Some(matches) = matches.subcommand_matches("wsc") {
         let index = u16::from_str(matches.value_of("index").unwrap())?;
         let value = bool::from_str(matches.value_of("value").unwrap())?;
-        return  Ok(Args { address, id, command : Command::WriteSingleCoil(Indexed::new(index, CoilState::from(value))) })
+        return  Ok(Args { address, id, command : Command::WriteSingleCoil(Indexed::new(index, CoilState::from_bool(value))) })
     }
 
     Err(ErrorKind::MissingSubcommand)?

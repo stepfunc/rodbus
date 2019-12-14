@@ -43,13 +43,16 @@ impl ParseResponse<Indexed<RegisterValue>> for Indexed<RegisterValue> {
     }
 }
 
-impl ParseResponse<Indexed<CoilState>> for u16 {
+impl ParseResponse<Indexed<CoilState>> for Indexed<CoilState> {
     fn parse_after_function(cursor: &mut ReadCursor, request: &Indexed<CoilState>) -> Result<Self, Error> {
-        let index = cursor.read_u16_be()?;
-        if index != request.index {
+
+        let response : Indexed<CoilState> = Indexed::new(cursor.read_u16_be()?, CoilState::from_u16(cursor.read_u16_be()?)?);
+
+        if &response != request {
             return Err(ResponseParseError::ReplyEchoMismatch)?;
         }
-        Ok(index)
+
+        Ok(response)
     }
 }
 

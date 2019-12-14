@@ -198,7 +198,9 @@ pub mod details {
         /// a parameter expected to be echoed in the reply did not match
         ReplyEchoMismatch,
         /// an unknown response function code was received
-        UnknownResponseFunction(u8, u8, u8)  // actual, expected, expected error
+        UnknownResponseFunction(u8, u8, u8),  // actual, expected, expected error
+        /// Bad value for the coil state
+        UnknownCoilState(u16)
     }
 
     impl std::error::Error for ResponseParseError {}
@@ -224,6 +226,9 @@ pub mod details {
                 ResponseParseError::UnknownResponseFunction(actual , expected, error) => {
                     write!(f, "received unknown response function code: {}. Expected {} or {}", actual, expected, error)
                 },
+                ResponseParseError::UnknownCoilState(value) => {
+                    write!(f, "received coil state with unspecified value: 0x{:04X}", value)
+                }
             }
         }
     }
