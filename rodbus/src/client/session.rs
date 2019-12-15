@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use tokio::sync::{mpsc, oneshot};
 
-use crate::client::channel::{Request, ServiceRequest};
+use crate::client::message::{Request, ServiceRequest};
 use crate::error::details::{InvalidRequest, ResponseParseError};
 use crate::error::*;
 use crate::service::services::*;

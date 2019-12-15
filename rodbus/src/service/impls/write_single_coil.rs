@@ -1,4 +1,4 @@
-use crate::client::channel::{Request, ServiceRequest};
+use crate::client::message::{Request, ServiceRequest};
 use crate::client::session::{CoilState, Indexed};
 use crate::error::details::InvalidRequest;
 use crate::service::function::FunctionCode;

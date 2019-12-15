@@ -4,78 +4,18 @@ use std::time::Duration;
 use tokio::io::AsyncWriteExt;
 use tokio::net::TcpStream;
 use tokio::sync::mpsc;
-use tokio::sync::oneshot;
 
 use crate::client::session::{Session, UnitId};
 use crate::error::*;
-use crate::service::services::*;
 use crate::service::traits::Service;
 use crate::tcp::frame::{MBAPFormatter, MBAPParser};
 use crate::util::cursor::ReadCursor;
 use crate::util::frame::{FrameFormatter, FramedReader};
+use crate::client::message::{Request, ServiceRequest};
 
-/// Models a communication channel from which communication a `Session`
-/// can be created.
+/// Channel from which Session objects can be obtained to make requests
 pub struct Channel {
     tx: mpsc::Sender<Request>,
-}
-
-/// All the possible request that can be sent through the channel
-pub(crate) enum Request {
-    ReadCoils(ServiceRequest<ReadCoils>),
-    ReadDiscreteInputs(ServiceRequest<ReadDiscreteInputs>),
-    ReadHoldingRegisters(ServiceRequest<ReadHoldingRegisters>),
-    ReadInputRegisters(ServiceRequest<ReadInputRegisters>),
-    WriteSingleCoil(ServiceRequest<WriteSingleCoil>),
-    WriteSingleRegister(ServiceRequest<WriteSingleRegister>),
-}
-
-impl Request {
-    pub fn fail(self) {
-        match self {
-            Request::ReadCoils(r) => r.fail(ErrorKind::NoConnection.into()),
-            Request::ReadDiscreteInputs(r) => r.fail(ErrorKind::NoConnection.into()),
-            Request::ReadHoldingRegisters(r) => r.fail(ErrorKind::NoConnection.into()),
-            Request::ReadInputRegisters(r) => r.fail(ErrorKind::NoConnection.into()),
-            Request::WriteSingleCoil(r) => r.fail(ErrorKind::NoConnection.into()),
-            Request::WriteSingleRegister(r) => r.fail(ErrorKind::NoConnection.into()),
-        }
-    }
-}
-
-/// Wrapper for the request sent through the channel
-///
-/// It contains the session ID, the actual request and
-/// a oneshot channel to receive the reply.
-pub(crate) struct ServiceRequest<S: Service> {
-    id: UnitId,
-    timeout: Duration,
-    argument: S::Request,
-    reply_to: oneshot::Sender<Result<S::Response, Error>>,
-}
-
-impl<S: Service> ServiceRequest<S> {
-    pub fn new(
-        id: UnitId,
-        timeout: Duration,
-        argument: S::Request,
-        reply_to: oneshot::Sender<Result<S::Response, Error>>,
-    ) -> Self {
-        Self {
-            id,
-            timeout,
-            argument,
-            reply_to,
-        }
-    }
-
-    pub fn reply(self, value: Result<S::Response, Error>) {
-        self.reply_to.send(value).ok();
-    }
-
-    pub fn fail(self, err: Error) {
-        self.reply(Err(err))
-    }
 }
 
 pub trait ReconnectStrategy {
@@ -296,7 +236,7 @@ impl ChannelServer {
         let ret = result.as_ref().err().and_then(|e| SessionError::from(e));
 
         // we always send the result, no matter what happened
-        srv.reply_to.send(result).ok();
+        srv.reply(result);
 
         ret
     }

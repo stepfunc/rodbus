@@ -73,7 +73,6 @@
 #[macro_use]
 extern crate error_chain;
 
-// ------  api modules --------
 /// prelude that can be used to include all of the API types
 pub mod prelude;
 /// client api
@@ -82,6 +81,8 @@ pub mod client {
     pub mod channel;
     /// Types that users interact with to make requests to a Modbus server
     pub mod session;
+    /// messages exchanged between the session and the channel task
+    pub(crate) mod message;
 
     use std::net::SocketAddr;
 
