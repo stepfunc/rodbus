@@ -15,31 +15,35 @@ pub struct UnitId {
 
 pub struct AddressRange {
     pub start: u16,
-    pub count: u16
+    pub count: u16,
 }
 
 mod constants {
-    pub const ON : u16 = 0xFF00;
-    pub const OFF : u16 = 0x0000;
+    pub const ON: u16 = 0xFF00;
+    pub const OFF: u16 = 0x0000;
 }
 
 #[repr(u16)]
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub enum CoilState {
     On = constants::ON,
-    Off = constants::OFF
+    Off = constants::OFF,
 }
 
 impl CoilState {
-    pub fn from_bool(value : bool) -> Self {
-        if value { CoilState::On } else { CoilState::Off }
+    pub fn from_bool(value: bool) -> Self {
+        if value {
+            CoilState::On
+        } else {
+            CoilState::Off
+        }
     }
 
-    pub fn from_u16(value : u16) -> Result<Self, ResponseParseError> {
+    pub fn from_u16(value: u16) -> Result<Self, ResponseParseError> {
         match value {
             constants::ON => Ok(CoilState::On),
             constants::OFF => Ok(CoilState::Off),
-            _ => Err(ResponseParseError::UnknownCoilState(value))
+            _ => Err(ResponseParseError::UnknownCoilState(value)),
         }
     }
 
@@ -50,19 +54,18 @@ impl CoilState {
 
 #[derive(PartialEq)]
 pub struct RegisterValue {
-    pub value : u16
+    pub value: u16,
 }
 
 impl RegisterValue {
-    pub fn new(value : u16) -> Self {
+    pub fn new(value: u16) -> Self {
         RegisterValue { value }
     }
 }
 
 impl AddressRange {
-
-    pub const MAX_REGISTERS : u16 = 125;
-    pub const MAX_BINARY_BITS : u16 = 2000;
+    pub const MAX_REGISTERS: u16 = 125;
+    pub const MAX_BINARY_BITS: u16 = 2000;
 
     pub fn new(start: u16, count: u16) -> Self {
         AddressRange { start, count }
@@ -99,12 +102,12 @@ impl AddressRange {
 #[derive(PartialEq)]
 pub struct Indexed<T> {
     pub index: u16,
-    pub value: T
+    pub value: T,
 }
 
 impl<T> Indexed<T> {
-    pub fn new(index: u16, value : T) -> Self {
-        Indexed {  index, value }
+    pub fn new(index: u16, value: T) -> Self {
+        Indexed { index, value }
     }
 }
 
@@ -131,19 +134,38 @@ pub struct Session {
 
 #[derive(Clone)]
 pub struct CallbackSession {
-    inner: Session
+    inner: Session,
 }
 
 impl Session {
-    pub(crate) fn new(id: UnitId, response_timeout: Duration, request_channel: mpsc::Sender<Request>) -> Self {
-        Session { id, response_timeout, request_channel }
+    pub(crate) fn new(
+        id: UnitId,
+        response_timeout: Duration,
+        request_channel: mpsc::Sender<Request>,
+    ) -> Self {
+        Session {
+            id,
+            response_timeout,
+            request_channel,
+        }
     }
 
-    async fn make_service_call<S : Service>(&mut self, request: S::Request) -> Result<S::Response, Error> {
+    async fn make_service_call<S: Service>(
+        &mut self,
+        request: S::Request,
+    ) -> Result<S::Response, Error> {
         S::check_request_validity(&request)?;
         let (tx, rx) = oneshot::channel::<Result<S::Response, Error>>();
-        let request = S::create_request(ServiceRequest::new(self.id, self.response_timeout,request, tx));
-        self.request_channel.send(request).await.map_err(|_| ErrorKind::Shutdown)?;
+        let request = S::create_request(ServiceRequest::new(
+            self.id,
+            self.response_timeout,
+            request,
+            tx,
+        ));
+        self.request_channel
+            .send(request)
+            .await
+            .map_err(|_| ErrorKind::Shutdown)?;
         rx.await.map_err(|_| ErrorKind::Shutdown)?
     }
 
@@ -151,49 +173,62 @@ impl Session {
         self.make_service_call::<ReadCoils>(range).await
     }
 
-    pub async fn read_discrete_inputs(&mut self, range: AddressRange) -> Result<Vec<Indexed<bool>>, Error> {
+    pub async fn read_discrete_inputs(
+        &mut self,
+        range: AddressRange,
+    ) -> Result<Vec<Indexed<bool>>, Error> {
         self.make_service_call::<ReadDiscreteInputs>(range).await
     }
 
-    pub async fn read_holding_registers(&mut self, range: AddressRange) -> Result<Vec<Indexed<u16>>, Error> {
+    pub async fn read_holding_registers(
+        &mut self,
+        range: AddressRange,
+    ) -> Result<Vec<Indexed<u16>>, Error> {
         self.make_service_call::<ReadHoldingRegisters>(range).await
     }
 
-    pub async fn read_input_registers(&mut self, range: AddressRange) -> Result<Vec<Indexed<u16>>, Error> {
+    pub async fn read_input_registers(
+        &mut self,
+        range: AddressRange,
+    ) -> Result<Vec<Indexed<u16>>, Error> {
         self.make_service_call::<ReadInputRegisters>(range).await
     }
 
-    pub async fn write_single_coil(&mut self, value: Indexed<CoilState>) -> Result<Indexed<CoilState>, Error> {
+    pub async fn write_single_coil(
+        &mut self,
+        value: Indexed<CoilState>,
+    ) -> Result<Indexed<CoilState>, Error> {
         self.make_service_call::<WriteSingleCoil>(value).await
     }
 
-    pub async fn write_single_register(&mut self, value: Indexed<RegisterValue>) -> Result<Indexed<RegisterValue>, Error> {
+    pub async fn write_single_register(
+        &mut self,
+        value: Indexed<RegisterValue>,
+    ) -> Result<Indexed<RegisterValue>, Error> {
         self.make_service_call::<WriteSingleRegister>(value).await
     }
 }
 
 impl CallbackSession {
-
-    pub fn new(inner : Session) -> Self {
+    pub fn new(inner: Session) -> Self {
         CallbackSession { inner }
     }
 
     fn start_request<S, C>(&mut self, request: S::Request, callback: C)
-        where S : Service + 'static,
-              C : FnOnce(Result<S::Response, Error>) + Send + Sync + 'static
+    where
+        S: Service + 'static,
+        C: FnOnce(Result<S::Response, Error>) + Send + Sync + 'static,
     {
         let mut session = self.inner.clone();
-        tokio::spawn(
-            async move {
-                callback(session.make_service_call::<S>(request).await);
-            }
-        );
+        tokio::spawn(async move {
+            callback(session.make_service_call::<S>(request).await);
+        });
     }
 
     pub fn read_coils<C>(&mut self, range: AddressRange, callback: C)
-        where C : FnOnce(Result<Vec<Indexed<bool>>, Error>) + Send + Sync + 'static
+    where
+        C: FnOnce(Result<Vec<Indexed<bool>>, Error>) + Send + Sync + 'static,
     {
         self.start_request::<ReadCoils, C>(range, callback);
     }
-
 }

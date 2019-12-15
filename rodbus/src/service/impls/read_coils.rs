@@ -1,11 +1,10 @@
 use crate::client::channel::*;
+use crate::client::session::*;
 use crate::error::*;
 use crate::service::function::FunctionCode;
 use crate::service::traits::Service;
-use crate::client::session::*;
 
 impl Service for crate::service::services::ReadCoils {
-
     const REQUEST_FUNCTION_CODE: FunctionCode = FunctionCode::ReadCoils;
 
     type Request = AddressRange;
@@ -19,4 +18,3 @@ impl Service for crate::service::services::ReadCoils {
         Request::ReadCoils(request)
     }
 }
-

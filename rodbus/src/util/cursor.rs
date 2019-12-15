@@ -2,20 +2,18 @@ use crate::error::*;
 
 /// custom read-only cursor
 pub struct ReadCursor<'a> {
-    src : &'a[u8]
+    src: &'a [u8],
 }
 
 /// custom write cursor
 pub struct WriteCursor<'a> {
-    dest : &'a mut [u8],
-    pos: usize
+    dest: &'a mut [u8],
+    pos: usize,
 }
 
 impl<'a> ReadCursor<'a> {
-    pub fn new(src: &'a[u8]) -> ReadCursor {
-        ReadCursor {
-            src
-        }
+    pub fn new(src: &'a [u8]) -> ReadCursor {
+        ReadCursor { src }
     }
 
     pub fn len(&self) -> usize {
@@ -42,12 +40,12 @@ impl<'a> ReadCursor<'a> {
         Ok((high as u16) << 8 | (low as u16))
     }
 
-    pub fn read_bytes(&mut self, count: usize) -> Result<&'a[u8], details::ResponseParseError> {
+    pub fn read_bytes(&mut self, count: usize) -> Result<&'a [u8], details::ResponseParseError> {
         if self.src.len() < count {
             return Err(details::ResponseParseError::InsufficientBytes);
         }
 
-        let ret = &self.src[0 .. count];
+        let ret = &self.src[0..count];
         self.src = &self.src[count..];
         Ok(ret)
     }
@@ -55,10 +53,7 @@ impl<'a> ReadCursor<'a> {
 
 impl<'a> WriteCursor<'a> {
     pub fn new(dest: &'a mut [u8]) -> WriteCursor<'a> {
-        WriteCursor {
-            dest,
-            pos : 0
-        }
+        WriteCursor { dest, pos: 0 }
     }
 
     pub fn position(&self) -> usize {
@@ -70,7 +65,7 @@ impl<'a> WriteCursor<'a> {
     }
 
     pub fn seek_from_current(&mut self, count: usize) -> Result<(), bugs::Error> {
-        if self.remaining() <  count {
+        if self.remaining() < count {
             return Err(bugs::ErrorKind::BadSeekOperation.into());
         }
         self.pos += count;
@@ -78,7 +73,7 @@ impl<'a> WriteCursor<'a> {
     }
 
     pub fn seek_from_start(&mut self, count: usize) -> Result<(), bugs::Error> {
-        if self.dest.len() <  count {
+        if self.dest.len() < count {
             return Err(bugs::ErrorKind::BadSeekOperation.into());
         }
         self.pos = count;
@@ -95,7 +90,8 @@ impl<'a> WriteCursor<'a> {
     }
 
     pub fn write_u16_be(&mut self, value: u16) -> Result<(), bugs::Error> {
-        if self.remaining() < 2 {  // don't write any bytes if there's isn't space for the whole thing
+        if self.remaining() < 2 {
+            // don't write any bytes if there's isn't space for the whole thing
             return Err(bugs::ErrorKind::InsufficientWriteSpace(2, self.remaining()).into());
         }
         let upper = ((value & 0xFF00) >> 8) as u8;
@@ -103,7 +99,4 @@ impl<'a> WriteCursor<'a> {
         self.write_u8(upper)?;
         self.write_u8(lower)
     }
-
 }
-
-

@@ -1,4 +1,3 @@
-
 // Create the Error, ErrorKind, ResultExt, and Result types
 error_chain! {
    types {
@@ -77,11 +76,11 @@ pub mod bugs {
 
 /// Simple errors that occur normally and do not indicate bugs in the library
 pub mod details {
-    use std::fmt::{Formatter, Error};
+    use std::fmt::{Error, Formatter};
 
-    pub (crate) mod constants {
+    pub(crate) mod constants {
         pub const ILLEGAL_FUNCTION: u8 = 0x01;
-        pub const ILLEGAL_DATA_ADDRESS : u8 = 0x02;
+        pub const ILLEGAL_DATA_ADDRESS: u8 = 0x02;
         pub const ILLEGAL_DATA_VALUE: u8 = 0x03;
         pub const SERVER_DEVICE_FAILURE: u8 = 0x04;
         pub const ACKNOWLEDGE: u8 = 0x05;
@@ -90,7 +89,6 @@ pub mod details {
         pub const GATEWAY_PATH_UNAVAILABLE: u8 = 0x0A;
         pub const GATEWAY_TARGET_DEVICE_FAILED_TO_RESPOND: u8 = 0x0B;
     }
-
 
     /// Exception codes defined in the Modbus specification
     #[derive(Debug, Copy, Clone, PartialEq)]
@@ -122,7 +120,7 @@ pub mod details {
         /// from the target device. Usually means that the device is not present on the network.
         GatewayTargetDeviceFailedToRespond,
         /// The exception code received is not defined in the standard
-        Unknown(u8)
+        Unknown(u8),
     }
 
     impl ExceptionCode {
@@ -133,11 +131,13 @@ pub mod details {
                 constants::ILLEGAL_DATA_VALUE => ExceptionCode::IllegalDataValue,
                 constants::SERVER_DEVICE_FAILURE => ExceptionCode::ServerDeviceFailure,
                 constants::ACKNOWLEDGE => ExceptionCode::Acknowledge,
-                constants::SERVER_DEVICE_BUSY=> ExceptionCode::ServerDeviceBusy,
+                constants::SERVER_DEVICE_BUSY => ExceptionCode::ServerDeviceBusy,
                 constants::MEMORY_PARITY_ERROR => ExceptionCode::MemoryParityError,
                 constants::GATEWAY_PATH_UNAVAILABLE => ExceptionCode::GatewayPathUnavailable,
-                constants::GATEWAY_TARGET_DEVICE_FAILED_TO_RESPOND => ExceptionCode::GatewayTargetDeviceFailedToRespond,
-                _ => ExceptionCode::Unknown(value)
+                constants::GATEWAY_TARGET_DEVICE_FAILED_TO_RESPOND => {
+                    ExceptionCode::GatewayTargetDeviceFailedToRespond
+                }
+                _ => ExceptionCode::Unknown(value),
             }
         }
     }
@@ -167,9 +167,9 @@ pub mod details {
         /// Received TCP frame with the length field set to zero
         MBAPLengthZero,
         /// Received TCP frame with length that exceeds max allowed size
-        MBAPLengthTooBig(usize, usize),     // actual size and the maximum size
+        MBAPLengthTooBig(usize, usize), // actual size and the maximum size
         /// Received TCP frame within non-Modbus protocol id
-        UnknownProtocolId(u16)
+        UnknownProtocolId(u16),
     }
 
     impl std::error::Error for FrameParseError {}
@@ -177,9 +177,17 @@ pub mod details {
     impl std::fmt::Display for FrameParseError {
         fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
             match self {
-                FrameParseError::MBAPLengthZero => f.write_str("Received TCP frame with the length field set to zero"),
-                FrameParseError::MBAPLengthTooBig(size, max) => write!(f, "Received TCP frame with length ({}) that exceeds max allowed size ({})", size, max),
-                FrameParseError::UnknownProtocolId(id) => write!(f, "Received TCP frame with non-Modbus protocol id: {}", id)
+                FrameParseError::MBAPLengthZero => {
+                    f.write_str("Received TCP frame with the length field set to zero")
+                }
+                FrameParseError::MBAPLengthTooBig(size, max) => write!(
+                    f,
+                    "Received TCP frame with length ({}) that exceeds max allowed size ({})",
+                    size, max
+                ),
+                FrameParseError::UnknownProtocolId(id) => {
+                    write!(f, "Received TCP frame with non-Modbus protocol id: {}", id)
+                }
             }
         }
     }
@@ -190,17 +198,17 @@ pub mod details {
         /// response is too short to be valid
         InsufficientBytes,
         /// byte count doesn't match what is expected based on request
-        RequestByteCountMismatch(usize, usize),              // expected count / actual count
+        RequestByteCountMismatch(usize, usize), // expected count / actual count
         /// byte count doesn't match the actual number of bytes present
-        InsufficientBytesForByteCount(usize, usize),        // count / remaining
+        InsufficientBytesForByteCount(usize, usize), // count / remaining
         /// response contains extra trailing bytes
         TrailingBytes(usize),
         /// a parameter expected to be echoed in the reply did not match
         ReplyEchoMismatch,
         /// an unknown response function code was received
-        UnknownResponseFunction(u8, u8, u8),  // actual, expected, expected error
+        UnknownResponseFunction(u8, u8, u8), // actual, expected, expected error
         /// Bad value for the coil state
-        UnknownCoilState(u16)
+        UnknownCoilState(u16),
     }
 
     impl std::error::Error for ResponseParseError {}
@@ -211,24 +219,32 @@ pub mod details {
                 ResponseParseError::InsufficientBytes => {
                     f.write_str("response is too short to be valid")
                 }
-                ResponseParseError::RequestByteCountMismatch(request, response) => {
-                    write!(f, "byte count ({}) doesn't match what is expected based on request ({})", response, request)
-                },
-                ResponseParseError::InsufficientBytesForByteCount(count, remaining) => {
-                    write!(f, "byte count ({}) doesn't match the actual number of bytes remaining ({})", count, remaining)
-                },
+                ResponseParseError::RequestByteCountMismatch(request, response) => write!(
+                    f,
+                    "byte count ({}) doesn't match what is expected based on request ({})",
+                    response, request
+                ),
+                ResponseParseError::InsufficientBytesForByteCount(count, remaining) => write!(
+                    f,
+                    "byte count ({}) doesn't match the actual number of bytes remaining ({})",
+                    count, remaining
+                ),
                 ResponseParseError::TrailingBytes(remaining) => {
                     write!(f, "response contains {} extra trailing bytes", remaining)
-                },
+                }
                 ResponseParseError::ReplyEchoMismatch => {
                     f.write_str("a parameter expected to be echoed in the reply did not match")
-                },
-                ResponseParseError::UnknownResponseFunction(actual , expected, error) => {
-                    write!(f, "received unknown response function code: {}. Expected {} or {}", actual, expected, error)
-                },
-                ResponseParseError::UnknownCoilState(value) => {
-                    write!(f, "received coil state with unspecified value: 0x{:04X}", value)
                 }
+                ResponseParseError::UnknownResponseFunction(actual, expected, error) => write!(
+                    f,
+                    "received unknown response function code: {}. Expected {} or {}",
+                    actual, expected, error
+                ),
+                ResponseParseError::UnknownCoilState(value) => write!(
+                    f,
+                    "received coil state with unspecified value: 0x{:04X}",
+                    value
+                ),
             }
         }
     }
@@ -237,8 +253,8 @@ pub mod details {
     #[derive(Debug, Copy, Clone, PartialEq)]
     pub enum InvalidRequest {
         CountOfZero,
-        AddressOverflow(u16, u16),                    // start / count
-        CountTooBigForType(u16, u16)                  // count / max
+        AddressOverflow(u16, u16),    // start / count
+        CountTooBigForType(u16, u16), // count / max
     }
 
     impl std::error::Error for InvalidRequest {}
@@ -247,8 +263,16 @@ pub mod details {
         fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
             match self {
                 InvalidRequest::CountOfZero => f.write_str("request contains a count of zero"),
-                InvalidRequest::AddressOverflow(start, count) => write!(f, "start == {} and count == {} would overflow the representation of u16", start, count),
-                InvalidRequest::CountTooBigForType(count, max) => write!(f, "the request count of {} exceeds maximum allowed count of {} for this type", count, max)
+                InvalidRequest::AddressOverflow(start, count) => write!(
+                    f,
+                    "start == {} and count == {} would overflow the representation of u16",
+                    start, count
+                ),
+                InvalidRequest::CountTooBigForType(count, max) => write!(
+                    f,
+                    "the request count of {} exceeds maximum allowed count of {} for this type",
+                    count, max
+                ),
             }
         }
     }

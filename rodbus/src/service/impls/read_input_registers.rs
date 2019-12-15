@@ -1,11 +1,10 @@
 use crate::client::channel::{Request, ServiceRequest};
+use crate::client::session::*;
 use crate::error::details::InvalidRequest;
 use crate::service::function::FunctionCode;
 use crate::service::traits::Service;
-use crate::client::session::*;
 
 impl Service for crate::service::services::ReadInputRegisters {
-
     const REQUEST_FUNCTION_CODE: FunctionCode = FunctionCode::ReadInputRegisters;
 
     type Request = AddressRange;
@@ -19,4 +18,3 @@ impl Service for crate::service::services::ReadInputRegisters {
         Request::ReadInputRegisters(request)
     }
 }
-

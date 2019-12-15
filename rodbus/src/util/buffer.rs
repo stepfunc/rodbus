@@ -5,16 +5,15 @@ use crate::error::*;
 pub struct ReadBuffer {
     buffer: Vec<u8>,
     begin: usize,
-    end: usize
+    end: usize,
 }
 
 impl ReadBuffer {
-
     pub fn new(capacity: usize) -> Self {
         ReadBuffer {
             buffer: vec![0; capacity],
             begin: 0,
-            end: 0
+            end: 0,
         }
     }
 
@@ -26,12 +25,12 @@ impl ReadBuffer {
         self.begin == self.end
     }
 
-    pub fn read(&mut self, count: usize)-> std::result::Result<&[u8], bugs::Error> {
+    pub fn read(&mut self, count: usize) -> std::result::Result<&[u8], bugs::Error> {
         if self.len() < count {
             return Err(bugs::ErrorKind::InsufficientBytesForRead(count, self.len()).into());
         }
 
-        let ret = &self.buffer[self.begin .. (self.begin + count)];
+        let ret = &self.buffer[self.begin..(self.begin + count)];
         self.begin += count;
         Ok(ret)
     }
@@ -50,8 +49,10 @@ impl ReadBuffer {
         Ok((b1 << 8) | b2)
     }
 
-    pub async fn read_some<T : AsyncRead + Unpin>(&mut self, io: &mut T) -> std::result::Result<usize, std::io::Error> {
-
+    pub async fn read_some<T: AsyncRead + Unpin>(
+        &mut self,
+        io: &mut T,
+    ) -> std::result::Result<usize, std::io::Error> {
         // before we read any data, check to see if the buffer is empty and adjust the indices
         // this allows use to make the biggest read possible, and avoids subsequent buffer shifting later
         if self.is_empty() {

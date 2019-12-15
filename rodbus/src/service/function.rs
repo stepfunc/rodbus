@@ -1,10 +1,9 @@
-
 pub(super) mod constants {
-    pub const READ_COILS : u8 = 1;
-    pub const READ_DISCRETE_INPUTS : u8 = 2;
-    pub const READ_HOLDING_REGISTERS : u8 = 3;
-    pub const READ_INPUT_REGISTERS : u8 = 4;
-    pub const WRITE_SINGLE_COIL : u8 = 5;
+    pub const READ_COILS: u8 = 1;
+    pub const READ_DISCRETE_INPUTS: u8 = 2;
+    pub const READ_HOLDING_REGISTERS: u8 = 3;
+    pub const READ_INPUT_REGISTERS: u8 = 4;
+    pub const WRITE_SINGLE_COIL: u8 = 5;
     pub const WRITE_SINGLE_REGISTER: u8 = 6;
     /*
     pub const WRITE_MULTIPLE_COILS: u8 = 15;

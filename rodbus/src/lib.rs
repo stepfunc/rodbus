@@ -1,4 +1,3 @@
-
 //! A high-performance implementation of the [Modbus](http://modbus.org/) protocol
 //! using [Tokio](https://docs.rs/tokio) and Rust's `async/await` syntax.
 //!
@@ -89,12 +88,15 @@ pub mod client {
     use crate::client::channel::{Channel, ReconnectStrategy};
 
     /// Create a Channel that attempts to maintain a TCP connection
-        ///
-        /// The channel uses the provided RetryStrategy to pause between failed connection attempts
-        ///
-        /// * `addr` - Socket address of the remote server
-        /// * `retry` - A boxed trait object that controls when the connection is retried on failure
-    pub fn create_client_tcp_channel(addr: SocketAddr, retry: Box<dyn ReconnectStrategy + Send>) -> Channel {
+    ///
+    /// The channel uses the provided RetryStrategy to pause between failed connection attempts
+    ///
+    /// * `addr` - Socket address of the remote server
+    /// * `retry` - A boxed trait object that controls when the connection is retried on failure
+    pub fn create_client_tcp_channel(
+        addr: SocketAddr,
+        retry: Box<dyn ReconnectStrategy + Send>,
+    ) -> Channel {
         Channel::new(addr, retry)
     }
 }
@@ -105,8 +107,8 @@ pub mod error;
 // internal modules
 mod service {
     mod function;
-    pub(super) mod traits; // only visible in impls
     pub(crate) mod services;
+    pub(super) mod traits; // only visible in impls
     mod impls {
         mod common;
         mod read_coils;
@@ -123,5 +125,5 @@ mod util {
     pub(crate) mod frame;
 }
 mod tcp {
-    pub (crate) mod frame;
+    pub(crate) mod frame;
 }

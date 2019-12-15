@@ -1,7 +1,7 @@
+use crate::client::session::{AddressRange, CoilState, Indexed, RegisterValue};
 use crate::error::details::ResponseParseError;
 use crate::error::Error;
 use crate::service::traits::{ParseResponse, SerializeRequest};
-use crate::client::session::{AddressRange, CoilState, Indexed, RegisterValue};
 use crate::util::cursor::*;
 
 impl SerializeRequest for AddressRange {
@@ -14,9 +14,9 @@ impl SerializeRequest for AddressRange {
 
 impl SerializeRequest for Indexed<CoilState> {
     fn serialize_after_function(&self, cur: &mut WriteCursor) -> Result<(), Error> {
-      cur.write_u16_be(self.index)?;
-      cur.write_u16_be(self.value.to_u16())?;
-      Ok(())
+        cur.write_u16_be(self.index)?;
+        cur.write_u16_be(self.value.to_u16())?;
+        Ok(())
     }
 }
 
@@ -29,10 +29,13 @@ impl SerializeRequest for Indexed<RegisterValue> {
 }
 
 impl ParseResponse<Indexed<RegisterValue>> for Indexed<RegisterValue> {
-    fn parse_after_function(cursor: &mut ReadCursor, request: &Indexed<RegisterValue>) -> Result<Self, Error> {
+    fn parse_after_function(
+        cursor: &mut ReadCursor,
+        request: &Indexed<RegisterValue>,
+    ) -> Result<Self, Error> {
         let response = Indexed::new(
             cursor.read_u16_be()?,
-            RegisterValue::new(cursor.read_u16_be()?)
+            RegisterValue::new(cursor.read_u16_be()?),
         );
 
         if request != &response {
@@ -44,9 +47,14 @@ impl ParseResponse<Indexed<RegisterValue>> for Indexed<RegisterValue> {
 }
 
 impl ParseResponse<Indexed<CoilState>> for Indexed<CoilState> {
-    fn parse_after_function(cursor: &mut ReadCursor, request: &Indexed<CoilState>) -> Result<Self, Error> {
-
-        let response : Indexed<CoilState> = Indexed::new(cursor.read_u16_be()?, CoilState::from_u16(cursor.read_u16_be()?)?);
+    fn parse_after_function(
+        cursor: &mut ReadCursor,
+        request: &Indexed<CoilState>,
+    ) -> Result<Self, Error> {
+        let response: Indexed<CoilState> = Indexed::new(
+            cursor.read_u16_be()?,
+            CoilState::from_u16(cursor.read_u16_be()?)?,
+        );
 
         if &response != request {
             return Err(ResponseParseError::ReplyEchoMismatch.into());
@@ -57,9 +65,10 @@ impl ParseResponse<Indexed<CoilState>> for Indexed<CoilState> {
 }
 
 impl ParseResponse<AddressRange> for Vec<Indexed<bool>> {
-
-    fn parse_after_function(cursor: &mut ReadCursor, request: &AddressRange) -> Result<Self, Error> {
-
+    fn parse_after_function(
+        cursor: &mut ReadCursor,
+        request: &AddressRange,
+    ) -> Result<Self, Error> {
         let byte_count = cursor.read_u8()? as usize;
 
         // how many bytes should we have?
@@ -70,11 +79,19 @@ impl ParseResponse<AddressRange> for Vec<Indexed<bool>> {
         } as usize;
 
         if byte_count != expected_byte_count {
-            return Err(ResponseParseError::RequestByteCountMismatch(expected_byte_count, byte_count).into());
+            return Err(ResponseParseError::RequestByteCountMismatch(
+                expected_byte_count,
+                byte_count,
+            )
+            .into());
         }
 
         if byte_count != cursor.len() {
-            return Err(ResponseParseError::InsufficientBytesForByteCount(byte_count, cursor.len()).into());
+            return Err(ResponseParseError::InsufficientBytesForByteCount(
+                byte_count,
+                cursor.len(),
+            )
+            .into());
         }
 
         let bytes = cursor.read_bytes(byte_count)?;
@@ -84,7 +101,7 @@ impl ParseResponse<AddressRange> for Vec<Indexed<bool>> {
         let mut count = 0;
 
         for byte in bytes {
-            for i in 0 .. 7 {
+            for i in 0..7 {
                 // return early if we hit the count before the end of the byte
                 if count == request.count {
                     return Ok(values);
@@ -101,20 +118,29 @@ impl ParseResponse<AddressRange> for Vec<Indexed<bool>> {
 }
 
 impl ParseResponse<AddressRange> for Vec<Indexed<u16>> {
-
-    fn parse_after_function(cursor: &mut ReadCursor, request: &AddressRange) -> Result<Self, Error> {
-
+    fn parse_after_function(
+        cursor: &mut ReadCursor,
+        request: &AddressRange,
+    ) -> Result<Self, Error> {
         let byte_count = cursor.read_u8()? as usize;
 
         // how many bytes should we have?
-        let expected_byte_count = 2*request.count as usize;
+        let expected_byte_count = 2 * request.count as usize;
 
         if byte_count != expected_byte_count {
-            return Err(ResponseParseError::RequestByteCountMismatch(expected_byte_count, byte_count).into());
+            return Err(ResponseParseError::RequestByteCountMismatch(
+                expected_byte_count,
+                byte_count,
+            )
+            .into());
         }
 
         if expected_byte_count != cursor.len() {
-            return Err(ResponseParseError::InsufficientBytesForByteCount(byte_count, cursor.len()).into());
+            return Err(ResponseParseError::InsufficientBytesForByteCount(
+                byte_count,
+                cursor.len(),
+            )
+            .into());
         }
 
         let mut values = Vec::<Indexed<u16>>::with_capacity(request.count as usize);
@@ -147,26 +173,51 @@ mod tests {
 
     #[test]
     fn address_range_validates_correctly_for_bits() {
-        assert_eq!(AddressRange::new(0, AddressRange::MAX_BINARY_BITS).check_validity_for_bits(), Ok(()));
-        let err = Err(InvalidRequest::CountTooBigForType(AddressRange::MAX_BINARY_BITS + 1, AddressRange::MAX_BINARY_BITS));
-        assert_eq!(AddressRange::new(0, AddressRange::MAX_BINARY_BITS + 1).check_validity_for_bits(), err);
+        assert_eq!(
+            AddressRange::new(0, AddressRange::MAX_BINARY_BITS).check_validity_for_bits(),
+            Ok(())
+        );
+        let err = Err(InvalidRequest::CountTooBigForType(
+            AddressRange::MAX_BINARY_BITS + 1,
+            AddressRange::MAX_BINARY_BITS,
+        ));
+        assert_eq!(
+            AddressRange::new(0, AddressRange::MAX_BINARY_BITS + 1).check_validity_for_bits(),
+            err
+        );
     }
 
     #[test]
     fn address_range_validates_correctly_for_registers() {
-        assert_eq!(AddressRange::new(0, AddressRange::MAX_REGISTERS).check_validity_for_registers(), Ok(()));
-        let err = Err(InvalidRequest::CountTooBigForType(AddressRange::MAX_REGISTERS + 1, AddressRange::MAX_REGISTERS));
-        assert_eq!(AddressRange::new(0, AddressRange::MAX_REGISTERS + 1).check_validity_for_registers(), err);
+        assert_eq!(
+            AddressRange::new(0, AddressRange::MAX_REGISTERS).check_validity_for_registers(),
+            Ok(())
+        );
+        let err = Err(InvalidRequest::CountTooBigForType(
+            AddressRange::MAX_REGISTERS + 1,
+            AddressRange::MAX_REGISTERS,
+        ));
+        assert_eq!(
+            AddressRange::new(0, AddressRange::MAX_REGISTERS + 1).check_validity_for_registers(),
+            err
+        );
     }
 
     #[test]
     fn address_range_catches_zero_and_overflow() {
-        assert_eq!(AddressRange::new(std::u16::MAX, 1).check_validity_for_bits(), Ok(()));
+        assert_eq!(
+            AddressRange::new(std::u16::MAX, 1).check_validity_for_bits(),
+            Ok(())
+        );
 
-        assert_eq!(AddressRange::new(0, 0).check_validity_for_bits(), Err(InvalidRequest::CountOfZero));
+        assert_eq!(
+            AddressRange::new(0, 0).check_validity_for_bits(),
+            Err(InvalidRequest::CountOfZero)
+        );
         // 2 items starting at the max index would overflow
-        assert_eq!(AddressRange::new(std::u16::MAX, 2).check_validity_for_bits(), Err(InvalidRequest::AddressOverflow(std::u16::MAX, 2)));
-
+        assert_eq!(
+            AddressRange::new(std::u16::MAX, 2).check_validity_for_bits(),
+            Err(InvalidRequest::AddressOverflow(std::u16::MAX, 2))
+        );
     }
-
 }

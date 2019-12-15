@@ -6,13 +6,13 @@ use tokio::net::TcpStream;
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
 
+use crate::client::session::{Session, UnitId};
 use crate::error::*;
 use crate::service::services::*;
 use crate::service::traits::Service;
-use crate::client::session::{Session, UnitId};
 use crate::tcp::frame::{MBAPFormatter, MBAPParser};
 use crate::util::cursor::ReadCursor;
-use crate::util::frame::{FramedReader, FrameFormatter};
+use crate::util::frame::{FrameFormatter, FramedReader};
 
 /// Models a communication channel from which communication a `Session`
 /// can be created.
@@ -27,7 +27,7 @@ pub(crate) enum Request {
     ReadHoldingRegisters(ServiceRequest<ReadHoldingRegisters>),
     ReadInputRegisters(ServiceRequest<ReadInputRegisters>),
     WriteSingleCoil(ServiceRequest<WriteSingleCoil>),
-    WriteSingleRegister(ServiceRequest<WriteSingleRegister>)
+    WriteSingleRegister(ServiceRequest<WriteSingleRegister>),
 }
 
 impl Request {
@@ -35,8 +35,8 @@ impl Request {
         match self {
             Request::ReadCoils(r) => r.fail(ErrorKind::NoConnection.into()),
             Request::ReadDiscreteInputs(r) => r.fail(ErrorKind::NoConnection.into()),
-            Request::ReadHoldingRegisters(r)  => r.fail(ErrorKind::NoConnection.into()),
-            Request::ReadInputRegisters(r)  => r.fail(ErrorKind::NoConnection.into()),
+            Request::ReadHoldingRegisters(r) => r.fail(ErrorKind::NoConnection.into()),
+            Request::ReadInputRegisters(r) => r.fail(ErrorKind::NoConnection.into()),
             Request::WriteSingleCoil(r) => r.fail(ErrorKind::NoConnection.into()),
             Request::WriteSingleRegister(r) => r.fail(ErrorKind::NoConnection.into()),
         }
@@ -50,13 +50,23 @@ impl Request {
 pub(crate) struct ServiceRequest<S: Service> {
     id: UnitId,
     timeout: Duration,
-    argument : S::Request,
-    reply_to : oneshot::Sender<Result<S::Response, Error>>,
+    argument: S::Request,
+    reply_to: oneshot::Sender<Result<S::Response, Error>>,
 }
 
 impl<S: Service> ServiceRequest<S> {
-    pub fn new(id: UnitId, timeout: Duration, argument : S::Request, reply_to : oneshot::Sender<Result<S::Response, Error>>) -> Self {
-        Self { id, timeout, argument, reply_to }
+    pub fn new(
+        id: UnitId,
+        timeout: Duration,
+        argument: S::Request,
+        reply_to: oneshot::Sender<Result<S::Response, Error>>,
+    ) -> Self {
+        Self {
+            id,
+            timeout,
+            argument,
+            reply_to,
+        }
     }
 
     pub fn reply(self, value: Result<S::Response, Error>) {
@@ -81,31 +91,34 @@ pub mod strategy {
         doubling(Duration::from_millis(100), Duration::from_secs(5))
     }
 
-    pub fn doubling(min : Duration, max : Duration) -> Box<dyn ReconnectStrategy + Send> {
+    pub fn doubling(min: Duration, max: Duration) -> Box<dyn ReconnectStrategy + Send> {
         Doubling::create(min, max)
     }
 
     struct Doubling {
-        min : Duration,
-        max : Duration,
-        current: Duration
+        min: Duration,
+        max: Duration,
+        current: Duration,
     }
 
     impl Doubling {
-        pub fn create(min : Duration, max: Duration) -> Box<dyn ReconnectStrategy + Send> {
-            Box::new(Doubling { min, max, current : min })
+        pub fn create(min: Duration, max: Duration) -> Box<dyn ReconnectStrategy + Send> {
+            Box::new(Doubling {
+                min,
+                max,
+                current: min,
+            })
         }
     }
 
     impl ReconnectStrategy for Doubling {
-
         fn reset(&mut self) {
             self.current = self.min;
         }
 
         fn next_delay(&mut self) -> Duration {
             let ret = self.current;
-            self.current = std::cmp::min(2*self.current, self.max);
+            self.current = std::cmp::min(2 * self.current, self.max);
             ret
         }
     }
@@ -119,7 +132,7 @@ impl Channel {
     }
 
     pub fn create_session(&self, id: UnitId, response_timeout: Duration) -> Session {
-        Session::new(id, response_timeout,self.tx.clone())
+        Session::new(id, response_timeout, self.tx.clone())
     }
 }
 
@@ -130,14 +143,14 @@ enum SessionError {
     // the stream errors or there is an unrecoverable framing issue
     IOError,
     // the mpsc is closed (dropped)  on the sender side
-    Shutdown
+    Shutdown,
 }
 
 impl SessionError {
     pub fn from(err: &Error) -> Option<Self> {
         match err.kind() {
             ErrorKind::Io(_) | ErrorKind::BadFrame(_) => Some(SessionError::IOError),
-            _ => None
+            _ => None,
         }
     }
 }
@@ -153,18 +166,22 @@ struct ChannelServer {
     connect_retry: Box<dyn ReconnectStrategy + Send>,
     formatter: Box<dyn FrameFormatter + Send>,
     reader: FramedReader,
-    tx_id: u16
+    tx_id: u16,
 }
 
 impl ChannelServer {
-    pub fn new(addr: SocketAddr, rx: mpsc::Receiver<Request>, connect_retry: Box<dyn ReconnectStrategy + Send>) -> Self {
+    pub fn new(
+        addr: SocketAddr,
+        rx: mpsc::Receiver<Request>,
+        connect_retry: Box<dyn ReconnectStrategy + Send>,
+    ) -> Self {
         Self {
             addr,
             rx,
-            formatter : MBAPFormatter::boxed(),
+            formatter: MBAPFormatter::boxed(),
             connect_retry,
-            reader : FramedReader::new(MBAPParser::boxed()),
-            tx_id : 0
+            reader: FramedReader::new(MBAPParser::boxed()),
+            tx_id: 0,
         }
     }
 
@@ -190,49 +207,75 @@ impl ChannelServer {
                         // this occurs when the mpsc is dropped, so the task can exit
                         return;
                     }
-                },
+                }
                 Ok(stream) => {
                     match self.run_session(stream).await {
                         // the mpsc was closed, end the task
                         SessionError::Shutdown => return,
                         // re-establish the connection
-                        SessionError::IOError => {},
+                        SessionError::IOError => {}
                     }
                 }
             }
         }
     }
 
-    async fn run_session(&mut self, mut io : TcpStream) -> SessionError {
-        while let Some(value) =  self.rx.recv().await {
+    async fn run_session(&mut self, mut io: TcpStream) -> SessionError {
+        while let Some(value) = self.rx.recv().await {
             match value {
                 Request::ReadCoils(srv) => {
-                   if let Some(err) = self.handle_request::<crate::service::services::ReadCoils>(&mut io, srv).await {
-                       return err;
-                   }
-                },
+                    if let Some(err) = self
+                        .handle_request::<crate::service::services::ReadCoils>(&mut io, srv)
+                        .await
+                    {
+                        return err;
+                    }
+                }
                 Request::ReadDiscreteInputs(srv) => {
-                    if let Some(err) = self.handle_request::<crate::service::services::ReadDiscreteInputs>(&mut io, srv).await {
+                    if let Some(err) = self
+                        .handle_request::<crate::service::services::ReadDiscreteInputs>(
+                            &mut io, srv,
+                        )
+                        .await
+                    {
                         return err;
                     }
-                },
+                }
                 Request::ReadHoldingRegisters(srv) => {
-                    if let Some(err) = self.handle_request::<crate::service::services::ReadHoldingRegisters>(&mut io, srv).await {
+                    if let Some(err) = self
+                        .handle_request::<crate::service::services::ReadHoldingRegisters>(
+                            &mut io, srv,
+                        )
+                        .await
+                    {
                         return err;
                     }
-                },
+                }
                 Request::ReadInputRegisters(srv) => {
-                    if let Some(err) = self.handle_request::<crate::service::services::ReadInputRegisters>(&mut io, srv).await {
+                    if let Some(err) = self
+                        .handle_request::<crate::service::services::ReadInputRegisters>(
+                            &mut io, srv,
+                        )
+                        .await
+                    {
                         return err;
                     }
-                },
+                }
                 Request::WriteSingleCoil(srv) => {
-                    if let Some(err) = self.handle_request::<crate::service::services::WriteSingleCoil>(&mut io, srv).await {
+                    if let Some(err) = self
+                        .handle_request::<crate::service::services::WriteSingleCoil>(&mut io, srv)
+                        .await
+                    {
                         return err;
                     }
-                },
+                }
                 Request::WriteSingleRegister(srv) => {
-                    if let Some(err) = self.handle_request::<crate::service::services::WriteSingleRegister>(&mut io, srv).await {
+                    if let Some(err) = self
+                        .handle_request::<crate::service::services::WriteSingleRegister>(
+                            &mut io, srv,
+                        )
+                        .await
+                    {
                         return err;
                     }
                 }
@@ -241,10 +284,16 @@ impl ChannelServer {
         SessionError::Shutdown
     }
 
-    async fn handle_request<S: Service>(&mut self, io: &mut TcpStream, srv: ServiceRequest<S>) -> Option<SessionError> {
-        let result = self.send_and_receive::<S>(io, srv.id, srv.timeout, &srv.argument).await;
+    async fn handle_request<S: Service>(
+        &mut self,
+        io: &mut TcpStream,
+        srv: ServiceRequest<S>,
+    ) -> Option<SessionError> {
+        let result = self
+            .send_and_receive::<S>(io, srv.id, srv.timeout, &srv.argument)
+            .await;
 
-        let ret = result.as_ref().err().and_then(|e| SessionError::from(e) );
+        let ret = result.as_ref().err().and_then(|e| SessionError::from(e));
 
         // we always send the result, no matter what happened
         srv.reply_to.send(result).ok();
@@ -252,17 +301,29 @@ impl ChannelServer {
         ret
     }
 
-    async fn send_and_receive<S: Service>(&mut self, io: &mut TcpStream, unit_id: UnitId, timeout: Duration, request: &S::Request) -> Result<S::Response, Error> {
+    async fn send_and_receive<S: Service>(
+        &mut self,
+        io: &mut TcpStream,
+        unit_id: UnitId,
+        timeout: Duration,
+        request: &S::Request,
+    ) -> Result<S::Response, Error> {
         let tx_id = self.next_tx_id();
-        let bytes = self.formatter.format(tx_id, unit_id.value(), S::REQUEST_FUNCTION_CODE_VALUE, request)?;
+        let bytes = self.formatter.format(
+            tx_id,
+            unit_id.value(),
+            S::REQUEST_FUNCTION_CODE_VALUE,
+            request,
+        )?;
         io.write_all(bytes).await?;
 
         let deadline = tokio::time::Instant::now() + timeout;
 
         // loop until we get a response with the correct tx id or we timeout
         loop {
-
-            let frame = tokio::time::timeout_at(deadline, self.reader.next_frame(io)).await.map_err(|_err| ErrorKind::ResponseTimeout)??;
+            let frame = tokio::time::timeout_at(deadline, self.reader.next_frame(io))
+                .await
+                .map_err(|_err| ErrorKind::ResponseTimeout)??;
 
             //let frame = .map_err() await??;
 
@@ -271,13 +332,10 @@ impl ChannelServer {
                 let mut cursor = ReadCursor::new(frame.payload());
                 return S::parse_response(&mut cursor, request);
             }
-
         }
-
     }
 
-    async fn fail_requests_for(&mut self, duration: Duration) -> Result<(),()> {
-
+    async fn fail_requests_for(&mut self, duration: Duration) -> Result<(), ()> {
         let deadline = tokio::time::Instant::now() + duration;
 
         loop {
@@ -287,7 +345,7 @@ impl ChannelServer {
                 // channel was closed
                 Ok(None) => return Err(()),
                 // fail request, do another iteration
-                Ok(Some(request)) => request.fail()
+                Ok(Some(request)) => request.fail(),
             }
         }
     }
