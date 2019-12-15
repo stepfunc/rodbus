@@ -1,8 +1,8 @@
+use crate::client::message::{Request, ServiceRequest};
 use crate::client::session::*;
 use crate::error::*;
 use crate::service::function::FunctionCode;
 use crate::service::traits::Service;
-use crate::client::message::{Request, ServiceRequest};
 
 impl Service for crate::service::services::ReadCoils {
     const REQUEST_FUNCTION_CODE: FunctionCode = FunctionCode::ReadCoils;

@@ -77,16 +77,18 @@ extern crate error_chain;
 pub mod prelude;
 /// client api
 pub mod client {
-    /// Types that represent a persistent communication channel such as a TCP connection
-    pub mod channel;
-    /// Types that users interact with to make requests to a Modbus server
-    pub mod session;
-    /// messages exchanged between the session and the channel task
-    pub(crate) mod message;
-
     use std::net::SocketAddr;
 
     use crate::client::channel::{Channel, ReconnectStrategy};
+
+    /// Types that represent a persistent communication channel such as a TCP connection
+    pub mod channel;
+    /// messages exchanged between the session and the channel task
+    pub(crate) mod message;
+    /// Types that users interact with to make requests to a Modbus server
+    pub mod session;
+    /// asynchronous task that executes Modbus requests against the underlying I/O
+    pub(crate) mod task;
 
     /// Create a Channel that attempts to maintain a TCP connection
     ///

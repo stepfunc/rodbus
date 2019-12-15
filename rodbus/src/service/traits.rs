@@ -3,15 +3,15 @@ use crate::error::*;
 use crate::service::function::FunctionCode;
 use crate::util::cursor::*;
 
-pub(crate) trait SerializeRequest {
+pub trait SerializeRequest {
     fn serialize_after_function(&self, cursor: &mut WriteCursor) -> Result<(), Error>;
 }
 
-pub(crate) trait ParseResponse<T>: Sized {
+pub trait ParseResponse<T>: Sized {
     fn parse_after_function(cursor: &mut ReadCursor, request: &T) -> Result<Self, Error>;
 }
 
-pub(crate) trait Service: Sized {
+pub trait Service: Sized {
     const REQUEST_FUNCTION_CODE: FunctionCode;
     const REQUEST_FUNCTION_CODE_VALUE: u8 = Self::REQUEST_FUNCTION_CODE.get_value();
     const RESPONSE_ERROR_CODE_VALUE: u8 =

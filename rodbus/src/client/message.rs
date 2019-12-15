@@ -1,14 +1,15 @@
-use crate::service::traits::Service;
-use crate::service::services::*;
-use crate::error::*;
-use crate::client::session::UnitId;
 use std::time::Duration;
 
 use tokio::sync::oneshot;
 
+use crate::client::session::UnitId;
+use crate::error::*;
+use crate::service::services::*;
+use crate::service::traits::Service;
+
 /// possible requests that can be sent through the channel
 /// each variant is just a wrapper around a ServiceRequest<S>
-pub(crate) enum Request {
+pub enum Request {
     ReadCoils(ServiceRequest<ReadCoils>),
     ReadDiscreteInputs(ServiceRequest<ReadDiscreteInputs>),
     ReadHoldingRegisters(ServiceRequest<ReadHoldingRegisters>),
@@ -32,7 +33,7 @@ impl Request {
 
 /// All of the information that the channel task
 /// needs to process the request
-pub(crate) struct ServiceRequest<S: Service> {
+pub struct ServiceRequest<S: Service> {
     pub id: UnitId,
     pub timeout: Duration,
     pub argument: S::Request,
