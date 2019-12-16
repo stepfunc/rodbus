@@ -67,23 +67,23 @@ pub(crate) trait FrameFormatter {
     ) -> Result<&[u8], Error>;
 }
 
-pub struct FramedReader {
-    parser: Box<dyn FrameParser + Send>,
+pub struct FramedReader<T> where T : FrameParser {
+    parser: T,
     buffer: ReadBuffer,
 }
 
-impl FramedReader {
-    pub fn new(parser: Box<dyn FrameParser + Send>) -> FramedReader {
+impl<T : FrameParser> FramedReader<T> {
+    pub fn new(parser: T) -> Self {
         let size = parser.max_frame_size();
-        FramedReader {
+        Self {
             parser,
             buffer: ReadBuffer::new(size),
         }
     }
 
-    pub async fn next_frame<T>(&mut self, io: &mut T) -> Result<Frame, Error>
+    pub async fn next_frame<R>(&mut self, io: &mut R) -> Result<Frame, Error>
     where
-        T: AsyncRead + Unpin,
+        R: AsyncRead + Unpin,
     {
         loop {
             match self.parser.parse(&mut self.buffer)? {

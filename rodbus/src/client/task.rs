@@ -45,7 +45,7 @@ pub struct ChannelTask {
     rx: mpsc::Receiver<Request>,
     connect_retry: Box<dyn ReconnectStrategy + Send>,
     formatter: MBAPFormatter,
-    reader: FramedReader,
+    reader: FramedReader<MBAPParser>,
     tx_id: u16,
 }
 
@@ -60,7 +60,7 @@ impl ChannelTask {
             rx,
             formatter: MBAPFormatter::new(),
             connect_retry,
-            reader: FramedReader::new(MBAPParser::boxed()),
+            reader: FramedReader::new(MBAPParser::new()),
             tx_id: 0,
         }
     }
