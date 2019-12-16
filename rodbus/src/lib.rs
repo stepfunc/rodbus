@@ -118,14 +118,11 @@ pub mod server {
     pub mod server;
     mod task;
 
-    /// Create a Channel that attempts to maintain a TCP connection
-    ///
-    /// The channel uses the provided RetryStrategy to pause between failed connection attempts
-    ///
-    /// * `addr` - Socket address of the remote server
-    /// * `retry` - A boxed trait object that controls when the connection is retried on failure
-    pub fn create_tcp_server(addr: SocketAddr, handlers: BTreeMap<UnitId, Arc<dyn Server>>) {
-        tokio::spawn(async move { ServerTask::new(addr, handlers).run().await });
+    pub async fn run_tcp_server(
+        addr: SocketAddr,
+        handlers: BTreeMap<UnitId, Arc<dyn Server>>,
+    ) -> std::io::Result<()> {
+        ServerTask::new(addr, handlers).run().await
     }
 }
 

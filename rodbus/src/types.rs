@@ -1,5 +1,6 @@
 use crate::error::details::{ADUParseError, ExceptionCode, InvalidRequest};
 use crate::service::function::FunctionCode;
+use std::ops::Range;
 
 #[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Ord, Eq)]
 pub struct UnitId {
@@ -21,12 +22,6 @@ pub struct RegisterValue {
 pub struct Indexed<T> {
     pub index: u16,
     pub value: T,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Ord, Eq)]
-pub struct ErrorResponse {
-    pub function: u8,
-    pub exception: ExceptionCode,
 }
 
 mod constants {
@@ -122,18 +117,5 @@ impl UnitId {
 
     pub fn value(self) -> u8 {
         self.id
-    }
-}
-
-impl ErrorResponse {
-    pub fn new(function: u8, exception: ExceptionCode) -> Self {
-        Self {
-            function,
-            exception,
-        }
-    }
-
-    pub fn from(function: FunctionCode, exception: ExceptionCode) -> Self {
-        Self::new(function.get_value(), exception)
     }
 }

@@ -3,12 +3,16 @@ use crate::error::*;
 use crate::service::function::FunctionCode;
 use crate::util::cursor::*;
 
-pub trait Serialize {
+pub trait Serialize: Sync {
     fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), Error>;
 }
 
 pub trait ParseResponse<T>: Sized {
     fn parse(cursor: &mut ReadCursor, request: &T) -> Result<Self, Error>;
+}
+
+pub trait ParseRequest: Sized {
+    fn parse(cursor: &mut ReadCursor) -> Result<Self, Error>;
 }
 
 pub trait Service: Sized {

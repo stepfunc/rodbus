@@ -5,6 +5,7 @@ use log::{info, warn};
 use tokio::net::TcpStream;
 use tokio::prelude::*;
 use tokio::sync::*;
+use tokio::time::Instant;
 
 use crate::client::channel::ReconnectStrategy;
 use crate::client::message::{Request, ServiceRequest};

@@ -3,4 +3,5 @@
 members = [
   "rodbus",
   "examples/client",
+  "examples/server",
 ]

@@ -1,13 +1,25 @@
+use crate::error::details::ExceptionCode;
 use crate::error::*;
-use crate::service::traits::{ParseResponse, Serialize};
+use crate::service::traits::{ParseRequest, ParseResponse, Serialize};
 use crate::types::*;
 use crate::util::cursor::*;
+
+use std::convert::TryFrom;
 
 impl Serialize for AddressRange {
     fn serialize(&self, cur: &mut WriteCursor) -> Result<(), Error> {
         cur.write_u16_be(self.start)?;
         cur.write_u16_be(self.count)?;
         Ok(())
+    }
+}
+
+impl ParseRequest for AddressRange {
+    fn parse(cursor: &mut ReadCursor) -> Result<Self, Error> {
+        Ok(AddressRange::new(
+            cursor.read_u16_be()?,
+            cursor.read_u16_be()?,
+        ))
     }
 }
 
@@ -107,6 +119,19 @@ impl ParseResponse<AddressRange> for Vec<Indexed<bool>> {
     }
 }
 
+impl Serialize for Vec<Indexed<RegisterValue>> {
+    fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), Error> {
+        let byte_count = 2 * self.len();
+        let count = u8::try_from(byte_count)
+            .map_err(|_| ErrorKind::Bug(bugs::ErrorKind::ADUTooBig(byte_count)))?;
+        cursor.write_u8(count)?;
+        for x in self {
+            cursor.write_u16_be(x.value.value)?
+        }
+        Ok(())
+    }
+}
+
 impl ParseResponse<AddressRange> for Vec<Indexed<u16>> {
     fn parse(cursor: &mut ReadCursor, request: &AddressRange) -> Result<Self, Error> {
         let byte_count = cursor.read_u8()? as usize;
@@ -143,10 +168,9 @@ impl ParseResponse<AddressRange> for Vec<Indexed<u16>> {
     }
 }
 
-impl Serialize for ErrorResponse {
+impl Serialize for ExceptionCode {
     fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), Error> {
-        cursor.write_u8(self.function)?;
-        cursor.write_u8(self.exception.to_u8())?;
+        cursor.write_u8(self.to_u8())?;
         Ok(())
     }
 }

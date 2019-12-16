@@ -10,8 +10,9 @@ use crate::error::details::ExceptionCode;
 use crate::error::Error;
 use crate::server::server::Server;
 use crate::service::function::FunctionCode;
+use crate::service::traits::{ParseRequest, Serialize};
 use crate::tcp::frame::{MBAPFormatter, MBAPParser};
-use crate::types::{ErrorResponse, UnitId};
+use crate::types::{AddressRange, UnitId};
 use crate::util::cursor::ReadCursor;
 use crate::util::frame::{FrameFormatter, FramedReader};
 
@@ -56,45 +57,86 @@ impl SessionTask {
         }
     }
 
-    pub async fn run(&mut self) -> std::result::Result<(), Error> {
-        loop {
-            // any I/O or parsing errors close the session
-            let frame = self.reader.next_frame(&mut self.socket).await?;
-            let mut cursor = ReadCursor::new(frame.payload());
+    async fn reply(
+        &mut self,
+        unit_id: u8,
+        tx_id: u16,
+        function: u8,
+        msg: &dyn Serialize,
+    ) -> std::result::Result<(), Error> {
+        let bytes = self.writer.format(tx_id, unit_id, function, msg)?;
+        self.socket.write_all(bytes).await?;
+        Ok(())
+    }
 
-            let function = match cursor.read_u8() {
-                Err(_) => {
-                    warn!("received request without a function code");
-                    continue;
+    async fn run(&mut self) -> std::result::Result<(), Error> {
+        loop {
+            self.run_one().await?;
+        }
+    }
+
+    pub async fn run_one(&mut self) -> std::result::Result<(), Error> {
+        // any I/O or parsing errors close the session
+        let frame = self.reader.next_frame(&mut self.socket).await?;
+        let mut cursor = ReadCursor::new(frame.payload());
+
+        let function = match cursor.read_u8() {
+            Err(_) => {
+                warn!("received request without a function code");
+                return Ok(());
+            }
+            Ok(value) => match FunctionCode::get(value) {
+                Some(x) => x,
+                None => {
+                    warn!("received unknown function code: {}", value);
+                    return self
+                        .reply(
+                            frame.unit_id,
+                            frame.tx_id,
+                            value | 0x80,
+                            &ExceptionCode::IllegalFunction,
+                        )
+                        .await;
                 }
+            },
+        };
+
+        let server = match self.servers.get(&UnitId::new(frame.unit_id)) {
+            None => {
+                warn!("received frame for unmapped unit id: {}", frame.unit_id);
+                return Ok(());
+            }
+            Some(server) => server,
+        };
+
+        match function {
+            FunctionCode::ReadHoldingRegisters => match AddressRange::parse(&mut cursor) {
                 Ok(value) => {
-                    match FunctionCode::get(value) {
-                        Some(x) => x,
-                        None => {
-                            warn!("received unknown function code: {}", value);
-                            // TODO - reply with
-                            continue;
+                    match server.read_holding_registers(value) {
+                        Ok(response) => {
+                            self.reply(frame.unit_id, frame.tx_id, function.get_value(), &response)
+                                .await?
+                        }
+                        Err(ex) => {
+                            self.reply(frame.unit_id, frame.tx_id, function.as_error(), &ex)
+                                .await?
                         }
                     }
+                    return Ok(());
                 }
-            };
-
-            match self.servers.get(&UnitId::new(frame.unit_id)) {
-                None => {
-                    warn!("received frame for unmapped unit id: {}", frame.unit_id);
+                Err(e) => {
+                    warn!("error parsing {}: {}", function.get_value(), e);
+                    return Ok(());
                 }
-                Some(server) => {
-                    // we have a mapping!
-                    // for now, reply with unsupported function
-                    let response = ErrorResponse::from(function, ExceptionCode::IllegalFunction);
-                    let bytes = self.writer.format(
-                        frame.tx_id,
-                        frame.unit_id,
-                        function.as_error(),
-                        &response,
-                    )?;
-                    self.socket.write_all(bytes).await?;
-                }
+            },
+            _ => {
+                self.reply(
+                    frame.unit_id,
+                    frame.tx_id,
+                    function.as_error(),
+                    &ExceptionCode::IllegalFunction,
+                )
+                .await
             }
         }
     }
