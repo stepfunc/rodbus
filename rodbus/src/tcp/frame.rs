@@ -36,10 +36,10 @@ pub(crate) struct MBAPFormatter {
 }
 
 impl MBAPFormatter {
-    pub fn boxed() -> Box<dyn FrameFormatter + Send> {
-        Box::new(MBAPFormatter {
+    pub fn new() -> Self {
+        Self {
             buffer: [0; constants::MAX_FRAME_LENGTH],
-        })
+        }
     }
 }
 
@@ -199,7 +199,7 @@ mod tests {
 
     #[test]
     fn correctly_formats_frame() {
-        let mut formatter = MBAPFormatter::boxed();
+        let mut formatter = MBAPFormatter::new();
         let msg = MockMessage { a: 0x04 };
         let output = formatter.format(7, 42, 0x03, &msg).unwrap();
 
