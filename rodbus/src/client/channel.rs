@@ -4,8 +4,9 @@ use std::time::Duration;
 use tokio::sync::mpsc;
 
 use crate::client::message::Request;
-use crate::client::session::{Session, UnitId};
+use crate::client::session::Session;
 use crate::client::task::ChannelTask;
+use crate::types::UnitId;
 
 /// Channel from which Session objects can be obtained to make requests
 pub struct Channel {

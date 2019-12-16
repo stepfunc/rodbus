@@ -9,9 +9,9 @@ use crate::util::frame::{Frame, FrameFormatter, FrameParser};
 pub mod constants {
     pub const HEADER_LENGTH: usize = 7;
     pub const MAX_FRAME_LENGTH: usize =
-        HEADER_LENGTH + crate::util::frame::constants::MAX_ADU_LENGTH; // cannot be < 1 b/c of the unit identifier
+        HEADER_LENGTH + crate::util::frame::constants::MAX_ADU_LENGTH;
+    // cannot be < 1 b/c of the unit identifier
     pub const MAX_LENGTH_FIELD: usize = crate::util::frame::constants::MAX_ADU_LENGTH + 1;
-    // includes the 1 byte unit id
 }
 
 #[derive(Clone, Copy)]

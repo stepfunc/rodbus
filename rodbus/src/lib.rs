@@ -75,17 +75,18 @@ extern crate error_chain;
 
 /// prelude used to include all of the API types (e.g. use rodbus::prelude::*;)
 pub mod prelude;
+/// API types common to both client and server
+pub mod types;
 /// client API
 pub mod client {
     use std::net::SocketAddr;
 
     use crate::client::channel::{Channel, ReconnectStrategy};
-
-    /// Types that represent a persistent communication channel such as a TCP connection
+    /// persistent communication channel such as a TCP connection
     pub mod channel;
     /// messages exchanged between the session and the channel task
     pub(crate) mod message;
-    /// Types that users interact with to make requests to a Modbus server
+    /// API used to communicate with the server
     pub mod session;
     /// asynchronous task that executes Modbus requests against the underlying I/O
     pub(crate) mod task;

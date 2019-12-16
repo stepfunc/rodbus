@@ -1,4 +1,4 @@
-use crate::client::session::{AddressRange, CoilState, Indexed, RegisterValue};
+use crate::types::*;
 use crate::error::details::ResponseParseError;
 use crate::error::Error;
 use crate::service::traits::{ParseResponse, SerializeRequest};

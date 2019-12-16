@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use tokio::sync::oneshot;
 
-use crate::client::session::UnitId;
+use crate::types::UnitId;
 use crate::error::*;
 use crate::service::services::*;
 use crate::service::traits::Service;

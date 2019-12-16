@@ -9,7 +9,7 @@ use log::{warn, info};
 
 use crate::client::channel::ReconnectStrategy;
 use crate::client::message::{Request, ServiceRequest};
-use crate::client::session::UnitId;
+use crate::types::UnitId;
 use crate::error::*;
 use crate::service::traits::Service;
 use crate::tcp::frame::{MBAPFormatter, MBAPParser};

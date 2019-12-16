@@ -1,5 +1,5 @@
 use crate::client::message::{Request, ServiceRequest};
-use crate::client::session::{Indexed, RegisterValue};
+use crate::types::{Indexed, RegisterValue};
 use crate::error::details::InvalidRequest;
 use crate::service::function::FunctionCode;
 use crate::service::services::WriteSingleRegister;
