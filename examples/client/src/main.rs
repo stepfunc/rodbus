@@ -60,6 +60,9 @@ impl Args {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // print log messages to the console
+    simple_logger::init_with_level(log::Level::Info).unwrap();
+
     if let Err(ref e) = run().await {
         println!("error: {}", e);
 

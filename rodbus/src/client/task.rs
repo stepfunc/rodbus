@@ -5,6 +5,8 @@ use tokio::net::TcpStream;
 use tokio::prelude::*;
 use tokio::sync::*;
 
+use log::{warn, info};
+
 use crate::client::channel::ReconnectStrategy;
 use crate::client::message::{Request, ServiceRequest};
 use crate::client::session::UnitId;
@@ -79,7 +81,8 @@ impl ChannelTask {
         // try to connect
         loop {
             match tokio::net::TcpStream::connect(self.addr).await {
-                Err(_) => {
+                Err(e) => {
+                    warn!("error connecting: {}", e);
                     let delay = self.connect_retry.next_delay();
                     if self.fail_requests_for(delay).await.is_err() {
                         // this occurs when the mpsc is dropped, so the task can exit
@@ -87,6 +90,7 @@ impl ChannelTask {
                     }
                 }
                 Ok(stream) => {
+                    info!("connected to: {}", self.addr);
                     match self.run_session(stream).await {
                         // the mpsc was closed, end the task
                         SessionError::Shutdown => return,

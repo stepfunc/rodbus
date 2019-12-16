@@ -18,3 +18,5 @@ rodbus = { version = "0.1.0", path = "../../rodbus" }
 clap = "2.33.0"
 error-chain = "0.12.1"
 tokio = { version = "0.2.0", features = ["macros"]}
+simple_logger = "1.3.0"
+log = "0.4.9"

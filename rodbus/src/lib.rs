@@ -73,9 +73,9 @@
 #[macro_use]
 extern crate error_chain;
 
-/// prelude that can be used to include all of the API types
+/// prelude used to include all of the API types (e.g. use rodbus::prelude::*;)
 pub mod prelude;
-/// client api
+/// client API
 pub mod client {
     use std::net::SocketAddr;
 
