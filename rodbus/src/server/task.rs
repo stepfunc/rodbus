@@ -14,7 +14,7 @@ use crate::service::traits::{ParseRequest, Serialize};
 use crate::tcp::frame::{MBAPFormatter, MBAPParser};
 use crate::types::{AddressRange, UnitId};
 use crate::util::cursor::ReadCursor;
-use crate::util::frame::{FrameFormatter, FramedReader};
+use crate::util::frame::{FrameFormatter, FramedReader, FrameHeader};
 
 pub struct ServerTask {
     addr: SocketAddr,
@@ -59,12 +59,11 @@ impl SessionTask {
 
     async fn reply(
         &mut self,
-        unit_id: u8,
-        tx_id: u16,
+        header: FrameHeader,
         function: u8,
         msg: &dyn Serialize,
     ) -> std::result::Result<(), Error> {
-        let bytes = self.writer.format(tx_id, unit_id, function, msg)?;
+        let bytes = self.writer.format(header, function, msg)?;
         self.socket.write_all(bytes).await?;
         Ok(())
     }
@@ -91,8 +90,7 @@ impl SessionTask {
                     warn!("received unknown function code: {}", value);
                     return self
                         .reply(
-                            frame.unit_id,
-                            frame.tx_id,
+                            frame.header,
                             value | 0x80,
                             &ExceptionCode::IllegalFunction,
                         )
@@ -101,9 +99,9 @@ impl SessionTask {
             },
         };
 
-        let server = match self.servers.get(&UnitId::new(frame.unit_id)) {
+        let server = match self.servers.get(&frame.header.unit_id) {
             None => {
-                warn!("received frame for unmapped unit id: {}", frame.unit_id);
+                warn!("received frame for unmapped unit id: {}", frame.header.unit_id.to_u8());
                 return Ok(());
             }
             Some(server) => server,
@@ -114,11 +112,11 @@ impl SessionTask {
                 Ok(value) => {
                     match server.read_holding_registers(value) {
                         Ok(response) => {
-                            self.reply(frame.unit_id, frame.tx_id, function.get_value(), &response)
+                            self.reply(frame.header, function.get_value(), &response)
                                 .await?
                         }
                         Err(ex) => {
-                            self.reply(frame.unit_id, frame.tx_id, function.as_error(), &ex)
+                            self.reply(frame.header, function.as_error(), &ex)
                                 .await?
                         }
                     }
@@ -131,8 +129,7 @@ impl SessionTask {
             },
             _ => {
                 self.reply(
-                    frame.unit_id,
-                    frame.tx_id,
+                    frame.header,
                     function.as_error(),
                     &ExceptionCode::IllegalFunction,
                 )

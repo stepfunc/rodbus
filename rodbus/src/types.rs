@@ -115,7 +115,7 @@ impl UnitId {
         Self { id: 0xFF }
     }
 
-    pub fn value(self) -> u8 {
+    pub fn to_u8(self) -> u8 {
         self.id
     }
 }

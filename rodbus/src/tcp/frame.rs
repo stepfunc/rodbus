@@ -4,7 +4,8 @@ use crate::error::*;
 use crate::service::traits::Serialize;
 use crate::util::buffer::ReadBuffer;
 use crate::util::cursor::WriteCursor;
-use crate::util::frame::{Frame, FrameFormatter, FrameParser};
+use crate::util::frame::{Frame, FrameFormatter, FrameParser, FrameHeader, TxId};
+use crate::types::UnitId;
 
 pub mod constants {
     pub const HEADER_LENGTH: usize = 7;
@@ -16,9 +17,9 @@ pub mod constants {
 
 #[derive(Clone, Copy)]
 struct MBAPHeader {
-    tx_id: u16,
+    tx_id: TxId,
     adu_length: usize,
-    unit_id: u8,
+    unit_id: UnitId,
 }
 
 #[derive(Clone, Copy)]
@@ -51,10 +52,10 @@ impl MBAPParser {
     }
 
     fn parse_header(cursor: &mut ReadBuffer) -> Result<MBAPHeader, Error> {
-        let tx_id = cursor.read_u16_be()?;
+        let tx_id = TxId::new(cursor.read_u16_be()?);
         let protocol_id = cursor.read_u16_be()?;
         let length = cursor.read_u16_be()? as usize;
-        let unit_id = cursor.read_u8()?;
+        let unit_id = UnitId::new(cursor.read_u8()?);
 
         if protocol_id != 0 {
             return Err(details::FrameParseError::UnknownProtocolId(protocol_id).into());
@@ -81,7 +82,7 @@ impl MBAPParser {
     }
 
     fn parse_body(header: &MBAPHeader, cursor: &mut ReadBuffer) -> Result<Frame, Error> {
-        let mut frame = Frame::new(header.unit_id, header.tx_id);
+        let mut frame = Frame::new(FrameHeader::new(header.unit_id, header.tx_id));
         frame.set(cursor.read(header.adu_length)?);
         Ok(frame)
     }
@@ -118,16 +119,15 @@ impl FrameParser for MBAPParser {
 impl FrameFormatter for MBAPFormatter {
     fn format(
         &mut self,
-        tx_id: u16,
-        unit_id: u8,
+        header: FrameHeader,
         function: u8,
         msg: &dyn Serialize,
     ) -> Result<&[u8], Error> {
         let mut cursor = WriteCursor::new(self.buffer.as_mut());
-        cursor.write_u16_be(tx_id)?;
+        cursor.write_u16_be(header.tx_id.to_u16())?;
         cursor.write_u16_be(0)?;
         cursor.seek_from_current(2)?; // write the length later
-        cursor.write_u8(unit_id)?;
+        cursor.write_u8(header.unit_id.to_u8())?;
 
         let adu_length: usize = {
             let start = cursor.position();
@@ -177,8 +177,8 @@ mod tests {
     }
 
     fn assert_equals_simple_frame(frame: &Frame) {
-        assert_eq!(frame.tx_id, 0x0007);
-        assert_eq!(frame.unit_id, 0x2A);
+        assert_eq!(frame.header.tx_id, TxId::new(0x0007));
+        assert_eq!(frame.header.unit_id, UnitId::new(0x2A));
         assert_eq!(frame.payload(), &[0x03, 0x04]);
     }
 
@@ -201,7 +201,8 @@ mod tests {
     fn correctly_formats_frame() {
         let mut formatter = MBAPFormatter::new();
         let msg = MockMessage { a: 0x04 };
-        let output = formatter.format(7, 42, 0x03, &msg).unwrap();
+        let header = FrameHeader::new(UnitId::new(42), TxId::new(7));
+        let output = formatter.format(header, 0x03, &msg).unwrap();
 
         assert_eq!(output, SIMPLE_FRAME)
     }

@@ -14,7 +14,7 @@ use crate::service::traits::Service;
 use crate::tcp::frame::{MBAPFormatter, MBAPParser};
 use crate::types::UnitId;
 use crate::util::cursor::ReadCursor;
-use crate::util::frame::{FrameFormatter, FramedReader};
+use crate::util::frame::{FrameFormatter, FramedReader, TxId, FrameHeader};
 
 /**
 * We always service requests in a TCP session until one of the following occurs
@@ -46,7 +46,7 @@ pub struct ChannelTask {
     connect_retry: Box<dyn ReconnectStrategy + Send>,
     formatter: MBAPFormatter,
     reader: FramedReader<MBAPParser>,
-    tx_id: u16,
+    tx_id: TxId
 }
 
 impl ChannelTask {
@@ -61,19 +61,7 @@ impl ChannelTask {
             formatter: MBAPFormatter::new(),
             connect_retry,
             reader: FramedReader::new(MBAPParser::new()),
-            tx_id: 0,
-        }
-    }
-
-    fn next_tx_id(&mut self) -> u16 {
-        // can't blindly increment b/c of Rust's overflow protections
-        if self.tx_id == u16::max_value() {
-            self.tx_id = u16::min_value();
-            u16::max_value()
-        } else {
-            let ret = self.tx_id;
-            self.tx_id += 1;
-            ret
+            tx_id: TxId::default()
         }
     }
 
@@ -190,10 +178,10 @@ impl ChannelTask {
         timeout: Duration,
         request: &S::Request,
     ) -> Result<S::Response, Error> {
-        let tx_id = self.next_tx_id();
+
+        let tx_id = self.tx_id.next();
         let bytes = self.formatter.format(
-            tx_id,
-            unit_id.value(),
+            FrameHeader::new(unit_id, tx_id),
             S::REQUEST_FUNCTION_CODE_VALUE,
             request,
         )?;
@@ -210,7 +198,7 @@ impl ChannelTask {
             //let frame = .map_err() await??;
 
             // TODO - log that non-matching tx_id found
-            if frame.tx_id == tx_id {
+            if frame.header.tx_id == tx_id {
                 let mut cursor = ReadCursor::new(frame.payload());
                 return S::parse_response(&mut cursor, request);
             }
