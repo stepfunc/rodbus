@@ -120,7 +120,6 @@ impl FrameFormatter for MBAPFormatter {
     fn format(
         &mut self,
         header: FrameHeader,
-        function: u8,
         msg: &dyn Serialize,
     ) -> Result<&[u8], Error> {
         let mut cursor = WriteCursor::new(self.buffer.as_mut());
@@ -131,7 +130,6 @@ impl FrameFormatter for MBAPFormatter {
 
         let adu_length: usize = {
             let start = cursor.position();
-            cursor.write_u8(function)?;
             msg.serialize(&mut cursor)?;
             cursor.position() - start
         };
@@ -162,16 +160,18 @@ mod tests {
 
     use super::*;
 
-    //                            |   tx id  |  proto id |  length  | unit |  payload   |
+    //                            |   tx id  |  proto id |  length  | unit |  payload  |
     const SIMPLE_FRAME: &[u8] = &[0x00, 0x07, 0x00, 0x00, 0x00, 0x03, 0x2A, 0x03, 0x04];
 
     struct MockMessage {
         a: u8,
+        b: u8,
     }
 
     impl Serialize for MockMessage {
         fn serialize(self: &Self, cursor: &mut WriteCursor) -> Result<(), Error> {
             cursor.write_u8(self.a)?;
+            cursor.write_u8(self.b)?;
             Ok(())
         }
     }
@@ -200,9 +200,9 @@ mod tests {
     #[test]
     fn correctly_formats_frame() {
         let mut formatter = MBAPFormatter::new();
-        let msg = MockMessage { a: 0x04 };
+        let msg = MockMessage { a: 0x03, b: 0x04 };
         let header = FrameHeader::new(UnitId::new(42), TxId::new(7));
-        let output = formatter.format(header, 0x03, &msg).unwrap();
+        let output = formatter.format(header, &msg).unwrap();
 
         assert_eq!(output, SIMPLE_FRAME)
     }

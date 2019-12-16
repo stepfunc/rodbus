@@ -5,7 +5,6 @@ use log::{info, warn};
 use tokio::net::TcpStream;
 use tokio::prelude::*;
 use tokio::sync::*;
-use tokio::time::Instant;
 
 use crate::client::channel::ReconnectStrategy;
 use crate::client::message::{Request, ServiceRequest};
@@ -15,6 +14,7 @@ use crate::tcp::frame::{MBAPFormatter, MBAPParser};
 use crate::types::UnitId;
 use crate::util::cursor::ReadCursor;
 use crate::util::frame::{FrameFormatter, FramedReader, TxId, FrameHeader};
+use crate::service::function::ADU;
 
 /**
 * We always service requests in a TCP session until one of the following occurs
@@ -182,8 +182,7 @@ impl ChannelTask {
         let tx_id = self.tx_id.next();
         let bytes = self.formatter.format(
             FrameHeader::new(unit_id, tx_id),
-            S::REQUEST_FUNCTION_CODE_VALUE,
-            request,
+            &ADU::new(S::REQUEST_FUNCTION_CODE.get_value(), request)
         )?;
         io.write_all(bytes).await?;
 

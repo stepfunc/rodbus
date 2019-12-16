@@ -1,6 +1,4 @@
-use crate::error::details::{ADUParseError, ExceptionCode, InvalidRequest};
-use crate::service::function::FunctionCode;
-use std::ops::Range;
+use crate::error::details::{ADUParseError, InvalidRequest};
 
 #[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Ord, Eq)]
 pub struct UnitId {

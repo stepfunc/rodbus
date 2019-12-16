@@ -103,7 +103,6 @@ pub(crate) trait FrameFormatter {
     fn format(
         &mut self,
         header: FrameHeader,
-        function: u8,
         msg: &dyn Serialize,
     ) -> Result<&[u8], Error>;
 }

@@ -9,7 +9,7 @@ use tokio::net::{TcpListener, TcpStream};
 use crate::error::details::ExceptionCode;
 use crate::error::Error;
 use crate::server::server::Server;
-use crate::service::function::FunctionCode;
+use crate::service::function::{FunctionCode, ADU};
 use crate::service::traits::{ParseRequest, Serialize};
 use crate::tcp::frame::{MBAPFormatter, MBAPParser};
 use crate::types::{AddressRange, UnitId};
@@ -60,10 +60,9 @@ impl SessionTask {
     async fn reply(
         &mut self,
         header: FrameHeader,
-        function: u8,
         msg: &dyn Serialize,
     ) -> std::result::Result<(), Error> {
-        let bytes = self.writer.format(header, function, msg)?;
+        let bytes = self.writer.format(header, msg)?;
         self.socket.write_all(bytes).await?;
         Ok(())
     }
@@ -91,8 +90,7 @@ impl SessionTask {
                     return self
                         .reply(
                             frame.header,
-                            value | 0x80,
-                            &ExceptionCode::IllegalFunction,
+                            &ADU::new(value | 0x80, &ExceptionCode::IllegalFunction),
                         )
                         .await;
                 }
@@ -112,11 +110,11 @@ impl SessionTask {
                 Ok(value) => {
                     match server.read_holding_registers(value) {
                         Ok(response) => {
-                            self.reply(frame.header, function.get_value(), &response)
+                            self.reply(frame.header, &ADU::new(function.get_value(), &response))
                                 .await?
                         }
                         Err(ex) => {
-                            self.reply(frame.header, function.as_error(), &ex)
+                            self.reply(frame.header, &ADU::new(function.as_error(), &ex))
                                 .await?
                         }
                     }
@@ -130,8 +128,7 @@ impl SessionTask {
             _ => {
                 self.reply(
                     frame.header,
-                    function.as_error(),
-                    &ExceptionCode::IllegalFunction,
+                    &ADU::new(function.as_error(),&ExceptionCode::IllegalFunction)
                 )
                 .await
             }
