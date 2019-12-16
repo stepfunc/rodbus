@@ -3,12 +3,12 @@ use crate::error::*;
 use crate::service::function::FunctionCode;
 use crate::util::cursor::*;
 
-pub trait SerializeRequest {
-    fn serialize_after_function(&self, cursor: &mut WriteCursor) -> Result<(), Error>;
+pub trait Serialize {
+    fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), Error>;
 }
 
 pub trait ParseResponse<T>: Sized {
-    fn parse_after_function(cursor: &mut ReadCursor, request: &T) -> Result<Self, Error>;
+    fn parse(cursor: &mut ReadCursor, request: &T) -> Result<Self, Error>;
 }
 
 pub trait Service: Sized {
@@ -17,7 +17,7 @@ pub trait Service: Sized {
     const RESPONSE_ERROR_CODE_VALUE: u8 =
         Self::REQUEST_FUNCTION_CODE_VALUE | crate::service::function::constants::ERROR_DELIMITER;
 
-    type Request: SerializeRequest + Send + Sync + 'static;
+    type Request: Serialize + Send + Sync + 'static;
     type Response: ParseResponse<Self::Request> + Send + Sync + 'static;
 
     fn check_request_validity(request: &Self::Request) -> Result<(), details::InvalidRequest>;
@@ -31,9 +31,9 @@ pub trait Service: Sized {
         let function = cursor.read_u8()?;
 
         if function == Self::REQUEST_FUNCTION_CODE_VALUE {
-            let response = Self::Response::parse_after_function(cursor, request)?;
+            let response = Self::Response::parse(cursor, request)?;
             if !cursor.is_empty() {
-                return Err(details::ResponseParseError::TrailingBytes(cursor.len()).into());
+                return Err(details::ADUParseError::TrailingBytes(cursor.len()).into());
             }
             return Ok(response);
         }
@@ -41,12 +41,12 @@ pub trait Service: Sized {
         if function == Self::RESPONSE_ERROR_CODE_VALUE {
             let exception = details::ExceptionCode::from_u8(cursor.read_u8()?);
             if !cursor.is_empty() {
-                return Err(details::ResponseParseError::TrailingBytes(cursor.len()).into());
+                return Err(details::ADUParseError::TrailingBytes(cursor.len()).into());
             }
             return Err(exception.into());
         }
 
-        Err(details::ResponseParseError::UnknownResponseFunction(
+        Err(details::ADUParseError::UnknownResponseFunction(
             function,
             Self::REQUEST_FUNCTION_CODE_VALUE,
             Self::RESPONSE_ERROR_CODE_VALUE,

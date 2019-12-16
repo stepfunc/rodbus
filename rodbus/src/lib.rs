@@ -42,7 +42,7 @@
 //!#[tokio::main]
 //!async fn main() -> Result<(), Box<dyn std::error::Error>> {
 //!
-//!    let channel = create_client_tcp_channel(
+//!    let channel = create_tcp_client(
 //!        SocketAddr::from_str("127.0.0.1:502")?,
 //!        strategy::default()
 //!    );
@@ -82,6 +82,7 @@ pub mod client {
     use std::net::SocketAddr;
 
     use crate::client::channel::{Channel, ReconnectStrategy};
+
     /// persistent communication channel such as a TCP connection
     pub mod channel;
     /// messages exchanged between the session and the channel task
@@ -97,11 +98,34 @@ pub mod client {
     ///
     /// * `addr` - Socket address of the remote server
     /// * `retry` - A boxed trait object that controls when the connection is retried on failure
-    pub fn create_client_tcp_channel(
+    pub fn create_tcp_client(
         addr: SocketAddr,
         retry: Box<dyn ReconnectStrategy + Send>,
     ) -> Channel {
         Channel::new(addr, retry)
+    }
+}
+
+pub mod server {
+    use std::collections::BTreeMap;
+    use std::net::SocketAddr;
+    use std::sync::Arc;
+
+    use crate::server::server::Server;
+    use crate::server::task::ServerTask;
+    use crate::types::UnitId;
+
+    pub mod server;
+    mod task;
+
+    /// Create a Channel that attempts to maintain a TCP connection
+    ///
+    /// The channel uses the provided RetryStrategy to pause between failed connection attempts
+    ///
+    /// * `addr` - Socket address of the remote server
+    /// * `retry` - A boxed trait object that controls when the connection is retried on failure
+    pub fn create_tcp_server(addr: SocketAddr, handlers: BTreeMap<UnitId, Arc<dyn Server>>) {
+        tokio::spawn(async move { ServerTask::new(addr, handlers).run().await });
     }
 }
 
@@ -110,7 +134,7 @@ pub mod error;
 
 // internal modules
 mod service {
-    mod function;
+    pub(crate) mod function;
     pub(crate) mod services;
     pub(super) mod traits; // only visible in impls
     mod impls {

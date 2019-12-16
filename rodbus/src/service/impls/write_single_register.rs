@@ -1,9 +1,9 @@
 use crate::client::message::{Request, ServiceRequest};
-use crate::types::{Indexed, RegisterValue};
 use crate::error::details::InvalidRequest;
 use crate::service::function::FunctionCode;
 use crate::service::services::WriteSingleRegister;
 use crate::service::traits::Service;
+use crate::types::{Indexed, RegisterValue};
 
 impl Service for WriteSingleRegister {
     const REQUEST_FUNCTION_CODE: FunctionCode = FunctionCode::WriteSingleRegister;

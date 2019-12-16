@@ -1,25 +1,32 @@
-use crate::error::details::{ResponseParseError, InvalidRequest};
+use crate::error::details::{ADUParseError, ExceptionCode, InvalidRequest};
+use crate::service::function::FunctionCode;
 
-#[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
+#[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Ord, Eq)]
 pub struct UnitId {
     id: u8,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
+#[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Ord, Eq)]
 pub struct AddressRange {
     pub start: u16,
     pub count: u16,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
+#[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Ord, Eq)]
 pub struct RegisterValue {
     pub value: u16,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
+#[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Ord, Eq)]
 pub struct Indexed<T> {
     pub index: u16,
     pub value: T,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Ord, Eq)]
+pub struct ErrorResponse {
+    pub function: u8,
+    pub exception: ExceptionCode,
 }
 
 mod constants {
@@ -28,7 +35,7 @@ mod constants {
 }
 
 #[repr(u16)]
-#[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
+#[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Ord, Eq)]
 pub enum CoilState {
     On = constants::ON,
     Off = constants::OFF,
@@ -43,11 +50,11 @@ impl CoilState {
         }
     }
 
-    pub fn from_u16(value: u16) -> Result<Self, ResponseParseError> {
+    pub fn from_u16(value: u16) -> Result<Self, ADUParseError> {
         match value {
             constants::ON => Ok(CoilState::On),
             constants::OFF => Ok(CoilState::Off),
-            _ => Err(ResponseParseError::UnknownCoilState(value)),
+            _ => Err(ADUParseError::UnknownCoilState(value)),
         }
     }
 
@@ -115,5 +122,18 @@ impl UnitId {
 
     pub fn value(self) -> u8 {
         self.id
+    }
+}
+
+impl ErrorResponse {
+    pub fn new(function: u8, exception: ExceptionCode) -> Self {
+        Self {
+            function,
+            exception,
+        }
+    }
+
+    pub fn from(function: FunctionCode, exception: ExceptionCode) -> Self {
+        Self::new(function.get_value(), exception)
     }
 }

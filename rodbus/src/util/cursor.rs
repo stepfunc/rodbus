@@ -24,9 +24,9 @@ impl<'a> ReadCursor<'a> {
         self.src.is_empty()
     }
 
-    pub fn read_u8(&mut self) -> Result<u8, details::ResponseParseError> {
+    pub fn read_u8(&mut self) -> Result<u8, details::ADUParseError> {
         if self.src.is_empty() {
-            return Err(details::ResponseParseError::InsufficientBytes);
+            return Err(details::ADUParseError::InsufficientBytes);
         }
 
         let ret = self.src[0];
@@ -34,15 +34,15 @@ impl<'a> ReadCursor<'a> {
         Ok(ret)
     }
 
-    pub fn read_u16_be(&mut self) -> Result<u16, details::ResponseParseError> {
+    pub fn read_u16_be(&mut self) -> Result<u16, details::ADUParseError> {
         let high = self.read_u8()?;
         let low = self.read_u8()?;
         Ok((high as u16) << 8 | (low as u16))
     }
 
-    pub fn read_bytes(&mut self, count: usize) -> Result<&'a [u8], details::ResponseParseError> {
+    pub fn read_bytes(&mut self, count: usize) -> Result<&'a [u8], details::ADUParseError> {
         if self.src.len() < count {
-            return Err(details::ResponseParseError::InsufficientBytes);
+            return Err(details::ADUParseError::InsufficientBytes);
         }
 
         let ret = &self.src[0..count];

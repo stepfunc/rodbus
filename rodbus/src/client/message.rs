@@ -2,10 +2,10 @@ use std::time::Duration;
 
 use tokio::sync::oneshot;
 
-use crate::types::UnitId;
 use crate::error::*;
 use crate::service::services::*;
 use crate::service::traits::Service;
+use crate::types::UnitId;
 
 /// possible requests that can be sent through the channel
 /// each variant is just a wrapper around a ServiceRequest<S>

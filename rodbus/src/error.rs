@@ -9,7 +9,7 @@ error_chain! {
         Exception(details::ExceptionCode);
         BadRequest(details::InvalidRequest);
         BadFrame(details::FrameParseError);
-        BadResponse(details::ResponseParseError);
+        BadResponse(details::ADUParseError);
    }
 
    links {
@@ -91,7 +91,7 @@ pub mod details {
     }
 
     /// Exception codes defined in the Modbus specification
-    #[derive(Debug, Copy, Clone, PartialEq)]
+    #[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Ord, Eq)]
     pub enum ExceptionCode {
         /// The function code received in the query is not an allowable action for the server
         IllegalFunction,
@@ -138,6 +138,23 @@ pub mod details {
                     ExceptionCode::GatewayTargetDeviceFailedToRespond
                 }
                 _ => ExceptionCode::Unknown(value),
+            }
+        }
+
+        pub fn to_u8(self) -> u8 {
+            match self {
+                ExceptionCode::IllegalFunction => constants::ILLEGAL_FUNCTION,
+                ExceptionCode::IllegalDataAddress => constants::ILLEGAL_DATA_ADDRESS,
+                ExceptionCode::IllegalDataValue => constants::ILLEGAL_DATA_VALUE,
+                ExceptionCode::ServerDeviceFailure => constants::SERVER_DEVICE_FAILURE,
+                ExceptionCode::Acknowledge => constants::ACKNOWLEDGE,
+                ExceptionCode::ServerDeviceBusy => constants::SERVER_DEVICE_BUSY,
+                ExceptionCode::MemoryParityError => constants::MEMORY_PARITY_ERROR,
+                ExceptionCode::GatewayPathUnavailable => constants::GATEWAY_PATH_UNAVAILABLE,
+                ExceptionCode::GatewayTargetDeviceFailedToRespond => {
+                    constants::GATEWAY_TARGET_DEVICE_FAILED_TO_RESPOND
+                }
+                ExceptionCode::Unknown(value) => value,
             }
         }
     }
@@ -194,7 +211,7 @@ pub mod details {
 
     /// errors that occur while parsing requests and responses
     #[derive(Debug, Copy, Clone, PartialEq)]
-    pub enum ResponseParseError {
+    pub enum ADUParseError {
         /// response is too short to be valid
         InsufficientBytes,
         /// byte count doesn't match what is expected based on request
@@ -211,36 +228,36 @@ pub mod details {
         UnknownCoilState(u16),
     }
 
-    impl std::error::Error for ResponseParseError {}
+    impl std::error::Error for ADUParseError {}
 
-    impl std::fmt::Display for ResponseParseError {
+    impl std::fmt::Display for ADUParseError {
         fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
             match self {
-                ResponseParseError::InsufficientBytes => {
+                ADUParseError::InsufficientBytes => {
                     f.write_str("response is too short to be valid")
                 }
-                ResponseParseError::RequestByteCountMismatch(request, response) => write!(
+                ADUParseError::RequestByteCountMismatch(request, response) => write!(
                     f,
                     "byte count ({}) doesn't match what is expected based on request ({})",
                     response, request
                 ),
-                ResponseParseError::InsufficientBytesForByteCount(count, remaining) => write!(
+                ADUParseError::InsufficientBytesForByteCount(count, remaining) => write!(
                     f,
                     "byte count ({}) doesn't match the actual number of bytes remaining ({})",
                     count, remaining
                 ),
-                ResponseParseError::TrailingBytes(remaining) => {
+                ADUParseError::TrailingBytes(remaining) => {
                     write!(f, "response contains {} extra trailing bytes", remaining)
                 }
-                ResponseParseError::ReplyEchoMismatch => {
+                ADUParseError::ReplyEchoMismatch => {
                     f.write_str("a parameter expected to be echoed in the reply did not match")
                 }
-                ResponseParseError::UnknownResponseFunction(actual, expected, error) => write!(
+                ADUParseError::UnknownResponseFunction(actual, expected, error) => write!(
                     f,
                     "received unknown response function code: {}. Expected {} or {}",
                     actual, expected, error
                 ),
-                ResponseParseError::UnknownCoilState(value) => write!(
+                ADUParseError::UnknownCoilState(value) => write!(
                     f,
                     "received coil state with unspecified value: 0x{:04X}",
                     value

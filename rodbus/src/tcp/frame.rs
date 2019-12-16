@@ -1,7 +1,7 @@
 use std::convert::TryFrom;
 
 use crate::error::*;
-use crate::service::traits::SerializeRequest;
+use crate::service::traits::Serialize;
 use crate::util::buffer::ReadBuffer;
 use crate::util::cursor::WriteCursor;
 use crate::util::frame::{Frame, FrameFormatter, FrameParser};
@@ -121,7 +121,7 @@ impl FrameFormatter for MBAPFormatter {
         tx_id: u16,
         unit_id: u8,
         function: u8,
-        msg: &dyn SerializeRequest,
+        msg: &dyn Serialize,
     ) -> Result<&[u8], Error> {
         let mut cursor = WriteCursor::new(self.buffer.as_mut());
         cursor.write_u16_be(tx_id)?;
@@ -132,7 +132,7 @@ impl FrameFormatter for MBAPFormatter {
         let adu_length: usize = {
             let start = cursor.position();
             cursor.write_u8(function)?;
-            msg.serialize_after_function(&mut cursor)?;
+            msg.serialize(&mut cursor)?;
             cursor.position() - start
         };
 
@@ -157,7 +157,7 @@ mod tests {
     use tokio_test::io::Builder;
 
     use crate::error::*;
-    use crate::service::traits::SerializeRequest;
+    use crate::service::traits::Serialize;
     use crate::util::frame::FramedReader;
 
     use super::*;
@@ -169,8 +169,8 @@ mod tests {
         a: u8,
     }
 
-    impl SerializeRequest for MockMessage {
-        fn serialize_after_function(self: &Self, cursor: &mut WriteCursor) -> Result<(), Error> {
+    impl Serialize for MockMessage {
+        fn serialize(self: &Self, cursor: &mut WriteCursor) -> Result<(), Error> {
             cursor.write_u8(self.a)?;
             Ok(())
         }

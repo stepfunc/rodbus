@@ -32,4 +32,20 @@ impl FunctionCode {
     pub const fn get_value(self) -> u8 {
         self as u8
     }
+
+    pub const fn as_error(self) -> u8 {
+        self.get_value() | 0x80
+    }
+
+    pub fn get(value: u8) -> Option<Self> {
+        match value {
+            constants::READ_COILS => Some(FunctionCode::ReadCoils),
+            constants::READ_DISCRETE_INPUTS => Some(FunctionCode::ReadDiscreteInputs),
+            constants::READ_HOLDING_REGISTERS => Some(FunctionCode::ReadHoldingRegisters),
+            constants::READ_INPUT_REGISTERS => Some(FunctionCode::ReadInputRegisters),
+            constants::WRITE_SINGLE_COIL => Some(FunctionCode::WriteSingleCoil),
+            constants::WRITE_SINGLE_REGISTER => Some(FunctionCode::WriteSingleRegister),
+            _ => None,
+        }
+    }
 }

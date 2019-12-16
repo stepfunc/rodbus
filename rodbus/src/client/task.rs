@@ -1,18 +1,17 @@
 use std::net::SocketAddr;
 use std::time::Duration;
 
+use log::{info, warn};
 use tokio::net::TcpStream;
 use tokio::prelude::*;
 use tokio::sync::*;
 
-use log::{warn, info};
-
 use crate::client::channel::ReconnectStrategy;
 use crate::client::message::{Request, ServiceRequest};
-use crate::types::UnitId;
 use crate::error::*;
 use crate::service::traits::Service;
 use crate::tcp::frame::{MBAPFormatter, MBAPParser};
+use crate::types::UnitId;
 use crate::util::cursor::ReadCursor;
 use crate::util::frame::{FrameFormatter, FramedReader};
 

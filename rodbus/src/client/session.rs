@@ -6,7 +6,7 @@ use crate::client::message::{Request, ServiceRequest};
 use crate::error::*;
 use crate::service::services::*;
 use crate::service::traits::Service;
-use crate::types::{UnitId, AddressRange, Indexed, CoilState, RegisterValue};
+use crate::types::{AddressRange, CoilState, Indexed, RegisterValue, UnitId};
 
 #[derive(Clone)]
 pub struct Session {

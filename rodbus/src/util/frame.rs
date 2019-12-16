@@ -1,7 +1,7 @@
 use tokio::io::AsyncRead;
 
 use crate::error::Error;
-use crate::service::traits::SerializeRequest;
+use crate::service::traits::Serialize;
 use crate::util::buffer::ReadBuffer;
 
 pub mod constants {
@@ -63,16 +63,19 @@ pub(crate) trait FrameFormatter {
         tx_id: u16,
         unit_id: u8,
         function: u8,
-        msg: &dyn SerializeRequest,
+        msg: &dyn Serialize,
     ) -> Result<&[u8], Error>;
 }
 
-pub struct FramedReader<T> where T : FrameParser {
+pub struct FramedReader<T>
+where
+    T: FrameParser,
+{
     parser: T,
     buffer: ReadBuffer,
 }
 
-impl<T : FrameParser> FramedReader<T> {
+impl<T: FrameParser> FramedReader<T> {
     pub fn new(parser: T) -> Self {
         let size = parser.max_frame_size();
         Self {
