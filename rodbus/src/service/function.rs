@@ -1,8 +1,10 @@
-use crate::service::traits::Serialize;
+
 use crate::util::cursor::WriteCursor;
 use crate::error::*;
+use std::fmt::{Display, Formatter};
+use crate::service::traits::Serialize;
 
-pub(super) mod constants {
+mod constants {
     pub const READ_COILS: u8 = 1;
     pub const READ_DISCRETE_INPUTS: u8 = 2;
     pub const READ_HOLDING_REGISTERS: u8 = 3;
@@ -13,8 +15,6 @@ pub(super) mod constants {
     pub const WRITE_MULTIPLE_COILS: u8 = 15;
     pub const WRITE_MULTIPLE_REGISTERS: u8 = 16;
     */
-
-    pub const ERROR_DELIMITER: u8 = 0x80;
 }
 
 #[derive(Debug, Copy, Clone, PartialEq)]
@@ -30,6 +30,19 @@ pub enum FunctionCode {
     WriteMultipleCoils = constants::WRITE_MULTIPLE_COILS,
     WriteMultipleRegisters = constants::WRITE_MULTIPLE_REGISTERS
     */
+}
+
+impl Display for FunctionCode {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
+        match self {
+            FunctionCode::ReadCoils => f.write_str("READ COILS"),
+            FunctionCode::ReadDiscreteInputs => f.write_str("READ DISCRETE INPUTS"),
+            FunctionCode::ReadHoldingRegisters => f.write_str("READ HOLDING REGISTERS"),
+            FunctionCode::ReadInputRegisters => f.write_str("READ INPUT REGISTERS"),
+            FunctionCode::WriteSingleCoil => f.write_str("WRITE SINGLE COIL"),
+            FunctionCode::WriteSingleRegister => f.write_str("WRITE SINGLE REGISTERS"),
+        }
+    }
 }
 
 impl FunctionCode {

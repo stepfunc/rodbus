@@ -1,11 +1,11 @@
 use std::convert::TryFrom;
 
 use crate::error::*;
-use crate::service::traits::Serialize;
 use crate::util::buffer::ReadBuffer;
 use crate::util::cursor::WriteCursor;
 use crate::util::frame::{Frame, FrameFormatter, FrameParser, FrameHeader, TxId};
 use crate::types::UnitId;
+use crate::service::traits::Serialize;
 
 pub mod constants {
     pub const HEADER_LENGTH: usize = 7;
@@ -155,7 +155,6 @@ mod tests {
     use tokio_test::io::Builder;
 
     use crate::error::*;
-    use crate::service::traits::Serialize;
     use crate::util::frame::FramedReader;
 
     use super::*;

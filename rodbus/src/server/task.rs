@@ -5,25 +5,30 @@ use std::sync::Arc;
 use log::{info, warn};
 use tokio::io::AsyncWriteExt;
 use tokio::net::{TcpListener, TcpStream};
+use tokio::sync::Mutex;
 
 use crate::error::details::ExceptionCode;
 use crate::error::Error;
-use crate::server::server::Server;
+use crate::server::handler::{ServerHandler, ServerHandlerMap};
 use crate::service::function::{FunctionCode, ADU};
-use crate::service::traits::{ParseRequest, Serialize};
+use crate::service::traits::{ParseRequest, Service, Serialize};
 use crate::tcp::frame::{MBAPFormatter, MBAPParser};
-use crate::types::{AddressRange, UnitId};
+use crate::types::UnitId;
 use crate::util::cursor::ReadCursor;
 use crate::util::frame::{FrameFormatter, FramedReader, FrameHeader};
+use crate::service::services::{ReadHoldingRegisters, ReadInputRegisters};
+
+use std::ops::DerefMut;
+
 
 pub struct ServerTask {
     addr: SocketAddr,
-    servers: BTreeMap<UnitId, Arc<dyn Server>>,
+    handlers: ServerHandlerMap,
 }
 
 impl ServerTask {
-    pub fn new(addr: SocketAddr, servers: BTreeMap<UnitId, Arc<dyn Server>>) -> Self {
-        Self { addr, servers }
+    pub fn new(addr: SocketAddr, handlers: ServerHandlerMap) -> Self {
+        Self { addr, handlers }
     }
 
     pub async fn run(&self) -> std::io::Result<()> {
@@ -33,7 +38,7 @@ impl ServerTask {
             let (socket, addr) = listener.accept().await?;
             info!("accepted connection from: {}", addr);
 
-            let servers = self.servers.clone();
+            let servers = self.handlers.clone();
 
             tokio::spawn(async move { SessionTask::new(socket, servers).run().await });
         }
@@ -42,16 +47,16 @@ impl ServerTask {
 
 struct SessionTask {
     socket: TcpStream,
-    servers: BTreeMap<UnitId, Arc<dyn Server>>,
+    handlers: ServerHandlerMap,
     reader: FramedReader<MBAPParser>,
     writer: MBAPFormatter,
 }
 
 impl SessionTask {
-    pub fn new(socket: TcpStream, servers: BTreeMap<UnitId, Arc<dyn Server>>) -> Self {
+    pub fn new(socket: TcpStream, handlers: ServerHandlerMap) -> Self {
         Self {
             socket,
-            servers,
+            handlers,
             reader: FramedReader::new(MBAPParser::new()),
             writer: MBAPFormatter::new(),
         }
@@ -72,6 +77,34 @@ impl SessionTask {
             self.run_one().await?;
         }
     }
+
+    /*
+    pub async fn process_request<S : Service>(&mut self, header: FrameHeader, cursor: &mut ReadCursor<'_>, server: &mut ServerHandlerType) -> std::result::Result<(), Error> {
+        Ok(())
+        match S::ClientRequest::parse(cursor) {
+            Ok(request) => {
+                if let Err(e) = S::check_request_validity(&request) {
+                    warn!("received invalid {} request: {}", S::REQUEST_FUNCTION_CODE, e);
+                    return self.reply(header, &ADU::new(S::RESPONSE_ERROR_CODE_VALUE, &ExceptionCode::IllegalDataAddress)).await;
+                }
+                let server = server.lock().await.deref_mut();
+                match S::process(&request, server) {
+                    Err(ex) => {
+                        return self.reply(header, &ADU::new(S::RESPONSE_ERROR_CODE_VALUE, &ex)).await;
+                    }
+                    Ok(response) => {
+                        return self.reply(header, &ADU::new(S::RESPONSE_ERROR_CODE_VALUE, &response)).await;
+                    }
+                }
+            },
+            Err(e) => {
+                warn!("error parsing {}: {}", S::REQUEST_FUNCTION_CODE_VALUE, e);
+                self.reply(header, &ADU::new(S::RESPONSE_ERROR_CODE_VALUE, &ExceptionCode::IllegalDataValue)).await?;
+                Ok(())
+            }
+        }
+    }
+    */
 
     pub async fn run_one(&mut self) -> std::result::Result<(), Error> {
         // any I/O or parsing errors close the session
@@ -97,34 +130,23 @@ impl SessionTask {
             },
         };
 
-        let server = match self.servers.get(&frame.header.unit_id) {
+        let mut server = match self.handlers.get(frame.header.unit_id) {
             None => {
                 warn!("received frame for unmapped unit id: {}", frame.header.unit_id.to_u8());
                 return Ok(());
             }
-            Some(server) => server,
+            Some(server) => server
         };
 
         match function {
-            FunctionCode::ReadHoldingRegisters => match AddressRange::parse(&mut cursor) {
-                Ok(value) => {
-                    match server.read_holding_registers(value) {
-                        Ok(response) => {
-                            self.reply(frame.header, &ADU::new(function.get_value(), &response))
-                                .await?
-                        }
-                        Err(ex) => {
-                            self.reply(frame.header, &ADU::new(function.as_error(), &ex))
-                                .await?
-                        }
-                    }
-                    return Ok(());
-                }
-                Err(e) => {
-                    warn!("error parsing {}: {}", function.get_value(), e);
-                    return Ok(());
-                }
+            /*
+            FunctionCode::ReadHoldingRegisters => {
+                self.process_request::<ReadHoldingRegisters>(frame.header, &mut cursor, server).await
             },
+            FunctionCode::ReadInputRegisters => {
+                self.process_request::<ReadInputRegisters>(frame.header, &mut cursor, server).await
+            },
+            */
             _ => {
                 self.reply(
                     frame.header,

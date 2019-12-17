@@ -1,9 +1,9 @@
 use tokio::io::AsyncRead;
 
 use crate::error::Error;
-use crate::service::traits::Serialize;
 use crate::util::buffer::ReadBuffer;
 use crate::types::UnitId;
+use crate::service::traits::Serialize;
 
 pub mod constants {
     pub const MAX_ADU_LENGTH: usize = 253;
@@ -41,6 +41,7 @@ impl Default for TxId {
     }
 }
 
+#[derive(Copy, Clone)]
 pub struct FrameHeader {
     pub unit_id : UnitId,
     pub tx_id : TxId

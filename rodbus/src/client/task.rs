@@ -176,8 +176,8 @@ impl ChannelTask {
         io: &mut TcpStream,
         unit_id: UnitId,
         timeout: Duration,
-        request: &S::Request,
-    ) -> Result<S::Response, Error> {
+        request: &S::ClientRequest,
+    ) -> Result<S::ClientResponse, Error> {
 
         let tx_id = self.tx_id.next();
         let bytes = self.formatter.format(

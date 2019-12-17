@@ -70,6 +70,20 @@ impl AddressRange {
         AddressRange { start, count }
     }
 
+    pub fn to_range(&self) -> std::ops::Range<u16> {
+        if self.count == 0 {
+            return 0 .. 0;
+        }
+
+        let max_start = std::u16::MAX - self.count - 1;
+
+        if self.start > max_start {
+            return 0 .. 0;
+        }
+
+        return self.start .. (self.start + self.count);
+    }
+
     fn check_validity(&self, max_count: u16) -> Result<(), InvalidRequest> {
         // a count of zero is never valid
         if self.count == 0 {

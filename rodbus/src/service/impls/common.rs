@@ -6,14 +6,6 @@ use crate::util::cursor::*;
 
 use std::convert::TryFrom;
 
-impl Serialize for AddressRange {
-    fn serialize(&self, cur: &mut WriteCursor) -> Result<(), Error> {
-        cur.write_u16_be(self.start)?;
-        cur.write_u16_be(self.count)?;
-        Ok(())
-    }
-}
-
 impl ParseRequest for AddressRange {
     fn parse(cursor: &mut ReadCursor) -> Result<Self, Error> {
         Ok(AddressRange::new(
@@ -172,6 +164,24 @@ impl Serialize for ExceptionCode {
     fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), Error> {
         cursor.write_u8(self.to_u8())?;
         Ok(())
+    }
+}
+
+impl ParseRequest for Indexed<CoilState> {
+    fn parse(cursor: &mut ReadCursor) -> Result<Self, Error> {
+        Ok(Indexed::new(
+            cursor.read_u16_be()?,
+            CoilState::from_u16(cursor.read_u16_be()?)?,
+        ))
+    }
+}
+
+impl ParseRequest for Indexed<RegisterValue> {
+    fn parse(cursor: &mut ReadCursor) -> Result<Self, Error> {
+        Ok(Indexed::new(
+            cursor.read_u16_be()?,
+            RegisterValue::new(cursor.read_u16_be()?),
+        ))
     }
 }
 

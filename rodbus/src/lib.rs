@@ -111,16 +111,18 @@ pub mod server {
     use std::net::SocketAddr;
     use std::sync::Arc;
 
-    use crate::server::server::Server;
+    use tokio::sync::Mutex;
+
+    use crate::server::handler::{ServerHandler, ServerHandlerMap};
     use crate::server::task::ServerTask;
     use crate::types::UnitId;
 
-    pub mod server;
+    pub mod handler;
     mod task;
 
     pub async fn run_tcp_server(
         addr: SocketAddr,
-        handlers: BTreeMap<UnitId, Arc<dyn Server>>,
+        handlers: ServerHandlerMap,
     ) -> std::io::Result<()> {
         ServerTask::new(addr, handlers).run().await
     }
@@ -142,6 +144,9 @@ mod service {
         mod read_input_registers;
         mod write_single_coil;
         mod write_single_register;
+    }
+    mod serialization {
+        mod client_requests;
     }
 }
 mod util {
