@@ -72,16 +72,16 @@ impl AddressRange {
 
     pub fn to_range(&self) -> std::ops::Range<u16> {
         if self.count == 0 {
-            return 0 .. 0;
+            return 0..0;
         }
 
         let max_start = std::u16::MAX - self.count - 1;
 
         if self.start > max_start {
-            return 0 .. 0;
+            return 0..0;
         }
 
-        return self.start .. (self.start + self.count);
+        return self.start..(self.start + self.count);
     }
 }
 

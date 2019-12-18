@@ -1,7 +1,7 @@
-use crate::service::traits::ParseResponse;
-use crate::types::{Indexed, RegisterValue, CoilState, AddressRange};
-use crate::util::cursor::ReadCursor;
 use crate::error::*;
+use crate::service::traits::ParseResponse;
+use crate::types::{AddressRange, CoilState, Indexed, RegisterValue};
+use crate::util::cursor::ReadCursor;
 
 impl ParseResponse<Indexed<RegisterValue>> for Indexed<RegisterValue> {
     fn parse(cursor: &mut ReadCursor, request: &Indexed<RegisterValue>) -> Result<Self, Error> {
@@ -49,7 +49,7 @@ impl ParseResponse<AddressRange> for Vec<Indexed<bool>> {
                 expected_byte_count,
                 byte_count,
             )
-                .into());
+            .into());
         }
 
         if byte_count != cursor.len() {
@@ -57,7 +57,7 @@ impl ParseResponse<AddressRange> for Vec<Indexed<bool>> {
                 byte_count,
                 cursor.len(),
             )
-                .into());
+            .into());
         }
 
         let bytes = cursor.read_bytes(byte_count)?;
@@ -83,8 +83,6 @@ impl ParseResponse<AddressRange> for Vec<Indexed<bool>> {
     }
 }
 
-
-
 impl ParseResponse<AddressRange> for Vec<Indexed<u16>> {
     fn parse(cursor: &mut ReadCursor, request: &AddressRange) -> Result<Self, Error> {
         let byte_count = cursor.read_u8()? as usize;
@@ -97,7 +95,7 @@ impl ParseResponse<AddressRange> for Vec<Indexed<u16>> {
                 expected_byte_count,
                 byte_count,
             )
-                .into());
+            .into());
         }
 
         if expected_byte_count != cursor.len() {
@@ -105,7 +103,7 @@ impl ParseResponse<AddressRange> for Vec<Indexed<u16>> {
                 byte_count,
                 cursor.len(),
             )
-                .into());
+            .into());
         }
 
         let mut values = Vec::<Indexed<u16>>::with_capacity(request.count as usize);

@@ -1,8 +1,7 @@
-
-use crate::util::cursor::WriteCursor;
 use crate::error::*;
-use std::fmt::{Display, Formatter};
 use crate::service::traits::Serialize;
+use crate::util::cursor::WriteCursor;
+use std::fmt::{Display, Formatter};
 
 mod constants {
     pub const READ_COILS: u8 = 1;
@@ -67,18 +66,27 @@ impl FunctionCode {
     }
 }
 
-pub struct ADU<'a, T> where T : Serialize {
-    function : u8,
-    body : &'a T
+pub struct ADU<'a, T>
+where
+    T: Serialize,
+{
+    function: u8,
+    body: &'a T,
 }
 
-impl<'a, T> ADU<'a, T> where T : Serialize {
-    pub fn new(function : u8, body : &'a T) -> Self {
-         ADU { function, body }
+impl<'a, T> ADU<'a, T>
+where
+    T: Serialize,
+{
+    pub fn new(function: u8, body: &'a T) -> Self {
+        ADU { function, body }
     }
 }
 
-impl<'a, T> Serialize for ADU<'a, T> where T : Serialize {
+impl<'a, T> Serialize for ADU<'a, T>
+where
+    T: Serialize,
+{
     fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), Error> {
         cursor.write_u8(self.function)?;
         self.body.serialize(cursor)

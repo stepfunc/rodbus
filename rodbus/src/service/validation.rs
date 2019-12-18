@@ -1,5 +1,3 @@
-
-
 pub(crate) mod range {
 
     use crate::error::details::InvalidRequest;
@@ -8,8 +6,7 @@ pub(crate) mod range {
     const REQUEST_MAX_REGISTERS: u16 = 125;
     const REQUEST_MAX_BINARY_BITS: u16 = 2000;
 
-    fn check_validity(range : AddressRange, max_count: u16) -> Result<(), InvalidRequest> {
-
+    fn check_validity(range: AddressRange, max_count: u16) -> Result<(), InvalidRequest> {
         // a count of zero is never valid
         if range.count == 0 {
             return Err(InvalidRequest::CountOfZero);
@@ -29,11 +26,11 @@ pub(crate) mod range {
         Ok(())
     }
 
-    pub fn check_validity_for_read_bits(range : AddressRange) -> Result<(), InvalidRequest> {
+    pub fn check_validity_for_read_bits(range: AddressRange) -> Result<(), InvalidRequest> {
         check_validity(range, REQUEST_MAX_BINARY_BITS)
     }
 
-    pub fn check_validity_for_read_registers(range : AddressRange) -> Result<(), InvalidRequest> {
+    pub fn check_validity_for_read_registers(range: AddressRange) -> Result<(), InvalidRequest> {
         check_validity(range, REQUEST_MAX_REGISTERS)
     }
 
@@ -54,7 +51,10 @@ pub(crate) mod range {
                 AddressRange::MAX_BINARY_BITS,
             ));
             assert_eq!(
-                check_validity_for_read_bits(AddressRange::new(0, AddressRange::MAX_BINARY_BITS + 1)),
+                check_validity_for_read_bits(AddressRange::new(
+                    0,
+                    AddressRange::MAX_BINARY_BITS + 1
+                )),
                 err
             );
         }
@@ -62,7 +62,10 @@ pub(crate) mod range {
         #[test]
         fn address_range_validates_correctly_for_registers() {
             assert_eq!(
-                check_validity_for_read_registers(AddressRange::new(0, AddressRange::MAX_REGISTERS)),
+                check_validity_for_read_registers(AddressRange::new(
+                    0,
+                    AddressRange::MAX_REGISTERS
+                )),
                 Ok(())
             );
             let err = Err(InvalidRequest::CountTooBigForType(
@@ -70,8 +73,11 @@ pub(crate) mod range {
                 AddressRange::MAX_REGISTERS,
             ));
             assert_eq!(
-               check_validity_for_read_registers(AddressRange::new(0, AddressRange::MAX_REGISTERS + 1)),
-               err
+                check_validity_for_read_registers(AddressRange::new(
+                    0,
+                    AddressRange::MAX_REGISTERS + 1
+                )),
+                err
             );
         }
 
@@ -94,4 +100,3 @@ pub(crate) mod range {
         }
     }
 }
-

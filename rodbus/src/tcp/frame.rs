@@ -1,11 +1,11 @@
 use std::convert::TryFrom;
 
 use crate::error::*;
+use crate::service::traits::Serialize;
+use crate::types::UnitId;
 use crate::util::buffer::ReadBuffer;
 use crate::util::cursor::WriteCursor;
-use crate::util::frame::{Frame, FrameFormatter, FrameParser, FrameHeader, TxId};
-use crate::types::UnitId;
-use crate::service::traits::Serialize;
+use crate::util::frame::{Frame, FrameFormatter, FrameHeader, FrameParser, TxId};
 
 pub mod constants {
     pub const HEADER_LENGTH: usize = 7;
@@ -117,11 +117,7 @@ impl FrameParser for MBAPParser {
 }
 
 impl FrameFormatter for MBAPFormatter {
-    fn format(
-        &mut self,
-        header: FrameHeader,
-        msg: &dyn Serialize,
-    ) -> Result<&[u8], Error> {
+    fn format(&mut self, header: FrameHeader, msg: &dyn Serialize) -> Result<&[u8], Error> {
         let mut cursor = WriteCursor::new(self.buffer.as_mut());
         cursor.write_u16_be(header.tx_id.to_u16())?;
         cursor.write_u16_be(0)?;

@@ -135,8 +135,8 @@ pub mod error;
 mod service {
     pub(crate) mod function;
     pub(crate) mod services;
-    pub(crate) mod validation;
     pub(crate) mod traits;
+    pub(crate) mod validation;
     mod impls {
         mod read_coils;
         mod read_discrete_inputs;
@@ -146,9 +146,9 @@ mod service {
         mod write_single_register;
     }
     mod serialization {
-        mod serialize;
         mod client_request_parsers;
         mod client_response_parsers;
+        mod serialize;
     }
 }
 mod util {

@@ -9,17 +9,17 @@ use tokio::sync::Mutex;
 
 use crate::error::details::ExceptionCode;
 use crate::error::Error;
-use crate::server::handler::{ServerHandler, ServerHandlerMap};
+use crate::server::handler::ServerHandlerMap;
 use crate::service::function::{FunctionCode, ADU};
-use crate::service::traits::{ParseRequest, Service, Serialize};
-use crate::tcp::frame::{MBAPFormatter, MBAPParser};
-use crate::types::UnitId;
-use crate::util::cursor::ReadCursor;
-use crate::util::frame::{FrameFormatter, FramedReader, FrameHeader};
 use crate::service::services::{ReadHoldingRegisters, ReadInputRegisters};
+use crate::service::traits::{ParseRequest, Serialize, Service};
+use crate::tcp::frame::{MBAPFormatter, MBAPParser};
+use crate::types::{UnitId, AddressRange};
+use crate::util::cursor::ReadCursor;
+use crate::util::frame::{FrameFormatter, FrameHeader, FramedReader};
 
 use std::ops::DerefMut;
-
+use std::borrow::BorrowMut;
 
 pub struct ServerTask {
     addr: SocketAddr,
@@ -130,30 +130,49 @@ impl SessionTask {
             },
         };
 
-        let mut server = match self.handlers.get(frame.header.unit_id) {
+        let handler = match self.handlers.get(frame.header.unit_id) {
             None => {
-                warn!("received frame for unmapped unit id: {}", frame.header.unit_id.to_u8());
+                warn!(
+                    "received frame for unmapped unit id: {}",
+                    frame.header.unit_id.to_u8()
+                );
                 return Ok(());
             }
-            Some(server) => server
+            Some(handler) => handler,
         };
 
-        match function {
-            /*
-            FunctionCode::ReadHoldingRegisters => {
-                self.process_request::<ReadHoldingRegisters>(frame.header, &mut cursor, server).await
+        // get the frame to reply with or error out trying
+        let reply_frame : &[u8] = match function {
+            FunctionCode::ReadCoils => {
+                match AddressRange::parse(&mut cursor) {
+                    Err(_) => {
+                        self.writer.format(frame.header, &ADU::new(function.as_error(), &ExceptionCode::IllegalDataValue))?
+                    },
+                    Ok(request) => {
+                        // we only lock the handler during the request formatting, not while writing ...
+                        match handler.lock().await.read_coils(request) {
+                            Err(ex) => {
+                                self.writer.format(frame.header, &ADU::new(function.as_error(), &ex))?
+                            },
+                            Ok(value) => {
+                                if value.len() == request.count as usize {
+                                    self.writer.format(frame.header, &ADU::new(function.get_value(), &value))?
+                                }
+                                else {
+                                    self.writer.format(frame.header, &ADU::new(function.as_error(), &ExceptionCode::ServerDeviceFailure))?
+                                }
+                            }
+                        }
+                    }
+                }
             },
-            FunctionCode::ReadInputRegisters => {
-                self.process_request::<ReadInputRegisters>(frame.header, &mut cursor, server).await
-            },
-            */
             _ => {
-                self.reply(
-                    frame.header,
-                    &ADU::new(function.as_error(),&ExceptionCode::IllegalFunction)
-                )
-                .await
+                self.writer.format(frame.header, &ADU::new(function.as_error(), &ExceptionCode::IllegalFunction))?
             }
-        }
+        };
+
+        // reply with the bytes
+        self.socket.write_all(reply_frame).await?;
+        Ok(())
     }
 }

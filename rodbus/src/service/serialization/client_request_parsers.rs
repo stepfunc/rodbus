@@ -1,7 +1,7 @@
-use crate::service::traits::ParseRequest;
-use crate::types::{AddressRange, Indexed, CoilState, RegisterValue};
-use crate::util::cursor::ReadCursor;
 use crate::error::*;
+use crate::service::traits::ParseRequest;
+use crate::types::{AddressRange, CoilState, Indexed, RegisterValue};
+use crate::util::cursor::ReadCursor;
 
 impl ParseRequest for AddressRange {
     fn parse(cursor: &mut ReadCursor) -> Result<Self, Error> {

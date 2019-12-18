@@ -1,14 +1,14 @@
 use crate::client::message::{Request, ServiceRequest};
+use crate::error::details::ExceptionCode;
 use crate::error::*;
+use crate::server::handler::ServerHandler;
 use crate::service::function::FunctionCode;
 use crate::util::cursor::*;
-use crate::server::handler::ServerHandler;
-use crate::error::details::ExceptionCode;
 use std::sync::Arc;
 
-const ERROR_DELIMITER : u8 = 0x80;
+const ERROR_DELIMITER: u8 = 0x80;
 
-pub trait Serialize : Sync {
+pub trait Serialize: Sync {
     fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), Error>;
 }
 
@@ -21,7 +21,6 @@ pub trait ParseRequest: Sized {
 }
 
 pub trait Service: Sized {
-
     const REQUEST_FUNCTION_CODE: FunctionCode;
     const REQUEST_FUNCTION_CODE_VALUE: u8 = Self::REQUEST_FUNCTION_CODE.get_value();
     const RESPONSE_ERROR_CODE_VALUE: u8 = Self::REQUEST_FUNCTION_CODE_VALUE | ERROR_DELIMITER;
@@ -33,15 +32,21 @@ pub trait Service: Sized {
     type ClientResponse: ParseResponse<Self::ClientRequest> + Send + Sync + 'static;
 
     /// The types returned in the ServerHandler for this request and used for serialization
-    /// type ServerResponse: SerializeResponse;
+    /// type ServerResponse: Serialize;
 
     /// check the validity of a request
-    fn check_request_validity(request: &Self::ClientRequest) -> Result<(), details::InvalidRequest>;
+    fn check_request_validity(request: &Self::ClientRequest)
+        -> Result<(), details::InvalidRequest>;
 
     /// create the request enumeration used by the Client channel
     fn create_request(request: ServiceRequest<Self>) -> Request;
 
-    //fn process(request : &Self::Request, server: &mut Arc<dyn ServerHandler>) -> Result<Self::Response, ExceptionCode>;
+/*
+    fn process(
+        request: &Self::ClientRequest,
+        server: &mut Box<dyn ServerHandler>,
+    ) -> Result<Self::ServerResponse, ExceptionCode>;
+*/
 
     fn parse_response(
         cursor: &mut ReadCursor,

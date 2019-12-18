@@ -1,9 +1,9 @@
 use tokio::io::AsyncRead;
 
 use crate::error::Error;
-use crate::util::buffer::ReadBuffer;
-use crate::types::UnitId;
 use crate::service::traits::Serialize;
+use crate::types::UnitId;
+use crate::util::buffer::ReadBuffer;
 
 pub mod constants {
     pub const MAX_ADU_LENGTH: usize = 253;
@@ -11,7 +11,7 @@ pub mod constants {
 
 #[derive(PartialEq, Copy, Clone, Debug)]
 pub struct TxId {
-    value : u16
+    value: u16,
 }
 
 impl TxId {
@@ -19,7 +19,7 @@ impl TxId {
         TxId { value }
     }
 
-    pub fn to_u16(self) -> u16  {
+    pub fn to_u16(self) -> u16 {
         self.value
     }
 
@@ -43,12 +43,12 @@ impl Default for TxId {
 
 #[derive(Copy, Clone)]
 pub struct FrameHeader {
-    pub unit_id : UnitId,
-    pub tx_id : TxId
+    pub unit_id: UnitId,
+    pub tx_id: TxId,
 }
 
 impl FrameHeader {
-    pub fn new(unit_id : UnitId, tx_id : TxId) -> Self {
+    pub fn new(unit_id: UnitId, tx_id: TxId) -> Self {
         FrameHeader { unit_id, tx_id }
     }
 }
@@ -101,11 +101,7 @@ pub trait FrameParser {
 }
 
 pub(crate) trait FrameFormatter {
-    fn format(
-        &mut self,
-        header: FrameHeader,
-        msg: &dyn Serialize,
-    ) -> Result<&[u8], Error>;
+    fn format(&mut self, header: FrameHeader, msg: &dyn Serialize) -> Result<&[u8], Error>;
 }
 
 pub struct FramedReader<T>

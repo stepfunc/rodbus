@@ -9,12 +9,12 @@ use tokio::sync::*;
 use crate::client::channel::ReconnectStrategy;
 use crate::client::message::{Request, ServiceRequest};
 use crate::error::*;
+use crate::service::function::ADU;
 use crate::service::traits::Service;
 use crate::tcp::frame::{MBAPFormatter, MBAPParser};
 use crate::types::UnitId;
 use crate::util::cursor::ReadCursor;
-use crate::util::frame::{FrameFormatter, FramedReader, TxId, FrameHeader};
-use crate::service::function::ADU;
+use crate::util::frame::{FrameFormatter, FrameHeader, FramedReader, TxId};
 
 /**
 * We always service requests in a TCP session until one of the following occurs
@@ -46,7 +46,7 @@ pub struct ChannelTask {
     connect_retry: Box<dyn ReconnectStrategy + Send>,
     formatter: MBAPFormatter,
     reader: FramedReader<MBAPParser>,
-    tx_id: TxId
+    tx_id: TxId,
 }
 
 impl ChannelTask {
@@ -61,7 +61,7 @@ impl ChannelTask {
             formatter: MBAPFormatter::new(),
             connect_retry,
             reader: FramedReader::new(MBAPParser::new()),
-            tx_id: TxId::default()
+            tx_id: TxId::default(),
         }
     }
 
@@ -178,11 +178,10 @@ impl ChannelTask {
         timeout: Duration,
         request: &S::ClientRequest,
     ) -> Result<S::ClientResponse, Error> {
-
         let tx_id = self.tx_id.next();
         let bytes = self.formatter.format(
             FrameHeader::new(unit_id, tx_id),
-            &ADU::new(S::REQUEST_FUNCTION_CODE.get_value(), request)
+            &ADU::new(S::REQUEST_FUNCTION_CODE.get_value(), request),
         )?;
         io.write_all(bytes).await?;
 
