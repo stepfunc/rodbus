@@ -6,7 +6,6 @@ use std::str::FromStr;
 use std::sync::Arc;
 
 use tokio::sync::Mutex;
-use std::ops::Range;
 
 struct SimpleHandler {
     coils : Vec<bool>,
@@ -32,20 +31,28 @@ impl SimpleHandler {
 }
 
 impl ServerHandler for SimpleHandler {
-    fn coils_as_slice(&self) -> &[bool] {
-        self.coils.as_slice()
+    fn read_coils(&mut self, range: AddressRange) -> Result<&[bool], ExceptionCode> {
+        Self::get_range_of(self.coils.as_slice(), range)
     }
 
-    fn discrete_inputs_as_slice(&self) -> &[bool] {
-        self.discrete_inputs.as_slice()
+    fn read_discrete_inputs(&mut self, range: AddressRange) -> Result<&[bool], ExceptionCode> {
+        Self::get_range_of(self.discrete_inputs.as_slice(), range)
     }
 
-    fn holding_registers_as_slice(&self) -> &[u16] {
-        self.holding_registers.as_slice()
+    fn read_holding_registers(&mut self, range: AddressRange) -> Result<&[u16], ExceptionCode> {
+        Self::get_range_of(self.holding_registers.as_slice(), range)
     }
 
-    fn input_registers_as_slice(&self) -> &[u16] {
-        self.input_registers.as_slice()
+    fn read_input_registers(&mut self, range: AddressRange) -> Result<&[u16], ExceptionCode> {
+        Self::get_range_of(self.input_registers.as_slice(), range)
+    }
+
+    fn write_single_coil(&mut self, _ : Indexed<CoilState>) -> Result<(), ExceptionCode> {
+        Err(ExceptionCode::IllegalFunction)
+    }
+
+    fn write_single_register(&mut self, _ : Indexed<RegisterValue>) -> Result<(), ExceptionCode> {
+        Err(ExceptionCode::IllegalFunction)
     }
 }
 
@@ -81,5 +88,4 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         tokio::time::delay_until(next).await;
     }
 
-    Ok(())
 }

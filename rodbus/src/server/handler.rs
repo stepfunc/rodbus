@@ -6,52 +6,31 @@ use tokio::sync::Mutex;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
-/// Safe helper function that retrieves a sub-slice or returns an ExceptionCode
-fn get_range_of<T>(slice: &[T], range : AddressRange) -> Result<&[T], ExceptionCode> {
-    let rng : std::ops::Range<usize> =  {
-        let tmp = range.to_range();
-        std::ops::Range { start : tmp.start as usize, end : tmp.end as usize }
-    };
-    if (rng.start >= slice.len()) || (rng.end > slice.len()) {
-        return Err(ExceptionCode::IllegalDataAddress);
-    }
-    Ok(&slice[rng])
-}
-
 pub trait ServerHandler: Send + 'static {
 
-    // concrete types implement these
-    fn coils_as_slice(&self) -> &[bool];
-    fn discrete_inputs_as_slice(&self) -> &[bool];
-    fn holding_registers_as_slice(&self) -> &[u16];
-    fn input_registers_as_slice(&self) -> &[u16];
+    fn read_coils(&mut self, range: AddressRange) -> Result<&[bool], ExceptionCode>;
 
-    fn read_coils(&self, range: AddressRange) -> Result<&[bool], ExceptionCode> {
-        get_range_of(self.coils_as_slice(), range)
+    fn read_discrete_inputs(&mut self, range: AddressRange) -> Result<&[bool], ExceptionCode>;
+
+    fn read_holding_registers(&mut self, range: AddressRange) -> Result<&[u16], ExceptionCode>;
+
+    fn read_input_registers(&mut self, range: AddressRange) -> Result<&[u16], ExceptionCode>;
+
+    fn write_single_coil(&mut self, value: Indexed<CoilState>) -> Result<(), ExceptionCode>;
+
+    fn write_single_register(&mut self, value: Indexed<RegisterValue>) -> Result<(), ExceptionCode>;
+
+    /// Safe helper function that retrieves a sub-slice or returns an ExceptionCode
+    fn get_range_of<T>(slice: &[T], range : AddressRange) -> Result<&[T], ExceptionCode> {
+        let rng : std::ops::Range<usize> =  {
+            let tmp = range.to_range();
+            std::ops::Range { start : tmp.start as usize, end : tmp.end as usize }
+        };
+        if (rng.start >= slice.len()) || (rng.end > slice.len()) {
+            return Err(ExceptionCode::IllegalDataAddress);
+        }
+        Ok(&slice[rng])
     }
-
-    fn read_discrete_inputs(&self, range: AddressRange) -> Result<&[bool], ExceptionCode> {
-        get_range_of(self.discrete_inputs_as_slice(), range)
-    }
-
-    fn read_holding_registers(&self, range: AddressRange) -> Result<&[u16], ExceptionCode> {
-        get_range_of(self.holding_registers_as_slice(), range)
-    }
-
-    fn read_input_registers(&self, range: AddressRange) -> Result<&[u16], ExceptionCode> {
-        get_range_of(self.input_registers_as_slice(), range)
-    }
-
-    fn write_single_coil(&mut self, value: Indexed<CoilState>) -> Result<(), ExceptionCode> {
-        Err(ExceptionCode::IllegalFunction)
-    }
-
-    fn write_single_register(&mut self, value: Indexed<RegisterValue>)
-                             -> Result<(), ExceptionCode> {
-        Err(ExceptionCode::IllegalFunction)
-    }
-
-
 }
 
 pub type ServerHandlerType<T> = Arc<Mutex<Box<T>>>;
