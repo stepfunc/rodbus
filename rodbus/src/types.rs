@@ -70,19 +70,22 @@ impl AddressRange {
         AddressRange { start, count }
     }
 
-    pub fn to_range(&self) -> std::ops::Range<u16> {
+    pub fn to_range(&self) -> Option<std::ops::Range<usize>> {
 
-        if self.count == 0 || self.count == std::u16::MAX {
-            return 0..0;
+        if self.count == 0 {
+            return None;
         }
 
-        let max_start = std::u16::MAX - self.count - 1;
+        let max_start = std::u16::MAX - (self.count - 1);
 
         if self.start > max_start {
-            return 0..0;
+            return None;
         }
 
-        return self.start..(self.start + self.count);
+        let start = self.start as usize;
+        let end = start + (self.count as usize);
+
+        return Some(start .. end)
     }
 }
 

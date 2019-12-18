@@ -22,11 +22,10 @@ pub trait ServerHandler: Send + 'static {
 
     /// Safe helper function that retrieves a sub-slice or returns an ExceptionCode
     fn get_range_of<T>(slice: &[T], range: AddressRange) -> Result<&[T], ExceptionCode> {
-        let rng: std::ops::Range<usize> = {
-            let tmp = range.to_range();
-            std::ops::Range {
-                start: tmp.start as usize,
-                end: tmp.end as usize,
+        let rng  = {
+            match range.to_range() {
+                Some(range) => range,
+                None => return Err(ExceptionCode::IllegalDataAddress),
             }
         };
         if (rng.start >= slice.len()) || (rng.end > slice.len()) {
