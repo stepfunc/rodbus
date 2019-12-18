@@ -8,77 +8,34 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 use std::ops::Range;
 
-#[derive(Clone)]
-struct SimpleServer {
-    coils : [bool; 10]
-}
-
-impl SimpleServer {
-    pub fn new() -> Self {
-        Self {coils : [false; 10] }
-    }
-}
-
-fn get_range_of<T>(slice: &[T], range : AddressRange) -> Result<&[T], ExceptionCode> {
-    let rng : Range<usize> =  {
-        let tmp = range.to_range();
-        Range { start : tmp.start as usize, end : tmp.end as usize }
-    };
-    if (rng.start >= slice.len()) || (rng.end > slice.len()) {
-        return Err(ExceptionCode::IllegalDataAddress);
-    }
-    Ok(&slice[rng])
-}
-
-impl ServerHandler for SimpleServer {
-    fn read_coils(&mut self, range: AddressRange) -> Result<&[bool], ExceptionCode> {
-        get_range_of(&self.coils, range)
-    }
-
-    fn read_discrete_inputs(
-        &mut self,
-        _range: AddressRange,
-    ) -> Result<&[bool], ExceptionCode> {
-        Ok(&[])
-    }
-
-    fn read_holding_registers(
-        &mut self,
-        _range: AddressRange,
-    ) -> Result<&[u16], ExceptionCode> {
-        Ok(&[])
-    }
-
-    fn read_input_registers(
-        &mut self,
-        _range: AddressRange,
-    ) -> Result<&[u16], ExceptionCode> {
-        Ok(&[])
-    }
-
-    fn write_single_coil(&mut self, _value: Indexed<CoilState>) -> Result<(), ExceptionCode> {
-        Ok(())
-    }
-
-    fn write_single_register(
-        &mut self,
-        _value: Indexed<RegisterValue>,
-    ) -> Result<(), ExceptionCode> {
-        Ok(())
-    }
-}
-
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // print log messages to the console
     simple_logger::init_with_level(log::Level::Info).unwrap();
 
-    let handler : Arc<Mutex<Box<dyn ServerHandler>>> = Arc::new(Mutex::new(Box::new(SimpleServer::new())));
+    let handler = Arc::new(Mutex::new(Box::new(ServerHandler::new(
+        vec![false; 10],
+                vec![false; 10],
+        vec![0x0000; 10],
+        vec![0x0000; 10],
+    ))));
 
-    let mut map = ServerHandlerMap::new();
-    map.add(UnitId::new(1), handler);
+    let map = ServerHandlerMap::single(UnitId::new(1), handler.clone());
 
-    rodbus::server::run_tcp_server(SocketAddr::from_str("127.0.0.1:502")?, map).await?;
+    tokio::spawn(rodbus::server::run_tcp_server(SocketAddr::from_str("127.0.0.1:502")?, map));
+
+    let mut next = tokio::time::Instant::now();
+
+    loop {
+        next += tokio::time::Duration::from_secs(2);
+        {
+            let mut guard = handler.lock().await;
+            for c in guard.mut_coils() {
+                *c = !*c;
+            }
+        }
+        tokio::time::delay_until(next).await;
+    }
 
     Ok(())
 }
