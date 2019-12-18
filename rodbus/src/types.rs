@@ -71,7 +71,8 @@ impl AddressRange {
     }
 
     pub fn to_range(&self) -> std::ops::Range<u16> {
-        if self.count == 0 {
+
+        if self.count == 0 || self.count == std::u16::MAX {
             return 0..0;
         }
 
