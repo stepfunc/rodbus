@@ -63,12 +63,17 @@ pub mod bugs {
             /// Attempted to read more bytes than present
             InsufficientBytesForRead(requested: usize, remaining: usize) {
                 description("attempted to read more bytes than present")
-                display("attempted to read {} bytes with only {} remaing", requested, remaining)
+                display("attempted to read {} bytes with only {} remaining", requested, remaining)
             }
             /// Cursor seek operation exceeded the bounds of the underlying buffer
             BadSeekOperation {
                 description("Cursor seek operation exceeded the bounds of the underlying buffer")
                 display("Cursor seek operation exceeded the bounds of the underlying buffer")
+            }
+            /// Can't write the specified number of bytes
+            BadByteCount(num: usize) {
+                description("Byte count would exceed maximum size of u8")
+                display("Byte count would exceed maximum size of u8: {}", num)
             }
         }
     }

@@ -1,3 +1,5 @@
+use std::convert::TryFrom;
+
 use crate::error::*;
 use crate::service::traits::Serialize;
 use crate::types::{AddressRange, CoilState, Indexed, RegisterValue};
@@ -36,23 +38,25 @@ impl Serialize for Indexed<RegisterValue> {
 
 impl Serialize for &[bool] {
     fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), Error> {
-
         // how many bytes should we have?
-        let num_bytes : u8 = {
+        let num_bytes: u8 = {
             let div_8 = self.len() / 8;
 
-            if self.len() % 8 == 0 {
+            let count = if self.len() % 8 == 0 {
                 div_8
             } else {
                 div_8 + 1
-            }
-        } as u8; // TODO - validation!
+            };
+
+            u8::try_from(count)
+                .map_err(|_| bugs::Error::from(bugs::ErrorKind::BadByteCount(count)))?
+        };
 
         cursor.write_u8(num_bytes)?;
 
         for byte in self.chunks(8) {
-            let mut acc : u8 = 0;
-            let mut count : u8 = 0;
+            let mut acc: u8 = 0;
+            let mut count: u8 = 0;
             for bit in byte {
                 if *bit {
                     acc |= 1 << count;
@@ -60,6 +64,24 @@ impl Serialize for &[bool] {
                 count += 1;
             }
             cursor.write_u8(acc)?;
+        }
+
+        Ok(())
+    }
+}
+
+impl Serialize for &[u16] {
+    fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), Error> {
+        let num_bytes = {
+            let count = 2 * self.len();
+            u8::try_from(count)
+                .map_err(|_| bugs::Error::from(bugs::ErrorKind::BadByteCount(count)))?
+        };
+
+        cursor.write_u8(num_bytes)?;
+
+        for value in *self {
+            cursor.write_u16_be(*value)?
         }
 
         Ok(())

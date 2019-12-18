@@ -1,5 +1,4 @@
 pub(crate) mod range {
-
     use crate::error::details::InvalidRequest;
     use crate::types::AddressRange;
 

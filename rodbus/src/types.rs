@@ -1,4 +1,4 @@
-use crate::error::details::{ADUParseError, InvalidRequest};
+use crate::error::details::ADUParseError;
 
 #[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Ord, Eq)]
 pub struct UnitId {

@@ -1,7 +1,8 @@
+use std::fmt::{Display, Formatter};
+
 use crate::error::*;
 use crate::service::traits::Serialize;
 use crate::util::cursor::WriteCursor;
-use std::fmt::{Display, Formatter};
 
 mod constants {
     pub const READ_COILS: u8 = 1;

@@ -1,27 +1,32 @@
-use rodbus::error::details::ExceptionCode;
-use rodbus::prelude::*;
-use rodbus::server::handler::{ServerHandler, ServerHandlerMap};
 use std::net::SocketAddr;
 use std::str::FromStr;
 use std::sync::Arc;
 
 use tokio::sync::Mutex;
 
+use rodbus::error::details::ExceptionCode;
+use rodbus::prelude::*;
+use rodbus::server::handler::{ServerHandler, ServerHandlerMap};
+
 struct SimpleHandler {
-    coils : Vec<bool>,
-    discrete_inputs : Vec<bool>,
-    holding_registers : Vec<u16>,
+    coils: Vec<bool>,
+    discrete_inputs: Vec<bool>,
+    holding_registers: Vec<u16>,
     input_registers: Vec<u16>,
 }
 
 impl SimpleHandler {
-    fn new(coils : Vec<bool>,
-           discrete_inputs : Vec<bool>,
-           holding_registers : Vec<u16>,
-           input_registers: Vec<u16>) -> Self {
-
+    fn new(
+        coils: Vec<bool>,
+        discrete_inputs: Vec<bool>,
+        holding_registers: Vec<u16>,
+        input_registers: Vec<u16>,
+    ) -> Self {
         Self {
-            coils, discrete_inputs, holding_registers, input_registers
+            coils,
+            discrete_inputs,
+            holding_registers,
+            input_registers,
         }
     }
 
@@ -47,11 +52,11 @@ impl ServerHandler for SimpleHandler {
         Self::get_range_of(self.input_registers.as_slice(), range)
     }
 
-    fn write_single_coil(&mut self, _ : Indexed<CoilState>) -> Result<(), ExceptionCode> {
+    fn write_single_coil(&mut self, _: Indexed<CoilState>) -> Result<(), ExceptionCode> {
         Err(ExceptionCode::IllegalFunction)
     }
 
-    fn write_single_register(&mut self, _ : Indexed<RegisterValue>) -> Result<(), ExceptionCode> {
+    fn write_single_register(&mut self, _: Indexed<RegisterValue>) -> Result<(), ExceptionCode> {
         Err(ExceptionCode::IllegalFunction)
     }
 }
@@ -64,15 +69,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let handler = Arc::new(Mutex::new(Box::new(SimpleHandler::new(
         vec![false; 10],
         vec![false; 20],
-    vec![0; 10],
-    vec![0; 20],
+        vec![0; 10],
+        vec![0; 20],
     ))));
 
     // map unit ids to a handler for processing requests
     let map = ServerHandlerMap::single(UnitId::new(1), handler.clone());
 
     // spawn a server to handle connections onto its own task
-    tokio::spawn(rodbus::server::run_tcp_server(SocketAddr::from_str("127.0.0.1:502")?, map));
+    tokio::spawn(rodbus::server::run_tcp_server(
+        SocketAddr::from_str("127.0.0.1:502")?,
+        map,
+    ));
 
     let mut next = tokio::time::Instant::now();
 
@@ -87,5 +95,4 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         tokio::time::delay_until(next).await;
     }
-
 }

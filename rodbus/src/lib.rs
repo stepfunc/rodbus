@@ -107,20 +107,15 @@ pub mod client {
 }
 
 pub mod server {
-    use std::collections::BTreeMap;
     use std::net::SocketAddr;
-    use std::sync::Arc;
-
-    use tokio::sync::Mutex;
 
     use crate::server::handler::{ServerHandler, ServerHandlerMap};
     use crate::server::task::ServerTask;
-    use crate::types::UnitId;
 
     pub mod handler;
     mod task;
 
-    pub async fn run_tcp_server<T : ServerHandler>(
+    pub async fn run_tcp_server<T: ServerHandler>(
         addr: SocketAddr,
         handlers: ServerHandlerMap<T>,
     ) -> std::io::Result<()> {

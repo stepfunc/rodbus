@@ -67,7 +67,6 @@ impl ParseResponse<AddressRange> for Vec<Indexed<bool>> {
         let mut count = 0;
 
         for byte in bytes {
-
             for i in 0..8 {
                 // return early if we hit the count before the end of the byte
                 if count == request.count {
@@ -127,11 +126,15 @@ mod tests {
 
     #[test]
     fn parses_vec_of_bools() {
-       let input = [0x01, 0b00000101];  // 0b00000101
-       let mut cursor = ReadCursor::new(&input);
+        let input = [0x01, 0b00000101]; // 0b00000101
+        let mut cursor = ReadCursor::new(&input);
 
-       let result = Vec::<Indexed<bool>>::parse(&mut cursor, &AddressRange::new(0, 3)).unwrap();
-       let expected = vec![Indexed::new(0, true), Indexed::new(1, false), Indexed::new(2, true)];
+        let result = Vec::<Indexed<bool>>::parse(&mut cursor, &AddressRange::new(0, 3)).unwrap();
+        let expected = vec![
+            Indexed::new(0, true),
+            Indexed::new(1, false),
+            Indexed::new(2, true),
+        ];
 
         assert_eq!(result, expected);
     }

@@ -1,10 +1,7 @@
 use crate::client::message::{Request, ServiceRequest};
-use crate::error::details::ExceptionCode;
 use crate::error::*;
-use crate::server::handler::ServerHandler;
 use crate::service::function::FunctionCode;
 use crate::util::cursor::*;
-use std::sync::Arc;
 
 const ERROR_DELIMITER: u8 = 0x80;
 
@@ -26,13 +23,10 @@ pub trait Service: Sized {
     const RESPONSE_ERROR_CODE_VALUE: u8 = Self::REQUEST_FUNCTION_CODE_VALUE | ERROR_DELIMITER;
 
     /// The type used in the client API for requests
-    type ClientRequest: Serialize + Send + Sync + 'static;
+    type ClientRequest: Serialize + ParseRequest + Send + Sync + 'static;
 
     /// The type used in the client API for responses
     type ClientResponse: ParseResponse<Self::ClientRequest> + Send + Sync + 'static;
-
-    /// The types returned in the ServerHandler for this request and used for serialization
-    /// type ServerResponse: Serialize;
 
     /// check the validity of a request
     fn check_request_validity(request: &Self::ClientRequest)
@@ -40,13 +34,6 @@ pub trait Service: Sized {
 
     /// create the request enumeration used by the Client channel
     fn create_request(request: ServiceRequest<Self>) -> Request;
-
-/*
-    fn process(
-        request: &Self::ClientRequest,
-        server: &mut Box<dyn ServerHandler>,
-    ) -> Result<Self::ServerResponse, ExceptionCode>;
-*/
 
     fn parse_response(
         cursor: &mut ReadCursor,

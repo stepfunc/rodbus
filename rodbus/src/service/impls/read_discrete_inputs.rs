@@ -1,6 +1,5 @@
 use crate::client::message::{Request, ServiceRequest};
-use crate::error::details::{ExceptionCode, InvalidRequest};
-use crate::server::handler::ServerHandler;
+use crate::error::details::InvalidRequest;
 use crate::service::function::FunctionCode;
 use crate::service::traits::Service;
 use crate::service::validation::range::check_validity_for_read_bits;
