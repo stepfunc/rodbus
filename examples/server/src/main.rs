@@ -10,16 +10,16 @@ use std::ops::Range;
 
 #[derive(Clone)]
 struct SimpleServer {
-    coils : [bool; 4]
+    coils : [bool; 10]
 }
 
 impl SimpleServer {
     pub fn new() -> Self {
-        Self {coils : [false; 4] }
+        Self {coils : [false; 10] }
     }
 }
 
-fn safe_index<T>(slice: &[T], range : AddressRange) -> Result<&[T], ExceptionCode> {
+fn get_range_of<T>(slice: &[T], range : AddressRange) -> Result<&[T], ExceptionCode> {
     let rng : Range<usize> =  {
         let tmp = range.to_range();
         Range { start : tmp.start as usize, end : tmp.end as usize }
@@ -32,8 +32,7 @@ fn safe_index<T>(slice: &[T], range : AddressRange) -> Result<&[T], ExceptionCod
 
 impl ServerHandler for SimpleServer {
     fn read_coils(&mut self, range: AddressRange) -> Result<&[bool], ExceptionCode> {
-       //safe_index(&self.coils, range)
-        Ok(&[])
+        get_range_of(&self.coils, range)
     }
 
     fn read_discrete_inputs(
@@ -74,11 +73,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // print log messages to the console
     simple_logger::init_with_level(log::Level::Info).unwrap();
 
+    let handler : Arc<Mutex<Box<dyn ServerHandler>>> = Arc::new(Mutex::new(Box::new(SimpleServer::new())));
+
     let mut map = ServerHandlerMap::new();
-    map.add(
-        UnitId::new(1),
-        Arc::new(Mutex::new(Box::new(SimpleServer::new()))),
-    );
+    map.add(UnitId::new(1), handler);
 
     rodbus::server::run_tcp_server(SocketAddr::from_str("127.0.0.1:502")?, map).await?;
 
