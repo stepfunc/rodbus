@@ -5,6 +5,7 @@ use crate::service::traits::Service;
 use crate::types::{AddressRange, Indexed};
 use crate::server::handler::ServerHandler;
 use crate::error::details::ExceptionCode;
+use crate::service::validation::range::check_validity_for_read_bits;
 
 impl Service for crate::service::services::ReadCoils {
     const REQUEST_FUNCTION_CODE: FunctionCode = FunctionCode::ReadCoils;
@@ -13,7 +14,7 @@ impl Service for crate::service::services::ReadCoils {
     type ClientResponse = Vec<Indexed<bool>>;
 
     fn check_request_validity(request: &Self::ClientRequest) -> Result<(), details::InvalidRequest> {
-        request.check_validity_for_bits()
+        check_validity_for_read_bits(*request)
     }
 
     fn create_request(request: ServiceRequest<Self>) -> Request {

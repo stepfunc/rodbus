@@ -27,7 +27,7 @@ pub trait Service: Sized {
     const RESPONSE_ERROR_CODE_VALUE: u8 = Self::REQUEST_FUNCTION_CODE_VALUE | ERROR_DELIMITER;
 
     /// The type used in the client API for requests
-    type ClientRequest: ParseRequest + Serialize + Send + Sync + 'static;
+    type ClientRequest: Serialize + Send + Sync + 'static;
 
     /// The type used in the client API for responses
     type ClientResponse: ParseResponse<Self::ClientRequest> + Send + Sync + 'static;
