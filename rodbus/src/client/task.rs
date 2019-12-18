@@ -193,8 +193,6 @@ impl ChannelTask {
                 .await
                 .map_err(|_err| ErrorKind::ResponseTimeout)??;
 
-            //let frame = .map_err() await??;
-
             // TODO - log that non-matching tx_id found
             if frame.header.tx_id == tx_id {
                 let mut cursor = ReadCursor::new(frame.payload());

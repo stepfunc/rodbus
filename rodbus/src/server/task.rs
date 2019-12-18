@@ -171,8 +171,6 @@ impl SessionTask {
             }
         };
 
-        info!("writing bytes: {:?}", reply_frame);
-
         // reply with the bytes
         self.socket.write_all(reply_frame).await?;
         Ok(())
