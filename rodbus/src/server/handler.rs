@@ -6,97 +6,86 @@ use tokio::sync::Mutex;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
-pub struct ServerHandler {
-    discrete_inputs : Vec<bool>,
-    coils : Vec<bool>,
-    input_registers: Vec<u16>,
-    holding_registers: Vec<u16>,
+/// Safe helper function that retrieves a sub-slice or returns an ExceptionCode
+fn get_range_of<T>(slice: &[T], range : AddressRange) -> Result<&[T], ExceptionCode> {
+    let rng : std::ops::Range<usize> =  {
+        let tmp = range.to_range();
+        std::ops::Range { start : tmp.start as usize, end : tmp.end as usize }
+    };
+    if (rng.start >= slice.len()) || (rng.end > slice.len()) {
+        return Err(ExceptionCode::IllegalDataAddress);
+    }
+    Ok(&slice[rng])
 }
 
-impl ServerHandler {
+pub trait ServerHandler: Send + 'static {
 
-    pub fn new(
-        discrete_inputs : Vec<bool>,
-        coils : Vec<bool>,
-        input_registers: Vec<u16>,
-        holding_registers: Vec<u16>,
-    ) -> Self {
-        Self {
-            discrete_inputs,
-            coils,
-            input_registers,
-            holding_registers,
-        }
+    // concrete types implement these
+    fn coils_as_slice(&self) -> &[bool];
+    fn discrete_inputs_as_slice(&self) -> &[bool];
+    fn holding_registers_as_slice(&self) -> &[u16];
+    fn input_registers_as_slice(&self) -> &[u16];
+
+    fn read_coils(&self, range: AddressRange) -> Result<&[bool], ExceptionCode> {
+        get_range_of(self.coils_as_slice(), range)
     }
 
-    pub fn mut_coils(&mut self) -> &mut [bool] {
-        self.coils.as_mut()
+    fn read_discrete_inputs(&self, range: AddressRange) -> Result<&[bool], ExceptionCode> {
+        get_range_of(self.discrete_inputs_as_slice(), range)
     }
 
-    pub fn read_coils(&self, range: AddressRange) -> Result<&[bool], ExceptionCode> {
-        Self::get_range_of(&self.coils, range)
+    fn read_holding_registers(&self, range: AddressRange) -> Result<&[u16], ExceptionCode> {
+        get_range_of(self.holding_registers_as_slice(), range)
     }
 
-    pub fn read_discrete_inputs(&self, range: AddressRange) -> Result<&[bool], ExceptionCode> {
-        Self::get_range_of(&self.discrete_inputs, range)
+    fn read_input_registers(&self, range: AddressRange) -> Result<&[u16], ExceptionCode> {
+        get_range_of(self.input_registers_as_slice(), range)
     }
 
-    pub fn read_holding_registers(&self, range: AddressRange) -> Result<&[u16], ExceptionCode> {
-        Self::get_range_of(&self.holding_registers, range)
-    }
-
-    pub fn read_input_registers(&self, range: AddressRange) -> Result<&[u16], ExceptionCode> {
-        Self::get_range_of(&self.input_registers, range)
-    }
-
-    pub fn write_single_coil(&mut self, value: Indexed<CoilState>) -> Result<(), ExceptionCode> {
+    fn write_single_coil(&mut self, value: Indexed<CoilState>) -> Result<(), ExceptionCode> {
         Err(ExceptionCode::IllegalFunction)
     }
 
-    pub fn write_single_register(&mut self, value: Indexed<RegisterValue>)
+    fn write_single_register(&mut self, value: Indexed<RegisterValue>)
                              -> Result<(), ExceptionCode> {
         Err(ExceptionCode::IllegalFunction)
     }
 
-    fn get_range_of<T>(slice: &[T], range : AddressRange) -> Result<&[T], ExceptionCode> {
-        let rng : std::ops::Range<usize> =  {
-            let tmp = range.to_range();
-            std::ops::Range { start : tmp.start as usize, end : tmp.end as usize }
-        };
-        if (rng.start >= slice.len()) || (rng.end > slice.len()) {
-            return Err(ExceptionCode::IllegalDataAddress);
-        }
-        Ok(&slice[rng])
+
+}
+
+pub type ServerHandlerType<T> = Arc<Mutex<Box<T>>>;
+
+pub struct ServerHandlerMap<T : ServerHandler> {
+    handlers: BTreeMap<UnitId, ServerHandlerType<T>>,
+}
+
+impl<T> Clone for ServerHandlerMap<T> where T : ServerHandler {
+    fn clone(&self) -> Self {
+        ServerHandlerMap { handlers : self.handlers.clone() }
     }
 }
 
-pub type ServerHandlerType = Arc<Mutex<Box<ServerHandler>>>;
-
-#[derive(Clone)]
-pub struct ServerHandlerMap {
-    handlers: BTreeMap<UnitId, ServerHandlerType>,
-}
-
-impl ServerHandlerMap {
+impl<T> ServerHandlerMap<T> where T : ServerHandler {
     pub fn new() -> Self {
         Self {
             handlers: BTreeMap::new(),
         }
     }
 
-    pub fn single(id: UnitId, handler: ServerHandlerType) -> Self {
-        let mut map : BTreeMap<UnitId, ServerHandlerType> = BTreeMap::new();//<UnitId, ServerHandlerType>::new();
+    pub fn single(id: UnitId, handler: ServerHandlerType<T>) -> Self {
+        let mut map : BTreeMap<UnitId, ServerHandlerType<T>> = BTreeMap::new();
         map.insert(id, handler);
         Self {
             handlers: map,
         }
     }
 
-    pub fn get(&mut self, id: UnitId) -> Option<&mut ServerHandlerType> {
+    pub fn get(&mut self, id: UnitId) -> Option<&mut ServerHandlerType<T>> {
         self.handlers.get_mut(&id)
     }
 
-    pub fn add(&mut self, id: UnitId, server: ServerHandlerType) {
+    pub fn add(&mut self, id: UnitId, server: ServerHandlerType<T>) {
         self.handlers.insert(id, server);
     }
 }

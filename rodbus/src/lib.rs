@@ -120,9 +120,9 @@ pub mod server {
     pub mod handler;
     mod task;
 
-    pub async fn run_tcp_server(
+    pub async fn run_tcp_server<T : ServerHandler>(
         addr: SocketAddr,
-        handlers: ServerHandlerMap,
+        handlers: ServerHandlerMap<T>,
     ) -> std::io::Result<()> {
         ServerTask::new(addr, handlers).run().await
     }

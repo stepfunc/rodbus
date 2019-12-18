@@ -9,7 +9,7 @@ use tokio::sync::Mutex;
 
 use crate::error::details::ExceptionCode;
 use crate::error::Error;
-use crate::server::handler::ServerHandlerMap;
+use crate::server::handler::{ServerHandlerMap, ServerHandler};
 use crate::service::function::{FunctionCode, ADU};
 use crate::service::services::{ReadHoldingRegisters, ReadInputRegisters};
 use crate::service::traits::{ParseRequest, Serialize, Service};
@@ -21,14 +21,14 @@ use crate::util::frame::{FrameFormatter, FrameHeader, FramedReader};
 use std::ops::DerefMut;
 use std::borrow::BorrowMut;
 
-pub struct ServerTask {
+pub struct ServerTask<T : ServerHandler> {
     addr: SocketAddr,
-    handlers: ServerHandlerMap,
+    map: ServerHandlerMap<T>,
 }
 
-impl ServerTask {
-    pub fn new(addr: SocketAddr, handlers: ServerHandlerMap) -> Self {
-        Self { addr, handlers }
+impl<T> ServerTask<T> where T : ServerHandler {
+    pub fn new(addr: SocketAddr, map: ServerHandlerMap<T>) -> Self {
+        Self { addr, map }
     }
 
     pub async fn run(&self) -> std::io::Result<()> {
@@ -38,22 +38,22 @@ impl ServerTask {
             let (socket, addr) = listener.accept().await?;
             info!("accepted connection from: {}", addr);
 
-            let servers = self.handlers.clone();
+            let servers = self.map.clone();
 
             tokio::spawn(async move { SessionTask::new(socket, servers).run().await });
         }
     }
 }
 
-struct SessionTask {
+struct SessionTask<T : ServerHandler> {
     socket: TcpStream,
-    handlers: ServerHandlerMap,
+    handlers: ServerHandlerMap<T>,
     reader: FramedReader<MBAPParser>,
     writer: MBAPFormatter,
 }
 
-impl SessionTask {
-    pub fn new(socket: TcpStream, handlers: ServerHandlerMap) -> Self {
+impl<T> SessionTask<T> where T : ServerHandler {
+    pub fn new(socket: TcpStream, handlers: ServerHandlerMap<T>) -> Self {
         Self {
             socket,
             handlers,
