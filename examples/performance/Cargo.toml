@@ -14,5 +14,5 @@ name = "rodbus-performance"
 path = "src/main.rs"
 
 [dependencies]
-rodbus = { version = "0.1.0", path = "../../rodbus" }
-tokio = { version = "0.2.5", features = ["macros"]}
+rodbus = { path = "../../rodbus" }
+tokio = { version = "0.2 " }

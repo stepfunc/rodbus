@@ -10,10 +10,9 @@ categories = ["network-programming"]
 repository = "https://www.github.com/grid-io/rodbus"
 
 [dependencies]
-tokio = { version = "0.2.5", features = ["tcp", "sync", "io-util", "rt-core", "macros"]}
-error-chain = "0.12.1"
-log = "0.4.8"
+tokio = { version = "0.2", features = ["tcp", "sync", "io-util", "rt-core", "rt-threaded", "macros"]}
+error-chain = "0.12"
+log = "0.4"
 
 [dev-dependencies]
-assert_matches = "1.3.0"
-tokio-test = "0.2.0"
+tokio-test = "0.2"

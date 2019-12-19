@@ -14,7 +14,7 @@ name = "rodbus-server"
 path = "src/main.rs"
 
 [dependencies]
-rodbus = { version = "0.1.0", path = "../../rodbus" }
-tokio = { version = "0.2.5", features = ["macros"]}
-simple_logger = "1.3.0"
-log = "0.4.8"
+rodbus = { path = "../../rodbus" }
+tokio = { version = "0.2" }
+simple_logger = "1.3"
+log = "0.4"
