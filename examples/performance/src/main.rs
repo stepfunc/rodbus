@@ -43,7 +43,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let num_sessions = 50;
     let num_requests = 10000;
 
-    let addr = SocketAddr::from_str("127.0.0.1:502")?;
+    let addr = SocketAddr::from_str("127.0.0.1:40000")?;
 
     let handler = Arc::new(Mutex::new(Box::new(Handler { coils : [false; 100]} )));
     let listener = TcpListener::bind(addr).await?;
