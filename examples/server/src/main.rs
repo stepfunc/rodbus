@@ -62,7 +62,7 @@ impl ServerHandler for SimpleHandler {
     }
 }
 
-#[tokio::main]
+#[tokio::main(threaded_scheduler)]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // print log messages to the console
     simple_logger::init_with_level(log::Level::Info).unwrap();

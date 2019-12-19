@@ -37,7 +37,7 @@ use std::str::FromStr;
 use std::net::SocketAddr;
 use std::time::Duration;
 
-#[tokio::main]
+#[tokio::main(threaded_scheduler)]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let num_sessions = 50;
