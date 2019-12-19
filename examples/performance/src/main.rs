@@ -40,8 +40,17 @@ use std::time::Duration;
 #[tokio::main(threaded_scheduler)]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
-    let num_sessions = 50;
-    let num_requests = 10000;
+    let args: Vec<String> = std::env::args().collect();
+    
+    if args.len() != 3 {
+        panic!("You must provide only the <num sessions> and <num requests> parameters");
+    }
+
+    let num_sessions = usize::from_str(&args[1])?;
+    let num_requests = usize::from_str(&args[2])?;
+
+    println!("creating {} parallel connections and making {} requests per connection", num_sessions, num_requests);
+
 
     let addr = SocketAddr::from_str("127.0.0.1:40000")?;
 
@@ -81,10 +90,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let elapsed = std::time::Instant::now() - start;
 
     let num_total_requests = num_sessions * num_requests;
+    let seconds = elapsed.as_secs_f64();
+    let requests_per_sec : f64 = (num_total_requests as f64) / seconds;
 
-    let requests_per_sec : f64 = (num_total_requests as f64) / elapsed.as_secs_f64();
-
-    println!("requests per second: {}", requests_per_sec);
+    println!("performed {} requests in {} seconds - ({:.1} requests/sec)", num_total_requests, seconds, requests_per_sec); 
 
     Ok(())
 }
