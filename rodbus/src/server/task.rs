@@ -1,5 +1,3 @@
-use std::net::SocketAddr;
-
 use log::{info, warn};
 use tokio::io::AsyncWriteExt;
 use tokio::net::{TcpListener, TcpStream};
@@ -15,7 +13,7 @@ use crate::util::cursor::ReadCursor;
 use crate::util::frame::{FrameFormatter, FrameHeader, FramedReader};
 
 pub struct ServerTask<T: ServerHandler> {
-    addr: SocketAddr,
+    listener: TcpListener,
     map: ServerHandlerMap<T>,
 }
 
@@ -23,15 +21,14 @@ impl<T> ServerTask<T>
 where
     T: ServerHandler,
 {
-    pub fn new(addr: SocketAddr, map: ServerHandlerMap<T>) -> Self {
-        Self { addr, map }
+    pub fn new(listener: TcpListener, map: ServerHandlerMap<T>) -> Self {
+        Self { listener, map }
     }
 
-    pub async fn run(&self) -> std::io::Result<()> {
-        let mut listener = TcpListener::bind(self.addr).await?;
+    pub async fn run(&mut self) -> std::io::Result<()> {
 
         loop {
-            let (socket, addr) = listener.accept().await?;
+            let (socket, addr) = self.listener.accept().await?;
             info!("accepted connection from: {}", addr);
 
             let servers = self.map.clone();

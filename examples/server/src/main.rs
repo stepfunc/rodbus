@@ -3,6 +3,7 @@ use std::str::FromStr;
 use std::sync::Arc;
 
 use tokio::sync::Mutex;
+use tokio::net::TcpListener;
 
 use rodbus::error::details::ExceptionCode;
 use rodbus::prelude::*;
@@ -78,7 +79,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // spawn a server to handle connections onto its own task
     tokio::spawn(rodbus::server::run_tcp_server(
-        SocketAddr::from_str("127.0.0.1:502")?,
+        TcpListener::bind(SocketAddr::from_str("127.0.0.1:502")?).await?,
         map,
     ));
 

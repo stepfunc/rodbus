@@ -107,19 +107,19 @@ pub mod client {
 }
 
 pub mod server {
-    use std::net::SocketAddr;
 
     use crate::server::handler::{ServerHandler, ServerHandlerMap};
     use crate::server::task::ServerTask;
+    use tokio::net::TcpListener;
 
     pub mod handler;
     mod task;
 
     pub async fn run_tcp_server<T: ServerHandler>(
-        addr: SocketAddr,
+        listener: TcpListener,
         handlers: ServerHandlerMap<T>,
     ) -> std::io::Result<()> {
-        ServerTask::new(addr, handlers).run().await
+        ServerTask::new(listener, handlers).run().await
     }
 }
 
