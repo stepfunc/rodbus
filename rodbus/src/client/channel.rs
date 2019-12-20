@@ -61,8 +61,8 @@ pub mod strategy {
 }
 
 impl Channel {
-    pub fn new(addr: SocketAddr, connect_retry: Box<dyn ReconnectStrategy + Send>) -> Self {
-        let (tx, rx) = mpsc::channel(100);
+    pub fn new(addr: SocketAddr, max_queued_requests: usize, connect_retry: Box<dyn ReconnectStrategy + Send>) -> Self {
+        let (tx, rx) = mpsc::channel(max_queued_requests);
         tokio::spawn(async move { ChannelTask::new(addr, rx, connect_retry).run().await });
         Channel { tx }
     }

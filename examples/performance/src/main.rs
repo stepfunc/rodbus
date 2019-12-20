@@ -63,7 +63,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut sessions : Vec<Session> = Vec::new();
     for _ in 0 .. num_sessions {
         sessions.push(
-            create_tcp_client(addr, strategy::default()).create_session(UnitId::new(1), Duration::from_secs(1))
+            create_tcp_client(addr, 10, strategy::default()).create_session(UnitId::new(1), Duration::from_secs(1))
         );
     }
 

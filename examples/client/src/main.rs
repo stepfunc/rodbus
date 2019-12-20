@@ -81,7 +81,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 async fn run() -> Result<(), Error> {
     let args = parse_args()?;
 
-    let channel = create_tcp_client(args.address, strategy::default());
+    let channel = create_tcp_client(args.address, 1, strategy::default());
     let mut session = channel.create_session(args.id, Duration::from_secs(1));
     match args.command {
         Command::ReadCoils(range) => {

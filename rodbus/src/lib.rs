@@ -93,17 +93,20 @@ pub mod client {
     /// asynchronous task that executes Modbus requests against the underlying I/O
     pub(crate) mod task;
 
-    /// Create a Channel that attempts to maintain a TCP connection
+    /// Spawns a channel task onto the runtime that maintains a TCP connection and processes
+    /// requests from an mpsc request queue.
     ///
     /// The channel uses the provided RetryStrategy to pause between failed connection attempts
     ///
     /// * `addr` - Socket address of the remote server
+    /// * `max_queued_requests` - The maximum size of the request queu
     /// * `retry` - A boxed trait object that controls when the connection is retried on failure
     pub fn create_tcp_client(
         addr: SocketAddr,
+        max_queued_requests: usize,
         retry: Box<dyn ReconnectStrategy + Send>,
     ) -> Channel {
-        Channel::new(addr, retry)
+        Channel::new(addr, max_queued_requests,retry)
     }
 }
 
