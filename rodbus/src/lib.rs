@@ -6,14 +6,13 @@
 //! * Automatic connection management with configurable reconnect strategy
 //! * Panic-free parsing
 //! * Focus on maximal correctness and compliance to the specification
-//! * High-performance via Tokio's multi-threaded executor
+//! * Scalable performance using Tokio's multi-threaded executor
 //!
 //! # Supported modes
 //!
-//! * TCP client only
+//! * TCP client and server
 //! * Future support:
-//!   * TCP Server
-//!   * TLS Client / TLS Server complying with the new Secure Modbus specification
+//!   * TLS Client / TLS Server + Modbus X.509 extensions
 //!   * Modbus RTU over serial
 //!
 //! # Supported Functions
@@ -44,6 +43,7 @@
 //!
 //!    let channel = create_tcp_client(
 //!        SocketAddr::from_str("127.0.0.1:502")?,
+//!        10,
 //!        strategy::default()
 //!    );
 //!
@@ -74,9 +74,9 @@
 #[macro_use]
 extern crate error_chain;
 
-/// prelude used to include all of the API types (e.g. use rodbus::prelude::*;)
+/// prelude used to include all of the API types
 pub mod prelude;
-/// API types common to both client and server
+/// types common to both client and server API
 pub mod types;
 /// client API
 pub mod client {
@@ -94,14 +94,15 @@ pub mod client {
     pub(crate) mod task;
 
     /// Spawns a channel task onto the runtime that maintains a TCP connection and processes
-    /// requests from an mpsc request queue.
+    /// requests from an mpsc request queue. The task completes when the returned channel handle
+    /// and all derived session handles are dropped.
     ///
     /// The channel uses the provided RetryStrategy to pause between failed connection attempts
     ///
     /// * `addr` - Socket address of the remote server
     /// * `max_queued_requests` - The maximum size of the request queu
     /// * `retry` - A boxed trait object that controls when the connection is retried on failure
-    pub fn create_tcp_client(
+    pub fn spawn_tcp_client_task(
         addr: SocketAddr,
         max_queued_requests: usize,
         retry: Box<dyn ReconnectStrategy + Send>,
@@ -110,6 +111,7 @@ pub mod client {
     }
 }
 
+/// server API
 pub mod server {
 
     use crate::server::handler::{ServerHandler, ServerHandlerMap};
@@ -119,7 +121,13 @@ pub mod server {
     pub mod handler;
     mod task;
 
-    pub async fn run_tcp_server<T: ServerHandler>(
+    /// Creates a TCP server task that can then be spawned onto the runtime
+    ///
+    /// Each incoming connection will spawn a new task to handle it.
+    ///
+    /// * `listener` - A bound TCP listener used to accept connections
+    /// * `handlers` - A map of handlers keyed by a unit id
+    pub async fn create_tcp_server_task<T: ServerHandler>(
         listener: TcpListener,
         handlers: ServerHandlerMap<T>,
     ) -> std::io::Result<()> {
@@ -127,7 +135,7 @@ pub mod server {
     }
 }
 
-/// Error types associated with making requests
+/// error types associated with making requests
 pub mod error;
 
 // internal modules

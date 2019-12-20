@@ -78,7 +78,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let map = ServerHandlerMap::single(UnitId::new(1), handler.clone());
 
     // spawn a server to handle connections onto its own task
-    tokio::spawn(rodbus::server::run_tcp_server(
+    tokio::spawn(rodbus::server::create_tcp_server_task(
         TcpListener::bind(SocketAddr::from_str("127.0.0.1:502")?).await?,
         map,
     ));

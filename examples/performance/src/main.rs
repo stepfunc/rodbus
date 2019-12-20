@@ -57,13 +57,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let handler = Arc::new(Mutex::new(Box::new(Handler { coils : [false; 100]} )));
     let listener = TcpListener::bind(addr).await?;
 
-    tokio::spawn(run_tcp_server(listener, ServerHandlerMap::single(UnitId::new(1), handler)));
+    tokio::spawn(create_tcp_server_task(listener, ServerHandlerMap::single(UnitId::new(1), handler)));
 
     // now spawn a bunch of clients
     let mut sessions : Vec<Session> = Vec::new();
     for _ in 0 .. num_sessions {
         sessions.push(
-            create_tcp_client(addr, 10, strategy::default()).create_session(UnitId::new(1), Duration::from_secs(1))
+            spawn_tcp_client_task(addr, 10, strategy::default()).create_session(UnitId::new(1), Duration::from_secs(1))
         );
     }
 
