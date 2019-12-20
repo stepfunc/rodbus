@@ -32,10 +32,8 @@ impl ServerHandler for Handler {
 
 use std::net::SocketAddr;
 use std::str::FromStr;
-use std::sync::Arc;
 use std::time::Duration;
 use tokio::net::TcpListener;
-use tokio::sync::Mutex;
 
 #[tokio::main(threaded_scheduler)]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -55,9 +53,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let addr = SocketAddr::from_str("127.0.0.1:40000")?;
 
-    let handler = Arc::new(Mutex::new(Box::new(Handler {
+    let handler = Handler {
         coils: [false; 100],
-    })));
+    }
+    .wrap();
     let listener = TcpListener::bind(addr).await?;
 
     tokio::spawn(create_tcp_server_task(

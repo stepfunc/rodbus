@@ -8,6 +8,15 @@ use crate::types::*;
 
 /// Trait implemented by the user to process requests received from the client
 pub trait ServerHandler: Send + 'static {
+    /// Moves a server handler implementation into a `Arc<Mutex<Box<ServerHandler>>>`
+    /// suitable for passing to the server
+    fn wrap(self) -> Arc<Mutex<Box<Self>>>
+    where
+        Self: Sized,
+    {
+        Arc::new(Mutex::new(Box::new(self)))
+    }
+
     /// Read a range of coils, returning the matching slice of bool or an exception
     fn read_coils(&mut self, range: AddressRange) -> Result<&[bool], ExceptionCode>;
 

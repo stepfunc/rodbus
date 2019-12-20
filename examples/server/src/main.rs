@@ -1,9 +1,7 @@
 use std::net::SocketAddr;
 use std::str::FromStr;
-use std::sync::Arc;
 
 use tokio::net::TcpListener;
-use tokio::sync::Mutex;
 
 use rodbus::error::details::ExceptionCode;
 use rodbus::prelude::*;
@@ -67,12 +65,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // print log messages to the console
     simple_logger::init_with_level(log::Level::Info).unwrap();
 
-    let handler = Arc::new(Mutex::new(Box::new(SimpleHandler::new(
-        vec![false; 10],
-        vec![false; 20],
-        vec![0; 10],
-        vec![0; 20],
-    ))));
+    let handler =
+        SimpleHandler::new(vec![false; 10], vec![false; 20], vec![0; 10], vec![0; 20]).wrap();
 
     // map unit ids to a handler for processing requests
     let map = ServerHandlerMap::single(UnitId::new(1), handler.clone());
