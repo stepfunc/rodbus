@@ -176,6 +176,7 @@ mod util {
     pub(crate) mod buffer;
     pub(crate) mod cursor;
     pub(crate) mod frame;
+    pub(crate) mod bits;
 }
 mod tcp {
     pub(crate) mod frame;

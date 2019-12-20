@@ -38,11 +38,7 @@ impl ParseResponse<AddressRange> for Vec<Indexed<bool>> {
         let byte_count = cursor.read_u8()? as usize;
 
         // how many bytes should we have?
-        let expected_byte_count = if request.count % 8 == 0 {
-            request.count / 8
-        } else {
-            (request.count / 8) + 1
-        } as usize;
+        let expected_byte_count = crate::util::bits::num_bytes_for_bits(request.count);
 
         if byte_count != expected_byte_count {
             return Err(details::ADUParseError::RequestByteCountMismatch(
@@ -89,7 +85,7 @@ impl ParseResponse<AddressRange> for Vec<Indexed<u16>> {
         let byte_count = cursor.read_u8()? as usize;
 
         // how many bytes should we have?
-        let expected_byte_count = 2 * request.count as usize;
+        let expected_byte_count = 2 * (request.count as usize);
 
         if byte_count != expected_byte_count {
             return Err(details::ADUParseError::RequestByteCountMismatch(
@@ -125,7 +121,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn parses_vec_of_bools() {
+    fn parses_vec_of_bool() {
         let input = [0x01, 0b00000101]; // 0b00000101
         let mut cursor = ReadCursor::new(&input);
 
