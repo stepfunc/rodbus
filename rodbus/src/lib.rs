@@ -11,9 +11,6 @@
 //! # Supported modes
 //!
 //! * TCP client and server
-//! * Future support:
-//!   * TLS Client / TLS Server + Modbus X.509 extensions
-//!   * Modbus RTU over serial
 //!
 //! # Supported Functions
 //!
@@ -23,6 +20,11 @@
 //! * Read Input Registers
 //! * Write Single Coil
 //! * Write Single Register
+//!
+//! # Future support
+//!
+//! * TLS Client / TLS Server + Modbus X.509 extensions
+//! * Modbus RTU over serial
 //!
 //! # Examples
 //!
@@ -76,8 +78,20 @@ extern crate error_chain;
 
 /// prelude used to include all of the API types
 pub mod prelude;
-/// types common to both client and server API
+/// types used in requests and responses
 pub mod types;
+/// constant values related to the Modbus specification
+pub mod constants {
+    /// Maximum count allowed in a read coils/discrete inputs request
+    pub const MAX_READ_COILS_COUNT: u16 = 0x07D0;
+    /// Maximum count allowed in a read holding/input registers request
+    pub const MAX_READ_REGISTERS_COUNT: u16 = 0x007D;
+    /// Maximum count allowed in a `write multiple coils` request
+    pub const MAX_WRITE_COILS_COUNT: u16 = 0x07B0;
+    /// Maximum count allowed in a `write multiple registers` request
+    pub const MAX_WRITE_REGISTER_COUNT: u16 = 0x007B;
+}
+
 /// client API
 pub mod client {
     use std::net::SocketAddr;
@@ -107,7 +121,7 @@ pub mod client {
         max_queued_requests: usize,
         retry: Box<dyn ReconnectStrategy + Send>,
     ) -> Channel {
-        Channel::new(addr, max_queued_requests,retry)
+        Channel::new(addr, max_queued_requests, retry)
     }
 }
 

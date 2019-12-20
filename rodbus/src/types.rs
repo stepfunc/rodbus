@@ -1,4 +1,4 @@
-use crate::error::details::ADUParseError;
+use crate::error::details::{ADUParseError, InvalidRequest};
 
 #[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Ord, Eq)]
 pub struct UnitId {
@@ -63,29 +63,31 @@ impl RegisterValue {
 }
 
 impl AddressRange {
-    pub const MAX_REGISTERS: u16 = 125;
-    pub const MAX_BINARY_BITS: u16 = 2000;
-
     pub fn new(start: u16, count: u16) -> Self {
         AddressRange { start, count }
     }
 
-    pub fn to_range(&self) -> Option<std::ops::Range<usize>> {
-
+    pub fn validate(&self) -> Result<(), InvalidRequest> {
         if self.count == 0 {
-            return None;
+            return Err(InvalidRequest::CountOfZero);
         }
 
         let max_start = std::u16::MAX - (self.count - 1);
 
         if self.start > max_start {
-            return None;
+            return Err(InvalidRequest::AddressOverflow(*self));
         }
+
+        Ok(())
+    }
+
+    pub fn to_range(&self) -> Result<std::ops::Range<usize>, InvalidRequest> {
+        self.validate()?;
 
         let start = self.start as usize;
         let end = start + (self.count as usize);
 
-        return Some(start .. end)
+        return Ok(start..end);
     }
 }
 
@@ -106,5 +108,41 @@ impl UnitId {
 
     pub fn to_u8(self) -> u8 {
         self.id
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::error::details::InvalidRequest;
+
+    use super::*;
+
+    #[test]
+    fn address_start_max_count_of_one_is_allowed() {
+        assert_eq!(AddressRange::new(std::u16::MAX, 1).validate(), Ok(()));
+    }
+
+    #[test]
+    fn address_maximum_range_is_ok() {
+        assert_eq!(AddressRange::new(0, 0xFFFF).validate(), Ok(()));
+    }
+
+    #[test]
+    fn address_count_zero_fails_validation() {
+        assert_eq!(
+            AddressRange::new(0, 0).validate(),
+            Err(InvalidRequest::CountOfZero)
+        );
+    }
+
+    #[test]
+    fn start_max_count_of_two_overflows() {
+        assert_eq!(
+            AddressRange::new(std::u16::MAX, 2).validate(),
+            Err(InvalidRequest::AddressOverflow(AddressRange::new(
+                std::u16::MAX,
+                2
+            )))
+        );
     }
 }

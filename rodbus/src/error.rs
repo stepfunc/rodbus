@@ -81,6 +81,7 @@ pub mod bugs {
 
 /// Simple errors that occur normally and do not indicate bugs in the library
 pub mod details {
+    use crate::types::AddressRange;
     use std::fmt::{Error, Formatter};
 
     pub(crate) mod constants {
@@ -275,7 +276,7 @@ pub mod details {
     #[derive(Debug, Copy, Clone, PartialEq)]
     pub enum InvalidRequest {
         CountOfZero,
-        AddressOverflow(u16, u16),    // start / count
+        AddressOverflow(AddressRange),
         CountTooBigForType(u16, u16), // count / max
     }
 
@@ -285,10 +286,10 @@ pub mod details {
         fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
             match self {
                 InvalidRequest::CountOfZero => f.write_str("request contains a count of zero"),
-                InvalidRequest::AddressOverflow(start, count) => write!(
+                InvalidRequest::AddressOverflow(range) => write!(
                     f,
                     "start == {} and count == {} would overflow the representation of u16",
-                    start, count
+                    range.start, range.count
                 ),
                 InvalidRequest::CountTooBigForType(count, max) => write!(
                     f,

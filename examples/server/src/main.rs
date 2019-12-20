@@ -2,8 +2,8 @@ use std::net::SocketAddr;
 use std::str::FromStr;
 use std::sync::Arc;
 
-use tokio::sync::Mutex;
 use tokio::net::TcpListener;
+use tokio::sync::Mutex;
 
 use rodbus::error::details::ExceptionCode;
 use rodbus::prelude::*;

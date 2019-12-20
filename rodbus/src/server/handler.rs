@@ -8,7 +8,6 @@ use crate::types::*;
 
 /// Trait implemented by the user to process requests received from the client
 pub trait ServerHandler: Send + 'static {
-
     /// Read a range of coils, returning the matching slice of bool or an exception
     fn read_coils(&mut self, range: AddressRange) -> Result<&[bool], ExceptionCode>;
 
@@ -30,10 +29,10 @@ pub trait ServerHandler: Send + 'static {
 
     /// retrieve a sub-range of a slice or ExceptionCode::IllegalDataAddress
     fn get_range_of<T>(slice: &[T], range: AddressRange) -> Result<&[T], ExceptionCode> {
-        let rng  = {
+        let rng = {
             match range.to_range() {
-                Some(range) => range,
-                None => return Err(ExceptionCode::IllegalDataAddress),
+                Ok(range) => range,
+                Err(_) => return Err(ExceptionCode::IllegalDataAddress),
             }
         };
         if (rng.start >= slice.len()) || (rng.end > slice.len()) {
@@ -88,7 +87,11 @@ where
     }
 
     /// Add a handler to the map
-    pub fn add(&mut self, id: UnitId, server: ServerHandlerType<T>) -> Option<ServerHandlerType<T>>{
+    pub fn add(
+        &mut self,
+        id: UnitId,
+        server: ServerHandlerType<T>,
+    ) -> Option<ServerHandlerType<T>> {
         self.handlers.insert(id, server)
     }
 }

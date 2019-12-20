@@ -26,7 +26,6 @@ where
     }
 
     pub async fn run(&mut self) -> std::io::Result<()> {
-
         loop {
             let (socket, addr) = self.listener.accept().await?;
             info!("accepted connection from: {}", addr);
