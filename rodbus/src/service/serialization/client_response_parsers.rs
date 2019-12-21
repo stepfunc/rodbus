@@ -1,10 +1,11 @@
 use crate::error::*;
-use crate::service::traits::ParseResponse;
-use crate::types::{AddressRange, CoilState, Indexed, RegisterValue};
+use crate::service::traits::{ParseResponse, ParseRequest};
+use crate::types::{AddressRange, CoilState, Indexed, RegisterValue, WriteMultiple};
 use crate::util::cursor::ReadCursor;
+use crate::error::details::ADUParseError;
 
 impl ParseResponse<Indexed<RegisterValue>> for Indexed<RegisterValue> {
-    fn parse(cursor: &mut ReadCursor, request: &Indexed<RegisterValue>) -> Result<Self, Error> {
+    fn parse_response(cursor: &mut ReadCursor, request: &Indexed<RegisterValue>) -> Result<Self, Error> {
         let response = Indexed::new(
             cursor.read_u16_be()?,
             RegisterValue::new(cursor.read_u16_be()?),
@@ -19,7 +20,7 @@ impl ParseResponse<Indexed<RegisterValue>> for Indexed<RegisterValue> {
 }
 
 impl ParseResponse<Indexed<CoilState>> for Indexed<CoilState> {
-    fn parse(cursor: &mut ReadCursor, request: &Indexed<CoilState>) -> Result<Self, Error> {
+    fn parse_response(cursor: &mut ReadCursor, request: &Indexed<CoilState>) -> Result<Self, Error> {
         let response: Indexed<CoilState> = Indexed::new(
             cursor.read_u16_be()?,
             CoilState::from_u16(cursor.read_u16_be()?)?,
@@ -34,7 +35,7 @@ impl ParseResponse<Indexed<CoilState>> for Indexed<CoilState> {
 }
 
 impl ParseResponse<AddressRange> for Vec<Indexed<bool>> {
-    fn parse(cursor: &mut ReadCursor, request: &AddressRange) -> Result<Self, Error> {
+    fn parse_response(cursor: &mut ReadCursor, request: &AddressRange) -> Result<Self, Error> {
         let byte_count = cursor.read_u8()? as usize;
 
         // how many bytes should we have?
@@ -81,7 +82,7 @@ impl ParseResponse<AddressRange> for Vec<Indexed<bool>> {
 }
 
 impl ParseResponse<AddressRange> for Vec<Indexed<u16>> {
-    fn parse(cursor: &mut ReadCursor, request: &AddressRange) -> Result<Self, Error> {
+    fn parse_response(cursor: &mut ReadCursor, request: &AddressRange) -> Result<Self, Error> {
         let byte_count = cursor.read_u8()? as usize;
 
         // how many bytes should we have?
@@ -116,6 +117,17 @@ impl ParseResponse<AddressRange> for Vec<Indexed<u16>> {
     }
 }
 
+impl ParseResponse<WriteMultiple<bool>> for AddressRange {
+    fn parse_response(cursor: &mut ReadCursor, request: &WriteMultiple<bool>) -> Result<Self, Error> {
+        let range = request.to_address_range()?;
+        let parsed = AddressRange::parse(cursor)?;
+        if range != parsed {
+            return Err(ADUParseError::ReplyEchoMismatch.into());
+        }
+        Ok(parsed)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -125,7 +137,7 @@ mod tests {
         let input = [0x01, 0b00000101]; // 0b00000101
         let mut cursor = ReadCursor::new(&input);
 
-        let result = Vec::<Indexed<bool>>::parse(&mut cursor, &AddressRange::new(0, 3)).unwrap();
+        let result = Vec::<Indexed<bool>>::parse_response(&mut cursor, &AddressRange::new(0, 3)).unwrap();
         let expected = vec![
             Indexed::new(0, true),
             Indexed::new(1, false),

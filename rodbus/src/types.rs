@@ -1,5 +1,7 @@
 use crate::error::details::{ADUParseError, InvalidRequest};
 
+use std::convert::TryFrom;
+
 #[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Ord, Eq)]
 pub struct UnitId {
     id: u8,
@@ -32,6 +34,31 @@ mod constants {
 pub enum CoilState {
     On = constants::ON,
     Off = constants::OFF,
+}
+
+#[derive(Debug)]
+pub struct WriteMultiple<T> {
+    pub start: u16,
+    pub values: Vec<T>,
+}
+
+impl<T> WriteMultiple<T> {
+    pub fn new(start: u16, values: Vec<T>) -> Self {
+        Self { start, values }
+    }
+
+    pub fn to_address_range(&self) -> Result<AddressRange, InvalidRequest> {
+        match u16::try_from(self.values.len()) {
+            Ok(count) => {
+                let range = AddressRange::new(self.start, count);
+                range.validate()?;
+                Ok(range)
+            },
+            Err(_) => {
+                Err(InvalidRequest::CountTooBigForU16(self.values.len()))
+            }
+        }
+    }
 }
 
 impl CoilState {

@@ -6,7 +6,7 @@ use crate::client::message::{Request, ServiceRequest};
 use crate::error::*;
 use crate::service::services::*;
 use crate::service::traits::Service;
-use crate::types::{AddressRange, CoilState, Indexed, RegisterValue, UnitId};
+use crate::types::{AddressRange, CoilState, Indexed, RegisterValue, UnitId, WriteMultiple};
 
 #[derive(Clone)]
 pub struct Session {
@@ -89,6 +89,13 @@ impl Session {
         value: Indexed<RegisterValue>,
     ) -> Result<Indexed<RegisterValue>, Error> {
         self.make_service_call::<WriteSingleRegister>(value).await
+    }
+
+    pub async fn write_multiple_coils(
+        &mut self,
+        value: WriteMultiple<bool>,
+    ) -> Result<AddressRange, Error> {
+        self.make_service_call::<WriteMultipleCoils>(value).await
     }
 }
 

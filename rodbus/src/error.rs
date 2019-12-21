@@ -276,6 +276,7 @@ pub mod details {
     #[derive(Debug, Copy, Clone, PartialEq)]
     pub enum InvalidRequest {
         CountOfZero,
+        CountTooBigForU16(usize),
         AddressOverflow(AddressRange),
         CountTooBigForType(u16, u16), // count / max
     }
@@ -286,6 +287,11 @@ pub mod details {
         fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
             match self {
                 InvalidRequest::CountOfZero => f.write_str("request contains a count of zero"),
+                InvalidRequest::CountTooBigForU16(count) => write!(
+                    f,
+                    "The requested count of objects exceeds the maximum value of u16: {}",
+                    count
+                ),
                 InvalidRequest::AddressOverflow(range) => write!(
                     f,
                     "start == {} and count == {} would overflow the representation of u16",

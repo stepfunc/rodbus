@@ -149,6 +149,16 @@ impl ChannelTask {
                         return err;
                     }
                 }
+                Request::WriteMultipleCoils(srv) => {
+                    if let Some(err) = self
+                        .handle_request::<crate::service::services::WriteMultipleCoils>(
+                            &mut io, srv,
+                        )
+                        .await
+                    {
+                        return err;
+                    }
+                }
             }
         }
         SessionError::Shutdown

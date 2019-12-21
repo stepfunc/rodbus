@@ -26,6 +26,10 @@ error_chain! {
    }
 
    errors {
+        BadCharInBitString(c: char) {
+            description("Bitstring contains an invalid character")
+            display("Bitstring contains an invalid character: {}", c)
+        }
         MissingSubcommand {
             description("You must specify a sub-command")
             display("You must specify a sub-command")
@@ -40,6 +44,7 @@ enum Command {
     ReadInputRegisters(AddressRange),
     WriteSingleRegister(Indexed<RegisterValue>),
     WriteSingleCoil(Indexed<CoilState>),
+    WriteMultipleCoils(WriteMultiple<bool>),
 }
 
 struct Args {
@@ -110,6 +115,9 @@ async fn run() -> Result<(), Error> {
         Command::WriteSingleCoil(arg) => {
             session.write_single_coil(arg).await?;
         }
+        Command::WriteMultipleCoils(arg) => {
+            session.write_multiple_coils(arg).await?;
+        }
     }
 
     Ok(())
@@ -128,6 +136,20 @@ fn get_start(arg: &ArgMatches) -> Result<u16, Error> {
 fn get_value(arg: &ArgMatches) -> Result<u16, Error> {
     u16::from_str(arg.value_of("value").unwrap())
         .map_err(|e| Error::from(ErrorKind::BadInt(e)).chain_err(|| "value out of bounds"))
+}
+
+fn get_bit_values(arg: &ArgMatches) -> Result<Vec<bool>, Error> {
+    let str = arg.value_of("values").unwrap();
+
+    let mut values : Vec<bool> = Vec::new();
+    for c in str.chars().rev() {
+        match c {
+            '0' => values.push(false),
+            '1' => values.push(true),
+            _ => return Err(ErrorKind::BadCharInBitString(c).into())
+        }
+    }
+    Ok(values)
 }
 
 fn get_quantity(arg: &ArgMatches) -> Result<u16, Error> {
@@ -288,6 +310,26 @@ fn parse_args() -> Result<Args, Error> {
                         .help("the value of the coil (ON or OFF)"),
                 ),
         )
+        .subcommand(
+            SubCommand::with_name("wmc")
+                .about("write multiple coils")
+                .arg(
+                    Arg::with_name("start")
+                        .short("s")
+                        .long("start")
+                        .required(true)
+                        .takes_value(true)
+                        .help("the starting address of the coils"),
+                )
+                .arg(
+                    Arg::with_name("values")
+                        .short("v")
+                        .long("values")
+                        .required(true)
+                        .takes_value(true)
+                        .help("the values of the coils specified as a string of 1 and 0 (e.g. 10100011)"),
+                ),
+        )
         .get_matches();
 
     let address = SocketAddr::from_str(matches.value_of("host").unwrap())?;
@@ -342,6 +384,18 @@ fn parse_args() -> Result<Args, Error> {
             command: Command::WriteSingleCoil(Indexed::new(index, CoilState::from_bool(value))),
         });
     }
+
+    if let Some(matches) = matches.subcommand_matches("wmc") {
+        let start = get_start(matches)?;
+        let values = get_bit_values(matches)?;
+        return Ok(Args {
+            address,
+            id,
+            command: Command::WriteMultipleCoils(WriteMultiple::new(start, values)),
+        });
+    }
+
+
 
     Err(ErrorKind::MissingSubcommand.into())
 }

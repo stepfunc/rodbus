@@ -10,7 +10,7 @@ pub trait Serialize: Sync {
 }
 
 pub trait ParseResponse<T>: Sized {
-    fn parse(cursor: &mut ReadCursor, request: &T) -> Result<Self, Error>;
+    fn parse_response(cursor: &mut ReadCursor, request: &T) -> Result<Self, Error>;
 }
 
 pub trait ParseRequest: Sized {
@@ -42,7 +42,7 @@ pub trait Service: Sized {
         let function = cursor.read_u8()?;
 
         if function == Self::REQUEST_FUNCTION_CODE_VALUE {
-            let response = Self::ClientResponse::parse(cursor, request)?;
+            let response = Self::ClientResponse::parse_response(cursor, request)?;
             if !cursor.is_empty() {
                 return Err(details::ADUParseError::TrailingBytes(cursor.len()).into());
             }

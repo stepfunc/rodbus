@@ -11,8 +11,8 @@ mod constants {
     pub const READ_INPUT_REGISTERS: u8 = 4;
     pub const WRITE_SINGLE_COIL: u8 = 5;
     pub const WRITE_SINGLE_REGISTER: u8 = 6;
-    /*
     pub const WRITE_MULTIPLE_COILS: u8 = 15;
+    /*
     pub const WRITE_MULTIPLE_REGISTERS: u8 = 16;
     */
 }
@@ -26,8 +26,8 @@ pub enum FunctionCode {
     ReadInputRegisters = constants::READ_INPUT_REGISTERS,
     WriteSingleCoil = constants::WRITE_SINGLE_COIL,
     WriteSingleRegister = constants::WRITE_SINGLE_REGISTER,
-    /*
     WriteMultipleCoils = constants::WRITE_MULTIPLE_COILS,
+    /*
     WriteMultipleRegisters = constants::WRITE_MULTIPLE_REGISTERS
     */
 }
@@ -41,6 +41,7 @@ impl Display for FunctionCode {
             FunctionCode::ReadInputRegisters => f.write_str("READ INPUT REGISTERS"),
             FunctionCode::WriteSingleCoil => f.write_str("WRITE SINGLE COIL"),
             FunctionCode::WriteSingleRegister => f.write_str("WRITE SINGLE REGISTERS"),
+            FunctionCode::WriteMultipleCoils => f.write_str("WRITE MULTIPLE COILS"),
         }
     }
 }
@@ -62,6 +63,7 @@ impl FunctionCode {
             constants::READ_INPUT_REGISTERS => Some(FunctionCode::ReadInputRegisters),
             constants::WRITE_SINGLE_COIL => Some(FunctionCode::WriteSingleCoil),
             constants::WRITE_SINGLE_REGISTER => Some(FunctionCode::WriteSingleRegister),
+            constants::WRITE_MULTIPLE_COILS => Some(FunctionCode::WriteMultipleCoils),
             _ => None,
         }
     }

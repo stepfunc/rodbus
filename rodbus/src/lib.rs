@@ -165,6 +165,7 @@ mod service {
         mod read_input_registers;
         mod write_single_coil;
         mod write_single_register;
+        mod write_multiple_coils;
     }
     mod serialization {
         mod client_request_parsers;
