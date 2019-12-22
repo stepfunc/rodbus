@@ -13,6 +13,7 @@ repository = "https://www.github.com/grid-io/rodbus"
 tokio = { version = "0.2", features = ["tcp", "sync", "io-util", "rt-core", "rt-threaded", "macros"]}
 error-chain = "0.12"
 log = "0.4"
+futures = "0.3"
 
 [dev-dependencies]
 tokio-test = "0.2"

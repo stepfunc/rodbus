@@ -1,6 +1,10 @@
 use log::{info, warn};
 use tokio::io::AsyncWriteExt;
 use tokio::net::{TcpListener, TcpStream};
+use tokio::task::JoinHandle;
+use tokio::sync::mpsc::{channel, Sender, Receiver};
+use futures::select;
+use futures::future::FutureExt;
 
 use crate::error::details::ExceptionCode;
 use crate::error::*;
@@ -12,27 +16,57 @@ use crate::types::AddressRange;
 use crate::util::cursor::ReadCursor;
 use crate::util::frame::{FrameFormatter, FrameHeader, FramedReader};
 
+use std::collections::HashMap;
+
+enum SessionEvent {
+    Shutdown(u64)
+}
+
 pub struct ServerTask<T: ServerHandler> {
     listener: TcpListener,
-    map: ServerHandlerMap<T>,
+    handlers: ServerHandlerMap<T>,
+    id : u64,
+    sessions: HashMap<u64, JoinHandle<()>>,
+    receiver: Receiver<SessionEvent>,
+    sender: Sender<SessionEvent>,
 }
 
 impl<T> ServerTask<T>
 where
     T: ServerHandler,
 {
-    pub fn new(listener: TcpListener, map: ServerHandlerMap<T>) -> Self {
-        Self { listener, map }
+    pub fn new(listener: TcpListener, handlers: ServerHandlerMap<T>) -> Self {
+        let (tx, rx) = channel(10);
+        Self { listener, handlers, id : 0, sessions: HashMap::new(), receiver: rx, sender: tx }
+    }
+
+    fn get_next_id(&mut self) -> u64 {
+        let ret = self.id;
+        self.id += 1;
+        ret
     }
 
     pub async fn run(&mut self) -> std::io::Result<()> {
         loop {
-            let (socket, addr) = self.listener.accept().await?;
-            info!("accepted connection from: {}", addr);
-
-            let servers = self.map.clone();
-
-            tokio::spawn(async move { SessionTask::new(socket, servers).run().await });
+            select! {
+               incoming = self.listener.accept().fuse() => {
+                   let (socket, addr) = incoming?;
+                   let id = self.get_next_id();
+                   info!("accepted connection from: {}, spawning session {}", addr, id);
+                   let servers = self.handlers.clone();
+                   let mut tx = self.sender.clone();
+                   let handle = tokio::spawn(async move {
+                       SessionTask::new(socket, servers).run().await.ok();
+                       tx.send(SessionEvent::Shutdown(id)).await.ok();
+                   });
+               }
+               event = self.receiver.recv().fuse() => {
+                   if let Some(SessionEvent::Shutdown(id)) = event {
+                       self.sessions.remove(&id);
+                       info!("finished session: {}", id);
+                   }
+               }
+            }
         }
     }
 }
