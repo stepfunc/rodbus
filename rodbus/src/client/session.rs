@@ -15,11 +15,6 @@ pub struct Session {
     request_channel: mpsc::Sender<Request>,
 }
 
-#[derive(Clone)]
-pub struct CallbackSession {
-    inner: Session,
-}
-
 impl Session {
     pub(crate) fn new(
         id: UnitId,
@@ -107,6 +102,12 @@ impl Session {
     }
 }
 
+/*
+#[derive(Clone)]
+pub struct CallbackSession {
+    inner: Session,
+}
+
 impl CallbackSession {
     pub fn new(inner: Session) -> Self {
         CallbackSession { inner }
@@ -130,3 +131,4 @@ impl CallbackSession {
         self.start_request::<ReadCoils, C>(range, callback);
     }
 }
+*/
