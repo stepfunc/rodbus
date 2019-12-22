@@ -11,3 +11,4 @@ pub struct ReadHoldingRegisters;
 pub struct WriteSingleCoil;
 pub struct WriteSingleRegister;
 pub struct WriteMultipleCoils;
+pub struct WriteMultipleRegisters;

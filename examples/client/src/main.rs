@@ -45,6 +45,7 @@ enum Command {
     WriteSingleRegister(Indexed<RegisterValue>),
     WriteSingleCoil(Indexed<CoilState>),
     WriteMultipleCoils(WriteMultiple<bool>),
+    WriteMultipleRegisters(WriteMultiple<u16>),
 }
 
 struct Args {
@@ -118,6 +119,9 @@ async fn run() -> Result<(), Error> {
         Command::WriteMultipleCoils(arg) => {
             session.write_multiple_coils(arg).await?;
         }
+        Command::WriteMultipleRegisters(arg) => {
+            session.write_multiple_registers(arg).await?;
+        }
     }
 
     Ok(())
@@ -148,6 +152,16 @@ fn get_bit_values(arg: &ArgMatches) -> Result<Vec<bool>, Error> {
             '1' => values.push(true),
             _ => return Err(ErrorKind::BadCharInBitString(c).into()),
         }
+    }
+    Ok(values)
+}
+
+fn get_register_values(arg: &ArgMatches) -> Result<Vec<u16>, Error> {
+    let str = arg.value_of("values").unwrap();
+
+    let mut values: Vec<u16> = Vec::new();
+    for value in str.split(",") {
+        values.push(u16::from_str(value).chain_err(|| "bad register value")?);
     }
     Ok(values)
 }
@@ -330,6 +344,26 @@ fn parse_args() -> Result<Args, Error> {
                         .help("the values of the coils specified as a string of 1 and 0 (e.g. 10100011)"),
                 ),
         )
+        .subcommand(
+            SubCommand::with_name("wmr")
+                .about("write multiple registers")
+                .arg(
+                    Arg::with_name("start")
+                        .short("s")
+                        .long("start")
+                        .required(true)
+                        .takes_value(true)
+                        .help("the starting address of the registers"),
+                )
+                .arg(
+                    Arg::with_name("values")
+                        .short("v")
+                        .long("values")
+                        .required(true)
+                        .takes_value(true)
+                        .help("the values of the registers specified as a comma delimited list (e.g. 1,4,7)"),
+                ),
+        )
         .get_matches();
 
     let address = SocketAddr::from_str(matches.value_of("host").unwrap())?;
@@ -392,6 +426,16 @@ fn parse_args() -> Result<Args, Error> {
             address,
             id,
             command: Command::WriteMultipleCoils(WriteMultiple::new(start, values)),
+        });
+    }
+
+    if let Some(matches) = matches.subcommand_matches("wmr") {
+        let start = get_start(matches)?;
+        let values = get_register_values(matches)?;
+        return Ok(Args {
+            address,
+            id,
+            command: Command::WriteMultipleRegisters(WriteMultiple::new(start, values)),
         });
     }
 

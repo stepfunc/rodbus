@@ -20,10 +20,13 @@
 //! * Read Input Registers
 //! * Write Single Coil
 //! * Write Single Register
+//! * Write Multiple Coils
+//! * Write Multiple Registers
 //!
 //! # Future support
 //!
-//! * TLS Client / TLS Server + Modbus X.509 extensions
+//! * TLS Client / TLS Server + Modbus X.509 extensions using [Rustls](https://docs.rs/rustls)
+//! * Additional function code support
 //! * Modbus RTU over serial
 //!
 //! # Examples
@@ -89,7 +92,7 @@ pub mod constants {
     /// Maximum count allowed in a `write multiple coils` request
     pub const MAX_WRITE_COILS_COUNT: u16 = 0x07B0;
     /// Maximum count allowed in a `write multiple registers` request
-    pub const MAX_WRITE_REGISTER_COUNT: u16 = 0x007B;
+    pub const MAX_WRITE_REGISTERS_COUNT: u16 = 0x007B;
 }
 
 /// client API
@@ -164,6 +167,7 @@ mod service {
         mod read_holding_registers;
         mod read_input_registers;
         mod write_multiple_coils;
+        mod write_multiple_registers;
         mod write_single_coil;
         mod write_single_register;
     }

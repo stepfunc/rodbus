@@ -95,6 +95,13 @@ impl Serialize for WriteMultiple<bool> {
     }
 }
 
+impl Serialize for WriteMultiple<u16> {
+    fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), Error> {
+        self.to_address_range()?.serialize(cursor)?;
+        self.values.as_slice().serialize(cursor)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

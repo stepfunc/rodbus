@@ -63,3 +63,32 @@ impl ParseRequest for WriteMultiple<bool> {
         return Ok(WriteMultiple::new(range.start, values));
     }
 }
+
+impl ParseRequest for WriteMultiple<u16> {
+    fn parse(cursor: &mut ReadCursor) -> Result<Self, Error> {
+        let range = AddressRange::parse(cursor)?;
+
+        let byte_count = cursor.read_u8()? as usize;
+        let expected = 2 * (range.count as usize);
+
+        if byte_count != expected {
+            return Err(ADUParseError::RequestByteCountMismatch(expected, byte_count).into());
+        }
+
+        if byte_count < cursor.len() {
+            return Err(details::ADUParseError::InsufficientBytesForByteCount(
+                byte_count,
+                cursor.len(),
+            )
+            .into());
+        }
+
+        let mut values = Vec::<u16>::with_capacity(range.count as usize);
+
+        while !cursor.is_empty() {
+            values.push(cursor.read_u16_be()?)
+        }
+
+        Ok(WriteMultiple::new(range.start, values))
+    }
+}

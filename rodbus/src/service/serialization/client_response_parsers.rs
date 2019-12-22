@@ -137,6 +137,20 @@ impl ParseResponse<WriteMultiple<bool>> for AddressRange {
     }
 }
 
+impl ParseResponse<WriteMultiple<u16>> for AddressRange {
+    fn parse_response(
+        cursor: &mut ReadCursor,
+        request: &WriteMultiple<u16>,
+    ) -> Result<Self, Error> {
+        let range = request.to_address_range()?;
+        let parsed = AddressRange::parse(cursor)?;
+        if range != parsed {
+            return Err(ADUParseError::ReplyEchoMismatch.into());
+        }
+        Ok(parsed)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

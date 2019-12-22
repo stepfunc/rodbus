@@ -97,6 +97,14 @@ impl Session {
     ) -> Result<AddressRange, Error> {
         self.make_service_call::<WriteMultipleCoils>(value).await
     }
+
+    pub async fn write_multiple_registers(
+        &mut self,
+        value: WriteMultiple<u16>,
+    ) -> Result<AddressRange, Error> {
+        self.make_service_call::<WriteMultipleRegisters>(value)
+            .await
+    }
 }
 
 impl CallbackSession {

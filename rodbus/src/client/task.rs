@@ -159,6 +159,16 @@ impl ChannelTask {
                         return err;
                     }
                 }
+                Request::WriteMultipleRegisters(srv) => {
+                    if let Some(err) = self
+                        .handle_request::<crate::service::services::WriteMultipleRegisters>(
+                            &mut io, srv,
+                        )
+                        .await
+                    {
+                        return err;
+                    }
+                }
             }
         }
         SessionError::Shutdown

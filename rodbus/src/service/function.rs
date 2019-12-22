@@ -12,9 +12,7 @@ mod constants {
     pub const WRITE_SINGLE_COIL: u8 = 5;
     pub const WRITE_SINGLE_REGISTER: u8 = 6;
     pub const WRITE_MULTIPLE_COILS: u8 = 15;
-    /*
     pub const WRITE_MULTIPLE_REGISTERS: u8 = 16;
-    */
 }
 
 #[derive(Debug, Copy, Clone, PartialEq)]
@@ -27,9 +25,7 @@ pub enum FunctionCode {
     WriteSingleCoil = constants::WRITE_SINGLE_COIL,
     WriteSingleRegister = constants::WRITE_SINGLE_REGISTER,
     WriteMultipleCoils = constants::WRITE_MULTIPLE_COILS,
-    /*
-    WriteMultipleRegisters = constants::WRITE_MULTIPLE_REGISTERS
-    */
+    WriteMultipleRegisters = constants::WRITE_MULTIPLE_REGISTERS,
 }
 
 impl Display for FunctionCode {
@@ -42,6 +38,7 @@ impl Display for FunctionCode {
             FunctionCode::WriteSingleCoil => f.write_str("WRITE SINGLE COIL"),
             FunctionCode::WriteSingleRegister => f.write_str("WRITE SINGLE REGISTERS"),
             FunctionCode::WriteMultipleCoils => f.write_str("WRITE MULTIPLE COILS"),
+            FunctionCode::WriteMultipleRegisters => f.write_str("WRITE MULTIPLE REGISTERS"),
         }
     }
 }
@@ -64,6 +61,7 @@ impl FunctionCode {
             constants::WRITE_SINGLE_COIL => Some(FunctionCode::WriteSingleCoil),
             constants::WRITE_SINGLE_REGISTER => Some(FunctionCode::WriteSingleRegister),
             constants::WRITE_MULTIPLE_COILS => Some(FunctionCode::WriteMultipleCoils),
+            constants::WRITE_MULTIPLE_REGISTERS => Some(FunctionCode::WriteMultipleRegisters),
             _ => None,
         }
     }

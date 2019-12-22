@@ -17,6 +17,7 @@ pub enum Request {
     WriteSingleCoil(ServiceRequest<WriteSingleCoil>),
     WriteSingleRegister(ServiceRequest<WriteSingleRegister>),
     WriteMultipleCoils(ServiceRequest<WriteMultipleCoils>),
+    WriteMultipleRegisters(ServiceRequest<WriteMultipleRegisters>),
 }
 
 impl Request {
@@ -29,6 +30,7 @@ impl Request {
             Request::WriteSingleCoil(r) => r.fail(ErrorKind::NoConnection.into()),
             Request::WriteSingleRegister(r) => r.fail(ErrorKind::NoConnection.into()),
             Request::WriteMultipleCoils(r) => r.fail(ErrorKind::NoConnection.into()),
+            Request::WriteMultipleRegisters(r) => r.fail(ErrorKind::NoConnection.into()),
         }
     }
 }
