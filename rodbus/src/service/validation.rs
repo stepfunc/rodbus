@@ -16,7 +16,9 @@ pub(crate) mod range {
         check_validity(range, crate::constants::MAX_READ_COILS_COUNT)
     }
 
-    pub fn check_validity_for_write_multiple_coils(range: AddressRange) -> Result<(), InvalidRequest> {
+    pub fn check_validity_for_write_multiple_coils(
+        range: AddressRange,
+    ) -> Result<(), InvalidRequest> {
         check_validity(range, crate::constants::MAX_WRITE_COILS_COUNT)
     }
 

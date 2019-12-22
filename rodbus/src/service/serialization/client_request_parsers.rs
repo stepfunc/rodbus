@@ -1,8 +1,8 @@
+use crate::error::details::ADUParseError;
 use crate::error::*;
 use crate::service::traits::ParseRequest;
 use crate::types::{AddressRange, CoilState, Indexed, RegisterValue, WriteMultiple};
 use crate::util::cursor::ReadCursor;
-use crate::error::details::ADUParseError;
 
 impl ParseRequest for AddressRange {
     fn parse(cursor: &mut ReadCursor) -> Result<Self, Error> {

@@ -141,12 +141,12 @@ fn get_value(arg: &ArgMatches) -> Result<u16, Error> {
 fn get_bit_values(arg: &ArgMatches) -> Result<Vec<bool>, Error> {
     let str = arg.value_of("values").unwrap();
 
-    let mut values : Vec<bool> = Vec::new();
+    let mut values: Vec<bool> = Vec::new();
     for c in str.chars().rev() {
         match c {
             '0' => values.push(false),
             '1' => values.push(true),
-            _ => return Err(ErrorKind::BadCharInBitString(c).into())
+            _ => return Err(ErrorKind::BadCharInBitString(c).into()),
         }
     }
     Ok(values)
@@ -394,8 +394,6 @@ fn parse_args() -> Result<Args, Error> {
             command: Command::WriteMultipleCoils(WriteMultiple::new(start, values)),
         });
     }
-
-
 
     Err(ErrorKind::MissingSubcommand.into())
 }

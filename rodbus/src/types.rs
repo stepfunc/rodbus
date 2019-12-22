@@ -53,10 +53,8 @@ impl<T> WriteMultiple<T> {
                 let range = AddressRange::new(self.start, count);
                 range.validate()?;
                 Ok(range)
-            },
-            Err(_) => {
-                Err(InvalidRequest::CountTooBigForU16(self.values.len()))
             }
+            Err(_) => Err(InvalidRequest::CountTooBigForU16(self.values.len())),
         }
     }
 }

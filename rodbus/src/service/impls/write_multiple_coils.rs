@@ -1,13 +1,12 @@
-use crate::service::traits::Service;
-use crate::service::services::WriteMultipleCoils;
-use crate::error::details::InvalidRequest;
 use crate::client::message::{Request, ServiceRequest};
+use crate::error::details::InvalidRequest;
 use crate::service::function::FunctionCode;
+use crate::service::services::WriteMultipleCoils;
+use crate::service::traits::Service;
 use crate::service::validation::*;
-use crate::types::{WriteMultiple, AddressRange};
+use crate::types::{AddressRange, WriteMultiple};
 
 impl Service for WriteMultipleCoils {
-
     const REQUEST_FUNCTION_CODE: FunctionCode = FunctionCode::WriteMultipleCoils;
 
     type ClientRequest = WriteMultiple<bool>;

@@ -163,9 +163,9 @@ mod service {
         mod read_discrete_inputs;
         mod read_holding_registers;
         mod read_input_registers;
+        mod write_multiple_coils;
         mod write_single_coil;
         mod write_single_register;
-        mod write_multiple_coils;
     }
     mod serialization {
         mod client_request_parsers;
@@ -174,10 +174,10 @@ mod service {
     }
 }
 mod util {
+    pub(crate) mod bits;
     pub(crate) mod buffer;
     pub(crate) mod cursor;
     pub(crate) mod frame;
-    pub(crate) mod bits;
 }
 mod tcp {
     pub(crate) mod frame;
