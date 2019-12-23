@@ -14,19 +14,36 @@ use crate::service::traits::ParseRequest;
 use crate::tcp::frame::{MBAPFormatter, MBAPParser};
 use crate::types::AddressRange;
 use crate::util::cursor::ReadCursor;
-use crate::util::frame::{FrameFormatter, FrameHeader, FramedReader};
+use crate::util::frame::{FrameFormatter, FrameHeader, FramedReader, Frame};
 
-use std::collections::HashMap;
+use std::collections::{HashMap, BTreeMap};
+use std::net::SocketAddr;
 
 enum SessionEvent {
     Shutdown(u64)
+}
+
+struct SessionRecord {
+    handle: JoinHandle<()>,
+    shutdown: tokio::sync::mpsc::Sender<()>,
+}
+
+impl SessionRecord {
+    pub fn new(handle: JoinHandle<()>, shutdown: tokio::sync::mpsc::Sender<()>) -> Self {
+        Self { handle, shutdown }
+    }
+
+    pub async fn shutdown(mut self) {
+        self.shutdown.send(()).await.ok();
+        self.handle.await.ok();
+    }
 }
 
 pub struct ServerTask<T: ServerHandler> {
     listener: TcpListener,
     handlers: ServerHandlerMap<T>,
     id : u64,
-    sessions: HashMap<u64, JoinHandle<()>>,
+    sessions: BTreeMap<u64, SessionRecord>,
     receiver: Receiver<SessionEvent>,
     sender: Sender<SessionEvent>,
 }
@@ -37,7 +54,7 @@ where
 {
     pub fn new(listener: TcpListener, handlers: ServerHandlerMap<T>) -> Self {
         let (tx, rx) = channel(10);
-        Self { listener, handlers, id : 0, sessions: HashMap::new(), receiver: rx, sender: tx }
+        Self { listener, handlers, id : 0, sessions: BTreeMap::new(), receiver: rx, sender: tx }
     }
 
     fn get_next_id(&mut self) -> u64 {
@@ -47,33 +64,51 @@ where
     }
 
     pub async fn run(&mut self) -> std::io::Result<()> {
+
         loop {
             select! {
                incoming = self.listener.accept().fuse() => {
                    let (socket, addr) = incoming?;
-                   let id = self.get_next_id();
-                   info!("accepted connection from: {}, spawning session {}", addr, id);
-                   let servers = self.handlers.clone();
-                   let mut tx = self.sender.clone();
-                   let handle = tokio::spawn(async move {
-                       SessionTask::new(socket, servers).run().await.ok();
-                       tx.send(SessionEvent::Shutdown(id)).await.ok();
-                   });
+                   self.accept(socket, addr).await;
                }
                event = self.receiver.recv().fuse() => {
                    if let Some(SessionEvent::Shutdown(id)) = event {
                        self.sessions.remove(&id);
-                       info!("finished session: {}", id);
+                       info!("session closed: {}", id);
                    }
                }
             }
         }
+    }
+
+    async fn accept(&mut self, socket: TcpStream, addr: SocketAddr) {
+
+        if self.sessions.len() == 1 {
+            // TODO - this code is so ugly. there's a nightly API on BTreeMap
+            // that has a remove_first API
+            let key = *self.sessions.keys().next().unwrap();
+            let mut record = self.sessions.remove(&key).unwrap();
+            record.shutdown.send(());
+            record.handle.await;
+        }
+
+        let id = self.get_next_id();
+        info!("accepted connection {} from: {}", id, addr);
+        let servers = self.handlers.clone();
+        let mut sender = self.sender.clone();
+        let (tx, rx) = tokio::sync::mpsc::channel(1);
+        let handle = tokio::spawn(async move {
+            SessionTask::new(socket, servers, rx).run().await.ok();
+            sender.send(SessionEvent::Shutdown(id)).await.ok();
+        });
+        self.sessions.insert(id, SessionRecord::new(handle, tx));
     }
 }
 
 struct SessionTask<T: ServerHandler> {
     socket: TcpStream,
     handlers: ServerHandlerMap<T>,
+    shutdown: tokio::sync::mpsc::Receiver<()>,
     reader: FramedReader<MBAPParser>,
     writer: MBAPFormatter,
 }
@@ -82,10 +117,11 @@ impl<T> SessionTask<T>
 where
     T: ServerHandler,
 {
-    pub fn new(socket: TcpStream, handlers: ServerHandlerMap<T>) -> Self {
+    pub fn new(socket: TcpStream, handlers: ServerHandlerMap<T>, shutdown: tokio::sync::mpsc::Receiver<()>) -> Self {
         Self {
             socket,
             handlers,
+            shutdown,
             reader: FramedReader::new(MBAPParser::new()),
             writer: MBAPFormatter::new(),
         }
@@ -111,6 +147,21 @@ where
     pub async fn run_one(&mut self) -> std::result::Result<(), Error> {
         // any I/O or parsing errors close the session
         let frame = self.reader.next_frame(&mut self.socket).await?;
+
+        select! {
+            frame = self.reader.next_frame(&mut self.socket).fuse() => {
+               return self.reply_to_request(frame?).await;
+            }
+            _ = self.shutdown.recv().fuse() => {
+               return Err(crate::error::ErrorKind::Shutdown.into());
+            }
+        }
+
+
+    }
+
+    pub async fn reply_to_request(&mut self, frame: Frame) -> std::result::Result<(), Error> {
+
         let mut cursor = ReadCursor::new(frame.payload());
 
         // if no addresses match, then don't respond
