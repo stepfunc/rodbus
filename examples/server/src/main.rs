@@ -73,6 +73,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // spawn a server to handle connections onto its own task
     tokio::spawn(rodbus::server::create_tcp_server_task(
+        1,
         TcpListener::bind(SocketAddr::from_str("127.0.0.1:502")?).await?,
         map,
     ));

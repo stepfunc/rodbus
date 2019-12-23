@@ -130,10 +130,10 @@ pub mod client {
 
 /// server API
 pub mod server {
+    use tokio::net::TcpListener;
 
     use crate::server::handler::{ServerHandler, ServerHandlerMap};
     use crate::server::task::ServerTask;
-    use tokio::net::TcpListener;
 
     pub mod handler;
     mod task;
@@ -145,10 +145,13 @@ pub mod server {
     /// * `listener` - A bound TCP listener used to accept connections
     /// * `handlers` - A map of handlers keyed by a unit id
     pub async fn create_tcp_server_task<T: ServerHandler>(
+        max_sessions: usize,
         listener: TcpListener,
         handlers: ServerHandlerMap<T>,
     ) -> std::io::Result<()> {
-        ServerTask::new(listener, handlers).run().await
+        ServerTask::new(max_sessions, listener, handlers)
+            .run()
+            .await
     }
 }
 
