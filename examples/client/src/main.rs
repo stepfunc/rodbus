@@ -52,14 +52,16 @@ struct Args {
     address: SocketAddr,
     id: UnitId,
     command: Command,
+    period: Option<Duration>,
 }
 
 impl Args {
-    fn new(address: SocketAddr, id: UnitId, command: Command) -> Self {
+    fn new(address: SocketAddr, id: UnitId, command: Command, period: Option<Duration>) -> Self {
         Self {
             address,
             id,
             command,
+            period,
         }
     }
 }
@@ -86,44 +88,53 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 async fn run() -> Result<(), Error> {
     let args = parse_args()?;
-
     let channel = spawn_tcp_client_task(args.address, 1, strategy::default());
     let mut session = channel.create_session(args.id, Duration::from_secs(1));
-    match args.command {
+
+    match args.period {
+        None => run_command(&args.command, &mut session).await,
+        Some(period) => loop {
+            run_command(&args.command, &mut session).await?;
+            tokio::time::delay_for(period).await
+        },
+    }
+}
+
+async fn run_command(command: &Command, session: &mut Session) -> Result<(), Error> {
+    match command {
         Command::ReadCoils(range) => {
-            for x in session.read_coils(range).await? {
+            for x in session.read_coils(*range).await? {
                 println!("index: {} value: {}", x.index, x.value)
             }
         }
         Command::ReadDiscreteInputs(range) => {
-            for x in session.read_discrete_inputs(range).await? {
+            for x in session.read_discrete_inputs(*range).await? {
                 println!("index: {} value: {}", x.index, x.value)
             }
         }
         Command::ReadHoldingRegisters(range) => {
-            for x in session.read_holding_registers(range).await? {
+            for x in session.read_holding_registers(*range).await? {
                 println!("index: {} value: {}", x.index, x.value)
             }
         }
         Command::ReadInputRegisters(range) => {
-            for x in session.read_input_registers(range).await? {
+            for x in session.read_input_registers(*range).await? {
                 println!("index: {} value: {}", x.index, x.value)
             }
         }
         Command::WriteSingleRegister(arg) => {
-            session.write_single_register(arg).await?;
+            session.write_single_register(*arg).await?;
         }
         Command::WriteSingleCoil(arg) => {
-            session.write_single_coil(arg).await?;
+            session.write_single_coil(*arg).await?;
         }
         Command::WriteMultipleCoils(arg) => {
-            session.write_multiple_coils(arg).await?;
+            session.write_multiple_coils(arg.clone()).await?;
         }
         Command::WriteMultipleRegisters(arg) => {
-            session.write_multiple_registers(arg).await?;
+            session.write_multiple_registers(arg.clone()).await?;
         }
     }
-
     Ok(())
 }
 
@@ -171,6 +182,12 @@ fn get_quantity(arg: &ArgMatches) -> Result<u16, Error> {
         .map_err(|e| Error::from(ErrorKind::BadInt(e)).chain_err(|| "quantity out of bounds"))
 }
 
+fn get_period_ms(value: &str) -> Result<Duration, Error> {
+    let num = usize::from_str(value)
+        .map_err(|e| Error::from(ErrorKind::BadInt(e)).chain_err(|| "bad milliseconds"))?;
+    Ok(Duration::from_millis(num as u64))
+}
+
 fn get_address_range(arg: &ArgMatches) -> Result<AddressRange, Error> {
     Ok(AddressRange::new(get_start(arg)?, get_quantity(arg)?))
 }
@@ -180,6 +197,57 @@ fn get_indexed_register_value(arg: &ArgMatches) -> Result<Indexed<RegisterValue>
         get_index(arg)?,
         RegisterValue::new(get_value(arg)?),
     ))
+}
+
+fn get_command(matches: &ArgMatches) -> Result<Command, Error> {
+    if let Some(matches) = matches.subcommand_matches("rc") {
+        return Ok(Command::ReadCoils(get_address_range(matches)?));
+    }
+
+    if let Some(matches) = matches.subcommand_matches("rdi") {
+        return Ok(Command::ReadDiscreteInputs(get_address_range(matches)?));
+    }
+
+    if let Some(matches) = matches.subcommand_matches("rhr") {
+        return Ok(Command::ReadHoldingRegisters(get_address_range(matches)?));
+    }
+
+    if let Some(matches) = matches.subcommand_matches("rir") {
+        return Ok(Command::ReadInputRegisters(get_address_range(matches)?));
+    }
+
+    if let Some(matches) = matches.subcommand_matches("wsr") {
+        return Ok(Command::WriteSingleRegister(get_indexed_register_value(
+            matches,
+        )?));
+    }
+
+    if let Some(matches) = matches.subcommand_matches("wsc") {
+        let index = get_index(matches)?;
+        let value = bool::from_str(matches.value_of("value").unwrap())?;
+        return Ok(Command::WriteSingleCoil(Indexed::new(
+            index,
+            CoilState::from_bool(value),
+        )));
+    }
+
+    if let Some(matches) = matches.subcommand_matches("wmc") {
+        let start = get_start(matches)?;
+        let values = get_bit_values(matches)?;
+        return Ok(Command::WriteMultipleCoils(WriteMultiple::new(
+            start, values,
+        )));
+    }
+
+    if let Some(matches) = matches.subcommand_matches("wmr") {
+        let start = get_start(matches)?;
+        let values = get_register_values(matches)?;
+        return Ok(Command::WriteMultipleRegisters(WriteMultiple::new(
+            start, values,
+        )));
+    }
+
+    Err(ErrorKind::MissingSubcommand.into())
 }
 
 fn parse_args() -> Result<Args, Error> {
@@ -203,6 +271,14 @@ fn parse_args() -> Result<Args, Error> {
                 .required(false)
                 .default_value("1")
                 .help("The unit id of Modbus server"),
+        )
+        .arg(
+            Arg::with_name("period")
+                .short("p")
+                .long("period")
+                .takes_value(true)
+                .required(false)
+                .help("Optional polling period in milliseconds"),
         )
         .subcommand(
             SubCommand::with_name("rc")
@@ -368,76 +444,11 @@ fn parse_args() -> Result<Args, Error> {
 
     let address = SocketAddr::from_str(matches.value_of("host").unwrap())?;
     let id = UnitId::new(u8::from_str(matches.value_of("id").unwrap())?);
+    let period = match matches.value_of("period") {
+        Some(s) => Some(get_period_ms(s)?),
+        None => None,
+    };
+    let command = get_command(&matches)?;
 
-    if let Some(matches) = matches.subcommand_matches("rc") {
-        return Ok(Args::new(
-            address,
-            id,
-            Command::ReadCoils(get_address_range(matches)?),
-        ));
-    }
-
-    if let Some(matches) = matches.subcommand_matches("rdi") {
-        return Ok(Args::new(
-            address,
-            id,
-            Command::ReadDiscreteInputs(get_address_range(matches)?),
-        ));
-    }
-
-    if let Some(matches) = matches.subcommand_matches("rhr") {
-        return Ok(Args::new(
-            address,
-            id,
-            Command::ReadHoldingRegisters(get_address_range(matches)?),
-        ));
-    }
-
-    if let Some(matches) = matches.subcommand_matches("rir") {
-        return Ok(Args::new(
-            address,
-            id,
-            Command::ReadInputRegisters(get_address_range(matches)?),
-        ));
-    }
-
-    if let Some(matches) = matches.subcommand_matches("wsr") {
-        return Ok(Args::new(
-            address,
-            id,
-            Command::WriteSingleRegister(get_indexed_register_value(matches)?),
-        ));
-    }
-
-    if let Some(matches) = matches.subcommand_matches("wsc") {
-        let index = get_index(matches)?;
-        let value = bool::from_str(matches.value_of("value").unwrap())?;
-        return Ok(Args {
-            address,
-            id,
-            command: Command::WriteSingleCoil(Indexed::new(index, CoilState::from_bool(value))),
-        });
-    }
-
-    if let Some(matches) = matches.subcommand_matches("wmc") {
-        let start = get_start(matches)?;
-        let values = get_bit_values(matches)?;
-        return Ok(Args {
-            address,
-            id,
-            command: Command::WriteMultipleCoils(WriteMultiple::new(start, values)),
-        });
-    }
-
-    if let Some(matches) = matches.subcommand_matches("wmr") {
-        let start = get_start(matches)?;
-        let values = get_register_values(matches)?;
-        return Ok(Args {
-            address,
-            id,
-            command: Command::WriteMultipleRegisters(WriteMultiple::new(start, values)),
-        });
-    }
-
-    Err(ErrorKind::MissingSubcommand.into())
+    Ok(Args::new(address, id, command, period))
 }

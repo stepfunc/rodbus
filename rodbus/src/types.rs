@@ -1,6 +1,6 @@
-use crate::error::details::{ADUParseError, InvalidRequest};
-
 use std::convert::TryFrom;
+
+use crate::error::details::{ADUParseError, InvalidRequest};
 
 #[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Ord, Eq)]
 pub struct UnitId {
@@ -36,7 +36,7 @@ pub enum CoilState {
     Off = constants::OFF,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct WriteMultiple<T> {
     pub start: u16,
     pub values: Vec<T>,

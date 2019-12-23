@@ -81,8 +81,9 @@ pub mod bugs {
 
 /// Simple errors that occur normally and do not indicate bugs in the library
 pub mod details {
-    use crate::types::AddressRange;
     use std::fmt::{Error, Formatter};
+
+    use crate::types::AddressRange;
 
     pub(crate) mod constants {
         pub const ILLEGAL_FUNCTION: u8 = 0x01;

@@ -1,10 +1,12 @@
+use std::collections::BTreeMap;
+use std::sync::Arc;
+
+use futures::future::FutureExt;
+use futures::select;
 use log::{info, warn};
 use tokio::io::AsyncWriteExt;
 use tokio::net::{TcpListener, TcpStream};
-use tokio::task::JoinHandle;
-use tokio::sync::mpsc::{channel, Sender, Receiver};
-use futures::select;
-use futures::future::FutureExt;
+use tokio::sync::Mutex;
 
 use crate::error::details::ExceptionCode;
 use crate::error::*;
@@ -14,47 +16,23 @@ use crate::service::traits::ParseRequest;
 use crate::tcp::frame::{MBAPFormatter, MBAPParser};
 use crate::types::AddressRange;
 use crate::util::cursor::ReadCursor;
-use crate::util::frame::{FrameFormatter, FrameHeader, FramedReader, Frame};
+use crate::util::frame::{Frame, FrameFormatter, FrameHeader, FramedReader};
 
-use std::collections::{HashMap, BTreeMap};
-use std::net::SocketAddr;
-
-enum SessionEvent {
-    Shutdown(u64)
+struct SessionTracker {
+    max: usize,
+    id: u64,
+    sessions: BTreeMap<u64, tokio::sync::mpsc::Sender<()>>,
 }
 
-struct SessionRecord {
-    handle: JoinHandle<()>,
-    shutdown: tokio::sync::mpsc::Sender<()>,
-}
+type SessionTrackerWrapper = Arc<Mutex<Box<SessionTracker>>>;
 
-impl SessionRecord {
-    pub fn new(handle: JoinHandle<()>, shutdown: tokio::sync::mpsc::Sender<()>) -> Self {
-        Self { handle, shutdown }
-    }
-
-    pub async fn shutdown(mut self) {
-        self.shutdown.send(()).await.ok();
-        self.handle.await.ok();
-    }
-}
-
-pub struct ServerTask<T: ServerHandler> {
-    listener: TcpListener,
-    handlers: ServerHandlerMap<T>,
-    id : u64,
-    sessions: BTreeMap<u64, SessionRecord>,
-    receiver: Receiver<SessionEvent>,
-    sender: Sender<SessionEvent>,
-}
-
-impl<T> ServerTask<T>
-where
-    T: ServerHandler,
-{
-    pub fn new(listener: TcpListener, handlers: ServerHandlerMap<T>) -> Self {
-        let (tx, rx) = channel(10);
-        Self { listener, handlers, id : 0, sessions: BTreeMap::new(), receiver: rx, sender: tx }
+impl SessionTracker {
+    fn new(max: usize) -> SessionTracker {
+        Self {
+            max,
+            id: 0,
+            sessions: BTreeMap::new(),
+        }
     }
 
     fn get_next_id(&mut self) -> u64 {
@@ -63,45 +41,66 @@ where
         ret
     }
 
-    pub async fn run(&mut self) -> std::io::Result<()> {
-
-        loop {
-            select! {
-               incoming = self.listener.accept().fuse() => {
-                   let (socket, addr) = incoming?;
-                   self.accept(socket, addr).await;
-               }
-               event = self.receiver.recv().fuse() => {
-                   if let Some(SessionEvent::Shutdown(id)) = event {
-                       self.sessions.remove(&id);
-                       info!("session closed: {}", id);
-                   }
-               }
-            }
-        }
+    pub fn wrapped(max: usize) -> SessionTrackerWrapper {
+        Arc::new(Mutex::new(Box::new(Self::new(max))))
     }
 
-    async fn accept(&mut self, socket: TcpStream, addr: SocketAddr) {
-
-        if self.sessions.len() == 1 {
-            // TODO - this code is so ugly. there's a nightly API on BTreeMap
-            // that has a remove_first API
-            let key = *self.sessions.keys().next().unwrap();
-            let mut record = self.sessions.remove(&key).unwrap();
-            record.shutdown.send(());
-            record.handle.await;
+    pub fn add(&mut self, sender: tokio::sync::mpsc::Sender<()>) -> u64 {
+        // TODO - this is so ugly. there's a nightly API on BTreeMap that has a remove_first
+        if !self.sessions.is_empty() && self.sessions.len() >= self.max {
+            let id = *self.sessions.keys().next().unwrap();
+            warn!("exceeded max connections, closing oldest session: {}", id);
+            // when the record drops, and there are no more senders,
+            // the other end will stop the task
+            self.sessions.remove(&id).unwrap();
         }
 
         let id = self.get_next_id();
-        info!("accepted connection {} from: {}", id, addr);
-        let servers = self.handlers.clone();
-        let mut sender = self.sender.clone();
-        let (tx, rx) = tokio::sync::mpsc::channel(1);
-        let handle = tokio::spawn(async move {
-            SessionTask::new(socket, servers, rx).run().await.ok();
-            sender.send(SessionEvent::Shutdown(id)).await.ok();
-        });
-        self.sessions.insert(id, SessionRecord::new(handle, tx));
+        self.sessions.insert(id, sender);
+        id
+    }
+
+    pub fn remove(&mut self, id: u64) {
+        self.sessions.remove(&id);
+    }
+}
+
+pub struct ServerTask<T: ServerHandler> {
+    listener: TcpListener,
+    handlers: ServerHandlerMap<T>,
+    tracker: SessionTrackerWrapper,
+}
+
+impl<T> ServerTask<T>
+where
+    T: ServerHandler,
+{
+    pub fn new(max_sessions: usize, listener: TcpListener, handlers: ServerHandlerMap<T>) -> Self {
+        Self {
+            listener,
+            handlers,
+            tracker: SessionTracker::wrapped(max_sessions),
+        }
+    }
+
+    pub async fn run(&mut self) -> std::io::Result<()> {
+        loop {
+            let (socket, addr) = self.listener.accept().await?;
+
+            let handlers = self.handlers.clone();
+            let tracker = self.tracker.clone();
+            let (tx, rx) = tokio::sync::mpsc::channel(1);
+
+            let id = self.tracker.lock().await.add(tx);
+
+            info!("accepted connection {} from: {}", id, addr);
+
+            tokio::spawn(async move {
+                SessionTask::new(socket, handlers, rx).run().await.ok();
+                info!("shutdown session: {}", id);
+                tracker.lock().await.remove(id);
+            });
+        }
     }
 }
 
@@ -117,7 +116,11 @@ impl<T> SessionTask<T>
 where
     T: ServerHandler,
 {
-    pub fn new(socket: TcpStream, handlers: ServerHandlerMap<T>, shutdown: tokio::sync::mpsc::Receiver<()>) -> Self {
+    pub fn new(
+        socket: TcpStream,
+        handlers: ServerHandlerMap<T>,
+        shutdown: tokio::sync::mpsc::Receiver<()>,
+    ) -> Self {
         Self {
             socket,
             handlers,
@@ -145,9 +148,6 @@ where
     }
 
     pub async fn run_one(&mut self) -> std::result::Result<(), Error> {
-        // any I/O or parsing errors close the session
-        let frame = self.reader.next_frame(&mut self.socket).await?;
-
         select! {
             frame = self.reader.next_frame(&mut self.socket).fuse() => {
                return self.reply_to_request(frame?).await;
@@ -156,12 +156,9 @@ where
                return Err(crate::error::ErrorKind::Shutdown.into());
             }
         }
-
-
     }
 
     pub async fn reply_to_request(&mut self, frame: Frame) -> std::result::Result<(), Error> {
-
         let mut cursor = ReadCursor::new(frame.payload());
 
         // if no addresses match, then don't respond

@@ -60,6 +60,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let listener = TcpListener::bind(addr).await?;
 
     tokio::spawn(create_tcp_server_task(
+        num_sessions,
         listener,
         ServerHandlerMap::single(UnitId::new(1), handler),
     ));
