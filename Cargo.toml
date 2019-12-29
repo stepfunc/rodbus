@@ -2,6 +2,7 @@
 
 members = [
   "rodbus",
+  "rodbus-ffi",
   "examples/client",
   "examples/server",
   "examples/performance"
