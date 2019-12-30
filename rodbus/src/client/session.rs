@@ -102,7 +102,7 @@ impl Session {
     }
 }
 
-/*
+
 #[derive(Clone)]
 pub struct CallbackSession {
     inner: Session,
@@ -131,4 +131,4 @@ impl CallbackSession {
         self.start_request::<ReadCoils, C>(range, callback);
     }
 }
-*/
+
