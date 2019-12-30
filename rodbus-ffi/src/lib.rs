@@ -2,8 +2,25 @@ use std::ffi::CStr;
 use std::net::SocketAddr;
 use std::ptr::null_mut;
 use std::str::FromStr;
+use tokio::runtime;
 
+#[no_mangle]
+pub extern "C" fn create_runtime() -> *mut tokio::runtime::Runtime {
+    match runtime::Builder::new()
+        .threaded_scheduler()
+        .build() {
+        Ok(r) => Box::into_raw(Box::new(r)),
+        Err(_) => null_mut()
+    }
+}
 
+#[no_mangle]
+pub extern "C" fn destroy_runtime(runtime: *mut tokio::runtime::Runtime) {
+    if runtime != null_mut() {
+        unsafe { Box::from_raw(runtime) };
+    };
+    ()
+}
 
 #[no_mangle]
 pub extern "C" fn create_tcp_client(
