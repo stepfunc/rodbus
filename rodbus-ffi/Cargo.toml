@@ -12,3 +12,6 @@ repository = "https://www.github.com/grid-io/rodbus"
 [dependencies]
 rodbus = { path = "../rodbus" }
 
+[lib]
+crate-type = ["staticlib"]
+
