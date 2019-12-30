@@ -66,9 +66,19 @@ impl Channel {
         max_queued_requests: usize,
         connect_retry: Box<dyn ReconnectStrategy + Send>,
     ) -> Self {
+        let (handle, task) = Self::create_handle_and_task(addr, max_queued_requests, connect_retry);
+        tokio::spawn(task);
+        handle
+    }
+
+    pub fn create_handle_and_task(
+        addr: SocketAddr,
+        max_queued_requests: usize,
+        connect_retry: Box<dyn ReconnectStrategy + Send>,
+    ) -> (Self, impl std::future::Future<Output = ()>) {
         let (tx, rx) = mpsc::channel(max_queued_requests);
-        tokio::spawn(async move { ChannelTask::new(addr, rx, connect_retry).run().await });
-        Channel { tx }
+        let task = async move { ChannelTask::new(addr, rx, connect_retry).run().await };
+        (Channel { tx }, task)
     }
 
     pub fn create_session(&self, id: UnitId, response_timeout: Duration) -> Session {

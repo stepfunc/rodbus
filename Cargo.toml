@@ -3,4 +3,5 @@
 members = [
   "rodbus",
   "rodbus-client",
+  "rodbus-ffi",
 ]
