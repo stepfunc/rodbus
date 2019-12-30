@@ -158,6 +158,8 @@ where
         }
     }
 
+    // TODO: Simplify this function
+    #[allow(clippy::cognitive_complexity)]
     pub async fn reply_to_request(&mut self, frame: Frame) -> std::result::Result<(), Error> {
         let mut cursor = ReadCursor::new(frame.payload());
 

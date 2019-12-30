@@ -56,12 +56,10 @@ impl Serialize for &[bool] {
 
         for byte in self.chunks(8) {
             let mut acc: u8 = 0;
-            let mut count: u8 = 0;
-            for bit in byte {
+            for (count, bit) in byte.iter().enumerate() {
                 if *bit {
-                    acc |= 1 << count;
+                    acc |= 1 << count as u8;
                 }
-                count += 1;
             }
             cursor.write_u8(acc)?;
         }

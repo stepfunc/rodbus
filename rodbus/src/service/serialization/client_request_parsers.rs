@@ -60,7 +60,7 @@ impl ParseRequest for WriteMultiple<bool> {
             }
         }
 
-        return Ok(WriteMultiple::new(range.start, values));
+        Ok(WriteMultiple::new(range.start, values))
     }
 }
 
