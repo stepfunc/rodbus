@@ -7,6 +7,7 @@ use crate::error::*;
 use crate::service::services::*;
 use crate::service::traits::Service;
 use crate::types::{AddressRange, CoilState, Indexed, RegisterValue, UnitId, WriteMultiple};
+use tokio::runtime::Runtime;
 
 #[derive(Clone)]
 pub struct Session {
@@ -113,22 +114,22 @@ impl CallbackSession {
         CallbackSession { inner }
     }
 
-    fn start_request<S, C>(&mut self, request: S::ClientRequest, callback: C)
+    fn start_request<S, C>(&mut self, runtime: &mut Runtime, request: S::ClientRequest, callback: C)
     where
         S: Service + 'static,
         C: FnOnce(Result<S::ClientResponse, Error>) + Send + Sync + 'static,
     {
         let mut session = self.inner.clone();
-        tokio::spawn(async move {
+        runtime.spawn(async move {
             callback(session.make_service_call::<S>(request).await);
         });
     }
 
-    pub fn read_coils<C>(&mut self, range: AddressRange, callback: C)
+    pub fn read_coils<C>(&mut self, runtime: &mut Runtime, range: AddressRange, callback: C)
     where
         C: FnOnce(Result<Vec<Indexed<bool>>, Error>) + Send + Sync + 'static,
     {
-        self.start_request::<ReadCoils, C>(range, callback);
+        self.start_request::<ReadCoils, C>(runtime, range, callback);
     }
 }
 

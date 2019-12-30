@@ -7,6 +7,7 @@ use std::os::raw::c_void;
 use rodbus::types::{UnitId, AddressRange};
 use rodbus::client::session::CallbackSession;
 use rodbus::error::ErrorKind;
+use rodbus::client::channel::Channel;
 
 #[repr(u8)]
 pub enum Status {
@@ -43,6 +44,14 @@ struct ContextStorage {
     context: *mut c_void
 }
 
+#[repr(C)]
+pub struct Session {
+    runtime: *mut tokio::runtime::Runtime,
+    channel: *mut rodbus::client::channel::Channel,
+    unit_id: u8,
+    timeout_ms: u32
+}
+
 // we need these so we can send the callback context to the executor
 // we rely on the C program to keep the context value alive
 // for the duration of the operation, and for it to be thread-safe
@@ -63,6 +72,11 @@ pub extern "C" fn destroy_runtime(runtime: *mut tokio::runtime::Runtime) {
         unsafe { Box::from_raw(runtime) };
     };
     ()
+}
+
+#[no_mangle]
+pub extern "C" fn build_session(runtime: *mut tokio::runtime::Runtime, channel: *mut Channel, unit_id: u8, timeout_ms: u32) -> Session {
+    Session { runtime, channel, unit_id, timeout_ms }
 }
 
 #[no_mangle]
@@ -99,21 +113,21 @@ pub extern "C" fn create_tcp_client(
 
 #[no_mangle]
 pub extern "C" fn read_coils(
-    channel: *mut rodbus::client::channel::Channel,
-    unit_id: u8,
+    session: *mut Session,
     start: u16,
     count: u16,
     callback: fn(Status, *const bool, usize, *mut c_void),
-    timeout_ms: u32,
     context: *mut c_void
 ) {
-    let mut session : CallbackSession = unsafe {
-        CallbackSession::new((*channel).create_session(UnitId::new(unit_id), std::time::Duration::from_millis(timeout_ms as u64)))
-    };
+    let s = unsafe { session.as_mut().unwrap() };
+    let runtime = unsafe { s.runtime.as_mut().unwrap() };
+    let channel = unsafe { s.channel.as_mut().unwrap() };
+
+    let mut session : CallbackSession = CallbackSession::new(channel.create_session(UnitId::new(s.unit_id), std::time::Duration::from_millis(s.timeout_ms as u64)));
 
     let storage = ContextStorage { context };
 
-    session.read_coils(AddressRange::new(start, count), move |result| {
+    session.read_coils(runtime,AddressRange::new(start, count), move |result| {
         match result {
             Err(err) => {
                 callback(err.kind().into(), null(), 0, storage.context)
