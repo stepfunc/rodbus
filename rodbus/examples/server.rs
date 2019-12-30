@@ -62,6 +62,18 @@ impl ServerHandler for SimpleHandler {
 
 #[tokio::main(threaded_scheduler)]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+
+    let args: Vec<String> = std::env::args().collect();
+
+    let address = match args.len() {
+        1 => "127.0.0.1:502",
+        2 => &args[1],
+        _ => {
+            eprintln!("Accepts no arguments or the socket address as <ip:port>");
+            std::process::exit(-1);
+        }
+    };
+
     // print log messages to the console
     simple_logger::init_with_level(log::Level::Info).unwrap();
 
@@ -74,7 +86,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // spawn a server to handle connections onto its own task
     tokio::spawn(rodbus::server::create_tcp_server_task(
         1,
-        TcpListener::bind(SocketAddr::from_str("127.0.0.1:502")?).await?,
+        TcpListener::bind(SocketAddr::from_str(address)?).await?,
         map,
     ));
 
