@@ -14,7 +14,7 @@ name = "rodbus-client"
 path = "src/main.rs"
 
 [dependencies]
-rodbus = { path = "../../rodbus" }
+rodbus = { path = "../rodbus" }
 clap = "2.33"
 error-chain = "0.12"
 tokio = { version = "0.2" }
