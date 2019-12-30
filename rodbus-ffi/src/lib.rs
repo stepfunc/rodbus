@@ -6,11 +6,9 @@ use tokio::runtime;
 
 #[no_mangle]
 pub extern "C" fn create_runtime() -> *mut tokio::runtime::Runtime {
-    match runtime::Builder::new()
-        .threaded_scheduler()
-        .build() {
+    match runtime::Builder::new().enable_all().threaded_scheduler().build() {
         Ok(r) => Box::into_raw(Box::new(r)),
-        Err(_) => null_mut()
+        Err(_) => null_mut(),
     }
 }
 
@@ -24,6 +22,7 @@ pub extern "C" fn destroy_runtime(runtime: *mut tokio::runtime::Runtime) {
 
 #[no_mangle]
 pub extern "C" fn create_tcp_client(
+    runtime: *mut tokio::runtime::Runtime,
     address: *const std::os::raw::c_char,
     max_queued_requests: usize,
 ) -> *mut rodbus::client::channel::Channel {
@@ -40,15 +39,17 @@ pub extern "C" fn create_tcp_client(
         }
     };
 
-    let boxed = Box::new(
-        rodbus::client::spawn_tcp_client_task(
-                   addr,
-                   max_queued_requests,
-             rodbus::client::channel::strategy::default()
-        )
+    let (handle, task) = rodbus::client::channel::Channel::create_handle_and_task(
+        addr,
+        max_queued_requests,
+        rodbus::client::channel::strategy::default(),
     );
 
-    Box::into_raw(boxed)
+    unsafe {
+        (*runtime).spawn(task);
+    }
+
+    Box::into_raw(Box::new(handle))
 }
 
 #[no_mangle]
