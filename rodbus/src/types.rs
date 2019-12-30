@@ -106,7 +106,7 @@ impl AddressRange {
         Ok(())
     }
 
-    pub fn to_range(self) -> Result<std::ops::Range<usize>, InvalidRequest> {
+    pub fn to_range(&self) -> Result<std::ops::Range<usize>, InvalidRequest> {
         self.validate()?;
 
         let start = self.start as usize;
