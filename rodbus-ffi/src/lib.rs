@@ -5,7 +5,7 @@ use std::str::FromStr;
 use tokio::runtime;
 use std::os::raw::c_void;
 use rodbus::types::{UnitId, AddressRange};
-use rodbus::client::session::CallbackSession;
+use rodbus::client::session::{CallbackSession, SyncSession};
 use rodbus::error::ErrorKind;
 use rodbus::client::channel::Channel;
 
@@ -67,11 +67,10 @@ pub extern "C" fn create_runtime() -> *mut tokio::runtime::Runtime {
 }
 
 #[no_mangle]
-pub extern "C" fn destroy_runtime(runtime: *mut tokio::runtime::Runtime) {
+pub unsafe extern "C" fn destroy_runtime(runtime: *mut tokio::runtime::Runtime) {
     if runtime != null_mut() {
-        unsafe { Box::from_raw(runtime) };
+        Box::from_raw(runtime);
     };
-    ()
 }
 
 #[no_mangle]
@@ -80,14 +79,17 @@ pub extern "C" fn build_session(runtime: *mut tokio::runtime::Runtime, channel: 
 }
 
 #[no_mangle]
-pub extern "C" fn create_tcp_client(
+pub unsafe extern "C" fn create_tcp_client(
     runtime: *mut tokio::runtime::Runtime,
     address: *const std::os::raw::c_char,
     max_queued_requests: usize,
 ) -> *mut rodbus::client::channel::Channel {
+
+    let rt = runtime.as_mut().unwrap();
+
     // if we can't turn the c-string into SocketAddr, return null
     let addr = {
-        match unsafe { CStr::from_ptr(address) }.to_str() {
+        match CStr::from_ptr(address).to_str() {
             // TODO - consider logging?
             Err(_) => return null_mut(),
             Ok(s) => match SocketAddr::from_str(s) {
@@ -104,24 +106,49 @@ pub extern "C" fn create_tcp_client(
         rodbus::client::channel::strategy::default(),
     );
 
-    unsafe {
-        (*runtime).spawn(task);
-    }
+
+    rt.spawn(task);
+
 
     Box::into_raw(Box::new(handle))
 }
 
 #[no_mangle]
-pub extern "C" fn read_coils(
+pub unsafe extern "C" fn read_coils(
+    session: *mut Session,
+    start: u16,
+    count: u16,
+    output: *mut bool,
+) -> Status {
+    let s = session.as_mut().unwrap();
+    let runtime = s.runtime.as_mut().unwrap();
+    let channel = s.channel.as_mut().unwrap();
+
+    let mut session : SyncSession = SyncSession::new(channel.create_session(UnitId::new(s.unit_id), std::time::Duration::from_millis(s.timeout_ms as u64)));
+    match session.read_coils(runtime, AddressRange::new(start, count)) {
+        Ok(coils) => {
+            for i in 0 .. coils.len() {
+                *output.offset(i as isize) = coils[i].value
+            }
+            Status::Ok
+        },
+        Err(e) => {
+            e.kind().into()
+        }
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn read_coils_cb(
     session: *mut Session,
     start: u16,
     count: u16,
     callback: fn(Status, *const bool, usize, *mut c_void),
     context: *mut c_void
 ) {
-    let s = unsafe { session.as_mut().unwrap() };
-    let runtime = unsafe { s.runtime.as_mut().unwrap() };
-    let channel = unsafe { s.channel.as_mut().unwrap() };
+    let s = session.as_mut().unwrap();
+    let runtime = s.runtime.as_mut().unwrap();
+    let channel = s.channel.as_mut().unwrap();
 
     let mut session : CallbackSession = CallbackSession::new(channel.create_session(UnitId::new(s.unit_id), std::time::Duration::from_millis(s.timeout_ms as u64)));
 
@@ -141,9 +168,8 @@ pub extern "C" fn read_coils(
 }
 
 #[no_mangle]
-pub extern "C" fn destroy_tcp_client(client: *mut rodbus::client::channel::Channel) {
+pub unsafe extern "C" fn destroy_tcp_client(client: *mut rodbus::client::channel::Channel) {
     if client != null_mut() {
-        unsafe { Box::from_raw(client) };
+        Box::from_raw(client);
     };
-    ()
 }
