@@ -1,5 +1,4 @@
 use super::*;
-use rodbus::types::Indexed;
 
 unsafe fn get_callback_session<'a>(
     session: *mut Session,
@@ -16,43 +15,20 @@ unsafe fn get_callback_session<'a>(
     (runtime, session)
 }
 
-type BoolResult = std::result::Result<Vec<Indexed<bool>>, rodbus::error::Error>;
-type U16Result = std::result::Result<Vec<Indexed<u16>>, rodbus::error::Error>;
-
-unsafe fn bool_callback_to_fn(
+unsafe fn callback_to_fn<T>(
     context: *mut c_void,
-    callback: Option<unsafe extern "C" fn(Result, *const bool, usize, *mut c_void)>,
-) -> impl Fn(BoolResult) -> () {
+    callback: Option<unsafe extern "C" fn(Result, *const T, usize, *mut c_void)>,
+) -> impl Fn(std::result::Result<Vec<rodbus::types::Indexed<T>>, rodbus::error::Error>) -> ()
+where
+    T: Copy,
+{
     let storage = ContextStorage { context };
     move |result| {
         if let Some(cb) = callback {
             match result {
                 Err(err) => cb(err.kind().into(), null(), 0, storage.context),
                 Ok(values) => {
-                    let transformed: Vec<bool> = values.iter().map(|x| x.value).collect();
-                    cb(
-                        Result::status(Status::Ok),
-                        transformed.as_ptr(),
-                        transformed.len(),
-                        storage.context,
-                    )
-                }
-            }
-        }
-    }
-}
-
-unsafe fn u16_callback_to_fn(
-    context: *mut c_void,
-    callback: Option<unsafe extern "C" fn(Result, *const u16, usize, *mut c_void)>,
-) -> impl Fn(U16Result) -> () {
-    let storage = ContextStorage { context };
-    move |result| {
-        if let Some(cb) = callback {
-            match result {
-                Err(err) => cb(err.kind().into(), null(), 0, storage.context),
-                Ok(values) => {
-                    let transformed: Vec<u16> = values.iter().map(|x| x.value).collect();
+                    let transformed: Vec<T> = values.iter().map(|x| x.value).collect();
                     cb(
                         Result::status(Status::Ok),
                         transformed.as_ptr(),
@@ -77,7 +53,7 @@ pub unsafe extern "C" fn read_coils_cb(
     session.read_coils(
         runtime,
         AddressRange::new(start, count),
-        bool_callback_to_fn(context, callback),
+        callback_to_fn(context, callback),
     );
 }
 
@@ -93,7 +69,7 @@ pub unsafe extern "C" fn read_discrete_inputs_cb(
     session.read_discrete_inputs(
         runtime,
         AddressRange::new(start, count),
-        bool_callback_to_fn(context, callback),
+        callback_to_fn(context, callback),
     );
 }
 
@@ -109,7 +85,7 @@ pub unsafe extern "C" fn read_holding_registers_cb(
     session.read_holding_registers(
         runtime,
         AddressRange::new(start, count),
-        u16_callback_to_fn(context, callback),
+        callback_to_fn(context, callback),
     );
 }
 
@@ -125,6 +101,6 @@ pub unsafe extern "C" fn read_input_registers_cb(
     session.read_input_registers(
         runtime,
         AddressRange::new(start, count),
-        u16_callback_to_fn(context, callback),
+        callback_to_fn(context, callback),
     );
 }
