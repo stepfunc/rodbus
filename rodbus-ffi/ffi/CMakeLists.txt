@@ -19,8 +19,5 @@ add_custom_target(build
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
-
-add_library(rodbus_ffi IMPORTED SHARED IMPORTED_LOCATION ${CMAKE_CURRENT_BINARY_DIR}/${LIBRARY_NAME})
-add_dependencies(rodbus_ffi build_rodbus_ffi)
 install(FILES ${LIBRARY_PATH} DESTINATION lib)
 install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/include/rodbus DESTINATION include)
