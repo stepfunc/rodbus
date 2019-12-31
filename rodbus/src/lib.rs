@@ -79,12 +79,12 @@
 #[macro_use]
 extern crate error_chain;
 
+/// public constant values related to the Modbus specification
+pub mod constants;
 /// prelude used to include all of the API types
 pub mod prelude;
 /// types used in requests and responses
 pub mod types;
-/// public constant values related to the Modbus specification
-pub mod constants;
 
 /// client API
 pub mod client {

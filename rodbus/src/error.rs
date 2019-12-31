@@ -124,13 +124,21 @@ pub mod details {
         pub fn from_u8(value: u8) -> ExceptionCode {
             match value {
                 crate::constants::exceptions::ILLEGAL_FUNCTION => ExceptionCode::IllegalFunction,
-                crate::constants::exceptions::ILLEGAL_DATA_ADDRESS => ExceptionCode::IllegalDataAddress,
+                crate::constants::exceptions::ILLEGAL_DATA_ADDRESS => {
+                    ExceptionCode::IllegalDataAddress
+                }
                 crate::constants::exceptions::ILLEGAL_DATA_VALUE => ExceptionCode::IllegalDataValue,
-                crate::constants::exceptions::SERVER_DEVICE_FAILURE => ExceptionCode::ServerDeviceFailure,
+                crate::constants::exceptions::SERVER_DEVICE_FAILURE => {
+                    ExceptionCode::ServerDeviceFailure
+                }
                 crate::constants::exceptions::ACKNOWLEDGE => ExceptionCode::Acknowledge,
                 crate::constants::exceptions::SERVER_DEVICE_BUSY => ExceptionCode::ServerDeviceBusy,
-                crate::constants::exceptions::MEMORY_PARITY_ERROR => ExceptionCode::MemoryParityError,
-                crate::constants::exceptions::GATEWAY_PATH_UNAVAILABLE => ExceptionCode::GatewayPathUnavailable,
+                crate::constants::exceptions::MEMORY_PARITY_ERROR => {
+                    ExceptionCode::MemoryParityError
+                }
+                crate::constants::exceptions::GATEWAY_PATH_UNAVAILABLE => {
+                    ExceptionCode::GatewayPathUnavailable
+                }
                 crate::constants::exceptions::GATEWAY_TARGET_DEVICE_FAILED_TO_RESPOND => {
                     ExceptionCode::GatewayTargetDeviceFailedToRespond
                 }
@@ -141,13 +149,21 @@ pub mod details {
         pub fn to_u8(self) -> u8 {
             match self {
                 ExceptionCode::IllegalFunction => crate::constants::exceptions::ILLEGAL_FUNCTION,
-                ExceptionCode::IllegalDataAddress => crate::constants::exceptions::ILLEGAL_DATA_ADDRESS,
+                ExceptionCode::IllegalDataAddress => {
+                    crate::constants::exceptions::ILLEGAL_DATA_ADDRESS
+                }
                 ExceptionCode::IllegalDataValue => crate::constants::exceptions::ILLEGAL_DATA_VALUE,
-                ExceptionCode::ServerDeviceFailure => crate::constants::exceptions::SERVER_DEVICE_FAILURE,
+                ExceptionCode::ServerDeviceFailure => {
+                    crate::constants::exceptions::SERVER_DEVICE_FAILURE
+                }
                 ExceptionCode::Acknowledge => crate::constants::exceptions::ACKNOWLEDGE,
                 ExceptionCode::ServerDeviceBusy => crate::constants::exceptions::SERVER_DEVICE_BUSY,
-                ExceptionCode::MemoryParityError => crate::constants::exceptions::MEMORY_PARITY_ERROR,
-                ExceptionCode::GatewayPathUnavailable => crate::constants::exceptions::GATEWAY_PATH_UNAVAILABLE,
+                ExceptionCode::MemoryParityError => {
+                    crate::constants::exceptions::MEMORY_PARITY_ERROR
+                }
+                ExceptionCode::GatewayPathUnavailable => {
+                    crate::constants::exceptions::GATEWAY_PATH_UNAVAILABLE
+                }
                 ExceptionCode::GatewayTargetDeviceFailedToRespond => {
                     crate::constants::exceptions::GATEWAY_TARGET_DEVICE_FAILED_TO_RESPOND
                 }
