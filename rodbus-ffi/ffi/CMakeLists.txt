@@ -6,36 +6,21 @@ set(CARGO_CMD cargo build --release)
 set(TARGET_DIR "release")
 set(RODBUS_HEADER_DIR ${CMAKE_CURRENT_BINARY_DIR}/include/rodbus)
 
-#set(RODBUS_HEADERS
-#    ${RODBUS_HEADER_DIR}/prelude.h
-#    ${RODBUS_HEADER_DIR}/rodbus.h
-#    ${RODBUS_HEADER_DIR}/rodbus.hpp
-#)
+set(LIBRARY_NAME librodbus_ffi.so)
+set(LIBRARY_PATH "${CMAKE_CURRENT_BINARY_DIR}/${TARGET_DIR}/${LIBRARY_NAME}")
 
-set(LIBRARY_PATH "${CMAKE_CURRENT_BINARY_DIR}/${TARGET_DIR}/librodbus_ffi.a")
-
-
-# generate the protos
-#add_custom_command(
-#    OUTPUT ${RODBUS_HEADERS}
-#    COMMAND ${CMAKE_COMMAND} -E make_directory ${RODBUS_HEADER_DIR}
-#    COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SRC_DIR}/prelude.h ${RODBUS_HEADER_DIR}/prelude.h
-#    COMMAND cbindgen -c cargobindgen.c.toml -o ${RODBUS_HEADER_DIR}/rodbus.h ..
-#    COMMAND cbindgen -c cargobindgen.cpp.toml -o ${RODBUS_HEADER_DIR}/rodbus.hpp ..
-#    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-#    COMMENT "Generating Rodbus headers..."
-#)
-
-add_custom_target(
-    rodbus_ffi ALL
+add_custom_target(build
     COMMENT "Compiling rodbus-ffi"
     COMMAND ${CMAKE_COMMAND} -E make_directory ${RODBUS_HEADER_DIR}
     COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/prelude.h ${RODBUS_HEADER_DIR}/prelude.h
     COMMAND cbindgen -c cbindgen.c.toml -o ${RODBUS_HEADER_DIR}/rodbus.h ..
     COMMAND cbindgen -c cbindgen.cpp.toml -o ${RODBUS_HEADER_DIR}/rodbus.hpp ..
     COMMAND CARGO_TARGET_DIR=${CMAKE_CURRENT_BINARY_DIR} ${CARGO_CMD} 
-    COMMAND cp ${LIBRARY_PATH} ${CMAKE_CURRENT_BINARY_DIR}
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
-set_target_properties(rodbus_ffi PROPERTIES LOCATION ${CMAKE_CURRENT_BINARY_DIR})
+
+add_library(rodbus_ffi IMPORTED SHARED IMPORTED_LOCATION ${CMAKE_CURRENT_BINARY_DIR}/${LIBRARY_NAME})
+add_dependencies(rodbus_ffi build_rodbus_ffi)
+install(FILES ${LIBRARY_PATH} DESTINATION lib)
+install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/include/rodbus DESTINATION include)
