@@ -1,11 +1,10 @@
-cmake_minimum_required(VERSION 3.15)
+cmake_minimum_required(VERSION 3.10)
 
-project(rodbus-ffi)
+project(rodbus-ffi NONE)
 
 set(CARGO_CMD cargo build --release)
 set(TARGET_DIR "release")
-#set(RODBUS_HEADER_DIR ${CMAKE_CURRENT_BINARY_DIR}/include/rodbus)
-#set(RODBUS_LIB "${CMAKE_CURRENT_BINARY_DIR}/${TARGET_DIR}/libclient.so")
+set(RODBUS_HEADER_DIR ${CMAKE_CURRENT_BINARY_DIR}/include/rodbus)
 
 #set(RODBUS_HEADERS
 #    ${RODBUS_HEADER_DIR}/prelude.h
@@ -30,6 +29,10 @@ set(LIBRARY_PATH "${CMAKE_CURRENT_BINARY_DIR}/${TARGET_DIR}/librodbus_ffi.a")
 add_custom_target(
     rodbus_ffi ALL
     COMMENT "Compiling rodbus-ffi"
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${RODBUS_HEADER_DIR}
+    COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/prelude.h ${RODBUS_HEADER_DIR}/prelude.h
+    COMMAND cbindgen -c cbindgen.c.toml -o ${RODBUS_HEADER_DIR}/rodbus.h ..
+    COMMAND cbindgen -c cbindgen.cpp.toml -o ${RODBUS_HEADER_DIR}/rodbus.hpp ..
     COMMAND CARGO_TARGET_DIR=${CMAKE_CURRENT_BINARY_DIR} ${CARGO_CMD} 
     COMMAND cp ${LIBRARY_PATH} ${CMAKE_CURRENT_BINARY_DIR}
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
