@@ -1,4 +1,6 @@
 // Create the Error, ErrorKind, ResultExt, and Result types
+// TODO: Update to something more modern than `error_chain`
+#![allow(deprecated)]
 error_chain! {
    types {
        Error, ErrorKind, ResultExt;

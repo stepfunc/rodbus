@@ -1,6 +1,8 @@
-extern crate clap;
+// TODO: Update to something more modern than `error_chain`
+#![allow(deprecated)]
 #[macro_use]
 extern crate error_chain;
+extern crate clap;
 
 use std::net::SocketAddr;
 use std::str::FromStr;
@@ -171,7 +173,7 @@ fn get_register_values(arg: &ArgMatches) -> Result<Vec<u16>, Error> {
     let str = arg.value_of("values").unwrap();
 
     let mut values: Vec<u16> = Vec::new();
-    for value in str.split(",") {
+    for value in str.split(',') {
         values.push(u16::from_str(value).chain_err(|| "bad register value")?);
     }
     Ok(values)

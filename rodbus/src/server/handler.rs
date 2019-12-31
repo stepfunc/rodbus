@@ -55,6 +55,7 @@ pub type ServerHandlerType<T> = Arc<Mutex<Box<T>>>;
 
 /// A type that hides the underlying map implementation
 /// and allows lookups of a ServerHandler from a UnitId
+#[derive(Default)]
 pub struct ServerHandlerMap<T: ServerHandler> {
     handlers: BTreeMap<UnitId, ServerHandlerType<T>>,
 }

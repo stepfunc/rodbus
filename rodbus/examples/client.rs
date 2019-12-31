@@ -5,7 +5,6 @@ use std::error::Error;
 
 #[tokio::main(basic_scheduler)]
 async fn main() -> Result<(), Box<dyn Error>> {
-
     // Create a channel
     let channel = spawn_tcp_client_task("127.0.0.1:502".parse().unwrap(), 1, strategy::default());
 
