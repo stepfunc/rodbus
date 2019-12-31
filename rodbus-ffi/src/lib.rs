@@ -3,7 +3,7 @@
 use rodbus::client::channel::Channel;
 use rodbus::client::session::{CallbackSession, SyncSession};
 use rodbus::error::ErrorKind;
-use rodbus::types::{AddressRange, UnitId};
+use rodbus::types::{AddressRange, UnitId, WriteMultiple};
 use std::ffi::CStr;
 use std::net::SocketAddr;
 use std::os::raw::c_void;
@@ -50,6 +50,13 @@ impl Result {
             exception: 0,
         }
     }
+
+    fn ok() -> Self {
+        Self {
+            status: Status::Ok,
+            exception: 0,
+        }
+    }
 }
 
 impl std::convert::From<&ErrorKind> for Result {
@@ -65,6 +72,15 @@ impl std::convert::From<&ErrorKind> for Result {
             ErrorKind::Io(_) => Result::status(Status::IOError),
             ErrorKind::BadResponse(_) => Result::status(Status::BadResponse),
             _ => Result::status(Status::InternalError),
+        }
+    }
+}
+
+impl<T> std::convert::From<std::result::Result<T, rodbus::error::Error>> for Result {
+    fn from(result: std::result::Result<T, rodbus::error::Error>) -> Self {
+        match result {
+            Ok(_) => Result::ok(),
+            Err(e) => e.kind().into(),
         }
     }
 }
@@ -158,4 +174,19 @@ pub unsafe extern "C" fn destroy_tcp_client(client: *mut rodbus::client::channel
     if !client.is_null() {
         Box::from_raw(client);
     };
+}
+
+pub(crate) unsafe fn to_write_multiple<T>(
+    start: u16,
+    values: *const T,
+    count: u16,
+) -> WriteMultiple<T>
+where
+    T: Copy,
+{
+    let mut vec = Vec::with_capacity(count as usize);
+    for i in 0..count {
+        vec.push(*values.add(i as usize));
+    }
+    WriteMultiple::new(start, vec)
 }

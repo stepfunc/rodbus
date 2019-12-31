@@ -23,7 +23,7 @@ impl Serialize for details::ExceptionCode {
 impl Serialize for Indexed<CoilState> {
     fn serialize(&self, cur: &mut WriteCursor) -> Result<(), Error> {
         cur.write_u16_be(self.index)?;
-        cur.write_u16_be(self.value.to_u16())?;
+        cur.write_u16_be(self.value.into())?;
         Ok(())
     }
 }

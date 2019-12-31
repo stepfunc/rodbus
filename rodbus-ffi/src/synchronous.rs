@@ -45,6 +45,18 @@ where
     }
 }
 
+unsafe fn perform_write<F, T, U>(session: *mut Session, value: T, write: F) -> Result
+where
+    F: FnOnce(&mut Runtime, &mut SyncSession, T) -> std::result::Result<U, rodbus::error::Error>,
+{
+    let (runtime, mut session) = get_synchronous_session(session);
+
+    match write(runtime, &mut session, value) {
+        Ok(_) => Result::status(Status::Ok),
+        Err(e) => e.kind().into(),
+    }
+}
+
 #[no_mangle]
 pub unsafe extern "C" fn read_coils(
     session: *mut Session,
@@ -91,4 +103,58 @@ pub unsafe extern "C" fn read_input_registers(
     perform_read(session, start, count, output, |rt, session, addr| {
         session.read_input_registers(rt, addr)
     })
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn write_single_coil(
+    session: *mut Session,
+    index: u16,
+    value: bool,
+) -> Result {
+    perform_write(
+        session,
+        (index, value.into()).into(),
+        |rt, session, value| session.write_single_coil(rt, value),
+    )
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn write_single_register(
+    session: *mut Session,
+    index: u16,
+    value: u16,
+) -> Result {
+    perform_write(
+        session,
+        (index, value.into()).into(),
+        |rt, session, value| session.write_single_register(rt, value),
+    )
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn write_multiple_coils(
+    session: *mut Session,
+    start: u16,
+    values: *const bool,
+    count: u16,
+) -> Result {
+    perform_write(
+        session,
+        to_write_multiple(start, values, count),
+        |rt, session, value| session.write_multiple_coils(rt, value),
+    )
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn write_multiple_registers(
+    session: *mut Session,
+    start: u16,
+    values: *const u16,
+    count: u16,
+) -> Result {
+    perform_write(
+        session,
+        to_write_multiple(start, values, count),
+        |rt, session, value| session.write_multiple_registers(rt, value),
+    )
 }

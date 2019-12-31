@@ -36,6 +36,38 @@ pub enum CoilState {
     Off = constants::OFF,
 }
 
+impl<T> std::convert::From<(u16, T)> for Indexed<T>
+where
+    T: Copy,
+{
+    fn from(tuple: (u16, T)) -> Self {
+        let (index, value) = tuple;
+        Self::new(index, value)
+    }
+}
+
+impl std::convert::From<bool> for CoilState {
+    fn from(value: bool) -> Self {
+        if value {
+            CoilState::On
+        } else {
+            CoilState::Off
+        }
+    }
+}
+
+impl std::convert::From<u16> for RegisterValue {
+    fn from(value: u16) -> Self {
+        RegisterValue::new(value)
+    }
+}
+
+impl std::convert::From<CoilState> for u16 {
+    fn from(value: CoilState) -> Self {
+        value as u16
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct WriteMultiple<T> {
     pub start: u16,
@@ -60,24 +92,12 @@ impl<T> WriteMultiple<T> {
 }
 
 impl CoilState {
-    pub fn from_bool(value: bool) -> Self {
-        if value {
-            CoilState::On
-        } else {
-            CoilState::Off
-        }
-    }
-
-    pub fn from_u16(value: u16) -> Result<Self, ADUParseError> {
+    pub fn try_from_u16(value: u16) -> Result<Self, ADUParseError> {
         match value {
             constants::ON => Ok(CoilState::On),
             constants::OFF => Ok(CoilState::Off),
             _ => Err(ADUParseError::UnknownCoilState(value)),
         }
-    }
-
-    pub fn to_u16(self) -> u16 {
-        self as u16
     }
 }
 

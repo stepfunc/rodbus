@@ -17,7 +17,7 @@ impl ParseRequest for Indexed<CoilState> {
     fn parse(cursor: &mut ReadCursor) -> Result<Self, Error> {
         Ok(Indexed::new(
             cursor.read_u16_be()?,
-            CoilState::from_u16(cursor.read_u16_be()?)?,
+            CoilState::try_from_u16(cursor.read_u16_be()?)?,
         ))
     }
 }

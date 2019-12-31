@@ -29,7 +29,7 @@ impl ParseResponse<Indexed<CoilState>> for Indexed<CoilState> {
     ) -> Result<Self, Error> {
         let response: Indexed<CoilState> = Indexed::new(
             cursor.read_u16_be()?,
-            CoilState::from_u16(cursor.read_u16_be()?)?,
+            CoilState::try_from_u16(cursor.read_u16_be()?)?,
         );
 
         if &response != request {
