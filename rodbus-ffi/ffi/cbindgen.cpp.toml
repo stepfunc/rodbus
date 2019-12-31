@@ -60,7 +60,7 @@ derive_gte = false
 [enum]
 rename_variants = "None"
 add_sentinel = false
-prefix_with_name = true
+prefix_with_name = false
 derive_helper_methods = true
 derive_const_casts = false
 derive_mut_casts = false

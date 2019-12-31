@@ -25,19 +25,41 @@ pub enum Status {
     InternalError,
 }
 
-impl std::convert::From<&ErrorKind> for Status {
+#[repr(C)]
+pub struct Result {
+    pub status: Status,
+    pub exception: u8,
+}
+
+impl Result {
+    fn exception(exception: u8) -> Self {
+        Self {
+            status: Status::Exception,
+            exception,
+        }
+    }
+
+    fn status(status: Status) -> Self {
+        Self {
+            status,
+            exception: 0,
+        }
+    }
+}
+
+impl std::convert::From<&ErrorKind> for Result {
     fn from(err: &ErrorKind) -> Self {
         match err {
-            ErrorKind::Bug(_) => Status::InternalError,
-            ErrorKind::NoConnection => Status::NoConnection,
-            ErrorKind::BadFrame(_) => Status::BadFraming,
-            ErrorKind::Shutdown => Status::Shutdown,
-            ErrorKind::ResponseTimeout => Status::ResponseTimeout,
-            ErrorKind::BadRequest(_) => Status::BadRequest,
-            ErrorKind::Exception(_) => Status::Exception,
-            ErrorKind::Io(_) => Status::IOError,
-            ErrorKind::BadResponse(_) => Status::BadResponse,
-            _ => Status::InternalError,
+            ErrorKind::Bug(_) => Result::status(Status::InternalError),
+            ErrorKind::NoConnection => Result::status(Status::NoConnection),
+            ErrorKind::BadFrame(_) => Result::status(Status::BadFraming),
+            ErrorKind::Shutdown => Result::status(Status::Shutdown),
+            ErrorKind::ResponseTimeout => Result::status(Status::ResponseTimeout),
+            ErrorKind::BadRequest(_) => Result::status(Status::BadRequest),
+            ErrorKind::Exception(ex) => Result::exception(ex.to_u8()),
+            ErrorKind::Io(_) => Result::status(Status::IOError),
+            ErrorKind::BadResponse(_) => Result::status(Status::BadResponse),
+            _ => Result::status(Status::InternalError),
         }
     }
 }
@@ -132,7 +154,7 @@ pub unsafe extern "C" fn read_coils(
     start: u16,
     count: u16,
     output: *mut bool,
-) -> Status {
+) -> Result {
     let s = session.as_mut().unwrap();
     let runtime = s.runtime.as_mut().unwrap();
     let channel = s.channel.as_mut().unwrap();
@@ -146,7 +168,7 @@ pub unsafe extern "C" fn read_coils(
             for (i, coil) in coils.iter().enumerate() {
                 *output.add(i) = coil.value
             }
-            Status::Ok
+            Result::status(Status::Ok)
         }
         Err(e) => e.kind().into(),
     }
@@ -157,7 +179,7 @@ pub unsafe extern "C" fn read_coils_cb(
     session: *mut Session,
     start: u16,
     count: u16,
-    callback: Option<unsafe extern "C" fn(Status, *const bool, usize, *mut c_void)>,
+    callback: Option<unsafe extern "C" fn(Result, *const bool, usize, *mut c_void)>,
     context: *mut c_void,
 ) {
     let s = session.as_mut().unwrap();
@@ -178,7 +200,7 @@ pub unsafe extern "C" fn read_coils_cb(
                 Ok(values) => {
                     let transformed: Vec<bool> = values.iter().map(|x| x.value).collect();
                     cb(
-                        Status::Ok,
+                        Result::status(Status::Ok),
                         transformed.as_ptr(),
                         transformed.len(),
                         storage.context,
