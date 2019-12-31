@@ -1,0 +1,19 @@
+on: [push, pull_request]
+name: Code Coverage
+jobs:
+  tarpaulin:
+    container:
+      image: xd009642/tarpaulin:latest
+      volumes:
+        - asdf
+      options: --security-opt seccomp=unconfined
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v1
+      - name: Run tarpaulin
+        run: cargo tarpaulin --out Xml
+      - name: Upload to codecov.io
+        uses: codecov/codecov-action@v1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
