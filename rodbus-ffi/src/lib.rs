@@ -134,7 +134,7 @@ pub unsafe extern "C" fn read_coils(
         },
         Err(e) => {
             e.kind().into()
-        }
+    }
     }
 }
 
@@ -143,7 +143,7 @@ pub unsafe extern "C" fn read_coils_cb(
     session: *mut Session,
     start: u16,
     count: u16,
-    callback: fn(Status, *const bool, usize, *mut c_void),
+    callback: Option<unsafe extern "C" fn(Status, *const bool, usize, *mut c_void)>,
     context: *mut c_void
 ) {
     let s = session.as_mut().unwrap();
@@ -155,13 +155,15 @@ pub unsafe extern "C" fn read_coils_cb(
     let storage = ContextStorage { context };
 
     session.read_coils(runtime,AddressRange::new(start, count), move |result| {
-        match result {
-            Err(err) => {
-                callback(err.kind().into(), null(), 0, storage.context)
-            }
-            Ok(values) => {
-                let transformed : Vec<bool> = values.iter().map(|x| x.value).collect();
-                callback(Status::Ok, transformed.as_ptr(), transformed.len(), storage.context)
+        if let Some(cb) = callback {
+            match result {
+                Err(err) => {
+                    cb(err.kind().into(), null(), 0, storage.context)
+                }
+                Ok(values) => {
+                    let transformed: Vec<bool> = values.iter().map(|x| x.value).collect();
+                    cb(Status::Ok, transformed.as_ptr(), transformed.len(), storage.context)
+                }
             }
         }
     });
