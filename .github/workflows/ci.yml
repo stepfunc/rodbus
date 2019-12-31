@@ -1,4 +1,4 @@
-on: [push, pull_request]
+on: push
 name: CI
 jobs:
   test:
@@ -78,3 +78,4 @@ jobs:
         uses: codecov/codecov-action@v1
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
+          yml: .github/codecov.yml
