@@ -237,4 +237,60 @@ impl SyncSession {
     ) -> Result<Vec<Indexed<bool>>, Error> {
         self.make_request::<ReadCoils>(runtime, range)
     }
+
+    pub fn read_discrete_inputs(
+        &mut self,
+        runtime: &mut Runtime,
+        range: AddressRange,
+    ) -> Result<Vec<Indexed<bool>>, Error> {
+        self.make_request::<ReadDiscreteInputs>(runtime, range)
+    }
+
+    pub fn read_holding_registers(
+        &mut self,
+        runtime: &mut Runtime,
+        range: AddressRange,
+    ) -> Result<Vec<Indexed<u16>>, Error> {
+        self.make_request::<ReadHoldingRegisters>(runtime, range)
+    }
+
+    pub fn read_input_registers(
+        &mut self,
+        runtime: &mut Runtime,
+        range: AddressRange,
+    ) -> Result<Vec<Indexed<u16>>, Error> {
+        self.make_request::<ReadInputRegisters>(runtime, range)
+    }
+
+    pub fn write_single_coil(
+        &mut self,
+        runtime: &mut Runtime,
+        value: Indexed<CoilState>,
+    ) -> Result<Indexed<CoilState>, Error> {
+        self.make_request::<WriteSingleCoil>(runtime, value)
+    }
+
+    pub fn write_single_register(
+        &mut self,
+        runtime: &mut Runtime,
+        value: Indexed<RegisterValue>,
+    ) -> Result<Indexed<RegisterValue>, Error> {
+        self.make_request::<WriteSingleRegister>(runtime, value)
+    }
+
+    pub fn write_multiple_coils(
+        &mut self,
+        runtime: &mut Runtime,
+        value: WriteMultiple<bool>,
+    ) -> Result<AddressRange, Error> {
+        self.make_request::<WriteMultipleCoils>(runtime, value)
+    }
+
+    pub fn write_multiple_registers(
+        &mut self,
+        runtime: &mut Runtime,
+        value: WriteMultiple<u16>,
+    ) -> Result<AddressRange, Error> {
+        self.make_request::<WriteMultipleRegisters>(runtime, value)
+    }
 }
