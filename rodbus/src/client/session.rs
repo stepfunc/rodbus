@@ -130,6 +130,83 @@ impl CallbackSession {
     {
         self.start_request::<ReadCoils, C>(runtime, range, callback);
     }
+
+    pub fn read_discrete_inputs<C>(
+        &mut self,
+        runtime: &mut Runtime,
+        range: AddressRange,
+        callback: C,
+    ) where
+        C: FnOnce(Result<Vec<Indexed<bool>>, Error>) + Send + Sync + 'static,
+    {
+        self.start_request::<ReadDiscreteInputs, C>(runtime, range, callback);
+    }
+
+    pub fn read_holding_registers<C>(
+        &mut self,
+        runtime: &mut Runtime,
+        range: AddressRange,
+        callback: C,
+    ) where
+        C: FnOnce(Result<Vec<Indexed<u16>>, Error>) + Send + Sync + 'static,
+    {
+        self.start_request::<ReadHoldingRegisters, C>(runtime, range, callback);
+    }
+
+    pub fn read_input_registers<C>(
+        &mut self,
+        runtime: &mut Runtime,
+        range: AddressRange,
+        callback: C,
+    ) where
+        C: FnOnce(Result<Vec<Indexed<u16>>, Error>) + Send + Sync + 'static,
+    {
+        self.start_request::<ReadInputRegisters, C>(runtime, range, callback);
+    }
+
+    pub fn write_single_coil<C>(
+        &mut self,
+        runtime: &mut Runtime,
+        value: Indexed<CoilState>,
+        callback: C,
+    ) where
+        C: FnOnce(Result<Indexed<CoilState>, Error>) + Send + Sync + 'static,
+    {
+        self.start_request::<WriteSingleCoil, C>(runtime, value, callback);
+    }
+
+    pub fn write_single_register<C>(
+        &mut self,
+        runtime: &mut Runtime,
+        value: Indexed<RegisterValue>,
+        callback: C,
+    ) where
+        C: FnOnce(Result<Indexed<RegisterValue>, Error>) + Send + Sync + 'static,
+    {
+        self.start_request::<WriteSingleRegister, C>(runtime, value, callback);
+    }
+
+    pub fn write_multiple_registers<C>(
+        &mut self,
+        runtime: &mut Runtime,
+        value: WriteMultiple<u16>,
+        callback: C,
+    ) where
+        C: FnOnce(Result<AddressRange, Error>) + Send + Sync + 'static,
+    {
+        self.start_request::<WriteMultipleRegisters, C>(runtime, value, callback);
+    }
+
+    pub fn write_multiple_coils<C>(
+        &mut self,
+        runtime: &mut Runtime,
+        value: WriteMultiple<bool>,
+        callback: C,
+    ) where
+        C: FnOnce(Result<AddressRange, Error>) + Send + Sync + 'static,
+    {
+        self.start_request::<WriteMultipleCoils, C>(runtime, value, callback);
+    }
 }
 
 #[derive(Clone)]
