@@ -83,17 +83,8 @@ extern crate error_chain;
 pub mod prelude;
 /// types used in requests and responses
 pub mod types;
-/// constant values related to the Modbus specification
-pub mod constants {
-    /// Maximum count allowed in a read coils/discrete inputs request
-    pub const MAX_READ_COILS_COUNT: u16 = 0x07D0;
-    /// Maximum count allowed in a read holding/input registers request
-    pub const MAX_READ_REGISTERS_COUNT: u16 = 0x007D;
-    /// Maximum count allowed in a `write multiple coils` request
-    pub const MAX_WRITE_COILS_COUNT: u16 = 0x07B0;
-    /// Maximum count allowed in a `write multiple registers` request
-    pub const MAX_WRITE_REGISTERS_COUNT: u16 = 0x007B;
-}
+/// public constant values related to the Modbus specification
+pub mod constants;
 
 /// client API
 pub mod client {

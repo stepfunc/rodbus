@@ -13,23 +13,23 @@ pub(crate) mod range {
     }
 
     pub fn check_validity_for_read_bits(range: AddressRange) -> Result<(), InvalidRequest> {
-        check_validity(range, crate::constants::MAX_READ_COILS_COUNT)
+        check_validity(range, crate::constants::limits::MAX_READ_COILS_COUNT)
     }
 
     pub fn check_validity_for_read_registers(range: AddressRange) -> Result<(), InvalidRequest> {
-        check_validity(range, crate::constants::MAX_READ_REGISTERS_COUNT)
+        check_validity(range, crate::constants::limits::MAX_READ_REGISTERS_COUNT)
     }
 
     pub fn check_validity_for_write_multiple_coils(
         range: AddressRange,
     ) -> Result<(), InvalidRequest> {
-        check_validity(range, crate::constants::MAX_WRITE_COILS_COUNT)
+        check_validity(range, crate::constants::limits::MAX_WRITE_COILS_COUNT)
     }
 
     pub fn check_validity_for_write_multiple_registers(
         range: AddressRange,
     ) -> Result<(), InvalidRequest> {
-        check_validity(range, crate::constants::MAX_WRITE_REGISTERS_COUNT)
+        check_validity(range, crate::constants::limits::MAX_WRITE_REGISTERS_COUNT)
     }
 
     #[cfg(test)]
@@ -43,18 +43,18 @@ pub(crate) mod range {
             assert_eq!(
                 check_validity_for_read_bits(AddressRange::new(
                     0,
-                    crate::constants::MAX_READ_COILS_COUNT
+                    crate::constants::limits::MAX_READ_COILS_COUNT
                 )),
                 Ok(())
             );
             let err = Err(InvalidRequest::CountTooBigForType(
-                crate::constants::MAX_READ_COILS_COUNT + 1,
-                crate::constants::MAX_READ_COILS_COUNT,
+                crate::constants::limits::MAX_READ_COILS_COUNT + 1,
+                crate::constants::limits::MAX_READ_COILS_COUNT,
             ));
             assert_eq!(
                 check_validity_for_read_bits(AddressRange::new(
                     0,
-                    crate::constants::MAX_READ_COILS_COUNT + 1
+                    crate::constants::limits::MAX_READ_COILS_COUNT + 1
                 )),
                 err
             );
@@ -65,18 +65,18 @@ pub(crate) mod range {
             assert_eq!(
                 check_validity_for_read_registers(AddressRange::new(
                     0,
-                    crate::constants::MAX_READ_REGISTERS_COUNT
+                    crate::constants::limits::MAX_READ_REGISTERS_COUNT
                 )),
                 Ok(())
             );
             let err = Err(InvalidRequest::CountTooBigForType(
-                crate::constants::MAX_READ_REGISTERS_COUNT + 1,
-                crate::constants::MAX_READ_REGISTERS_COUNT,
+                crate::constants::limits::MAX_READ_REGISTERS_COUNT + 1,
+                crate::constants::limits::MAX_READ_REGISTERS_COUNT,
             ));
             assert_eq!(
                 check_validity_for_read_registers(AddressRange::new(
                     0,
-                    crate::constants::MAX_READ_REGISTERS_COUNT + 1
+                    crate::constants::limits::MAX_READ_REGISTERS_COUNT + 1
                 )),
                 err
             );
