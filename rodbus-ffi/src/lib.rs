@@ -16,17 +16,28 @@ pub mod asynchronous;
 // synchronous API
 pub mod synchronous;
 
+/// Status returned during synchronous and asynchronous API calls
 #[repr(u8)]
 pub enum Status {
+    /// The operation was successful and any return value may be used
     Ok,
+    /// The channel was shutdown before the operation could complete
     Shutdown,
+    /// No connection could be made to the server
     NoConnection,
+    /// No valid response was received before the timeout
     ResponseTimeout,
+    /// The request was invalid
     BadRequest,
+    /// The response was improperly formatted
     BadResponse,
+    /// An I/O error occurred on the underlying stream while performing the request
     IOError,
+    /// A framing error was detected while performing the request
     BadFraming,
+    /// The server returned an exception code (see separate exception value)
     Exception,
+    /// An unspecified internal error occurred while performing the request
     InternalError,
 }
 

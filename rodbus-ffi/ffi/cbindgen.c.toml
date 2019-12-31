@@ -20,7 +20,7 @@ includes = ["prelude.h"]
 braces = "SameLine"
 line_length = 100
 tab_width = 2
-documentation_style = "auto"
+documentation_style = "doxy"
 
 ############################# Codegen Options ##################################
 
