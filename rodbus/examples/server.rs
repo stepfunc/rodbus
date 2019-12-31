@@ -62,7 +62,6 @@ impl ServerHandler for SimpleHandler {
 
 #[tokio::main(threaded_scheduler)]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-
     let args: Vec<String> = std::env::args().collect();
 
     let address = match args.len() {
