@@ -1,7 +1,7 @@
 on: [push, pull_request]
-name: Continuous Integration
+name: CI
 jobs:
-  ci:
+  test:
     strategy:
       fail-fast: false
       matrix:
@@ -24,7 +24,6 @@ jobs:
           profile: minimal
           toolchain: ${{ matrix.rust }}
           override: true
-          components: rustfmt, clippy
       - name: Build
         uses: actions-rs/cargo@v1
         with:
@@ -33,6 +32,26 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: test
+  linting:
+    strategy:
+      fail-fast: false
+      matrix:
+        rust:
+          - 1.39.0  # MSRV
+          - stable
+          - beta
+          - nightly
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v1
+      - name: Install Rust ${{ matrix.rust }}
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: ${{ matrix.rust }}
+          override: true
+          components: rustfmt, clippy
       - name: Format
         if: runner.os == 'Linux'
         uses: actions-rs/cargo@v1
@@ -45,3 +64,17 @@ jobs:
         with:
           command: clippy
           args: -- -D warnings
+  code-coverage:
+    container:
+      image: xd009642/tarpaulin:latest
+      options: --security-opt seccomp=unconfined
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v1
+      - name: Run tarpaulin
+        run: cargo tarpaulin --out Xml
+      - name: Upload to codecov.io
+        uses: codecov/codecov-action@v1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
