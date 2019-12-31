@@ -103,7 +103,6 @@ impl Session {
     }
 }
 
-
 #[derive(Clone)]
 pub struct CallbackSession {
     inner: Session,
@@ -139,18 +138,26 @@ pub struct SyncSession {
 }
 
 impl SyncSession {
-
     pub fn new(inner: Session) -> Self {
         SyncSession { inner }
     }
 
-    fn make_request<S>(&mut self, runtime: &mut Runtime, request: S::ClientRequest) -> Result<S::ClientResponse, Error> where S : Service
+    fn make_request<S>(
+        &mut self,
+        runtime: &mut Runtime,
+        request: S::ClientRequest,
+    ) -> Result<S::ClientResponse, Error>
+    where
+        S: Service,
     {
         runtime.block_on(self.inner.make_service_call::<S>(request))
     }
 
-    pub fn read_coils(&mut self, runtime: &mut Runtime, range: AddressRange) -> Result<Vec<Indexed<bool>>, Error>
-    {
+    pub fn read_coils(
+        &mut self,
+        runtime: &mut Runtime,
+        range: AddressRange,
+    ) -> Result<Vec<Indexed<bool>>, Error> {
         self.make_request::<ReadCoils>(runtime, range)
     }
 }

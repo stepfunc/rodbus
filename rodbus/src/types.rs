@@ -92,7 +92,7 @@ impl AddressRange {
         AddressRange { start, count }
     }
 
-    pub fn validate(&self) -> Result<(), InvalidRequest> {
+    pub fn validate(self) -> Result<(), InvalidRequest> {
         if self.count == 0 {
             return Err(InvalidRequest::CountOfZero);
         }
@@ -100,19 +100,19 @@ impl AddressRange {
         let max_start = std::u16::MAX - (self.count - 1);
 
         if self.start > max_start {
-            return Err(InvalidRequest::AddressOverflow(*self));
+            return Err(InvalidRequest::AddressOverflow(self));
         }
 
         Ok(())
     }
 
-    pub fn to_range(&self) -> Result<std::ops::Range<usize>, InvalidRequest> {
+    pub fn to_range(self) -> Result<std::ops::Range<usize>, InvalidRequest> {
         self.validate()?;
 
         let start = self.start as usize;
         let end = start + (self.count as usize);
 
-        return Ok(start..end);
+        Ok(start..end)
     }
 }
 
