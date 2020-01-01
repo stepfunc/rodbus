@@ -153,11 +153,12 @@ pub extern "C" fn create_basic_runtime() -> *mut tokio::runtime::Runtime {
 ///
 /// This operation is typically performed just before program exit. It blocks until
 /// the runtime stops and all operations are canceled. Any pending asynchronous callbacks
-/// may not complete, and no further Modbus requests should be made after this call.
-///
-/// Note: This function checks for NULL and is a NOP in this case
+/// may not complete, and no further Modbus requests can be made after this call using this
+/// runtime and any channels or sessions created from it
 ///
 /// @param runtime #Runtime to stop and destroy
+///
+/// @note This function checks for NULL and is a NOP in this case
 #[no_mangle]
 pub unsafe extern "C" fn destroy_runtime(runtime: *mut tokio::runtime::Runtime) {
     if !runtime.is_null() {
@@ -197,6 +198,9 @@ pub extern "C" fn build_session(
 /// @param address                    string representation on an IPv4 or IPv6 address and port, e.g. "127.0.0.1:502"
 /// @param max_queued_requests        Maximum number of queued requests that will be accepted before back-pressure (blocking) is applied
 /// @return                           pointer to the channel or NULL if the address parameter cannot be parsed
+///
+/// @warning destroying the underlying runtime does NOT automatically destroy a #Channel on the runtime
+/// and destroy_channel() must always be used to free the memory
 #[no_mangle]
 pub unsafe extern "C" fn create_tcp_client(
     runtime: *mut tokio::runtime::Runtime,
@@ -235,9 +239,9 @@ pub unsafe extern "C" fn create_tcp_client(
 /// may not complete, and no further Modbus requests on this channel should be made
 /// after this call.
 ///
-/// Note: This function checks for NULL and is a NOP in this case
-///
 /// @param channel #Channel to stop and destroy
+///
+/// @note This function checks for NULL and is a NOP in this case
 #[no_mangle]
 pub unsafe extern "C" fn destroy_channel(channel: *mut rodbus::client::channel::Channel) {
     if !channel.is_null() {

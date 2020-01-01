@@ -57,6 +57,16 @@ where
     }
 }
 
+/// @brief perform a blocking operation to read coils
+///
+/// @param session pointer to the #Session struct that provides the runtime, channel, etc
+/// @param start starting address for the operation
+/// @param count count of items for the operation
+/// @param output buffer that is written on success.
+/// @return #Result struct describing the success or failure of the operation
+///
+/// @note This function is thread-safe
+/// @warning The output buffer must be at least as large as count, otherwise a buffer overrun will occur
 #[no_mangle]
 pub unsafe extern "C" fn read_coils(
     session: *mut Session,
@@ -69,6 +79,16 @@ pub unsafe extern "C" fn read_coils(
     })
 }
 
+/// @brief perform a blocking operation to read discrete inputs
+///
+/// @param session pointer to the #Session struct that provides the runtime, channel, etc
+/// @param start starting address for the operation
+/// @param count count of items for the operation
+/// @param output buffer that is written on success.
+/// @return #Result struct describing the success or failure of the operation
+///
+/// @note This function is thread-safe
+/// @warning The output buffer must be at least as large as count, otherwise a buffer overrun will occur
 #[no_mangle]
 pub unsafe extern "C" fn read_discrete_inputs(
     session: *mut Session,
@@ -81,6 +101,16 @@ pub unsafe extern "C" fn read_discrete_inputs(
     })
 }
 
+/// @brief perform a blocking operation to read holding registers
+///
+/// @param session pointer to the #Session struct that provides the runtime, channel, etc
+/// @param start starting address for the operation
+/// @param count count of items for the operation
+/// @param output buffer that is written on success.
+/// @return #Result struct describing the success or failure of the operation
+///
+/// @note This function is thread-safe
+/// @warning The output buffer must be at least as large as count, otherwise a buffer overrun will occur
 #[no_mangle]
 pub unsafe extern "C" fn read_holding_registers(
     session: *mut Session,
@@ -93,6 +123,16 @@ pub unsafe extern "C" fn read_holding_registers(
     })
 }
 
+/// @brief perform a blocking operation to read input registers
+///
+/// @param session pointer to the #Session struct that provides the runtime, channel, etc
+/// @param start starting address for the operation
+/// @param count count of items for the operation
+/// @param output buffer that is written on success.
+/// @return #Result struct describing the success or failure of the operation
+///
+/// @note This function is thread-safe
+/// @warning The output buffer must be at least as large as count, otherwise a buffer overrun will occur
 #[no_mangle]
 pub unsafe extern "C" fn read_input_registers(
     session: *mut Session,
@@ -105,6 +145,14 @@ pub unsafe extern "C" fn read_input_registers(
     })
 }
 
+/// @brief perform a blocking operation to write a single coil
+///
+/// @param session pointer to the #Session struct that provides the runtime, channel, etc
+/// @param index address of the value
+/// @param value value to write
+/// @return #Result struct describing the success or failure of the operation
+///
+/// @note This function is thread-safe
 #[no_mangle]
 pub unsafe extern "C" fn write_single_coil(
     session: *mut Session,
@@ -118,6 +166,14 @@ pub unsafe extern "C" fn write_single_coil(
     )
 }
 
+/// @brief perform a blocking operation to write a single register
+///
+/// @param session pointer to the #Session struct that provides the runtime, channel, etc
+/// @param index address of the value
+/// @param value value to write
+/// @return #Result struct describing the success or failure of the operation
+///
+/// @note This function is thread-safe
 #[no_mangle]
 pub unsafe extern "C" fn write_single_register(
     session: *mut Session,
@@ -131,6 +187,17 @@ pub unsafe extern "C" fn write_single_register(
     )
 }
 
+/// @brief perform a blocking operation to write multiple coils
+///
+/// @param session pointer to the #Session struct that provides the runtime, channel, etc
+/// @param start starting address of the values
+/// @param values array of values to write
+/// @param count of values to write
+/// @return #Result struct describing the success or failure of the operation
+///
+/// @note This function is thread-safe
+/// @warning The "values" array must contain at least "count" items or the function will
+/// read past the end of the buffer
 #[no_mangle]
 pub unsafe extern "C" fn write_multiple_coils(
     session: *mut Session,
@@ -145,6 +212,17 @@ pub unsafe extern "C" fn write_multiple_coils(
     )
 }
 
+/// @brief perform a blocking operation to write multiple registers
+///
+/// @param session pointer to the #Session struct that provides the runtime, channel, etc
+/// @param start starting address of the values
+/// @param values array of values to write
+/// @param count of values to write
+/// @return #Result struct describing the success or failure of the operation
+///
+/// @note This function is thread-safe
+/// @warning The "values" array must contain at least "count" items or the function will
+/// read past the end of the buffer
 #[no_mangle]
 pub unsafe extern "C" fn write_multiple_registers(
     session: *mut Session,
