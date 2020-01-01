@@ -41,9 +41,13 @@ pub enum Status {
     InternalError,
 }
 
+/// @brief Type that describes the success or failure of an operation
 #[repr(C)]
 pub struct Result {
+    /// describes the success (ok) or failure of an operation
     pub status: Status,
+    /// when status == Status_Exception, this value provides
+    /// the Modbus exception code returned by the server
     pub exception: u8,
 }
 
@@ -96,11 +100,16 @@ impl<T> std::convert::From<std::result::Result<T, rodbus::error::Error>> for Res
     }
 }
 
+/// @brief Struct that bundles together the types needed to make requests on a channel
 #[repr(C)]
 pub struct Session {
+    /// #Runtime on which requests will be run
     runtime: *mut tokio::runtime::Runtime,
+    /// #Channel to which requests will be sent for processing
     channel: *mut rodbus::client::channel::Channel,
+    /// Modbus unit identifier to use in requests and expect in responses
     unit_id: u8,
+    /// Response timeout in milliseconds
     timeout_ms: u32,
 }
 
