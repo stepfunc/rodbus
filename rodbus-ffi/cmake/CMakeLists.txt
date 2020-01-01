@@ -19,5 +19,13 @@ add_custom_target(build
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
+add_custom_target(doc
+    COMMENT "Building docs"
+    COMMAND doxygen ${CMAKE_CURRENT_SOURCE_DIR}/doxygen.config
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+    DEPENDS build
+)
+
+
 install(FILES ${LIBRARY_PATH} DESTINATION lib)
 install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/include/rodbus DESTINATION include)

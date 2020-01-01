@@ -114,8 +114,14 @@ pub struct Session {
 unsafe impl Send for ContextStorage {}
 unsafe impl Sync for ContextStorage {}
 
+/// @brief create an instance of the multi-threaded work-stealing Tokio runtime
+///
+/// This instance is typically created at the beginning of your program and destroyed
+/// using destroy_runtime() before your program exits.
+///
+/// @return An instance of the runtime or NULL if it cannot be created for some reason
 #[no_mangle]
-pub extern "C" fn create_runtime() -> *mut tokio::runtime::Runtime {
+pub extern "C" fn create_multithreaded_runtime() -> *mut tokio::runtime::Runtime {
     match runtime::Builder::new()
         .enable_all()
         .threaded_scheduler()
@@ -126,6 +132,31 @@ pub extern "C" fn create_runtime() -> *mut tokio::runtime::Runtime {
     }
 }
 
+/// @brief create an instance of the basic (single-threaded) Tokio runtime
+///
+/// This instance is typically created at the beginning of your program and destroyed
+/// using destroy_runtime() before your program exits.
+///
+/// @return An instance of the runtime or NULL if it cannot be created for some reason
+#[no_mangle]
+pub extern "C" fn create_basic_runtime() -> *mut tokio::runtime::Runtime {
+    match runtime::Builder::new()
+        .enable_all()
+        .basic_scheduler()
+        .build()
+    {
+        Ok(r) => Box::into_raw(Box::new(r)),
+        Err(_) => null_mut(),
+    }
+}
+
+/// @brief Destroy a previously created runtime instance
+///
+/// This operation is typically performed just before program exit. It blocks until
+/// the runtime stops and all operations are canceled. Any pending asynchronous callbacks
+/// may not complete, and synchronous operations performed on other threads will fail
+/// with a #Status value of #Status_Shutdown
+///
 #[no_mangle]
 pub unsafe extern "C" fn destroy_runtime(runtime: *mut tokio::runtime::Runtime) {
     if !runtime.is_null() {
@@ -133,6 +164,15 @@ pub unsafe extern "C" fn destroy_runtime(runtime: *mut tokio::runtime::Runtime) 
     };
 }
 
+/// @brief Convience function to build a session struct
+///
+/// This function does not allocate and is merely provided to convienently create the #Session struct.
+///
+/// @param runtime       pointer to the #Runtime that will be used to make requests on the channel
+/// @param channel       pointer to the #Channel on which requests associated with the built #Session will be made
+/// @param unit_id       Modbus unit identifier of the server
+/// @param timeout_ms    timeout in milliseconds for any requests made via this session object
+/// @return              built Session struct ready for use with the Modbus request functions
 #[no_mangle]
 pub extern "C" fn build_session(
     runtime: *mut tokio::runtime::Runtime,
