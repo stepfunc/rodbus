@@ -96,10 +96,6 @@ impl<T> std::convert::From<std::result::Result<T, rodbus::error::Error>> for Res
     }
 }
 
-struct ContextStorage {
-    context: *mut c_void,
-}
-
 #[repr(C)]
 pub struct Session {
     runtime: *mut tokio::runtime::Runtime,
@@ -108,12 +104,6 @@ pub struct Session {
     timeout_ms: u32,
 }
 
-// we need these so we can send the callback context to the executor
-// we rely on the C program to keep the context value alive
-// for the duration of the operation, and for it to be thread-safe
-unsafe impl Send for ContextStorage {}
-unsafe impl Sync for ContextStorage {}
-
 /// @brief create an instance of the multi-threaded work-stealing Tokio runtime
 ///
 /// This instance is typically created at the beginning of your program and destroyed
@@ -121,7 +111,7 @@ unsafe impl Sync for ContextStorage {}
 ///
 /// @return An instance of the runtime or NULL if it cannot be created for some reason
 #[no_mangle]
-pub extern "C" fn create_multithreaded_runtime() -> *mut tokio::runtime::Runtime {
+pub extern "C" fn create_threaded_runtime() -> *mut tokio::runtime::Runtime {
     match runtime::Builder::new()
         .enable_all()
         .threaded_scheduler()
@@ -132,7 +122,7 @@ pub extern "C" fn create_multithreaded_runtime() -> *mut tokio::runtime::Runtime
     }
 }
 
-/// @brief create an instance of the basic (single-threaded) Tokio runtime
+/// @brief Create an instance of the basic (single-threaded) Tokio runtime
 ///
 /// This instance is typically created at the beginning of your program and destroyed
 /// using destroy_runtime() before your program exits.
@@ -154,9 +144,11 @@ pub extern "C" fn create_basic_runtime() -> *mut tokio::runtime::Runtime {
 ///
 /// This operation is typically performed just before program exit. It blocks until
 /// the runtime stops and all operations are canceled. Any pending asynchronous callbacks
-/// may not complete, and synchronous operations performed on other threads will fail
-/// with a #Status value of #Status_Shutdown
+/// may not complete, and no further Modbus requests should be made after this call.
 ///
+/// Note: This function checks for NULL and is a NOP in this case
+///
+/// @param runtime #Runtime to stop and destroy
 #[no_mangle]
 pub unsafe extern "C" fn destroy_runtime(runtime: *mut tokio::runtime::Runtime) {
     if !runtime.is_null() {
@@ -164,9 +156,9 @@ pub unsafe extern "C" fn destroy_runtime(runtime: *mut tokio::runtime::Runtime) 
     };
 }
 
-/// @brief Convience function to build a session struct
+/// @brief Convenience function to build a session struct
 ///
-/// This function does not allocate and is merely provided to convienently create the #Session struct.
+/// This function does not allocate and is merely a helper function create the #Session struct.
 ///
 /// @param runtime       pointer to the #Runtime that will be used to make requests on the channel
 /// @param channel       pointer to the #Channel on which requests associated with the built #Session will be made
@@ -188,11 +180,19 @@ pub extern "C" fn build_session(
     }
 }
 
+/// @brief Create an instance of a TCP client channel
+///
+/// This function allocates an opaque struct which must be later destroyed using destroy_channel()
+///
+/// @param runtime                    pointer to the #Runtime that will be used to run the channel task
+/// @param address                    string representation on an IPv4 or IPv6 address and port, e.g. "127.0.0.1:502"
+/// @param max_queued_requests        Maximum number of queued requests that will be accepted before back-pressure (blocking) is applied
+/// @return                           pointer to the channel or NULL if the address parameter cannot be parsed
 #[no_mangle]
 pub unsafe extern "C" fn create_tcp_client(
     runtime: *mut tokio::runtime::Runtime,
     address: *const std::os::raw::c_char,
-    max_queued_requests: usize,
+    max_queued_requests: u16,
 ) -> *mut rodbus::client::channel::Channel {
     let rt = runtime.as_mut().unwrap();
 
@@ -211,7 +211,7 @@ pub unsafe extern "C" fn create_tcp_client(
 
     let (handle, task) = rodbus::client::channel::Channel::create_handle_and_task(
         addr,
-        max_queued_requests,
+        max_queued_requests as usize,
         rodbus::client::channel::strategy::default(),
     );
 
@@ -220,10 +220,19 @@ pub unsafe extern "C" fn create_tcp_client(
     Box::into_raw(Box::new(handle))
 }
 
+/// @brief Destroy a previously created channel instance
+///
+/// This operation stops channel task execution. Any pending asynchronous callbacks
+/// may not complete, and no further Modbus requests on this channel should be made
+/// after this call.
+///
+/// Note: This function checks for NULL and is a NOP in this case
+///
+/// @param channel #Channel to stop and destroy
 #[no_mangle]
-pub unsafe extern "C" fn destroy_tcp_client(client: *mut rodbus::client::channel::Channel) {
-    if !client.is_null() {
-        Box::from_raw(client);
+pub unsafe extern "C" fn destroy_channel(channel: *mut rodbus::client::channel::Channel) {
+    if !channel.is_null() {
+        Box::from_raw(channel);
     };
 }
 
