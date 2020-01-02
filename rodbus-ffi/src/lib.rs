@@ -115,39 +115,45 @@ pub struct Session {
     timeout_ms: u32,
 }
 
+/// @brief Optional non-default configuration of the Tokio runtime
+#[repr(C)]
+pub struct RuntimeConfig {
+    /// Core number of worker threads for the Runtime's thread pool
+    /// Default is the number of cores on the system
+    num_core_threads: u16,
+}
+
+fn build_runtime<F>(f: F) -> std::result::Result<tokio::runtime::Runtime, std::io::Error>
+where
+    F: Fn(&mut tokio::runtime::Builder) -> &mut tokio::runtime::Builder,
+{
+    f(runtime::Builder::new().enable_all().threaded_scheduler()).build()
+}
+
 /// @brief create an instance of the multi-threaded work-stealing Tokio runtime
 ///
 /// This instance is typically created at the beginning of your program and destroyed
 /// using destroy_runtime() before your program exits.
 ///
+/// @param config Optional configuration of the runtime. If "config" is NULL, default
+/// settings are applied
+///
 /// @return An instance of the runtime or NULL if it cannot be created for some reason
 #[no_mangle]
-pub extern "C" fn create_threaded_runtime() -> *mut tokio::runtime::Runtime {
-    match runtime::Builder::new()
-        .enable_all()
-        .threaded_scheduler()
-        .build()
-    {
-        Ok(r) => Box::into_raw(Box::new(r)),
-        Err(_) => null_mut(),
-    }
-}
+pub unsafe extern "C" fn create_threaded_runtime(
+    config: *const RuntimeConfig,
+) -> *mut tokio::runtime::Runtime {
+    let result = match config.as_ref() {
+        None => build_runtime(|r| r),
+        Some(x) => build_runtime(|r| r.core_threads(x.num_core_threads as usize)),
+    };
 
-/// @brief Create an instance of the basic (single-threaded) Tokio runtime
-///
-/// This instance is typically created at the beginning of your program and destroyed
-/// using destroy_runtime() before your program exits.
-///
-/// @return An instance of the runtime or NULL if it cannot be created for some reason
-#[no_mangle]
-pub extern "C" fn create_basic_runtime() -> *mut tokio::runtime::Runtime {
-    match runtime::Builder::new()
-        .enable_all()
-        .basic_scheduler()
-        .build()
-    {
+    match result {
         Ok(r) => Box::into_raw(Box::new(r)),
-        Err(_) => null_mut(),
+        Err(err) => {
+            log::error!("Unable to build runtime: {}", err);
+            null_mut()
+        }
     }
 }
 
