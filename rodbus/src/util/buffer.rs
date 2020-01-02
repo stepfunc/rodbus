@@ -25,25 +25,28 @@ impl ReadBuffer {
         self.begin == self.end
     }
 
-    pub fn read(&mut self, count: usize) -> std::result::Result<&[u8], bugs::Error> {
+    pub fn read(&mut self, count: usize) -> std::result::Result<&[u8], details::InternalError> {
         if self.len() < count {
-            return Err(bugs::ErrorKind::InsufficientBytesForRead(count, self.len()).into());
+            return Err(details::InternalError::InsufficientBytesForRead(
+                count,
+                self.len(),
+            ));
         }
 
         let ret = &self.buffer[self.begin..(self.begin + count)];
         self.begin += count;
         Ok(ret)
     }
-    pub fn read_u8(&mut self) -> std::result::Result<u8, bugs::Error> {
+    pub fn read_u8(&mut self) -> std::result::Result<u8, details::InternalError> {
         if self.is_empty() {
-            return Err(bugs::ErrorKind::InsufficientBytesForRead(1, 0).into());
+            return Err(details::InternalError::InsufficientBytesForRead(1, 0));
         }
 
         let ret = self.buffer[self.begin];
         self.begin += 1;
         Ok(ret)
     }
-    pub fn read_u16_be(&mut self) -> std::result::Result<u16, bugs::Error> {
+    pub fn read_u16_be(&mut self) -> std::result::Result<u16, details::InternalError> {
         let b1 = self.read_u8()? as u16;
         let b2 = self.read_u8()? as u16;
         Ok((b1 << 8) | b2)

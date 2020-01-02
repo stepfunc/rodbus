@@ -79,7 +79,7 @@ impl Result {
 impl std::convert::From<&ErrorKind> for Result {
     fn from(err: &ErrorKind) -> Self {
         match err {
-            ErrorKind::Bug(_) => Result::status(Status::InternalError),
+            ErrorKind::Internal(_) => Result::status(Status::InternalError),
             ErrorKind::NoConnection => Result::status(Status::NoConnection),
             ErrorKind::BadFrame(_) => Result::status(Status::BadFraming),
             ErrorKind::Shutdown => Result::status(Status::Shutdown),

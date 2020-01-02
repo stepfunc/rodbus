@@ -12,10 +12,7 @@ error_chain! {
         BadRequest(details::InvalidRequest);
         BadFrame(details::FrameParseError);
         BadResponse(details::ADUParseError);
-   }
-
-   links {
-      Bug(bugs::Error, bugs::ErrorKind);
+        Internal(details::InternalError);
    }
 
    errors {
@@ -39,53 +36,64 @@ error_chain! {
     }
 }
 
-/// Error chain for possible **bugs** in the library itself as it writes types to buffers.
-pub mod bugs {
-    error_chain! {
-        types {
-            Error, ErrorKind, ResultExt;
-        }
+/// Simple errors that occur normally and do not indicate bugs in the library
+pub mod details {
+    use crate::types::AddressRange;
+    use std::fmt::{Error, Formatter};
 
-        errors {
-            /// Attempted to write more bytes than allowed
-            InsufficientWriteSpace(write_size: usize, remaining: usize) {
-                description("insufficient space for write operation")
-                display("attempted to write {} bytes with {} bytes remaining", write_size, remaining)
-            }
-            /// The calculated ADU size exceeds what is allowed by the spec
-            ADUTooBig(size: usize) {
-                description("ADU size is larger than the maximum allowed size")
-                display("ADU length of {} exceeds the maximum allowed length", size)
-            }
-            /// The calculated frame size exceeds what is allowed by the spec
-            FrameTooBig(size: usize, max: usize) {
-                description("Frame size is larger than the maximum allowed size")
-                display("Frame length of {} exceeds the maximum allowed length of {}", size, max)
-            }
-            /// Attempted to read more bytes than present
-            InsufficientBytesForRead(requested: usize, remaining: usize) {
-                description("attempted to read more bytes than present")
-                display("attempted to read {} bytes with only {} remaining", requested, remaining)
-            }
-            /// Cursor seek operation exceeded the bounds of the underlying buffer
-            BadSeekOperation {
-                description("Cursor seek operation exceeded the bounds of the underlying buffer")
-                display("Cursor seek operation exceeded the bounds of the underlying buffer")
-            }
-            /// Can't write the specified number of bytes
-            BadByteCount(num: usize) {
-                description("Byte count would exceed maximum size of u8")
-                display("Byte count would exceed maximum size of u8: {}", num)
+    /// Errors that indicate Bad logic in the library itself
+    #[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Ord, Eq)]
+    pub enum InternalError {
+        /// Insufficient space for write operation
+        InsufficientWriteSpace(usize, usize), // written vs remaining space
+        /// ADU size is larger than the maximum allowed size
+        ADUTooBig(usize),
+        /// The calculated frame size exceeds what is allowed by the spec
+        FrameTooBig(usize, usize), // calculate size vs allowed maximum
+        /// Attempted to read more bytes than present
+        InsufficientBytesForRead(usize, usize), // requested vs remaining
+        /// Cursor seek operation exceeded the bounds of the underlying buffer
+        BadSeekOperation,
+        /// Byte count would exceed maximum allowed size in the ADU of u8
+        BadByteCount(usize),
+    }
+
+    impl std::error::Error for InternalError {}
+
+    impl std::fmt::Display for InternalError {
+        fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
+            match self {
+                InternalError::InsufficientWriteSpace(written, remaining) => write!(
+                    f,
+                    "attempted to write {} bytes with {} bytes remaining",
+                    written, remaining
+                ),
+                InternalError::ADUTooBig(size) => write!(
+                    f,
+                    "ADU length of {} exceeds the maximum allowed length",
+                    size
+                ),
+                InternalError::FrameTooBig(size, max) => write!(
+                    f,
+                    "Frame length of {} exceeds the maximum allowed length of {}",
+                    size, max
+                ),
+                InternalError::InsufficientBytesForRead(requested, remaining) => write!(
+                    f,
+                    "attempted to read {} bytes with only {} remaining",
+                    requested, remaining
+                ),
+                InternalError::BadSeekOperation => f.write_str(
+                    "Cursor seek operation exceeded the bounds of the underlying buffer",
+                ),
+                InternalError::BadByteCount(size) => write!(
+                    f,
+                    "Byte count of in ADU {} exceeds maximum size of u8",
+                    size
+                ),
             }
         }
     }
-}
-
-/// Simple errors that occur normally and do not indicate bugs in the library
-pub mod details {
-    use std::fmt::{Error, Formatter};
-
-    use crate::types::AddressRange;
 
     /// Exception codes defined in the Modbus specification
     #[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Ord, Eq)]

@@ -132,9 +132,9 @@ impl FrameFormatter for MBAPFormatter {
 
         {
             // write the resulting length
-            let result: Result<u16, bugs::Error> = u16::try_from(adu_length + 1)
-                .map_err(|_err| bugs::ErrorKind::ADUTooBig(adu_length).into());
-            let frame_length_value = result?;
+            let frame_length_value = u16::try_from(adu_length + 1)
+                .map_err(|_err| details::InternalError::ADUTooBig(adu_length))?;
+
             cursor.seek_from_start(4)?;
             cursor.write_u16_be(frame_length_value)?;
         }
