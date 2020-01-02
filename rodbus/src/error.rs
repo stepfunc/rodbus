@@ -1,91 +1,138 @@
-// Create the Error, ErrorKind, ResultExt, and Result types
-// TODO: Update to something more modern than `error_chain`
-#![allow(deprecated)]
-error_chain! {
-   types {
-       Error, ErrorKind, ResultExt;
-   }
+use crate::error::details::InvalidRequest;
+use std::fmt::{Formatter, Pointer};
 
-   foreign_links {
-        Io(::std::io::Error);
-        Exception(details::ExceptionCode);
-        BadRequest(details::InvalidRequest);
-        BadFrame(details::FrameParseError);
-        BadResponse(details::ADUParseError);
-   }
+/// Top level error type for the client API
+#[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Ord, Eq)]
+pub enum Error {
+    Io(::std::io::ErrorKind),
+    Exception(details::ExceptionCode),
+    BadRequest(details::InvalidRequest),
+    BadFrame(details::FrameParseError),
+    BadResponse(details::ADUParseError),
+    Internal(details::InternalError),
+    /// timeout occurred before receiving a response from the server
+    ResponseTimeout,
+    /// no connection could be made to the Modbus server
+    NoConnection,
+    /// the task processing requests has been shutdown
+    Shutdown,
+}
 
-   links {
-      Bug(bugs::Error, bugs::ErrorKind);
-   }
+impl std::error::Error for Error {}
 
-   errors {
-        /// timeout occurred before receiving a response from the server
-        ResponseTimeout {
-            description("timeout occurred before receiving a response from the server")
-            display("timeout occurred before receiving a response from the server")
-        }
-
-         /// no connection exists to the Modbus server
-        NoConnection {
-            description("no connection exists to the Modbus server")
-            display("no connection exists to the Modbus server")
-        }
-
-        /// the task processing requests has unexpectedly shutdown
-        Shutdown {
-            description("he task processing requests has unexpectedly shutdown")
-            display("he task processing requests has unexpectedly shutdown")
+impl std::fmt::Display for Error {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
+        match self {
+            Error::Io(kind) => kind.fmt(f),
+            /*
+            Error::Exception(details::ExceptionCode)=> {},
+            Error::BadRequest(details::InvalidRequest)=> {},
+            Error::BadFrame(details::FrameParseError)=> {},
+            Error::BadResponse(details::ADUParseError)=> {},
+            Error::Internal(details::InternalError)=> {},
+            Error::ResponseTimeout=> {},
+            Error::NoConnection=> {},
+            Error::Shutdown=> {},
+            */
+            _ => Ok(()),
         }
     }
 }
 
-/// Error chain for possible **bugs** in the library itself as it writes types to buffers.
-pub mod bugs {
-    error_chain! {
-        types {
-            Error, ErrorKind, ResultExt;
-        }
+impl std::convert::From<std::io::Error> for Error {
+    fn from(err: std::io::Error) -> Self {
+        Error::Io(err.kind())
+    }
+}
 
-        errors {
-            /// Attempted to write more bytes than allowed
-            InsufficientWriteSpace(write_size: usize, remaining: usize) {
-                description("insufficient space for write operation")
-                display("attempted to write {} bytes with {} bytes remaining", write_size, remaining)
-            }
-            /// The calculated ADU size exceeds what is allowed by the spec
-            ADUTooBig(size: usize) {
-                description("ADU size is larger than the maximum allowed size")
-                display("ADU length of {} exceeds the maximum allowed length", size)
-            }
-            /// The calculated frame size exceeds what is allowed by the spec
-            FrameTooBig(size: usize, max: usize) {
-                description("Frame size is larger than the maximum allowed size")
-                display("Frame length of {} exceeds the maximum allowed length of {}", size, max)
-            }
-            /// Attempted to read more bytes than present
-            InsufficientBytesForRead(requested: usize, remaining: usize) {
-                description("attempted to read more bytes than present")
-                display("attempted to read {} bytes with only {} remaining", requested, remaining)
-            }
-            /// Cursor seek operation exceeded the bounds of the underlying buffer
-            BadSeekOperation {
-                description("Cursor seek operation exceeded the bounds of the underlying buffer")
-                display("Cursor seek operation exceeded the bounds of the underlying buffer")
-            }
-            /// Can't write the specified number of bytes
-            BadByteCount(num: usize) {
-                description("Byte count would exceed maximum size of u8")
-                display("Byte count would exceed maximum size of u8: {}", num)
-            }
-        }
+impl std::convert::From<details::InvalidRequest> for Error {
+    fn from(err: InvalidRequest) -> Self {
+        Error::BadRequest(err)
+    }
+}
+
+impl std::convert::From<details::InternalError> for Error {
+    fn from(err: details::InternalError) -> Self {
+        Error::Internal(err)
+    }
+}
+
+impl std::convert::From<details::ADUParseError> for Error {
+    fn from(err: details::ADUParseError) -> Self {
+        Error::BadResponse(err)
+    }
+}
+
+impl std::convert::From<details::ExceptionCode> for Error {
+    fn from(err: details::ExceptionCode) -> Self {
+        Error::Exception(err)
+    }
+}
+
+impl std::convert::From<details::FrameParseError> for Error {
+    fn from(err: details::FrameParseError) -> Self {
+        Error::BadFrame(err)
     }
 }
 
 /// Simple errors that occur normally and do not indicate bugs in the library
 pub mod details {
+    use crate::types::AddressRange;
     use std::fmt::{Error, Formatter};
 
-    use crate::types::AddressRange;
+    /// Errors that indicate Bad logic in the library itself
+    #[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Ord, Eq)]
+    pub enum InternalError {
+        /// Insufficient space for write operation
+        InsufficientWriteSpace(usize, usize), // written vs remaining space
+        /// ADU size is larger than the maximum allowed size
+        ADUTooBig(usize),
+        /// The calculated frame size exceeds what is allowed by the spec
+        FrameTooBig(usize, usize), // calculate size vs allowed maximum
+        /// Attempted to read more bytes than present
+        InsufficientBytesForRead(usize, usize), // requested vs remaining
+        /// Cursor seek operation exceeded the bounds of the underlying buffer
+        BadSeekOperation,
+        /// Byte count would exceed maximum allowed size in the ADU of u8
+        BadByteCount(usize),
+    }
+
+    impl std::error::Error for InternalError {}
+
+    impl std::fmt::Display for InternalError {
+        fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
+            match self {
+                InternalError::InsufficientWriteSpace(written, remaining) => write!(
+                    f,
+                    "attempted to write {} bytes with {} bytes remaining",
+                    written, remaining
+                ),
+                InternalError::ADUTooBig(size) => write!(
+                    f,
+                    "ADU length of {} exceeds the maximum allowed length",
+                    size
+                ),
+                InternalError::FrameTooBig(size, max) => write!(
+                    f,
+                    "Frame length of {} exceeds the maximum allowed length of {}",
+                    size, max
+                ),
+                InternalError::InsufficientBytesForRead(requested, remaining) => write!(
+                    f,
+                    "attempted to read {} bytes with only {} remaining",
+                    requested, remaining
+                ),
+                InternalError::BadSeekOperation => f.write_str(
+                    "Cursor seek operation exceeded the bounds of the underlying buffer",
+                ),
+                InternalError::BadByteCount(size) => write!(
+                    f,
+                    "Byte count of in ADU {} exceeds maximum size of u8",
+                    size
+                ),
+            }
+        }
+    }
 
     /// Exception codes defined in the Modbus specification
     #[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Ord, Eq)]
@@ -194,7 +241,7 @@ pub mod details {
     }
 
     /// errors that occur while parsing a frame off a stream (TCP or serial)
-    #[derive(Debug, Copy, Clone, PartialEq)]
+    #[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Ord, Eq)]
     pub enum FrameParseError {
         /// Received TCP frame with the length field set to zero
         MBAPLengthZero,
@@ -225,7 +272,7 @@ pub mod details {
     }
 
     /// errors that occur while parsing requests and responses
-    #[derive(Debug, Copy, Clone, PartialEq)]
+    #[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Ord, Eq)]
     pub enum ADUParseError {
         /// response is too short to be valid
         InsufficientBytes,
@@ -282,7 +329,7 @@ pub mod details {
     }
 
     /// errors that result because of bad request parameter
-    #[derive(Debug, Copy, Clone, PartialEq)]
+    #[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Ord, Eq)]
     pub enum InvalidRequest {
         CountOfZero,
         CountTooBigForU16(usize),

@@ -48,8 +48,7 @@ impl Serialize for &[bool] {
                 div_8 + 1
             };
 
-            u8::try_from(count)
-                .map_err(|_| bugs::Error::from(bugs::ErrorKind::BadByteCount(count)))?
+            u8::try_from(count).map_err(|_| details::InternalError::BadByteCount(count))?
         };
 
         cursor.write_u8(num_bytes)?;
@@ -72,8 +71,7 @@ impl Serialize for &[u16] {
     fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), Error> {
         let num_bytes = {
             let count = 2 * self.len();
-            u8::try_from(count)
-                .map_err(|_| bugs::Error::from(bugs::ErrorKind::BadByteCount(count)))?
+            u8::try_from(count).map_err(|_| details::InternalError::BadByteCount(count))?
         };
 
         cursor.write_u8(num_bytes)?;

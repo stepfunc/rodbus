@@ -73,12 +73,6 @@
 //!}
 //! ```
 
-// `error_chain!` can recurse deeply
-#![recursion_limit = "1024"]
-
-#[macro_use]
-extern crate error_chain;
-
 /// public constant values related to the Modbus specification
 pub mod constants;
 /// prelude used to include all of the API types

@@ -1,41 +1,62 @@
 // TODO: Update to something more modern than `error_chain`
-#![allow(deprecated)]
-#[macro_use]
-extern crate error_chain;
 extern crate clap;
 
-use std::net::SocketAddr;
-use std::str::FromStr;
+use std::net::{AddrParseError, SocketAddr};
+use std::str::{FromStr, ParseBoolError};
 use std::time::Duration;
 
 use clap::{App, Arg, ArgMatches, SubCommand};
 
 use rodbus::prelude::*;
+use std::fmt::Formatter;
+use std::num::ParseIntError;
 
-error_chain! {
-   types {
-       Error, ErrorKind, ResultExt;
-   }
+#[derive(Debug)]
+enum Error {
+    BadAddr(std::net::AddrParseError),
+    BadInt(std::num::ParseIntError),
+    BadBool(std::str::ParseBoolError),
+    BadCharInBitString(char),
+    Request(rodbus::error::Error),
+    MissingSubCommand,
+}
 
-   links {
-      Rodbus(rodbus::error::Error, rodbus::error::ErrorKind);
-   }
+impl std::error::Error for Error {}
 
-   foreign_links {
-      BadAddr(std::net::AddrParseError);
-      BadInt(std::num::ParseIntError);
-      BadBool(std::str::ParseBoolError);
-   }
-
-   errors {
-        BadCharInBitString(c: char) {
-            description("Bitstring contains an invalid character")
-            display("Bitstring contains an invalid character: {}", c)
+impl std::fmt::Display for Error {
+    fn fmt(&self, f: &mut Formatter) -> Result<(), std::fmt::Error> {
+        match self {
+            Error::BadAddr(err) => err.fmt(f),
+            Error::BadInt(err) => err.fmt(f),
+            Error::BadBool(err) => err.fmt(f),
+            Error::BadCharInBitString(char) => write!(f, "Bad character in bit string: {}", char),
+            Error::Request(err) => err.fmt(f),
+            Error::MissingSubCommand => f.write_str("No sub-command provided"),
         }
-        MissingSubcommand {
-            description("You must specify a sub-command")
-            display("You must specify a sub-command")
-        }
+    }
+}
+
+impl std::convert::From<rodbus::error::Error> for Error {
+    fn from(err: rodbus::error::Error) -> Self {
+        Error::Request(err)
+    }
+}
+
+impl std::convert::From<AddrParseError> for Error {
+    fn from(err: AddrParseError) -> Self {
+        Error::BadAddr(err)
+    }
+}
+
+impl std::convert::From<ParseIntError> for Error {
+    fn from(err: ParseIntError) -> Self {
+        Error::BadInt(err)
+    }
+}
+
+impl std::convert::From<ParseBoolError> for Error {
+    fn from(err: ParseBoolError) -> Self {
+        Error::BadBool(err)
     }
 }
 
@@ -75,16 +96,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     if let Err(ref e) = run().await {
         println!("error: {}", e);
-
-        for e in e.iter().skip(1) {
-            println!("caused by: {}", e);
-        }
-
-        // The backtrace is not always generated. Try to run this example with `RUST_BACKTRACE=1`.
-        if let Some(backtrace) = e.backtrace() {
-            println!("backtrace: {:?}", backtrace);
-        }
     }
+
     Ok(())
 }
 
@@ -140,19 +153,16 @@ async fn run_command(command: &Command, session: &mut Session) -> Result<(), Err
     Ok(())
 }
 
-fn get_index(arg: &ArgMatches) -> Result<u16, Error> {
+fn get_index(arg: &ArgMatches) -> Result<u16, ParseIntError> {
     u16::from_str(arg.value_of("index").unwrap())
-        .map_err(|e| Error::from(ErrorKind::BadInt(e)).chain_err(|| "index out of bounds"))
 }
 
-fn get_start(arg: &ArgMatches) -> Result<u16, Error> {
+fn get_start(arg: &ArgMatches) -> Result<u16, ParseIntError> {
     u16::from_str(arg.value_of("start").unwrap())
-        .map_err(|e| Error::from(ErrorKind::BadInt(e)).chain_err(|| "start out of bounds"))
 }
 
-fn get_value(arg: &ArgMatches) -> Result<u16, Error> {
+fn get_value(arg: &ArgMatches) -> Result<u16, ParseIntError> {
     u16::from_str(arg.value_of("value").unwrap())
-        .map_err(|e| Error::from(ErrorKind::BadInt(e)).chain_err(|| "value out of bounds"))
 }
 
 fn get_bit_values(arg: &ArgMatches) -> Result<Vec<bool>, Error> {
@@ -163,34 +173,32 @@ fn get_bit_values(arg: &ArgMatches) -> Result<Vec<bool>, Error> {
         match c {
             '0' => values.push(false),
             '1' => values.push(true),
-            _ => return Err(ErrorKind::BadCharInBitString(c).into()),
+            _ => return Err(Error::BadCharInBitString(c)),
         }
     }
     Ok(values)
 }
 
-fn get_register_values(arg: &ArgMatches) -> Result<Vec<u16>, Error> {
+fn get_register_values(arg: &ArgMatches) -> Result<Vec<u16>, ParseIntError> {
     let str = arg.value_of("values").unwrap();
 
     let mut values: Vec<u16> = Vec::new();
     for value in str.split(',') {
-        values.push(u16::from_str(value).chain_err(|| "bad register value")?);
+        values.push(u16::from_str(value)?);
     }
     Ok(values)
 }
 
-fn get_quantity(arg: &ArgMatches) -> Result<u16, Error> {
+fn get_quantity(arg: &ArgMatches) -> Result<u16, ParseIntError> {
     u16::from_str(arg.value_of("quantity").unwrap())
-        .map_err(|e| Error::from(ErrorKind::BadInt(e)).chain_err(|| "quantity out of bounds"))
 }
 
-fn get_period_ms(value: &str) -> Result<Duration, Error> {
-    let num = usize::from_str(value)
-        .map_err(|e| Error::from(ErrorKind::BadInt(e)).chain_err(|| "bad milliseconds"))?;
+fn get_period_ms(value: &str) -> Result<Duration, ParseIntError> {
+    let num = usize::from_str(value)?;
     Ok(Duration::from_millis(num as u64))
 }
 
-fn get_address_range(arg: &ArgMatches) -> Result<AddressRange, Error> {
+fn get_address_range(arg: &ArgMatches) -> Result<AddressRange, ParseIntError> {
     Ok(AddressRange::new(get_start(arg)?, get_quantity(arg)?))
 }
 
@@ -246,7 +254,7 @@ fn get_command(matches: &ArgMatches) -> Result<Command, Error> {
         )));
     }
 
-    Err(ErrorKind::MissingSubcommand.into())
+    Err(Error::MissingSubCommand)
 }
 
 fn parse_args() -> Result<Args, Error> {

@@ -153,7 +153,7 @@ where
                return self.reply_to_request(frame?).await;
             }
             _ = self.shutdown.recv().fuse() => {
-               return Err(crate::error::ErrorKind::Shutdown.into());
+               return Err(crate::error::Error::Shutdown.into());
             }
         }
     }

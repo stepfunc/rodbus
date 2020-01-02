@@ -41,7 +41,7 @@ where
             }
             Result::status(Status::Ok)
         }
-        Err(e) => e.kind().into(),
+        Err(e) => e.into(),
     }
 }
 
@@ -53,7 +53,7 @@ where
 
     match write(runtime, &mut session, value) {
         Ok(_) => Result::status(Status::Ok),
-        Err(e) => e.kind().into(),
+        Err(e) => e.into(),
     }
 }
 

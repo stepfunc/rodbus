@@ -2,7 +2,7 @@
 
 use rodbus::client::channel::Channel;
 use rodbus::client::session::{CallbackSession, SyncSession};
-use rodbus::error::ErrorKind;
+use rodbus::error::Error;
 use rodbus::types::{AddressRange, UnitId, WriteMultiple};
 use std::ffi::CStr;
 use std::net::SocketAddr;
@@ -76,19 +76,18 @@ impl Result {
     }
 }
 
-impl std::convert::From<&ErrorKind> for Result {
-    fn from(err: &ErrorKind) -> Self {
+impl std::convert::From<rodbus::error::Error> for Result {
+    fn from(err: rodbus::error::Error) -> Self {
         match err {
-            ErrorKind::Bug(_) => Result::status(Status::InternalError),
-            ErrorKind::NoConnection => Result::status(Status::NoConnection),
-            ErrorKind::BadFrame(_) => Result::status(Status::BadFraming),
-            ErrorKind::Shutdown => Result::status(Status::Shutdown),
-            ErrorKind::ResponseTimeout => Result::status(Status::ResponseTimeout),
-            ErrorKind::BadRequest(_) => Result::status(Status::BadRequest),
-            ErrorKind::Exception(ex) => Result::exception((*ex).into()),
-            ErrorKind::Io(_) => Result::status(Status::IOError),
-            ErrorKind::BadResponse(_) => Result::status(Status::BadResponse),
-            _ => Result::status(Status::InternalError),
+            Error::Internal(_) => Result::status(Status::InternalError),
+            Error::NoConnection => Result::status(Status::NoConnection),
+            Error::BadFrame(_) => Result::status(Status::BadFraming),
+            Error::Shutdown => Result::status(Status::Shutdown),
+            Error::ResponseTimeout => Result::status(Status::ResponseTimeout),
+            Error::BadRequest(_) => Result::status(Status::BadRequest),
+            Error::Exception(ex) => Result::exception(ex.into()),
+            Error::Io(_) => Result::status(Status::IOError),
+            Error::BadResponse(_) => Result::status(Status::BadResponse),
         }
     }
 }
@@ -97,7 +96,7 @@ impl<T> std::convert::From<std::result::Result<T, rodbus::error::Error>> for Res
     fn from(result: std::result::Result<T, rodbus::error::Error>) -> Self {
         match result {
             Ok(_) => Result::ok(),
-            Err(e) => e.kind().into(),
+            Err(e) => e.into(),
         }
     }
 }
