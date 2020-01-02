@@ -15,6 +15,8 @@ use tokio::runtime;
 pub mod asynchronous;
 // synchronous API
 pub mod synchronous;
+// bridge to Rust Log
+pub mod logging;
 
 /// Status returned during synchronous and asynchronous API calls
 #[repr(u8)]
