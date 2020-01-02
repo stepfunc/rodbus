@@ -1,4 +1,5 @@
 use crate::client::message::{Request, ServiceRequest};
+use crate::error::details::ExceptionCode;
 use crate::error::*;
 use crate::service::function::FunctionCode;
 use crate::util::cursor::*;
@@ -50,7 +51,7 @@ pub trait Service: Sized {
         }
 
         if function == Self::RESPONSE_ERROR_CODE_VALUE {
-            let exception = details::ExceptionCode::from_u8(cursor.read_u8()?);
+            let exception: ExceptionCode = cursor.read_u8()?.into();
             if !cursor.is_empty() {
                 return Err(details::ADUParseError::TrailingBytes(cursor.len()).into());
             }

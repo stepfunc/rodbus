@@ -85,7 +85,7 @@ impl std::convert::From<&ErrorKind> for Result {
             ErrorKind::Shutdown => Result::status(Status::Shutdown),
             ErrorKind::ResponseTimeout => Result::status(Status::ResponseTimeout),
             ErrorKind::BadRequest(_) => Result::status(Status::BadRequest),
-            ErrorKind::Exception(ex) => Result::exception(ex.to_u8()),
+            ErrorKind::Exception(ex) => Result::exception((*ex).into()),
             ErrorKind::Io(_) => Result::status(Status::IOError),
             ErrorKind::BadResponse(_) => Result::status(Status::BadResponse),
             _ => Result::status(Status::InternalError),

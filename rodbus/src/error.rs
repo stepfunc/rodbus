@@ -120,8 +120,8 @@ pub mod details {
         Unknown(u8),
     }
 
-    impl ExceptionCode {
-        pub fn from_u8(value: u8) -> ExceptionCode {
+    impl std::convert::From<u8> for ExceptionCode {
+        fn from(value: u8) -> Self {
             match value {
                 crate::constants::exceptions::ILLEGAL_FUNCTION => ExceptionCode::IllegalFunction,
                 crate::constants::exceptions::ILLEGAL_DATA_ADDRESS => {
@@ -145,9 +145,11 @@ pub mod details {
                 _ => ExceptionCode::Unknown(value),
             }
         }
+    }
 
-        pub fn to_u8(self) -> u8 {
-            match self {
+    impl std::convert::From<ExceptionCode> for u8 {
+        fn from(ex: ExceptionCode) -> Self {
+            match ex {
                 ExceptionCode::IllegalFunction => crate::constants::exceptions::ILLEGAL_FUNCTION,
                 ExceptionCode::IllegalDataAddress => {
                     crate::constants::exceptions::ILLEGAL_DATA_ADDRESS

@@ -15,7 +15,7 @@ impl Serialize for AddressRange {
 
 impl Serialize for details::ExceptionCode {
     fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), Error> {
-        cursor.write_u8(self.to_u8())?;
+        cursor.write_u8((*self).into())?;
         Ok(())
     }
 }
