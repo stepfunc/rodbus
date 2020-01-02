@@ -10,7 +10,7 @@ categories = ["network-programming"]
 repository = "https://www.github.com/grid-io/rodbus"
 
 [dependencies]
-tokio = { version = "0.2", features = ["tcp", "sync", "io-util", "time", "rt-core", "rt-threaded", "macros"]}
+tokio = { version = "^0.2.5", features = ["tcp", "sync", "io-util", "time", "rt-core", "rt-threaded", "macros"]}
 log = "0.4"
 futures = "0.3"
 

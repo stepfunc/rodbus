@@ -11,7 +11,7 @@ repository = "https://www.github.com/grid-io/rodbus"
 
 [dependencies]
 rodbus = { path = "../rodbus" }
-tokio = { version = "0.2", features = ["rt-threaded"]}
+tokio = { version = "^0.2.5", features = ["rt-threaded"]}
 log = "0.4"
 
 [lib]
