@@ -3,11 +3,13 @@ cmake_minimum_required(VERSION 3.10)
 project(rodbus-ffi NONE)
 
 set(CARGO_CMD cargo build --release)
-set(TARGET_DIR "release")
+set(TARGET_DIR "target/release")
 set(RODBUS_HEADER_DIR ${CMAKE_CURRENT_BINARY_DIR}/include/rodbus)
 
 set(LIBRARY_NAME librodbus_ffi.so)
-set(LIBRARY_PATH "${CMAKE_CURRENT_BINARY_DIR}/${TARGET_DIR}/${LIBRARY_NAME}")
+get_filename_component(CRATE_BASE_DIR ../../ ABSOLUTE)
+set(LIBRARY_PATH "${CRATE_BASE_DIR}/${TARGET_DIR}/${LIBRARY_NAME}")
+
 
 add_custom_target(cbindgen
         COMMENT "running cbindgen"
@@ -20,8 +22,8 @@ add_custom_target(cbindgen
 
 add_custom_target(build
     COMMENT "Compiling rodbus-ffi"
-    COMMAND CARGO_TARGET_DIR=${CMAKE_CURRENT_BINARY_DIR} ${CARGO_CMD} 
-    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    COMMAND cargo build --release
+    WORKING_DIRECTORY ${CRATE_BASE_DIR}
 )
 
 add_custom_target(doc
