@@ -1,38 +1,77 @@
-// Create the Error, ErrorKind, ResultExt, and Result types
-// TODO: Update to something more modern than `error_chain`
-#![allow(deprecated)]
-error_chain! {
-   types {
-       Error, ErrorKind, ResultExt;
-   }
+use crate::error::details::InvalidRequest;
+use std::fmt::{Formatter, Pointer};
 
-   foreign_links {
-        Io(::std::io::Error);
-        Exception(details::ExceptionCode);
-        BadRequest(details::InvalidRequest);
-        BadFrame(details::FrameParseError);
-        BadResponse(details::ADUParseError);
-        Internal(details::InternalError);
-   }
+/// Top level error type for the client API
+#[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Ord, Eq)]
+pub enum Error {
+    Io(::std::io::ErrorKind),
+    Exception(details::ExceptionCode),
+    BadRequest(details::InvalidRequest),
+    BadFrame(details::FrameParseError),
+    BadResponse(details::ADUParseError),
+    Internal(details::InternalError),
+    /// timeout occurred before receiving a response from the server
+    ResponseTimeout,
+    /// no connection could be made to the Modbus server
+    NoConnection,
+    /// the task processing requests has been shutdown
+    Shutdown,
+}
 
-   errors {
-        /// timeout occurred before receiving a response from the server
-        ResponseTimeout {
-            description("timeout occurred before receiving a response from the server")
-            display("timeout occurred before receiving a response from the server")
+impl std::error::Error for Error {}
+
+impl std::fmt::Display for Error {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
+        match self {
+            Error::Io(kind) => kind.fmt(f),
+            /*
+            Error::Exception(details::ExceptionCode)=> {},
+            Error::BadRequest(details::InvalidRequest)=> {},
+            Error::BadFrame(details::FrameParseError)=> {},
+            Error::BadResponse(details::ADUParseError)=> {},
+            Error::Internal(details::InternalError)=> {},
+            Error::ResponseTimeout=> {},
+            Error::NoConnection=> {},
+            Error::Shutdown=> {},
+            */
+            _ => Ok(()),
         }
+    }
+}
 
-         /// no connection exists to the Modbus server
-        NoConnection {
-            description("no connection exists to the Modbus server")
-            display("no connection exists to the Modbus server")
-        }
+impl std::convert::From<std::io::Error> for Error {
+    fn from(err: std::io::Error) -> Self {
+        Error::Io(err.kind())
+    }
+}
 
-        /// the task processing requests has unexpectedly shutdown
-        Shutdown {
-            description("he task processing requests has unexpectedly shutdown")
-            display("he task processing requests has unexpectedly shutdown")
-        }
+impl std::convert::From<details::InvalidRequest> for Error {
+    fn from(err: InvalidRequest) -> Self {
+        Error::BadRequest(err)
+    }
+}
+
+impl std::convert::From<details::InternalError> for Error {
+    fn from(err: details::InternalError) -> Self {
+        Error::Internal(err)
+    }
+}
+
+impl std::convert::From<details::ADUParseError> for Error {
+    fn from(err: details::ADUParseError) -> Self {
+        Error::BadResponse(err)
+    }
+}
+
+impl std::convert::From<details::ExceptionCode> for Error {
+    fn from(err: details::ExceptionCode) -> Self {
+        Error::Exception(err)
+    }
+}
+
+impl std::convert::From<details::FrameParseError> for Error {
+    fn from(err: details::FrameParseError) -> Self {
+        Error::BadFrame(err)
     }
 }
 
@@ -202,7 +241,7 @@ pub mod details {
     }
 
     /// errors that occur while parsing a frame off a stream (TCP or serial)
-    #[derive(Debug, Copy, Clone, PartialEq)]
+    #[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Ord, Eq)]
     pub enum FrameParseError {
         /// Received TCP frame with the length field set to zero
         MBAPLengthZero,
@@ -233,7 +272,7 @@ pub mod details {
     }
 
     /// errors that occur while parsing requests and responses
-    #[derive(Debug, Copy, Clone, PartialEq)]
+    #[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Ord, Eq)]
     pub enum ADUParseError {
         /// response is too short to be valid
         InsufficientBytes,
@@ -290,7 +329,7 @@ pub mod details {
     }
 
     /// errors that result because of bad request parameter
-    #[derive(Debug, Copy, Clone, PartialEq)]
+    #[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Ord, Eq)]
     pub enum InvalidRequest {
         CountOfZero,
         CountTooBigForU16(usize),

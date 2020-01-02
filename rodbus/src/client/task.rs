@@ -28,8 +28,8 @@ enum SessionError {
 
 impl SessionError {
     pub fn from(err: &Error) -> Option<Self> {
-        match err.kind() {
-            ErrorKind::Io(_) | ErrorKind::BadFrame(_) => Some(SessionError::IOError),
+        match err {
+            Error::Io(_) | Error::BadFrame(_) => Some(SessionError::IOError),
             _ => None,
         }
     }
@@ -211,7 +211,7 @@ impl ChannelTask {
         loop {
             let frame = tokio::time::timeout_at(deadline, self.reader.next_frame(io))
                 .await
-                .map_err(|_err| ErrorKind::ResponseTimeout)??;
+                .map_err(|_err| Error::ResponseTimeout)??;
 
             // TODO - log that non-matching tx_id found
             if frame.header.tx_id == tx_id {
@@ -231,7 +231,7 @@ impl ChannelTask {
                 // channel was closed
                 Ok(None) => return Err(()),
                 // fail request, do another iteration
-                Ok(Some(request)) => request.fail(),
+                Ok(Some(request)) => request.fail(Error::NoConnection),
             }
         }
     }

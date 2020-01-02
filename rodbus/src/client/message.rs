@@ -21,16 +21,16 @@ pub enum Request {
 }
 
 impl Request {
-    pub fn fail(self) {
+    pub fn fail(self, err: Error) {
         match self {
-            Request::ReadCoils(r) => r.fail(ErrorKind::NoConnection.into()),
-            Request::ReadDiscreteInputs(r) => r.fail(ErrorKind::NoConnection.into()),
-            Request::ReadHoldingRegisters(r) => r.fail(ErrorKind::NoConnection.into()),
-            Request::ReadInputRegisters(r) => r.fail(ErrorKind::NoConnection.into()),
-            Request::WriteSingleCoil(r) => r.fail(ErrorKind::NoConnection.into()),
-            Request::WriteSingleRegister(r) => r.fail(ErrorKind::NoConnection.into()),
-            Request::WriteMultipleCoils(r) => r.fail(ErrorKind::NoConnection.into()),
-            Request::WriteMultipleRegisters(r) => r.fail(ErrorKind::NoConnection.into()),
+            Request::ReadCoils(r) => r.fail(err),
+            Request::ReadDiscreteInputs(r) => r.fail(err),
+            Request::ReadHoldingRegisters(r) => r.fail(err),
+            Request::ReadInputRegisters(r) => r.fail(err),
+            Request::WriteSingleCoil(r) => r.fail(err),
+            Request::WriteSingleRegister(r) => r.fail(err),
+            Request::WriteMultipleCoils(r) => r.fail(err),
+            Request::WriteMultipleRegisters(r) => r.fail(err),
         }
     }
 }

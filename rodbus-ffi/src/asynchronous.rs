@@ -42,7 +42,7 @@ where
     move |result| {
         if let Some(cb) = callback {
             match result {
-                Err(err) => cb(err.kind().into(), null(), 0, user_data.value),
+                Err(err) => cb(err.into(), null(), 0, user_data.value),
                 Ok(values) => {
                     let transformed: Vec<T> = values.iter().map(|x| x.value).collect();
                     cb(
