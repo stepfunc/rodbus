@@ -381,7 +381,7 @@ fn parse_args() -> Result<Args, Error> {
         )
         .subcommand(
             SubCommand::with_name("wsc")
-                .about("write single register")
+                .about("write single coil")
                 .arg(
                     Arg::with_name("index")
                         .short("i")
