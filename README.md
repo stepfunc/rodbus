@@ -38,7 +38,8 @@ The following function codes are supported:
 Under the hood, the library uses an event loop that can efficiently utilize all the
 system resources. The [`perf`](./rodbus/examples/perf.rs) example is a benchmark that
 creates multiple sessions on a single server and sends multiple requests in parallel.
-On a Xeon system, it handles around 200k requests per second with only 800 KB of memory.
+On a decent workstation, the benchmark achieved around 200k requests per second spread
+across 100 concurrent sessions in only 800 KB of memory.
 
 ## C/C++ bindings
 
