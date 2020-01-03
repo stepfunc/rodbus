@@ -29,7 +29,7 @@ style = "both"
 [defines]
 
 [export]
-include = []
+include = ["Exception"]
 exclude = []
 item_types = []
 renaming_overrides_prefixing = false
@@ -53,7 +53,7 @@ derive_gt = false
 derive_gte = false
 
 [enum]
-rename_variants = "None"
+rename_variants = "ScreamingSnakeCase"
 add_sentinel = false
 prefix_with_name = true
 derive_helper_methods = true
@@ -74,7 +74,7 @@ bitflags = false
 
 [parse]
 parse_deps = true
-include = ["rodbus"]
+include = []
 exclude = []
 clean = false
 extra_bindings = []

@@ -34,7 +34,7 @@ style = "both"
 
 
 [export]
-include = []
+include = ["Exception"]
 exclude = []
 item_types = []
 renaming_overrides_prefixing = false
@@ -58,7 +58,7 @@ derive_gt = false
 derive_gte = false
 
 [enum]
-rename_variants = "None"
+rename_variants = "ScreamingSnakeCase"
 add_sentinel = false
 prefix_with_name = false
 derive_helper_methods = true

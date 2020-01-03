@@ -20,6 +20,7 @@ pub mod synchronous;
 // bridge to Rust Log
 pub mod logging;
 
+/// Exception values from the Modbus specification
 #[repr(u8)]
 pub enum Exception {
     /// The function code received in the query is not an allowable action for the server
@@ -47,7 +48,7 @@ pub enum Exception {
     GatewayPathUnavailable = 0x0A,
     /// Specialized use in conjunction with gateways, indicates that no response was obtained
     /// from the target device. Usually means that the device is not present on the network.
-    GatewayTargetDeviceFailedToRespond = 0x0B
+    GatewayTargetDeviceFailedToRespond = 0x0B,
 }
 
 /// Status returned during synchronous and asynchronous API calls
