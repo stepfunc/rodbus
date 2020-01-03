@@ -94,6 +94,10 @@ pub mod details {
         BadSeekOperation,
         /// Byte count would exceed maximum allowed size in the ADU of u8
         BadByteCount(usize),
+        /// BitIterator with bad arguments
+        BadBitIteratorArgs,
+        /// RegisterIterator with bad arguments
+        BadRegisterIteratorArgs,
     }
 
     impl std::error::Error for InternalError {}
@@ -129,6 +133,12 @@ pub mod details {
                     "Byte count of in ADU {} exceeds maximum size of u8",
                     size
                 ),
+                InternalError::BadBitIteratorArgs => {
+                    f.write_str("Bit iterator created with bad arguments")
+                }
+                InternalError::BadRegisterIteratorArgs => {
+                    f.write_str("Register iterator created with bad arguments")
+                }
             }
         }
     }

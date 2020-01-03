@@ -51,12 +51,40 @@ impl ServerHandler for SimpleHandler {
         Self::get_range_of(self.input_registers.as_slice(), range)
     }
 
-    fn write_single_coil(&mut self, _: Indexed<bool>) -> Result<(), ExceptionCode> {
-        Err(ExceptionCode::IllegalFunction)
+    fn write_single_coil(&mut self, value: Indexed<bool>) -> Result<(), ExceptionCode> {
+        log::info!(
+            "write single coil, index: {} value: {}",
+            value.index,
+            value.value
+        );
+        Ok(())
     }
 
-    fn write_single_register(&mut self, _: Indexed<u16>) -> Result<(), ExceptionCode> {
-        Err(ExceptionCode::IllegalFunction)
+    fn write_single_register(&mut self, value: Indexed<u16>) -> Result<(), ExceptionCode> {
+        log::info!(
+            "write single register, index: {} value: {}",
+            value.index,
+            value.value
+        );
+        Ok(())
+    }
+
+    fn write_multiple_coils(
+        &mut self,
+        range: AddressRange,
+        _iter: &BitIterator,
+    ) -> Result<(), ExceptionCode> {
+        log::info!("write multiple coils {:?}", range);
+        Ok(())
+    }
+
+    fn write_multiple_registers(
+        &mut self,
+        range: AddressRange,
+        _iter: &RegisterIterator,
+    ) -> Result<(), ExceptionCode> {
+        log::info!("write multiple registers {:?}", range);
+        Ok(())
     }
 }
 

@@ -18,22 +18,52 @@ pub trait ServerHandler: Send + 'static {
     }
 
     /// Read a range of coils, returning the matching slice of bool or an exception
-    fn read_coils(&mut self, range: AddressRange) -> Result<&[bool], ExceptionCode>;
+    fn read_coils(&mut self, _: AddressRange) -> Result<&[bool], ExceptionCode> {
+        Err(ExceptionCode::IllegalFunction)
+    }
 
     /// Read a range of discrete inputs, returning the matching slice of bool or an exception
-    fn read_discrete_inputs(&mut self, range: AddressRange) -> Result<&[bool], ExceptionCode>;
+    fn read_discrete_inputs(&mut self, _range: AddressRange) -> Result<&[bool], ExceptionCode> {
+        Err(ExceptionCode::IllegalFunction)
+    }
 
     /// Read a range of holding registers, returning the matching slice of u16 or an exception
-    fn read_holding_registers(&mut self, range: AddressRange) -> Result<&[u16], ExceptionCode>;
+    fn read_holding_registers(&mut self, _range: AddressRange) -> Result<&[u16], ExceptionCode> {
+        Err(ExceptionCode::IllegalFunction)
+    }
 
     /// Read a range of input registers, returning the matching slice of u16 or an exception
-    fn read_input_registers(&mut self, range: AddressRange) -> Result<&[u16], ExceptionCode>;
+    fn read_input_registers(&mut self, _range: AddressRange) -> Result<&[u16], ExceptionCode> {
+        Err(ExceptionCode::IllegalFunction)
+    }
 
     /// Write a single coil value
-    fn write_single_coil(&mut self, value: Indexed<bool>) -> Result<(), ExceptionCode>;
+    fn write_single_coil(&mut self, _value: Indexed<bool>) -> Result<(), ExceptionCode> {
+        Err(ExceptionCode::IllegalFunction)
+    }
 
     /// Write a single coil value
-    fn write_single_register(&mut self, value: Indexed<u16>) -> Result<(), ExceptionCode>;
+    fn write_single_register(&mut self, _value: Indexed<u16>) -> Result<(), ExceptionCode> {
+        Err(ExceptionCode::IllegalFunction)
+    }
+
+    /// Write multiple coils
+    fn write_multiple_coils(
+        &mut self,
+        _range: AddressRange,
+        _iter: &BitIterator,
+    ) -> Result<(), ExceptionCode> {
+        Err(ExceptionCode::IllegalFunction)
+    }
+
+    /// Write multiple registers
+    fn write_multiple_registers(
+        &mut self,
+        _range: AddressRange,
+        _iter: &RegisterIterator,
+    ) -> Result<(), ExceptionCode> {
+        Err(ExceptionCode::IllegalFunction)
+    }
 
     /// retrieve a sub-range of a slice or ExceptionCode::IllegalDataAddress
     fn get_range_of<T>(slice: &[T], range: AddressRange) -> Result<&[T], ExceptionCode> {

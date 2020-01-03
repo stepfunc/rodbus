@@ -15,26 +15,6 @@ impl ServerHandler for Handler {
     fn read_coils(&mut self, range: AddressRange) -> Result<&[bool], ExceptionCode> {
         Self::get_range_of(self.coils.as_ref(), range)
     }
-
-    fn read_discrete_inputs(&mut self, _: AddressRange) -> Result<&[bool], ExceptionCode> {
-        Err(ExceptionCode::IllegalFunction)
-    }
-
-    fn read_holding_registers(&mut self, _: AddressRange) -> Result<&[u16], ExceptionCode> {
-        Err(ExceptionCode::IllegalFunction)
-    }
-
-    fn read_input_registers(&mut self, _: AddressRange) -> Result<&[u16], ExceptionCode> {
-        Err(ExceptionCode::IllegalFunction)
-    }
-
-    fn write_single_coil(&mut self, _: Indexed<bool>) -> Result<(), ExceptionCode> {
-        Err(ExceptionCode::IllegalFunction)
-    }
-
-    fn write_single_register(&mut self, _: Indexed<u16>) -> Result<(), ExceptionCode> {
-        Err(ExceptionCode::IllegalFunction)
-    }
 }
 
 #[tokio::main(threaded_scheduler)]
