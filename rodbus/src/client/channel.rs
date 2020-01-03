@@ -13,20 +13,28 @@ pub struct Channel {
     tx: mpsc::Sender<Request>,
 }
 
+/// Dynamic trait that controls how the channel
+/// retries failed connect attempts
 pub trait ReconnectStrategy {
+    /// Reset internal state. Called when a connection is successful
     fn reset(&mut self);
+    /// Return the next delay before making another connection attempt
     fn next_delay(&mut self) -> Duration;
 }
 
+/// Helper functions for returning connection retry strategies
 pub mod strategy {
     use std::time::Duration;
 
     use super::ReconnectStrategy;
 
+    /// return the default ReconnectStrategy
     pub fn default() -> Box<dyn ReconnectStrategy + Send> {
         doubling(Duration::from_millis(100), Duration::from_secs(5))
     }
 
+    /// return a ReconnectStrategy that doubles on failure up to a
+    /// maximum value
     pub fn doubling(min: Duration, max: Duration) -> Box<dyn ReconnectStrategy + Send> {
         Doubling::create(min, max)
     }
@@ -61,7 +69,7 @@ pub mod strategy {
 }
 
 impl Channel {
-    pub fn new(
+    pub(crate) fn new(
         addr: SocketAddr,
         max_queued_requests: usize,
         connect_retry: Box<dyn ReconnectStrategy + Send>,
@@ -71,7 +79,7 @@ impl Channel {
         handle
     }
 
-    pub fn create_handle_and_task(
+    pub(crate) fn create_handle_and_task(
         addr: SocketAddr,
         max_queued_requests: usize,
         connect_retry: Box<dyn ReconnectStrategy + Send>,

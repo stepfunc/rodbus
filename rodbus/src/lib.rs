@@ -3,10 +3,12 @@
 //!
 //! # Features
 //!
-//! * Automatic connection management with configurable reconnect strategy
 //! * Panic-free parsing
 //! * Focus on maximal correctness and compliance to the specification
+//! * Automatic connection management with configurable reconnect strategy
 //! * Scalable performance using Tokio's multi-threaded executor
+//! * async (futures), callbacks, and synchronous API modes
+//! * Idiomatic C API for integration with legacy codebases
 //!
 //! # Supported modes
 //!
@@ -29,7 +31,7 @@
 //! * Additional function code support
 //! * Modbus RTU over serial
 //!
-//! # Examples
+//! # Example Client
 //!
 //! A simple client application that periodically polls for some Coils
 //!
@@ -102,7 +104,7 @@ pub mod client {
     /// The channel uses the provided RetryStrategy to pause between failed connection attempts
     ///
     /// * `addr` - Socket address of the remote server
-    /// * `max_queued_requests` - The maximum size of the request queu
+    /// * `max_queued_requests` - The maximum size of the request queue
     /// * `retry` - A boxed trait object that controls when the connection is retried on failure
     pub fn spawn_tcp_client_task(
         addr: SocketAddr,
@@ -110,6 +112,22 @@ pub mod client {
         retry: Box<dyn ReconnectStrategy + Send>,
     ) -> Channel {
         Channel::new(addr, max_queued_requests, retry)
+    }
+
+    /// Creates a channel task, but does not spawn it. This function variant is useful when the channel
+    /// needs to be manually spawned from outside the Tokio runtime.
+    ///
+    /// The channel uses the provided RetryStrategy to pause between failed connection attempts
+    ///
+    /// * `addr` - Socket address of the remote server
+    /// * `max_queued_requests` - The maximum size of the request queue
+    /// * `retry` - A boxed trait object that controls when the connection is retried on failure
+    pub fn create_handle_and_task(
+        addr: SocketAddr,
+        max_queued_requests: usize,
+        retry: Box<dyn ReconnectStrategy + Send>,
+    ) -> (Channel, impl std::future::Future<Output = ()>) {
+        Channel::create_handle_and_task(addr, max_queued_requests, retry)
     }
 }
 

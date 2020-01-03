@@ -1,5 +1,5 @@
 use crate::error::details::InvalidRequest;
-use std::fmt::{Formatter, Pointer};
+use std::fmt::Formatter;
 
 /// Top level error type for the client API
 #[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Ord, Eq)]
@@ -23,18 +23,15 @@ impl std::error::Error for Error {}
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
         match self {
-            Error::Io(kind) => kind.fmt(f),
-            /*
-            Error::Exception(details::ExceptionCode)=> {},
-            Error::BadRequest(details::InvalidRequest)=> {},
-            Error::BadFrame(details::FrameParseError)=> {},
-            Error::BadResponse(details::ADUParseError)=> {},
-            Error::Internal(details::InternalError)=> {},
-            Error::ResponseTimeout=> {},
-            Error::NoConnection=> {},
-            Error::Shutdown=> {},
-            */
-            _ => Ok(()),
+            Error::Io(kind) => std::io::Error::from(*kind).fmt(f),
+            Error::Exception(err) => err.fmt(f),
+            Error::BadRequest(err) => err.fmt(f),
+            Error::BadFrame(err) => err.fmt(f),
+            Error::BadResponse(err) => err.fmt(f),
+            Error::Internal(err) => err.fmt(f),
+            Error::ResponseTimeout => f.write_str("response timeout"),
+            Error::NoConnection => f.write_str("no connection to server"),
+            Error::Shutdown => f.write_str("channel shutdown"),
         }
     }
 }
@@ -75,12 +72,12 @@ impl std::convert::From<details::FrameParseError> for Error {
     }
 }
 
-/// Simple errors that occur normally and do not indicate bugs in the library
+/// detailed sub-errors that can occur while processing a request
 pub mod details {
     use crate::types::AddressRange;
     use std::fmt::{Error, Formatter};
 
-    /// Errors that indicate Bad logic in the library itself
+    /// errors that indicate faulty logic in the library itself if they occur
     #[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Ord, Eq)]
     pub enum InternalError {
         /// Insufficient space for write operation
@@ -134,7 +131,7 @@ pub mod details {
         }
     }
 
-    /// Exception codes defined in the Modbus specification
+    /// exception codes defined in the Modbus specification
     #[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Ord, Eq)]
     pub enum ExceptionCode {
         /// The function code received in the query is not an allowable action for the server

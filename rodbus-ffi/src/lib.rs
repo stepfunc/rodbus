@@ -229,7 +229,7 @@ pub unsafe extern "C" fn create_tcp_client(
         }
     };
 
-    let (handle, task) = rodbus::client::channel::Channel::create_handle_and_task(
+    let (handle, task) = rodbus::client::create_handle_and_task(
         addr,
         max_queued_requests as usize,
         rodbus::client::channel::strategy::default(),
