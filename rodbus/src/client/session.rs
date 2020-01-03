@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+use tokio::runtime::Runtime;
 use tokio::sync::{mpsc, oneshot};
 
 use crate::client::message::{Request, ServiceRequest};
@@ -7,7 +8,6 @@ use crate::error::*;
 use crate::service::services::*;
 use crate::service::traits::Service;
 use crate::types::{AddressRange, Indexed, UnitId, WriteMultiple};
-use tokio::runtime::Runtime;
 
 #[derive(Clone)]
 pub struct Session {

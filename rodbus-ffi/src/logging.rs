@@ -1,5 +1,6 @@
-use log::{Log, Metadata, Record};
 use std::ffi::CString;
+
+use log::{Log, Metadata, Record};
 
 /// Levels of logging
 #[repr(u8)]

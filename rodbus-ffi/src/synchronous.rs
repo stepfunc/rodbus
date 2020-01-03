@@ -1,6 +1,8 @@
-use super::*;
-use rodbus::types::Indexed;
 use tokio::runtime::Runtime;
+
+use rodbus::types::Indexed;
+
+use super::*;
 
 unsafe fn get_synchronous_session<'a>(
     session: *mut Session,

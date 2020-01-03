@@ -1,15 +1,15 @@
 // TODO: Update to something more modern than `error_chain`
 extern crate clap;
 
+use std::fmt::Formatter;
 use std::net::{AddrParseError, SocketAddr};
+use std::num::ParseIntError;
 use std::str::{FromStr, ParseBoolError};
 use std::time::Duration;
 
 use clap::{App, Arg, ArgMatches, SubCommand};
 
 use rodbus::prelude::*;
-use std::fmt::Formatter;
-use std::num::ParseIntError;
 
 #[derive(Debug)]
 enum Error {

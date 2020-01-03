@@ -28,8 +28,10 @@ pub fn spawn_tcp_client_task(
     Channel::new(addr, max_queued_requests, retry)
 }
 
-/// Creates a channel task, but does not spawn it. This function variant is useful when the channel
-/// needs to be manually spawned from outside the Tokio runtime.
+/// Creates a channel task, but does not spawn it. Most users will prefer
+/// `spawn_tcp_client_task`, unless they are using the library from outside the Tokio runtime
+/// and need to spawn it using a Runtime handle instead of the `tokio::spawn` function.
+///
 ///
 /// The channel uses the provided RetryStrategy to pause between failed connection attempts
 ///

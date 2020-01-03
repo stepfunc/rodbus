@@ -1,7 +1,7 @@
+use std::error::Error;
 use std::time::Duration;
 
 use rodbus::prelude::*;
-use std::error::Error;
 
 #[tokio::main(basic_scheduler)]
 async fn main() -> Result<(), Box<dyn Error>> {

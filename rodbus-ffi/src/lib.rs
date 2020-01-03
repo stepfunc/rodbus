@@ -1,15 +1,17 @@
 #![allow(clippy::missing_safety_doc)]
 
-use rodbus::client::channel::Channel;
-use rodbus::client::session::{CallbackSession, SyncSession};
-use rodbus::error::Error;
-use rodbus::types::{AddressRange, UnitId, WriteMultiple};
 use std::ffi::CStr;
 use std::net::SocketAddr;
 use std::os::raw::c_void;
 use std::ptr::{null, null_mut};
 use std::str::FromStr;
+
 use tokio::runtime;
+
+use rodbus::client::channel::Channel;
+use rodbus::client::session::{CallbackSession, SyncSession};
+use rodbus::error::Error;
+use rodbus::types::{AddressRange, UnitId, WriteMultiple};
 
 // asynchronous API
 pub mod asynchronous;

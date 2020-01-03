@@ -1,5 +1,12 @@
+use std::net::SocketAddr;
+use std::str::FromStr;
+use std::time::Duration;
+
+use tokio::net::TcpListener;
+
 use rodbus::error::details::ExceptionCode;
 use rodbus::prelude::*;
+use rodbus::server::spawn_tcp_server_task;
 
 struct Handler {
     coils: [bool; 100],
@@ -30,11 +37,6 @@ impl ServerHandler for Handler {
     }
 }
 
-use std::net::SocketAddr;
-use std::str::FromStr;
-use std::time::Duration;
-use tokio::net::TcpListener;
-
 #[tokio::main(threaded_scheduler)]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = std::env::args().collect();
@@ -59,11 +61,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     .wrap();
     let listener = TcpListener::bind(addr).await?;
 
-    tokio::spawn(create_tcp_server_task(
+    spawn_tcp_server_task(
         num_sessions,
         listener,
         ServerHandlerMap::single(UnitId::new(1), handler),
-    ));
+    );
 
     // now spawn a bunch of clients
     let mut sessions: Vec<Session> = Vec::new();

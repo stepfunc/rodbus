@@ -1,5 +1,6 @@
-use crate::error::details::InvalidRequest;
 use std::fmt::Formatter;
+
+use crate::error::details::InvalidRequest;
 
 /// Top level error type for the client API
 #[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Ord, Eq)]
@@ -74,8 +75,9 @@ impl std::convert::From<details::FrameParseError> for Error {
 
 /// detailed sub-errors that can occur while processing a request
 pub mod details {
-    use crate::types::AddressRange;
     use std::fmt::{Error, Formatter};
+
+    use crate::types::AddressRange;
 
     /// errors that indicate faulty logic in the library itself if they occur
     #[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Ord, Eq)]
