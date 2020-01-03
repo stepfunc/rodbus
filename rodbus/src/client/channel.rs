@@ -89,6 +89,7 @@ impl Channel {
         (Channel { tx }, task)
     }
 
+    /// Create a Session struct that can be used to make requests
     pub fn create_session(&self, id: UnitId, response_timeout: Duration) -> Session {
         Session::new(id, response_timeout, self.tx.clone())
     }
