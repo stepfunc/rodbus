@@ -25,11 +25,10 @@ where
         Ok(())
     }
 
-    fn validate_range_and_result<U>(
+    fn validate_result<U>(
         range: AddressRange,
         result: Result<&[U], ExceptionCode>,
     ) -> Result<&[U], ExceptionCode> {
-        Self::validate_range(range)?;
         if let Ok(values) = result {
             if values.len() != range.count as usize {
                 log::error!(
@@ -44,19 +43,23 @@ where
     }
 
     pub fn read_coils(&mut self, range: AddressRange) -> Result<&[bool], ExceptionCode> {
-        Self::validate_range_and_result(range, self.inner.read_coils(range))
+        Self::validate_range(range)?;
+        Self::validate_result(range, self.inner.read_coils(range))
     }
 
     pub fn read_discrete_inputs(&mut self, range: AddressRange) -> Result<&[bool], ExceptionCode> {
-        Self::validate_range_and_result(range, self.inner.read_discrete_inputs(range))
+        Self::validate_range(range)?;
+        Self::validate_result(range, self.inner.read_discrete_inputs(range))
     }
 
     pub fn read_holding_registers(&mut self, range: AddressRange) -> Result<&[u16], ExceptionCode> {
-        Self::validate_range_and_result(range, self.inner.read_holding_registers(range))
+        Self::validate_range(range)?;
+        Self::validate_result(range, self.inner.read_holding_registers(range))
     }
 
     pub fn read_input_registers(&mut self, range: AddressRange) -> Result<&[u16], ExceptionCode> {
-        Self::validate_range_and_result(range, self.inner.read_input_registers(range))
+        Self::validate_range(range)?;
+        Self::validate_result(range, self.inner.read_input_registers(range))
     }
 
     pub fn write_single_coil(&mut self, value: Indexed<bool>) -> Result<(), ExceptionCode> {
