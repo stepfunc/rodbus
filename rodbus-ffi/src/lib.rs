@@ -51,6 +51,15 @@ pub enum Exception {
     GatewayTargetDeviceFailedToRespond = 0x0B,
 }
 
+/// Maximum count allowed in a read coils/discrete inputs request
+pub const MAX_READ_COILS_COUNT: u16 = 0x07D0;
+/// Maximum count allowed in a read holding/input registers request
+pub const MAX_READ_REGISTERS_COUNT: u16 = 0x007D;
+/// Maximum count allowed in a `write multiple coils` request
+pub const MAX_WRITE_COILS_COUNT: u16 = 0x07B0;
+/// Maximum count allowed in a `write multiple registers` request
+pub const MAX_WRITE_REGISTERS_COUNT: u16 = 0x007B;
+
 /// Status returned during synchronous and asynchronous API calls
 #[repr(u8)]
 pub enum Status {
