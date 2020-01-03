@@ -20,6 +20,36 @@ pub mod synchronous;
 // bridge to Rust Log
 pub mod logging;
 
+#[repr(u8)]
+pub enum Exception {
+    /// The function code received in the query is not an allowable action for the server
+    IllegalFunction = 0x01,
+    /// The data address received in the query is not an allowable address for the server
+    IllegalDataAddress = 0x02,
+    /// A value contained in the request is not an allowable value for server
+    IllegalDataValue = 0x03,
+    /// An unrecoverable error occurred while the server was attempting to perform the requested
+    /// action
+    ServerDeviceFailure = 0x04,
+    /// Specialized use in conjunction with  programming commands
+    /// The server has accepted the request and is processing it
+    Acknowledge = 0x05,
+    /// Specialized use in conjunction with  programming commands
+    /// The server is engaged in processing a long-duration program command, try again later
+    ServerDeviceBusy = 0x06,
+    /// Specialized use in conjunction with function codes 20 and 21 and reference type 6, to
+    /// indicate that the extended file area failed to pass a consistency check.
+    /// The server attempted to read a record file, but detected a parity error in the memory
+    MemoryParityError = 0x08,
+    /// Specialized use in conjunction with gateways, indicates that the gateway was unable to
+    /// allocate an internal communication path from the input port to the output port for
+    /// processing the request. Usually means that the gateway is mis-configured or overloaded
+    GatewayPathUnavailable = 0x0A,
+    /// Specialized use in conjunction with gateways, indicates that no response was obtained
+    /// from the target device. Usually means that the device is not present on the network.
+    GatewayTargetDeviceFailedToRespond = 0x0B
+}
+
 /// Status returned during synchronous and asynchronous API calls
 #[repr(u8)]
 pub enum Status {

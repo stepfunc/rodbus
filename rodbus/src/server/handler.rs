@@ -26,7 +26,7 @@ pub trait ServerHandler: Send + 'static {
     }
 
     /// Read a range of coils, returning the matching slice of bool or an exception
-    fn read_coils(&mut self, _: AddressRange) -> Result<&[bool], ExceptionCode> {
+    fn read_coils(&mut self, _range: AddressRange) -> Result<&[bool], ExceptionCode> {
         Err(ExceptionCode::IllegalFunction)
     }
 
