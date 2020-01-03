@@ -2,7 +2,7 @@ use std::convert::TryFrom;
 
 use crate::error::*;
 use crate::service::traits::Serialize;
-use crate::types::{AddressRange, CoilState, Indexed, WriteMultiple};
+use crate::types::{coil_to_u16, AddressRange, Indexed, WriteMultiple};
 use crate::util::cursor::WriteCursor;
 
 impl Serialize for AddressRange {
@@ -20,10 +20,10 @@ impl Serialize for details::ExceptionCode {
     }
 }
 
-impl Serialize for Indexed<CoilState> {
+impl Serialize for Indexed<bool> {
     fn serialize(&self, cur: &mut WriteCursor) -> Result<(), Error> {
         cur.write_u16_be(self.index)?;
-        cur.write_u16_be(self.value.into())?;
+        cur.write_u16_be(coil_to_u16(self.value))?;
         Ok(())
     }
 }

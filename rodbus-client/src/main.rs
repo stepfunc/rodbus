@@ -66,7 +66,7 @@ enum Command {
     ReadHoldingRegisters(AddressRange),
     ReadInputRegisters(AddressRange),
     WriteSingleRegister(Indexed<u16>),
-    WriteSingleCoil(Indexed<CoilState>),
+    WriteSingleCoil(Indexed<bool>),
     WriteMultipleCoils(WriteMultiple<bool>),
     WriteMultipleRegisters(WriteMultiple<u16>),
 }
@@ -232,7 +232,7 @@ fn get_command(matches: &ArgMatches) -> Result<Command, Error> {
     if let Some(matches) = matches.subcommand_matches("wsc") {
         let index = get_index(matches)?;
         let value = bool::from_str(matches.value_of("value").unwrap())?;
-        return Ok(Command::WriteSingleCoil(Indexed::new(index, value.into())));
+        return Ok(Command::WriteSingleCoil(Indexed::new(index, value)));
     }
 
     if let Some(matches) = matches.subcommand_matches("wmc") {

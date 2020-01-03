@@ -51,7 +51,7 @@ impl ServerHandler for SimpleHandler {
         Self::get_range_of(self.input_registers.as_slice(), range)
     }
 
-    fn write_single_coil(&mut self, _: Indexed<CoilState>) -> Result<(), ExceptionCode> {
+    fn write_single_coil(&mut self, _: Indexed<bool>) -> Result<(), ExceptionCode> {
         Err(ExceptionCode::IllegalFunction)
     }
 

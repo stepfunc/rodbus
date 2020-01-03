@@ -1,7 +1,7 @@
 use crate::error::details::ADUParseError;
 use crate::error::*;
 use crate::service::traits::{ParseRequest, ParseResponse};
-use crate::types::{AddressRange, CoilState, Indexed, WriteMultiple};
+use crate::types::{coil_from_u16, AddressRange, Indexed, WriteMultiple};
 use crate::util::cursor::ReadCursor;
 
 impl ParseResponse<Indexed<u16>> for Indexed<u16> {
@@ -16,15 +16,10 @@ impl ParseResponse<Indexed<u16>> for Indexed<u16> {
     }
 }
 
-impl ParseResponse<Indexed<CoilState>> for Indexed<CoilState> {
-    fn parse_response(
-        cursor: &mut ReadCursor,
-        request: &Indexed<CoilState>,
-    ) -> Result<Self, Error> {
-        let response: Indexed<CoilState> = Indexed::new(
-            cursor.read_u16_be()?,
-            CoilState::try_from_u16(cursor.read_u16_be()?)?,
-        );
+impl ParseResponse<Indexed<bool>> for Indexed<bool> {
+    fn parse_response(cursor: &mut ReadCursor, request: &Indexed<bool>) -> Result<Self, Error> {
+        let response: Indexed<bool> =
+            Indexed::new(cursor.read_u16_be()?, coil_from_u16(cursor.read_u16_be()?)?);
 
         if &response != request {
             return Err(details::ADUParseError::ReplyEchoMismatch.into());

@@ -30,7 +30,7 @@ pub trait ServerHandler: Send + 'static {
     fn read_input_registers(&mut self, range: AddressRange) -> Result<&[u16], ExceptionCode>;
 
     /// Write a single coil value
-    fn write_single_coil(&mut self, value: Indexed<CoilState>) -> Result<(), ExceptionCode>;
+    fn write_single_coil(&mut self, value: Indexed<bool>) -> Result<(), ExceptionCode>;
 
     /// Write a single coil value
     fn write_single_register(&mut self, value: Indexed<u16>) -> Result<(), ExceptionCode>;

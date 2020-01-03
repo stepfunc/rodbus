@@ -21,7 +21,7 @@ impl ServerHandler for Handler {
         Err(ExceptionCode::IllegalFunction)
     }
 
-    fn write_single_coil(&mut self, _: Indexed<CoilState>) -> Result<(), ExceptionCode> {
+    fn write_single_coil(&mut self, _: Indexed<bool>) -> Result<(), ExceptionCode> {
         Err(ExceptionCode::IllegalFunction)
     }
 

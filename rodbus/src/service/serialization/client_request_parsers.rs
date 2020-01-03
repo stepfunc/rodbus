@@ -1,7 +1,7 @@
 use crate::error::details::ADUParseError;
 use crate::error::*;
 use crate::service::traits::ParseRequest;
-use crate::types::{AddressRange, CoilState, Indexed, WriteMultiple};
+use crate::types::{coil_from_u16, AddressRange, Indexed, WriteMultiple};
 use crate::util::cursor::ReadCursor;
 
 impl ParseRequest for AddressRange {
@@ -13,11 +13,11 @@ impl ParseRequest for AddressRange {
     }
 }
 
-impl ParseRequest for Indexed<CoilState> {
+impl ParseRequest for Indexed<bool> {
     fn parse(cursor: &mut ReadCursor) -> Result<Self, Error> {
         Ok(Indexed::new(
             cursor.read_u16_be()?,
-            CoilState::try_from_u16(cursor.read_u16_be()?)?,
+            coil_from_u16(cursor.read_u16_be()?)?,
         ))
     }
 }

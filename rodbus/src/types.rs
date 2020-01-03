@@ -13,13 +13,6 @@ pub struct AddressRange {
     pub count: u16,
 }
 
-/*
-#[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Ord, Eq)]
-pub struct RegisterValue {
-    pub value: u16,
-}
-*/
-
 #[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Ord, Eq)]
 pub struct Indexed<T> {
     pub index: u16,
@@ -31,13 +24,6 @@ mod constants {
     pub const OFF: u16 = 0x0000;
 }
 
-#[repr(u16)]
-#[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Ord, Eq)]
-pub enum CoilState {
-    On = constants::ON,
-    Off = constants::OFF,
-}
-
 impl<T> std::convert::From<(u16, T)> for Indexed<T>
 where
     T: Copy,
@@ -45,22 +31,6 @@ where
     fn from(tuple: (u16, T)) -> Self {
         let (index, value) = tuple;
         Self::new(index, value)
-    }
-}
-
-impl std::convert::From<bool> for CoilState {
-    fn from(value: bool) -> Self {
-        if value {
-            CoilState::On
-        } else {
-            CoilState::Off
-        }
-    }
-}
-
-impl std::convert::From<CoilState> for u16 {
-    fn from(value: CoilState) -> Self {
-        value as u16
     }
 }
 
@@ -87,13 +57,19 @@ impl<T> WriteMultiple<T> {
     }
 }
 
-impl CoilState {
-    pub fn try_from_u16(value: u16) -> Result<Self, ADUParseError> {
-        match value {
-            constants::ON => Ok(CoilState::On),
-            constants::OFF => Ok(CoilState::Off),
-            _ => Err(ADUParseError::UnknownCoilState(value)),
-        }
+pub(crate) fn coil_from_u16(value: u16) -> Result<bool, ADUParseError> {
+    match value {
+        constants::ON => Ok(true),
+        constants::OFF => Ok(false),
+        _ => Err(ADUParseError::UnknownCoilState(value)),
+    }
+}
+
+pub(crate) fn coil_to_u16(value: bool) -> u16 {
+    if value {
+        constants::ON
+    } else {
+        constants::OFF
     }
 }
 

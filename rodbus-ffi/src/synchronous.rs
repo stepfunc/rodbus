@@ -159,11 +159,9 @@ pub unsafe extern "C" fn write_single_coil(
     index: u16,
     value: bool,
 ) -> Result {
-    perform_write(
-        session,
-        (index, value.into()).into(),
-        |rt, session, value| session.write_single_coil(rt, value),
-    )
+    perform_write(session, (index, value).into(), |rt, session, value| {
+        session.write_single_coil(rt, value)
+    })
 }
 
 /// @brief perform a blocking operation to write a single register

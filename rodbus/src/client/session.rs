@@ -6,7 +6,7 @@ use crate::client::message::{Request, ServiceRequest};
 use crate::error::*;
 use crate::service::services::*;
 use crate::service::traits::Service;
-use crate::types::{AddressRange, CoilState, Indexed, UnitId, WriteMultiple};
+use crate::types::{AddressRange, Indexed, UnitId, WriteMultiple};
 use tokio::runtime::Runtime;
 
 #[derive(Clone)]
@@ -75,8 +75,8 @@ impl Session {
 
     pub async fn write_single_coil(
         &mut self,
-        value: Indexed<CoilState>,
-    ) -> Result<Indexed<CoilState>, Error> {
+        value: Indexed<bool>,
+    ) -> Result<Indexed<bool>, Error> {
         self.make_service_call::<WriteSingleCoil>(value).await
     }
 
@@ -164,13 +164,9 @@ impl CallbackSession {
         self.start_request::<ReadInputRegisters, C>(runtime, range, callback);
     }
 
-    pub fn write_single_coil<C>(
-        &mut self,
-        runtime: &mut Runtime,
-        value: Indexed<CoilState>,
-        callback: C,
-    ) where
-        C: FnOnce(Result<Indexed<CoilState>, Error>) + Send + Sync + 'static,
+    pub fn write_single_coil<C>(&mut self, runtime: &mut Runtime, value: Indexed<bool>, callback: C)
+    where
+        C: FnOnce(Result<Indexed<bool>, Error>) + Send + Sync + 'static,
     {
         self.start_request::<WriteSingleCoil, C>(runtime, value, callback);
     }
@@ -265,8 +261,8 @@ impl SyncSession {
     pub fn write_single_coil(
         &mut self,
         runtime: &mut Runtime,
-        value: Indexed<CoilState>,
-    ) -> Result<Indexed<CoilState>, Error> {
+        value: Indexed<bool>,
+    ) -> Result<Indexed<bool>, Error> {
         self.make_request::<WriteSingleCoil>(runtime, value)
     }
 
