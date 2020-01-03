@@ -6,8 +6,7 @@
 [![Codecov](https://codecov.io/gh/automatak/rodbus/graph/badge.svg)](https://codecov.io/gh/automatak/rodbus)
 ![License](https://img.shields.io/github/license/automatak/rodbus)
 
-Async/await [Rust](https://www.rust-lang.org/) implementation of the
-[Modbus](http://www.modbus.org/) protocol in Rust using
+[Rust](https://www.rust-lang.org/) async/await implementation of the [Modbus](http://www.modbus.org/) protocol using
 [Tokio](https://tokio.rs/) with seamless C/C++ interoperability.
 
 ## Library
@@ -15,16 +14,16 @@ Async/await [Rust](https://www.rust-lang.org/) implementation of the
 [Documentation](https://docs.rs/crate/rodbus)
 
 The library provides a simple interface to send Modbus requests. Using Rust's powerful type system,
-the library is safe, memory efficient and easy to use. All the error handling in the library
-is explicit and logging is also available. Three client interfaces are provided:
-- Async requests
-- Callback based requests
-- Synchronous (blocking) requests
+the library is safe, memory efficient and easy to use. All of the error handling in the library
+is explicit and logging is also available. Three client interfaces are provided for making requests:
 
-The library can also be used to write a server to answer Modbus requests. A single
-simple interface needs to be implemented to support. The interface is designed to
-minimize copying of data making the server efficient. The [`server`](./rodbus/examples/server.rs)
-example shows an simple server implementation.
+- Async (Rust futures)
+- Callback-based
+- Synchronous (blocking)
+
+The library also provides a Modbus server API requiring the user to implement a single trait to handle requests.
+The interface is designed to minimize copying of data making the server efficient. The [`server`](./rodbus/examples/server.rs)
+example shows a simple server implementation.
 
 The following function codes are supported:
 - Read Coils (`0x01`)
@@ -35,8 +34,6 @@ The following function codes are supported:
 - Write Single Register (`0x06`)
 - Write Multiple Coils (`0x0F`)
 - Write Multiple Registers (`0x10`)
-
-All the Modbus exception codes are also supported.
 
 Under the hood, the library uses an event loop that can efficiently utilize all the
 system resources. The [`perf`](./rodbus/examples/perf.rs) example is a benchmark that
@@ -64,8 +61,8 @@ you automatically build and link to rodbus from a C/C++ project.
 
 ## Modbus client CLI
 
-The [rodbus-client](./rodbus-client) directory contains a simple CLI to Modbus
-requests to a server. You can run it with `cargo run -p rodbus-client [...]`.
+The [rodbus-client](./rodbus-client) directory contains a Modbus client application for
+testing Modbus servers from the the command line. You can run it with `cargo run -p rodbus-client [...]`.
 For general detailed help, run `cargo run -p rodbus-client -- help`.
 
 Use the `-h` option to specify the host to connect to and the `-i` option to
