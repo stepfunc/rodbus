@@ -2,26 +2,24 @@ use std::convert::TryFrom;
 
 use crate::error::details::{ADUParseError, InvalidRequest};
 
+/// Modbus unit identifier, just a type-safe wrapper around u8
 #[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Ord, Eq)]
 pub struct UnitId {
     id: u8,
 }
 
+/// Start & count tuple used when making various requests
 #[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Ord, Eq)]
 pub struct AddressRange {
     pub start: u16,
     pub count: u16,
 }
 
+/// Value and its address
 #[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Ord, Eq)]
 pub struct Indexed<T> {
     pub index: u16,
     pub value: T,
-}
-
-mod constants {
-    pub const ON: u16 = 0xFF00;
-    pub const OFF: u16 = 0x0000;
 }
 
 impl<T> std::convert::From<(u16, T)> for Indexed<T>
@@ -59,17 +57,17 @@ impl<T> WriteMultiple<T> {
 
 pub(crate) fn coil_from_u16(value: u16) -> Result<bool, ADUParseError> {
     match value {
-        constants::ON => Ok(true),
-        constants::OFF => Ok(false),
+        crate::constants::coil::ON => Ok(true),
+        crate::constants::coil::OFF => Ok(false),
         _ => Err(ADUParseError::UnknownCoilState(value)),
     }
 }
 
 pub(crate) fn coil_to_u16(value: bool) -> u16 {
     if value {
-        constants::ON
+        crate::constants::coil::ON
     } else {
-        constants::OFF
+        crate::constants::coil::OFF
     }
 }
 

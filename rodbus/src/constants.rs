@@ -1,3 +1,9 @@
+pub mod coil {
+    /// u16 representation of COIL == ON when performing write single coil
+    pub const ON: u16 = 0xFF00;
+    /// u16 representation of COIL == OFF when performing write single coil
+    pub const OFF: u16 = 0x0000;
+}
 pub mod limits {
     /// Maximum count allowed in a read coils/discrete inputs request
     pub const MAX_READ_COILS_COUNT: u16 = 0x07D0;
