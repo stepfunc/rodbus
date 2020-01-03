@@ -1,12 +1,12 @@
 use crate::error::*;
+use crate::service::parse::{parse_write_multiple_coils, parse_write_multiple_registers};
 use crate::service::traits::ParseRequest;
 use crate::types::{coil_from_u16, AddressRange, Indexed, WriteMultiple};
 use crate::util::cursor::ReadCursor;
-use crate::service::parse::{parse_write_multiple_coils, parse_write_multiple_registers};
 
 impl ParseRequest for AddressRange {
     fn parse(cursor: &mut ReadCursor) -> Result<Self, Error> {
-        let range = AddressRange::new(cursor.read_u16_be()?,  cursor.read_u16_be()?);
+        let range = AddressRange::new(cursor.read_u16_be()?, cursor.read_u16_be()?);
         Ok(range)
     }
 }
@@ -39,8 +39,3 @@ impl ParseRequest for WriteMultiple<u16> {
         Ok(WriteMultiple::new(range.start, iterator.collect()))
     }
 }
-
-
-
-
-

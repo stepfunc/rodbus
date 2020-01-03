@@ -48,12 +48,20 @@ pub trait ServerHandler: Send + 'static {
     }
 
     /// Write multiple coils
-    fn write_multiple_coils(&mut self, _range: AddressRange, _iter: &BitIterator) -> Result<(), ExceptionCode> {
+    fn write_multiple_coils(
+        &mut self,
+        _range: AddressRange,
+        _iter: &BitIterator,
+    ) -> Result<(), ExceptionCode> {
         Err(ExceptionCode::IllegalFunction)
     }
 
     /// Write multiple registers
-    fn write_multiple_registers(&mut self, _range: AddressRange, _iter: &RegisterIterator) -> Result<(), ExceptionCode> {
+    fn write_multiple_registers(
+        &mut self,
+        _range: AddressRange,
+        _iter: &RegisterIterator,
+    ) -> Result<(), ExceptionCode> {
         Err(ExceptionCode::IllegalFunction)
     }
 
