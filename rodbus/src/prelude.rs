@@ -1,5 +1,5 @@
 pub use crate::client::channel::{strategy, ReconnectStrategy};
-pub use crate::client::session::Session;
+pub use crate::client::session::AsyncSession;
 pub use crate::client::spawn_tcp_client_task;
 pub use crate::error::*;
 pub use crate::server::create_tcp_server_task;

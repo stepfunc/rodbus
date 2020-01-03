@@ -115,7 +115,7 @@ async fn run() -> Result<(), Error> {
     }
 }
 
-async fn run_command(command: &Command, session: &mut Session) -> Result<(), Error> {
+async fn run_command(command: &Command, session: &mut AsyncSession) -> Result<(), Error> {
     match command {
         Command::ReadCoils(range) => {
             for x in session.read_coils(*range).await? {

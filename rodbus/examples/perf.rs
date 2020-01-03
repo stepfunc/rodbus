@@ -48,7 +48,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
 
     // now spawn a bunch of clients
-    let mut sessions: Vec<Session> = Vec::new();
+    let mut sessions: Vec<AsyncSession> = Vec::new();
     for _ in 0..num_sessions {
         sessions.push(
             spawn_tcp_client_task(addr, 10, strategy::default())

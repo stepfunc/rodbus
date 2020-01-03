@@ -4,11 +4,11 @@ use std::time::Duration;
 use tokio::sync::mpsc;
 
 use crate::client::message::Request;
-use crate::client::session::Session;
+use crate::client::session::AsyncSession;
 use crate::client::task::ChannelTask;
 use crate::types::UnitId;
 
-/// Channel from which Session objects can be obtained to make requests
+/// Channel from which `AsyncSession` objects can be created to make requests
 pub struct Channel {
     tx: mpsc::Sender<Request>,
 }
@@ -22,7 +22,7 @@ pub trait ReconnectStrategy {
     fn next_delay(&mut self) -> Duration;
 }
 
-/// Helper functions for returning connection retry strategies
+/// Helper functions for returning instances of `Box<dyn ReconnectStrategy>`
 pub mod strategy {
     use std::time::Duration;
 
@@ -89,8 +89,8 @@ impl Channel {
         (Channel { tx }, task)
     }
 
-    /// Create a Session struct that can be used to make requests
-    pub fn create_session(&self, id: UnitId, response_timeout: Duration) -> Session {
-        Session::new(id, response_timeout, self.tx.clone())
+    /// Create an `AsyncSession` struct that can be used to make requests
+    pub fn create_session(&self, id: UnitId, response_timeout: Duration) -> AsyncSession {
+        AsyncSession::new(id, response_timeout, self.tx.clone())
     }
 }

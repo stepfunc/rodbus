@@ -9,20 +9,25 @@ use crate::service::services::*;
 use crate::service::traits::Service;
 use crate::types::{AddressRange, Indexed, UnitId, WriteMultiple};
 
+/// A handle used to make requests against requests against an underlying channel task.
+///
+/// This struct's methods are `async` and as such return futures which must be `awaited`.
+///
+/// This struct can be used to `SyncSession` and `CallbackSession` for FFI purposes.
 #[derive(Clone)]
-pub struct Session {
+pub struct AsyncSession {
     id: UnitId,
     response_timeout: Duration,
     request_channel: mpsc::Sender<Request>,
 }
 
-impl Session {
+impl AsyncSession {
     pub(crate) fn new(
         id: UnitId,
         response_timeout: Duration,
         request_channel: mpsc::Sender<Request>,
     ) -> Self {
-        Session {
+        AsyncSession {
             id,
             response_timeout,
             request_channel,
@@ -103,13 +108,18 @@ impl Session {
     }
 }
 
+/// A wrapper around `AsyncSession` that exposes a callback-based API.
+///
+/// This is primarily used to adapt Rodbus to a C-style callback API,
+/// but Rust users not using Tokio may find it useful as well.
 #[derive(Clone)]
 pub struct CallbackSession {
-    inner: Session,
+    inner: AsyncSession,
 }
 
 impl CallbackSession {
-    pub fn new(inner: Session) -> Self {
+    /// create a CallbackSession from an `async` Session
+    pub fn new(inner: AsyncSession) -> Self {
         CallbackSession { inner }
     }
 
@@ -205,13 +215,18 @@ impl CallbackSession {
     }
 }
 
+/// A wrapper around `AsyncSession` that exposes a synchronous API
+///
+/// This is primarily used to adapt Rodbus to a synchronous API for FFI,
+/// however Rust users that want a non-async API may find it useful.
 #[derive(Clone)]
 pub struct SyncSession {
-    inner: Session,
+    inner: AsyncSession,
 }
 
 impl SyncSession {
-    pub fn new(inner: Session) -> Self {
+    /// create a SyncSession from an `async` Session
+    pub fn new(inner: AsyncSession) -> Self {
         SyncSession { inner }
     }
 
