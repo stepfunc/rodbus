@@ -32,6 +32,8 @@ where
     }
 }
 
+/// Collection of values and starting address
+/// Used when making write multiple coil/register requests
 #[derive(Debug, Clone)]
 pub struct WriteMultiple<T> {
     pub start: u16,
