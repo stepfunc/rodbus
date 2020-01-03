@@ -7,6 +7,14 @@ use crate::error::details::ExceptionCode;
 use crate::types::*;
 
 /// Trait implemented by the user to process requests received from the client
+///
+/// Implementations do NOT need to validate that AddressRanges do not overflow u16 as this
+/// validation is performed inside the server task itself and `ExceptionCode::IllegalDataAddress`
+/// is returned automatically in this case.
+///
+/// If an implementation returns a slice smaller than the requested range, this will result
+/// in `ExceptionCode::ServerDeviceFailure` being returned to the client.
+///
 pub trait ServerHandler: Send + 'static {
     /// Moves a server handler implementation into a `Arc<Mutex<Box<ServerHandler>>>`
     /// suitable for passing to the server
@@ -65,7 +73,7 @@ pub trait ServerHandler: Send + 'static {
         Err(ExceptionCode::IllegalFunction)
     }
 
-    /// retrieve a sub-range of a slice or ExceptionCode::IllegalDataAddress
+    /// Helper function to safely retrieve a sub-range of a slice or ExceptionCode::IllegalDataAddress
     fn get_range_of<T>(slice: &[T], range: AddressRange) -> Result<&[T], ExceptionCode> {
         let rng = {
             match range.to_range() {
