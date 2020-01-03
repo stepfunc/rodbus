@@ -5,20 +5,25 @@ use crate::error::details::{ADUParseError, InvalidRequest};
 /// Modbus unit identifier, just a type-safe wrapper around u8
 #[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Ord, Eq)]
 pub struct UnitId {
-    id: u8,
+    /// underlying raw value
+    pub value: u8,
 }
 
 /// Start & count tuple used when making various requests
 #[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Ord, Eq)]
 pub struct AddressRange {
+    /// starting address of the range
     pub start: u16,
+    /// count of elements in the range
     pub count: u16,
 }
 
 /// Value and its address
 #[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Ord, Eq)]
 pub struct Indexed<T> {
+    /// address of the value
     pub index: u16,
+    /// associated value
     pub value: T,
 }
 
@@ -36,7 +41,9 @@ where
 /// Used when making write multiple coil/register requests
 #[derive(Debug, Clone)]
 pub struct WriteMultiple<T> {
+    /// starting address
     pub start: u16,
+    /// vector of values
     pub values: Vec<T>,
 }
 
@@ -109,16 +116,8 @@ impl<T> Indexed<T> {
 }
 
 impl UnitId {
-    pub fn new(unit_id: u8) -> Self {
-        Self { id: unit_id }
-    }
-
-    pub fn default() -> Self {
-        Self { id: 0xFF }
-    }
-
-    pub fn to_u8(self) -> u8 {
-        self.id
+    pub fn new(value: u8) -> Self {
+        Self { value }
     }
 }
 

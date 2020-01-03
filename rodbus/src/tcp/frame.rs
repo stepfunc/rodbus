@@ -122,7 +122,7 @@ impl FrameFormatter for MBAPFormatter {
         cursor.write_u16_be(header.tx_id.to_u16())?;
         cursor.write_u16_be(0)?;
         cursor.seek_from_current(2)?; // write the length later
-        cursor.write_u8(header.unit_id.to_u8())?;
+        cursor.write_u8(header.unit_id.value)?;
 
         let adu_length: usize = {
             let start = cursor.position();

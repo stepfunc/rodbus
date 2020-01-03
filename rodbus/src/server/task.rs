@@ -168,7 +168,7 @@ where
             None => {
                 warn!(
                     "received frame for unmapped unit id: {}",
-                    frame.header.unit_id.to_u8()
+                    frame.header.unit_id.value
                 );
                 return Ok(());
             }
