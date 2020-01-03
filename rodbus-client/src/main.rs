@@ -65,7 +65,7 @@ enum Command {
     ReadDiscreteInputs(AddressRange),
     ReadHoldingRegisters(AddressRange),
     ReadInputRegisters(AddressRange),
-    WriteSingleRegister(Indexed<RegisterValue>),
+    WriteSingleRegister(Indexed<u16>),
     WriteSingleCoil(Indexed<CoilState>),
     WriteMultipleCoils(WriteMultiple<bool>),
     WriteMultipleRegisters(WriteMultiple<u16>),
@@ -202,11 +202,8 @@ fn get_address_range(arg: &ArgMatches) -> Result<AddressRange, ParseIntError> {
     Ok(AddressRange::new(get_start(arg)?, get_quantity(arg)?))
 }
 
-fn get_indexed_register_value(arg: &ArgMatches) -> Result<Indexed<RegisterValue>, Error> {
-    Ok(Indexed::new(
-        get_index(arg)?,
-        RegisterValue::new(get_value(arg)?),
-    ))
+fn get_indexed_register_value(arg: &ArgMatches) -> Result<Indexed<u16>, Error> {
+    Ok(Indexed::new(get_index(arg)?, get_value(arg)?))
 }
 
 fn get_command(matches: &ArgMatches) -> Result<Command, Error> {

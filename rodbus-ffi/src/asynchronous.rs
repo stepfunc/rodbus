@@ -214,7 +214,7 @@ pub unsafe extern "C" fn write_single_register_cb(
     let (runtime, mut session) = get_callback_session(session);
     session.write_single_register(
         runtime,
-        (index, value.into()).into(),
+        (index, value).into(),
         status_callback_to_fn(user_data, callback),
     );
 }

@@ -6,7 +6,7 @@ use crate::client::message::{Request, ServiceRequest};
 use crate::error::*;
 use crate::service::services::*;
 use crate::service::traits::Service;
-use crate::types::{AddressRange, CoilState, Indexed, RegisterValue, UnitId, WriteMultiple};
+use crate::types::{AddressRange, CoilState, Indexed, UnitId, WriteMultiple};
 use tokio::runtime::Runtime;
 
 #[derive(Clone)]
@@ -82,8 +82,8 @@ impl Session {
 
     pub async fn write_single_register(
         &mut self,
-        value: Indexed<RegisterValue>,
-    ) -> Result<Indexed<RegisterValue>, Error> {
+        value: Indexed<u16>,
+    ) -> Result<Indexed<u16>, Error> {
         self.make_service_call::<WriteSingleRegister>(value).await
     }
 
@@ -178,10 +178,10 @@ impl CallbackSession {
     pub fn write_single_register<C>(
         &mut self,
         runtime: &mut Runtime,
-        value: Indexed<RegisterValue>,
+        value: Indexed<u16>,
         callback: C,
     ) where
-        C: FnOnce(Result<Indexed<RegisterValue>, Error>) + Send + Sync + 'static,
+        C: FnOnce(Result<Indexed<u16>, Error>) + Send + Sync + 'static,
     {
         self.start_request::<WriteSingleRegister, C>(runtime, value, callback);
     }
@@ -273,8 +273,8 @@ impl SyncSession {
     pub fn write_single_register(
         &mut self,
         runtime: &mut Runtime,
-        value: Indexed<RegisterValue>,
-    ) -> Result<Indexed<RegisterValue>, Error> {
+        value: Indexed<u16>,
+    ) -> Result<Indexed<u16>, Error> {
         self.make_request::<WriteSingleRegister>(runtime, value)
     }
 

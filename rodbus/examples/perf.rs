@@ -25,7 +25,7 @@ impl ServerHandler for Handler {
         Err(ExceptionCode::IllegalFunction)
     }
 
-    fn write_single_register(&mut self, _: Indexed<RegisterValue>) -> Result<(), ExceptionCode> {
+    fn write_single_register(&mut self, _: Indexed<u16>) -> Result<(), ExceptionCode> {
         Err(ExceptionCode::IllegalFunction)
     }
 }

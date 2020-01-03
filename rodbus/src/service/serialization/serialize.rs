@@ -2,7 +2,7 @@ use std::convert::TryFrom;
 
 use crate::error::*;
 use crate::service::traits::Serialize;
-use crate::types::{AddressRange, CoilState, Indexed, RegisterValue, WriteMultiple};
+use crate::types::{AddressRange, CoilState, Indexed, WriteMultiple};
 use crate::util::cursor::WriteCursor;
 
 impl Serialize for AddressRange {
@@ -28,10 +28,10 @@ impl Serialize for Indexed<CoilState> {
     }
 }
 
-impl Serialize for Indexed<RegisterValue> {
+impl Serialize for Indexed<u16> {
     fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), Error> {
         cursor.write_u16_be(self.index)?;
-        cursor.write_u16_be(self.value.value)?;
+        cursor.write_u16_be(self.value)?;
         Ok(())
     }
 }

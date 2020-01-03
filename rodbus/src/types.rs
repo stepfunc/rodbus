@@ -13,10 +13,12 @@ pub struct AddressRange {
     pub count: u16,
 }
 
+/*
 #[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Ord, Eq)]
 pub struct RegisterValue {
     pub value: u16,
 }
+*/
 
 #[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Ord, Eq)]
 pub struct Indexed<T> {
@@ -56,12 +58,6 @@ impl std::convert::From<bool> for CoilState {
     }
 }
 
-impl std::convert::From<u16> for RegisterValue {
-    fn from(value: u16) -> Self {
-        RegisterValue::new(value)
-    }
-}
-
 impl std::convert::From<CoilState> for u16 {
     fn from(value: CoilState) -> Self {
         value as u16
@@ -98,12 +94,6 @@ impl CoilState {
             constants::OFF => Ok(CoilState::Off),
             _ => Err(ADUParseError::UnknownCoilState(value)),
         }
-    }
-}
-
-impl RegisterValue {
-    pub fn new(value: u16) -> Self {
-        RegisterValue { value }
     }
 }
 

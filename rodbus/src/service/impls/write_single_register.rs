@@ -3,12 +3,12 @@ use crate::error::details::InvalidRequest;
 use crate::service::function::FunctionCode;
 use crate::service::services::WriteSingleRegister;
 use crate::service::traits::Service;
-use crate::types::{Indexed, RegisterValue};
+use crate::types::Indexed;
 
 impl Service for WriteSingleRegister {
     const REQUEST_FUNCTION_CODE: FunctionCode = FunctionCode::WriteSingleRegister;
-    type ClientRequest = Indexed<RegisterValue>;
-    type ClientResponse = Indexed<RegisterValue>;
+    type ClientRequest = Indexed<u16>;
+    type ClientResponse = Indexed<u16>;
 
     fn check_request_validity(_: &Self::ClientRequest) -> Result<(), InvalidRequest> {
         Ok(())

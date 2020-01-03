@@ -33,8 +33,7 @@ pub trait ServerHandler: Send + 'static {
     fn write_single_coil(&mut self, value: Indexed<CoilState>) -> Result<(), ExceptionCode>;
 
     /// Write a single coil value
-    fn write_single_register(&mut self, value: Indexed<RegisterValue>)
-        -> Result<(), ExceptionCode>;
+    fn write_single_register(&mut self, value: Indexed<u16>) -> Result<(), ExceptionCode>;
 
     /// retrieve a sub-range of a slice or ExceptionCode::IllegalDataAddress
     fn get_range_of<T>(slice: &[T], range: AddressRange) -> Result<&[T], ExceptionCode> {

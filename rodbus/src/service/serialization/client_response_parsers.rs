@@ -1,18 +1,12 @@
 use crate::error::details::ADUParseError;
 use crate::error::*;
 use crate::service::traits::{ParseRequest, ParseResponse};
-use crate::types::{AddressRange, CoilState, Indexed, RegisterValue, WriteMultiple};
+use crate::types::{AddressRange, CoilState, Indexed, WriteMultiple};
 use crate::util::cursor::ReadCursor;
 
-impl ParseResponse<Indexed<RegisterValue>> for Indexed<RegisterValue> {
-    fn parse_response(
-        cursor: &mut ReadCursor,
-        request: &Indexed<RegisterValue>,
-    ) -> Result<Self, Error> {
-        let response = Indexed::new(
-            cursor.read_u16_be()?,
-            RegisterValue::new(cursor.read_u16_be()?),
-        );
+impl ParseResponse<Indexed<u16>> for Indexed<u16> {
+    fn parse_response(cursor: &mut ReadCursor, request: &Indexed<u16>) -> Result<Self, Error> {
+        let response = Indexed::new(cursor.read_u16_be()?, cursor.read_u16_be()?);
 
         if request != &response {
             return Err(details::ADUParseError::ReplyEchoMismatch.into());
