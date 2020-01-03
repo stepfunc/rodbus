@@ -2,10 +2,7 @@ use std::net::SocketAddr;
 use std::str::FromStr;
 
 use tokio::net::TcpListener;
-
-use rodbus::error::details::ExceptionCode;
 use rodbus::prelude::*;
-use rodbus::server::handler::{ServerHandler, ServerHandlerMap};
 
 struct SimpleHandler {
     coils: Vec<bool>,
@@ -35,23 +32,23 @@ impl SimpleHandler {
 }
 
 impl ServerHandler for SimpleHandler {
-    fn read_coils(&mut self, range: AddressRange) -> Result<&[bool], ExceptionCode> {
+    fn read_coils(&mut self, range: AddressRange) -> Result<&[bool], details::ExceptionCode> {
         Self::get_range_of(self.coils.as_slice(), range)
     }
 
-    fn read_discrete_inputs(&mut self, range: AddressRange) -> Result<&[bool], ExceptionCode> {
+    fn read_discrete_inputs(&mut self, range: AddressRange) -> Result<&[bool], details::ExceptionCode> {
         Self::get_range_of(self.discrete_inputs.as_slice(), range)
     }
 
-    fn read_holding_registers(&mut self, range: AddressRange) -> Result<&[u16], ExceptionCode> {
+    fn read_holding_registers(&mut self, range: AddressRange) -> Result<&[u16], details::ExceptionCode> {
         Self::get_range_of(self.holding_registers.as_slice(), range)
     }
 
-    fn read_input_registers(&mut self, range: AddressRange) -> Result<&[u16], ExceptionCode> {
+    fn read_input_registers(&mut self, range: AddressRange) -> Result<&[u16], details::ExceptionCode> {
         Self::get_range_of(self.input_registers.as_slice(), range)
     }
 
-    fn write_single_coil(&mut self, value: Indexed<bool>) -> Result<(), ExceptionCode> {
+    fn write_single_coil(&mut self, value: Indexed<bool>) -> Result<(), details::ExceptionCode> {
         log::info!(
             "write single coil, index: {} value: {}",
             value.index,
@@ -60,7 +57,7 @@ impl ServerHandler for SimpleHandler {
         Ok(())
     }
 
-    fn write_single_register(&mut self, value: Indexed<u16>) -> Result<(), ExceptionCode> {
+    fn write_single_register(&mut self, value: Indexed<u16>) -> Result<(), details::ExceptionCode> {
         log::info!(
             "write single register, index: {} value: {}",
             value.index,
@@ -73,7 +70,7 @@ impl ServerHandler for SimpleHandler {
         &mut self,
         range: AddressRange,
         _iter: &BitIterator,
-    ) -> Result<(), ExceptionCode> {
+    ) -> Result<(), details::ExceptionCode> {
         log::info!("write multiple coils {:?}", range);
         Ok(())
     }
@@ -82,7 +79,7 @@ impl ServerHandler for SimpleHandler {
         &mut self,
         range: AddressRange,
         _iter: &RegisterIterator,
-    ) -> Result<(), ExceptionCode> {
+    ) -> Result<(), details::ExceptionCode> {
         log::info!("write multiple registers {:?}", range);
         Ok(())
     }
