@@ -1,8 +1,8 @@
 use std::net::SocketAddr;
 use std::str::FromStr;
 
-use tokio::net::TcpListener;
 use rodbus::prelude::*;
+use tokio::net::TcpListener;
 
 struct SimpleHandler {
     coils: Vec<bool>,
@@ -36,15 +36,24 @@ impl ServerHandler for SimpleHandler {
         Self::get_range_of(self.coils.as_slice(), range)
     }
 
-    fn read_discrete_inputs(&mut self, range: AddressRange) -> Result<&[bool], details::ExceptionCode> {
+    fn read_discrete_inputs(
+        &mut self,
+        range: AddressRange,
+    ) -> Result<&[bool], details::ExceptionCode> {
         Self::get_range_of(self.discrete_inputs.as_slice(), range)
     }
 
-    fn read_holding_registers(&mut self, range: AddressRange) -> Result<&[u16], details::ExceptionCode> {
+    fn read_holding_registers(
+        &mut self,
+        range: AddressRange,
+    ) -> Result<&[u16], details::ExceptionCode> {
         Self::get_range_of(self.holding_registers.as_slice(), range)
     }
 
-    fn read_input_registers(&mut self, range: AddressRange) -> Result<&[u16], details::ExceptionCode> {
+    fn read_input_registers(
+        &mut self,
+        range: AddressRange,
+    ) -> Result<&[u16], details::ExceptionCode> {
         Self::get_range_of(self.input_registers.as_slice(), range)
     }
 
