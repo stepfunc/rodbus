@@ -1,3 +1,4 @@
+use crate::error::details::ADUParseError;
 use crate::error::*;
 
 /// custom read-only cursor
@@ -22,6 +23,14 @@ impl<'a> ReadCursor<'a> {
 
     pub fn is_empty(&self) -> bool {
         self.src.is_empty()
+    }
+
+    pub fn expect_empty(&self) -> Result<(), details::ADUParseError> {
+        if self.is_empty() {
+            Ok(())
+        } else {
+            Err(ADUParseError::TrailingBytes(self.len()))
+        }
     }
 
     pub fn read_u8(&mut self) -> Result<u8, details::ADUParseError> {
