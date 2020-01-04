@@ -4,3 +4,7 @@ coverage:
       informational: true
     patch: off
       informational: true
+ignore:
+  - "rodbus-client/**/*"
+  - "rodbus-ffi/**/*"
+  - "rodbus/examples/*"
