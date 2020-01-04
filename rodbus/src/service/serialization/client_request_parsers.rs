@@ -39,3 +39,39 @@ impl ParseRequest for WriteMultiple<u16> {
         Ok(WriteMultiple::new(range.start, iterator.collect()))
     }
 }
+
+#[cfg(test)]
+mod coils {
+    use crate::error::details::ADUParseError;
+    use crate::service::traits::ParseRequest;
+    use crate::types::Indexed;
+    use crate::util::cursor::ReadCursor;
+
+    #[test]
+    fn parse_fails_for_unknown_coil_value() {
+        let mut cursor = ReadCursor::new(&[0x00, 0x01, 0xAB, 0xCD]);
+        let result = Indexed::<bool>::parse(&mut cursor);
+        assert_eq!(result, Err(ADUParseError::UnknownCoilState(0xABCD).into()))
+    }
+
+    #[test]
+    fn parse_succeeds_for_valid_coil_value_false() {
+        let mut cursor = ReadCursor::new(&[0x00, 0x01, 0x00, 0x00]);
+        let result = Indexed::<bool>::parse(&mut cursor);
+        assert_eq!(result, Ok(Indexed::new(1, false)));
+    }
+
+    #[test]
+    fn parse_succeeds_for_valid_coil_value_true() {
+        let mut cursor = ReadCursor::new(&[0x00, 0x01, 0xFF, 0x00]);
+        let result = Indexed::<bool>::parse(&mut cursor);
+        assert_eq!(result, Ok(Indexed::new(1, true)));
+    }
+
+    #[test]
+    fn parse_succeeds_for_valid_indexed_register() {
+        let mut cursor = ReadCursor::new(&[0x00, 0x01, 0xCA, 0xFE]);
+        let result = Indexed::<u16>::parse(&mut cursor);
+        assert_eq!(result, Ok(Indexed::new(1, 0xCAFE)));
+    }
+}
