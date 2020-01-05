@@ -2,7 +2,6 @@ use std::net::SocketAddr;
 use std::time::Duration;
 
 use log::{info, warn};
-use tokio::net::TcpStream;
 use tokio::prelude::*;
 use tokio::sync::*;
 
@@ -90,12 +89,15 @@ impl ChannelTask {
         }
     }
 
-    async fn run_session(&mut self, mut io: TcpStream) -> SessionError {
+    async fn run_session<T>(&mut self, mut io: T) -> SessionError
+    where
+        T: AsyncRead + AsyncWrite + Unpin,
+    {
         while let Some(value) = self.rx.recv().await {
             match value {
                 Request::ReadCoils(srv) => {
                     if let Some(err) = self
-                        .handle_request::<crate::service::services::ReadCoils>(&mut io, srv)
+                        .handle_request::<crate::service::services::ReadCoils, T>(&mut io, srv)
                         .await
                     {
                         return err;
@@ -103,7 +105,7 @@ impl ChannelTask {
                 }
                 Request::ReadDiscreteInputs(srv) => {
                     if let Some(err) = self
-                        .handle_request::<crate::service::services::ReadDiscreteInputs>(
+                        .handle_request::<crate::service::services::ReadDiscreteInputs, T>(
                             &mut io, srv,
                         )
                         .await
@@ -113,7 +115,7 @@ impl ChannelTask {
                 }
                 Request::ReadHoldingRegisters(srv) => {
                     if let Some(err) = self
-                        .handle_request::<crate::service::services::ReadHoldingRegisters>(
+                        .handle_request::<crate::service::services::ReadHoldingRegisters, T>(
                             &mut io, srv,
                         )
                         .await
@@ -123,7 +125,7 @@ impl ChannelTask {
                 }
                 Request::ReadInputRegisters(srv) => {
                     if let Some(err) = self
-                        .handle_request::<crate::service::services::ReadInputRegisters>(
+                        .handle_request::<crate::service::services::ReadInputRegisters, T>(
                             &mut io, srv,
                         )
                         .await
@@ -133,7 +135,9 @@ impl ChannelTask {
                 }
                 Request::WriteSingleCoil(srv) => {
                     if let Some(err) = self
-                        .handle_request::<crate::service::services::WriteSingleCoil>(&mut io, srv)
+                        .handle_request::<crate::service::services::WriteSingleCoil, T>(
+                            &mut io, srv,
+                        )
                         .await
                     {
                         return err;
@@ -141,7 +145,7 @@ impl ChannelTask {
                 }
                 Request::WriteSingleRegister(srv) => {
                     if let Some(err) = self
-                        .handle_request::<crate::service::services::WriteSingleRegister>(
+                        .handle_request::<crate::service::services::WriteSingleRegister, T>(
                             &mut io, srv,
                         )
                         .await
@@ -151,7 +155,7 @@ impl ChannelTask {
                 }
                 Request::WriteMultipleCoils(srv) => {
                     if let Some(err) = self
-                        .handle_request::<crate::service::services::WriteMultipleCoils>(
+                        .handle_request::<crate::service::services::WriteMultipleCoils, T>(
                             &mut io, srv,
                         )
                         .await
@@ -161,7 +165,7 @@ impl ChannelTask {
                 }
                 Request::WriteMultipleRegisters(srv) => {
                     if let Some(err) = self
-                        .handle_request::<crate::service::services::WriteMultipleRegisters>(
+                        .handle_request::<crate::service::services::WriteMultipleRegisters, T>(
                             &mut io, srv,
                         )
                         .await
@@ -174,13 +178,17 @@ impl ChannelTask {
         SessionError::Shutdown
     }
 
-    async fn handle_request<S: Service>(
+    async fn handle_request<S, T>(
         &mut self,
-        io: &mut TcpStream,
+        io: &mut T,
         srv: ServiceRequest<S>,
-    ) -> Option<SessionError> {
+    ) -> Option<SessionError>
+    where
+        S: Service,
+        T: AsyncRead + AsyncWrite + Unpin,
+    {
         let result = self
-            .send_and_receive::<S>(io, srv.id, srv.timeout, &srv.argument)
+            .send_and_receive::<S, T>(io, srv.id, srv.timeout, &srv.argument)
             .await;
 
         let ret = result.as_ref().err().and_then(|e| SessionError::from(e));
@@ -191,13 +199,17 @@ impl ChannelTask {
         ret
     }
 
-    async fn send_and_receive<S: Service>(
+    async fn send_and_receive<S, T>(
         &mut self,
-        io: &mut TcpStream,
+        io: &mut T,
         unit_id: UnitId,
         timeout: Duration,
         request: &S::ClientRequest,
-    ) -> Result<S::ClientResponse, Error> {
+    ) -> Result<S::ClientResponse, Error>
+    where
+        S: Service,
+        T: AsyncRead + AsyncWrite + Unpin,
+    {
         let tx_id = self.tx_id.next();
         let bytes = self.formatter.format(
             FrameHeader::new(unit_id, tx_id),
