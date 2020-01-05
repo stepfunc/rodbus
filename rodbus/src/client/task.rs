@@ -1,12 +1,8 @@
-use std::net::SocketAddr;
 use std::time::Duration;
 
-use log::{info, warn};
-use tokio::net::TcpStream;
 use tokio::prelude::*;
 use tokio::sync::*;
 
-use crate::client::channel::ReconnectStrategy;
 use crate::client::message::{Request, ServiceRequest};
 use crate::error::*;
 use crate::service::function::ADU;
@@ -19,7 +15,7 @@ use crate::util::frame::{FrameFormatter, FrameHeader, FramedReader, TxId};
 /**
 * We always service requests in a TCP session until one of the following occurs
 */
-enum SessionError {
+pub(crate) enum SessionError {
     // the stream errors or there is an unrecoverable framing issue
     IOError,
     // the mpsc is closed (dropped)  on the sender side
@@ -35,67 +31,32 @@ impl SessionError {
     }
 }
 
-/// Channel loop
-///
-/// This loop handles the request one by one. It serializes the request
-/// and sends it through the socket. It then waits for a response, deserialize
-/// it and sends it back to the oneshot provided by the caller.
-pub struct ChannelTask {
-    addr: SocketAddr,
+pub(crate) struct ClientLoop {
     rx: mpsc::Receiver<Request>,
-    connect_retry: Box<dyn ReconnectStrategy + Send>,
     formatter: MBAPFormatter,
     reader: FramedReader<MBAPParser>,
     tx_id: TxId,
 }
 
-impl ChannelTask {
-    pub fn new(
-        addr: SocketAddr,
-        rx: mpsc::Receiver<Request>,
-        connect_retry: Box<dyn ReconnectStrategy + Send>,
-    ) -> Self {
+impl ClientLoop {
+    pub fn new(rx: mpsc::Receiver<Request>) -> Self {
         Self {
-            addr,
             rx,
             formatter: MBAPFormatter::new(),
-            connect_retry,
             reader: FramedReader::new(MBAPParser::new()),
             tx_id: TxId::default(),
         }
     }
 
-    pub async fn run(&mut self) {
-        // try to connect
-        loop {
-            match tokio::net::TcpStream::connect(self.addr).await {
-                Err(e) => {
-                    warn!("error connecting: {}", e);
-                    let delay = self.connect_retry.next_delay();
-                    if self.fail_requests_for(delay).await.is_err() {
-                        // this occurs when the mpsc is dropped, so the task can exit
-                        return;
-                    }
-                }
-                Ok(stream) => {
-                    info!("connected to: {}", self.addr);
-                    match self.run_session(stream).await {
-                        // the mpsc was closed, end the task
-                        SessionError::Shutdown => return,
-                        // re-establish the connection
-                        SessionError::IOError => {}
-                    }
-                }
-            }
-        }
-    }
-
-    async fn run_session(&mut self, mut io: TcpStream) -> SessionError {
+    pub async fn run<T>(&mut self, mut io: T) -> SessionError
+    where
+        T: AsyncRead + AsyncWrite + Unpin,
+    {
         while let Some(value) = self.rx.recv().await {
             match value {
                 Request::ReadCoils(srv) => {
                     if let Some(err) = self
-                        .handle_request::<crate::service::services::ReadCoils>(&mut io, srv)
+                        .handle_request::<crate::service::services::ReadCoils, T>(&mut io, srv)
                         .await
                     {
                         return err;
@@ -103,7 +64,7 @@ impl ChannelTask {
                 }
                 Request::ReadDiscreteInputs(srv) => {
                     if let Some(err) = self
-                        .handle_request::<crate::service::services::ReadDiscreteInputs>(
+                        .handle_request::<crate::service::services::ReadDiscreteInputs, T>(
                             &mut io, srv,
                         )
                         .await
@@ -113,7 +74,7 @@ impl ChannelTask {
                 }
                 Request::ReadHoldingRegisters(srv) => {
                     if let Some(err) = self
-                        .handle_request::<crate::service::services::ReadHoldingRegisters>(
+                        .handle_request::<crate::service::services::ReadHoldingRegisters, T>(
                             &mut io, srv,
                         )
                         .await
@@ -123,7 +84,7 @@ impl ChannelTask {
                 }
                 Request::ReadInputRegisters(srv) => {
                     if let Some(err) = self
-                        .handle_request::<crate::service::services::ReadInputRegisters>(
+                        .handle_request::<crate::service::services::ReadInputRegisters, T>(
                             &mut io, srv,
                         )
                         .await
@@ -133,7 +94,9 @@ impl ChannelTask {
                 }
                 Request::WriteSingleCoil(srv) => {
                     if let Some(err) = self
-                        .handle_request::<crate::service::services::WriteSingleCoil>(&mut io, srv)
+                        .handle_request::<crate::service::services::WriteSingleCoil, T>(
+                            &mut io, srv,
+                        )
                         .await
                     {
                         return err;
@@ -141,7 +104,7 @@ impl ChannelTask {
                 }
                 Request::WriteSingleRegister(srv) => {
                     if let Some(err) = self
-                        .handle_request::<crate::service::services::WriteSingleRegister>(
+                        .handle_request::<crate::service::services::WriteSingleRegister, T>(
                             &mut io, srv,
                         )
                         .await
@@ -151,7 +114,7 @@ impl ChannelTask {
                 }
                 Request::WriteMultipleCoils(srv) => {
                     if let Some(err) = self
-                        .handle_request::<crate::service::services::WriteMultipleCoils>(
+                        .handle_request::<crate::service::services::WriteMultipleCoils, T>(
                             &mut io, srv,
                         )
                         .await
@@ -161,7 +124,7 @@ impl ChannelTask {
                 }
                 Request::WriteMultipleRegisters(srv) => {
                     if let Some(err) = self
-                        .handle_request::<crate::service::services::WriteMultipleRegisters>(
+                        .handle_request::<crate::service::services::WriteMultipleRegisters, T>(
                             &mut io, srv,
                         )
                         .await
@@ -174,13 +137,17 @@ impl ChannelTask {
         SessionError::Shutdown
     }
 
-    async fn handle_request<S: Service>(
+    async fn handle_request<S, T>(
         &mut self,
-        io: &mut TcpStream,
+        io: &mut T,
         srv: ServiceRequest<S>,
-    ) -> Option<SessionError> {
+    ) -> Option<SessionError>
+    where
+        S: Service,
+        T: AsyncRead + AsyncWrite + Unpin,
+    {
         let result = self
-            .send_and_receive::<S>(io, srv.id, srv.timeout, &srv.argument)
+            .send_and_receive::<S, T>(io, srv.id, srv.timeout, &srv.argument)
             .await;
 
         let ret = result.as_ref().err().and_then(|e| SessionError::from(e));
@@ -191,13 +158,17 @@ impl ChannelTask {
         ret
     }
 
-    async fn send_and_receive<S: Service>(
+    async fn send_and_receive<S, T>(
         &mut self,
-        io: &mut TcpStream,
+        io: &mut T,
         unit_id: UnitId,
         timeout: Duration,
         request: &S::ClientRequest,
-    ) -> Result<S::ClientResponse, Error> {
+    ) -> Result<S::ClientResponse, Error>
+    where
+        S: Service,
+        T: AsyncRead + AsyncWrite + Unpin,
+    {
         let tx_id = self.tx_id.next();
         let bytes = self.formatter.format(
             FrameHeader::new(unit_id, tx_id),
@@ -221,7 +192,7 @@ impl ChannelTask {
         }
     }
 
-    async fn fail_requests_for(&mut self, duration: Duration) -> Result<(), ()> {
+    pub async fn fail_requests_for(&mut self, duration: Duration) -> Result<(), ()> {
         let deadline = tokio::time::Instant::now() + duration;
 
         loop {

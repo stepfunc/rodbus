@@ -1,8 +1,9 @@
 use std::net::SocketAddr;
 use std::str::FromStr;
 
-use rodbus::prelude::*;
 use tokio::net::TcpListener;
+
+use rodbus::prelude::*;
 
 struct SimpleHandler {
     coils: Vec<bool>,

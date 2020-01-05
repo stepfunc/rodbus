@@ -38,9 +38,9 @@ mod tests {
 
     #[cfg(test)]
     mod coils {
+        use crate::util::cursor::ReadCursor;
 
         use super::super::*;
-        use crate::util::cursor::ReadCursor;
 
         #[test]
         fn fails_when_too_few_bytes_for_coil_byte_count() {
@@ -82,9 +82,9 @@ mod tests {
 
     #[cfg(test)]
     mod registers {
+        use crate::util::cursor::ReadCursor;
 
         use super::super::*;
-        use crate::util::cursor::ReadCursor;
 
         #[test]
         fn fails_when_too_few_bytes_for_coil_byte_count() {

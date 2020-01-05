@@ -1,10 +1,10 @@
 use tokio::net::TcpListener;
 
 use crate::server::handler::{ServerHandler, ServerHandlerMap};
-use crate::server::task::ServerTask;
+use crate::tcp::server::ServerTask;
 
 pub mod handler;
-mod task;
+pub(crate) mod task;
 pub(crate) mod validator;
 
 /// Spawns a TCP server task onto the runtime. This method can only
