@@ -15,6 +15,7 @@ use crate::util::frame::{FrameFormatter, FrameHeader, FramedReader, TxId};
 /**
 * We always service requests in a TCP session until one of the following occurs
 */
+#[derive(Debug, PartialEq)]
 pub(crate) enum SessionError {
     // the stream errors or there is an unrecoverable framing issue
     IOError,
@@ -205,5 +206,22 @@ impl ClientLoop {
                 Ok(Some(request)) => request.fail(Error::NoConnection),
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn task_completes_with_shutdown_error_when_sender_dropped() {
+        let (tx, rx) = tokio::sync::mpsc::channel(10);
+        let mut client_loop = ClientLoop::new(rx);
+        let io = tokio_test::io::Builder::new().build();
+        drop(tx);
+        assert_eq!(
+            tokio_test::block_on(client_loop.run(io)),
+            SessionError::Shutdown
+        );
     }
 }
