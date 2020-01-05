@@ -4,8 +4,8 @@ use std::sync::Arc;
 use futures::future::FutureExt;
 use futures::select;
 use log::{info, warn};
-use tokio::io::AsyncWriteExt;
-use tokio::net::{TcpListener, TcpStream};
+use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
+use tokio::net::TcpListener;
 use tokio::sync::Mutex;
 
 use crate::error::details::ExceptionCode;
@@ -106,25 +106,30 @@ where
     }
 }
 
-struct SessionTask<T: ServerHandler> {
-    socket: TcpStream,
+struct SessionTask<T, U>
+where
+    T: ServerHandler,
+    U: AsyncRead + AsyncWrite + Unpin,
+{
+    io: U,
     handlers: ServerHandlerMap<T>,
     shutdown: tokio::sync::mpsc::Receiver<()>,
     reader: FramedReader<MBAPParser>,
     writer: MBAPFormatter,
 }
 
-impl<T> SessionTask<T>
+impl<T, U> SessionTask<T, U>
 where
     T: ServerHandler,
+    U: AsyncRead + AsyncWrite + Unpin,
 {
     pub fn new(
-        socket: TcpStream,
+        io: U,
         handlers: ServerHandlerMap<T>,
         shutdown: tokio::sync::mpsc::Receiver<()>,
     ) -> Self {
         Self {
-            socket,
+            io,
             handlers,
             shutdown,
             reader: FramedReader::new(MBAPParser::new()),
@@ -139,7 +144,7 @@ where
         ex: ExceptionCode,
     ) -> std::result::Result<(), Error> {
         let bytes = self.writer.format(header, &ADU::new(function, &ex))?;
-        self.socket.write_all(bytes).await?;
+        self.io.write_all(bytes).await?;
         Ok(())
     }
 
@@ -151,7 +156,7 @@ where
 
     pub async fn run_one(&mut self) -> std::result::Result<(), Error> {
         select! {
-            frame = self.reader.next_frame(&mut self.socket).fuse() => {
+            frame = self.reader.next_frame(&mut self.io).fuse() => {
                return self.reply_to_request(frame?).await;
             }
             _ = self.shutdown.recv().fuse() => {
@@ -346,7 +351,7 @@ where
         };
 
         // reply with the bytes
-        self.socket.write_all(reply_frame).await?;
+        self.io.write_all(reply_frame).await?;
         Ok(())
     }
 }
