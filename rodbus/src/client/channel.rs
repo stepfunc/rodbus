@@ -5,7 +5,7 @@ use tokio::sync::mpsc;
 
 use crate::client::message::Request;
 use crate::client::session::AsyncSession;
-use crate::client::task::ChannelTask;
+use crate::tcp::client::TcpChannelTask;
 use crate::types::UnitId;
 
 /// Channel from which `AsyncSession` objects can be created to make requests
@@ -85,7 +85,7 @@ impl Channel {
         connect_retry: Box<dyn ReconnectStrategy + Send>,
     ) -> (Self, impl std::future::Future<Output = ()>) {
         let (tx, rx) = mpsc::channel(max_queued_requests);
-        let task = async move { ChannelTask::new(addr, rx, connect_retry).run().await };
+        let task = async move { TcpChannelTask::new(addr, rx, connect_retry).run().await };
         (Channel { tx }, task)
     }
 
