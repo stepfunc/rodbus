@@ -221,16 +221,6 @@ mod tests {
     use crate::service::services::ReadCoils;
     use crate::service::traits::Serialize;
     use crate::types::{AddressRange, Indexed};
-    use crate::util::cursor::WriteCursor;
-
-    impl Serialize for &[u8] {
-        fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), Error> {
-            for b in *self {
-                cursor.write_u8(*b)?
-            }
-            Ok(())
-        }
-    }
 
     struct ClientFixture {
         tx: tokio::sync::mpsc::Sender<Request>,
@@ -256,7 +246,7 @@ mod tests {
             let (tx, rx) = tokio::sync::oneshot::channel();
             let send_future = self.tx.send(S::create_request(ServiceRequest::new(
                 UnitId::new(1),
-                Duration::from_secs(1),
+                Duration::from_secs(0),
                 request,
                 tx,
             )));
@@ -267,10 +257,14 @@ mod tests {
         }
     }
 
-    fn get_framed_adu(bytes: &[u8]) -> Vec<u8> {
+    fn get_framed_adu<T>(f: FunctionCode, payload: &T) -> Vec<u8>
+    where
+        T: Serialize + Sized,
+    {
         let mut fmt = MBAPFormatter::new();
+        let header = FrameHeader::new(UnitId::new(1), TxId::new(0));
         let bytes = fmt
-            .format(FrameHeader::new(UnitId::new(1), TxId::new(0)), &bytes)
+            .format(header, &ADU::new(f.get_value(), payload))
             .unwrap();
         Vec::from(bytes)
     }
@@ -287,19 +281,19 @@ mod tests {
     }
 
     #[test]
-    fn transmit_read_coils_when_requested() {
+    fn returns_timeout_when_no_response() {
         let mut fixture = ClientFixture::new();
 
-        let request =
-            get_framed_adu(&[FunctionCode::ReadCoils.get_value(), 0x00, 0x00, 0x00, 0x01]);
-        let response = get_framed_adu(&[FunctionCode::ReadCoils.get_value(), 0x01, 0x01]);
+        let range = AddressRange::new(7, 2);
+
+        let request = get_framed_adu(FunctionCode::ReadCoils, &range);
 
         let io = tokio_test::io::Builder::new()
             .write(&request)
-            .read(&response)
+            .wait(Duration::from_nanos(1))
             .build();
 
-        let rx = fixture.make_request::<ReadCoils>(AddressRange::new(0, 1));
+        let rx = fixture.make_request::<ReadCoils>(range);
         drop(fixture.tx);
 
         assert_eq!(
@@ -307,7 +301,36 @@ mod tests {
             SessionError::Shutdown
         );
 
-        let res: Vec<Indexed<bool>> = tokio_test::block_on(rx).unwrap().unwrap();
-        assert_eq!(res, vec![Indexed::new(0, true)]);
+        let result = tokio_test::block_on(rx).unwrap();
+
+        assert_eq!(result, Err(Error::ResponseTimeout));
+    }
+
+    #[test]
+    fn transmit_read_coils_when_requested() {
+        let mut fixture = ClientFixture::new();
+
+        let range = AddressRange::new(7, 2);
+
+        let request = get_framed_adu(FunctionCode::ReadCoils, &range);
+        let response = get_framed_adu(FunctionCode::ReadCoils, &[true, false].as_ref());
+
+        let io = tokio_test::io::Builder::new()
+            .write(&request)
+            .read(&response)
+            .build();
+
+        let rx = fixture.make_request::<ReadCoils>(range);
+        drop(fixture.tx);
+
+        assert_eq!(
+            tokio_test::block_on(fixture.client.run(io)),
+            SessionError::Shutdown
+        );
+
+        assert_eq!(
+            tokio_test::block_on(rx).unwrap().unwrap(),
+            vec![Indexed::new(7, true), Indexed::new(8, false)]
+        );
     }
 }
