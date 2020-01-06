@@ -1,0 +1,41 @@
+on:
+  push:
+    branches:
+      - master
+    tags:
+      - '*'
+name: Rodbus-FFI Doc
+jobs:
+  ffi-doc:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+      - name: Install CMake, doxygen and cbindgen
+        run: sudo apt-get install cmake doxygen && cargo install cbindgen -f
+      - name: Checkout
+        uses: actions/checkout@v2
+        with:
+          path: code
+      - name: Add SSH key
+        uses: webfactory/ssh-agent@v0.1.1
+        with:
+          ssh-private-key: ${{ secrets.DOC_SSH_PRIVATE_KEY }}
+      - name: Checkout docs repository
+        run: git clone git@github.com:automatak/automatak.github.io.git docs
+      - name: Generate documentation
+        run: cmake . && cmake --build . --target doc
+        working-directory: code/rodbus-ffi/cmake
+      - name: Copy the files in the appropriate directory
+        run: mkdir -p docs/rodbus/${GITHUB_REF##*/} && rsync -a code/rodbus-ffi/cmake/html/ ./docs/rodbus/${GITHUB_REF##*/}
+      - name: Commit and push to the repo
+        working-directory: docs
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add .
+          git commit -m "rodbus doc update: ${GITHUB_REF##*/}" --allow-empty
+          git push origin
