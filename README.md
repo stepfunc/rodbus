@@ -49,15 +49,15 @@ with blocking function calls.
 
 To generate the bindings, do the following:
 - Install `cbindgen` with `cargo install cbindgen`
-- Run `cbingen -c ffi/cbindgen.c.toml -o rodbus.h`
-- Run `cbingen -c ffi/cbindgen.cpp.toml -o rodbus.hpp`
+- Run `cbingen -c cmake/cbindgen.c.toml -o rodbus.h`
+- Run `cbingen -c cmake/cbindgen.cpp.toml -o rodbus.hpp`
 - Build `rodbus-ffi`
 
 To use the bindings, you will need to include the `prelude.h` file and `rodbus.h`
 or `rodbus.hpp`. You will also need to link with the compiled library
 `rodbus_ffi.[dll|so]` found in the target directory.
 
-There is also a [CMake script](./rodbus-ffi/ffi/CMakeLists.txt) that can help
+There is also a [CMake script](./rodbus-ffi/cmake/CMakeLists.txt) that can help
 you automatically build and link to rodbus from a C/C++ project.
 
 ## Modbus client CLI
