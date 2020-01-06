@@ -151,6 +151,10 @@ impl ClientLoop {
             .send_and_receive::<S, T>(io, srv.id, srv.timeout, &srv.argument)
             .await;
 
+        if let Err(e) = result.as_ref() {
+            log::warn!("error occurred making request: {}", e);
+        }
+
         let ret = result.as_ref().err().and_then(|e| SessionError::from(e));
 
         // we always send the result, no matter what happened
@@ -175,6 +179,7 @@ impl ClientLoop {
             FrameHeader::new(unit_id, tx_id),
             &ADU::new(S::REQUEST_FUNCTION_CODE.get_value(), request),
         )?;
+
         io.write_all(bytes).await?;
 
         let deadline = tokio::time::Instant::now() + timeout;
@@ -212,6 +217,27 @@ impl ClientLoop {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::service::function::FunctionCode;
+    use crate::service::traits::Serialize;
+    use crate::types::{AddressRange, Indexed};
+    use crate::util::cursor::WriteCursor;
+
+    impl Serialize for &[u8] {
+        fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), Error> {
+            for b in *self {
+                cursor.write_u8(*b)?
+            }
+            Ok(())
+        }
+    }
+
+    fn get_framed_adu(bytes: &[u8]) -> Vec<u8> {
+        let mut fmt = MBAPFormatter::new();
+        let bytes = fmt
+            .format(FrameHeader::new(UnitId::new(1), TxId::new(0)), &bytes)
+            .unwrap();
+        Vec::from(bytes)
+    }
 
     #[test]
     fn task_completes_with_shutdown_error_when_sender_dropped() {
@@ -223,5 +249,39 @@ mod tests {
             tokio_test::block_on(client_loop.run(io)),
             SessionError::Shutdown
         );
+    }
+
+    #[test]
+    fn transmit_read_coils_when_requested() {
+        let (mut tx, rx) = tokio::sync::mpsc::channel(10);
+        let mut client_loop = ClientLoop::new(rx);
+
+        let request =
+            get_framed_adu(&[FunctionCode::ReadCoils.get_value(), 0x00, 0x00, 0x00, 0x01]);
+        let response = get_framed_adu(&[FunctionCode::ReadCoils.get_value(), 0x01, 0x01]);
+
+        let io = tokio_test::io::Builder::new()
+            .write(&request)
+            .read(&response)
+            .build();
+
+        let (otx, orx) = tokio::sync::oneshot::channel();
+        let sent = tokio_test::block_on(tx.send(Request::ReadCoils(ServiceRequest::new(
+            UnitId::new(1),
+            Duration::from_secs(1),
+            AddressRange::new(0, 1),
+            otx,
+        ))))
+        .is_ok();
+        assert!(sent);
+        drop(tx);
+
+        assert_eq!(
+            tokio_test::block_on(client_loop.run(io)),
+            SessionError::Shutdown
+        );
+
+        let res: Vec<Indexed<bool>> = tokio_test::block_on(orx).unwrap().unwrap();
+        assert_eq!(res, vec![Indexed::new(0, true)]);
     }
 }
