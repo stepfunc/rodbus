@@ -1,9 +1,12 @@
+/// u16 representation of coils when performing write single coil
 pub mod coil {
     /// u16 representation of COIL == ON when performing write single coil
     pub const ON: u16 = 0xFF00;
     /// u16 representation of COIL == OFF when performing write single coil
     pub const OFF: u16 = 0x0000;
 }
+
+/// limits of request sizes
 pub mod limits {
     /// Maximum count allowed in a read coils/discrete inputs request
     pub const MAX_READ_COILS_COUNT: u16 = 0x07D0;
@@ -14,6 +17,8 @@ pub mod limits {
     /// Maximum count allowed in a `write multiple registers` request
     pub const MAX_WRITE_REGISTERS_COUNT: u16 = 0x007B;
 }
+
+/// Modbus exception codes
 pub mod exceptions {
     pub const ILLEGAL_FUNCTION: u8 = 0x01;
     pub const ILLEGAL_DATA_ADDRESS: u8 = 0x02;

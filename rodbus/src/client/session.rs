@@ -9,11 +9,15 @@ use crate::service::services::*;
 use crate::service::traits::Service;
 use crate::types::{AddressRange, Indexed, UnitId, WriteMultiple};
 
-/// A handle used to make requests against requests against an underlying channel task.
+/// A handle used to make requests against an underlying channel task.
 ///
 /// This struct's methods are `async` and as such return futures which must be `awaited`.
 ///
-/// This struct can be used to `SyncSession` and `CallbackSession` for FFI purposes.
+/// This struct can be used to create a [`SyncSession`] or [`CallbackSession`] for a different
+/// interface (notably for FFI).
+///
+/// [`SyncSession`]: struct.SyncSession.html
+/// [`CallbackSession`]: struct.CallbackSession.html
 #[derive(Clone)]
 pub struct AsyncSession {
     id: UnitId,
@@ -108,17 +112,21 @@ impl AsyncSession {
     }
 }
 
-/// A wrapper around `AsyncSession` that exposes a callback-based API.
+/// A wrapper around [`AsyncSession`] that exposes a callback-based API.
 ///
 /// This is primarily used to adapt Rodbus to a C-style callback API,
 /// but Rust users not using Tokio may find it useful as well.
+///
+/// [`AsyncSession`]: struct.AsyncSession.html
 #[derive(Clone)]
 pub struct CallbackSession {
     inner: AsyncSession,
 }
 
 impl CallbackSession {
-    /// create a CallbackSession from an `async` Session
+    /// create a callback based session from an [`AsyncSession`]
+    ///
+    /// [`AsyncSession`]: struct.AsyncSession.html
     pub fn new(inner: AsyncSession) -> Self {
         CallbackSession { inner }
     }
@@ -215,17 +223,21 @@ impl CallbackSession {
     }
 }
 
-/// A wrapper around `AsyncSession` that exposes a synchronous API
+/// A wrapper around [`AsyncSession`] that exposes a synchronous API
 ///
 /// This is primarily used to adapt Rodbus to a synchronous API for FFI,
 /// however Rust users that want a non-async API may find it useful.
+///
+/// [`AsyncSession`]: struct.AsyncSession.html
 #[derive(Clone)]
 pub struct SyncSession {
     inner: AsyncSession,
 }
 
 impl SyncSession {
-    /// create a SyncSession from an `async` Session
+    /// create a synchronous session from an [`AsyncSession`]
+    ///
+    /// [`AsyncSession`]: struct.AsyncSession.html
     pub fn new(inner: AsyncSession) -> Self {
         SyncSession { inner }
     }

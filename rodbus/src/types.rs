@@ -9,7 +9,7 @@ pub struct UnitId {
     pub value: u8,
 }
 
-/// Start & count tuple used when making various requests
+/// Start and count tuple used when making various requests
 #[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Ord, Eq)]
 pub struct AddressRange {
     /// starting address of the range
@@ -143,6 +143,7 @@ where
 }
 
 /// Collection of values and starting address
+///
 /// Used when making write multiple coil/register requests
 #[derive(Debug, Clone)]
 pub struct WriteMultiple<T> {
@@ -153,10 +154,12 @@ pub struct WriteMultiple<T> {
 }
 
 impl<T> WriteMultiple<T> {
+    /// Create new collection of values
     pub fn new(start: u16, values: Vec<T>) -> Self {
         Self { start, values }
     }
 
+    /// Convert to a range and checking for overflow
     pub fn to_address_range(&self) -> Result<AddressRange, InvalidRequest> {
         match u16::try_from(self.values.len()) {
             Ok(count) => {
@@ -186,10 +189,12 @@ pub(crate) fn coil_to_u16(value: bool) -> u16 {
 }
 
 impl AddressRange {
+    /// Create a new address range
     pub fn new(start: u16, count: u16) -> Self {
         AddressRange { start, count }
     }
 
+    /// Validate the count and check for overflow
     pub fn validate(self) -> Result<(), InvalidRequest> {
         if self.count == 0 {
             return Err(InvalidRequest::CountOfZero);
@@ -204,6 +209,7 @@ impl AddressRange {
         Ok(())
     }
 
+    /// Converts to std::ops::Range
     pub fn to_range(self) -> Result<std::ops::Range<usize>, InvalidRequest> {
         self.validate()?;
 
@@ -215,14 +221,21 @@ impl AddressRange {
 }
 
 impl<T> Indexed<T> {
+    /// Create a new indexed value
     pub fn new(index: u16, value: T) -> Self {
         Indexed { index, value }
     }
 }
 
 impl UnitId {
+    /// Create a new UnitId
     pub fn new(value: u8) -> Self {
         Self { value }
+    }
+
+    /// Create the default UnitId of `0xFF`
+    pub fn default() -> Self {
+        Self { value: 0xFF }
     }
 }
 

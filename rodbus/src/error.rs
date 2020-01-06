@@ -155,22 +155,29 @@ pub mod details {
         /// An unrecoverable error occurred while the server was attempting to perform the requested
         /// action
         ServerDeviceFailure,
-        /// Specialized use in conjunction with  programming commands
+        /// Specialized use in conjunction with programming commands
+        ///
         /// The server has accepted the request and is processing it
         Acknowledge,
-        /// Specialized use in conjunction with  programming commands
+        /// Specialized use in conjunction with programming commands
+        ///
         /// The server is engaged in processing a long–duration program command, try again later
         ServerDeviceBusy,
         /// Specialized use in conjunction with function codes 20 and 21 and reference type 6, to
         /// indicate that the extended file area failed to pass a consistency check.
+        ///
         /// The server attempted to read a record file, but detected a parity error in the memory
         MemoryParityError,
-        /// Specialized use in conjunction with gateways, indicates that the gateway was unable to
-        /// allocate an internal communication path from the input port to the output port for
-        /// processing the request. Usually means that the gateway is mis-configured or overloaded
+        /// Specialized use in conjunction with gateways.
+        ///
+        /// Indicates that the gateway was unable to allocate an internal communication path from
+        /// the input port to the output port for processing the request. Usually means that the
+        /// gateway is mis-configured or overloaded
         GatewayPathUnavailable,
-        /// Specialized use in conjunction with gateways, indicates that no response was obtained
-        /// from the target device. Usually means that the device is not present on the network.
+        /// Specialized use in conjunction with gateways.
+        ///
+        /// Indicates that no response was obtained from the target device. Usually means that the
+        /// device is not present on the network.
         GatewayTargetDeviceFailedToRespond,
         /// The exception code received is not defined in the standard
         Unknown(u8),
@@ -340,10 +347,16 @@ pub mod details {
     /// errors that result because of bad request parameter
     #[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Ord, Eq)]
     pub enum InvalidRequest {
+        /// Count is set to zero, which is invalid
         CountOfZero,
+        /// Count is too big to fit in a u16
         CountTooBigForU16(usize),
+        /// Start + count > u16
         AddressOverflow(AddressRange),
-        CountTooBigForType(u16, u16), // count / max
+        /// Count too big for specific request
+        ///
+        /// First element is the count, second element is the maximum value
+        CountTooBigForType(u16, u16),
     }
 
     impl std::error::Error for InvalidRequest {}
