@@ -218,6 +218,7 @@ impl ClientLoop {
 mod tests {
     use super::*;
     use crate::service::function::FunctionCode;
+    use crate::service::services::ReadCoils;
     use crate::service::traits::Serialize;
     use crate::types::{AddressRange, Indexed};
     use crate::util::cursor::WriteCursor;
@@ -231,6 +232,41 @@ mod tests {
         }
     }
 
+    struct ClientFixture {
+        tx: tokio::sync::mpsc::Sender<Request>,
+        pub client: ClientLoop,
+    }
+
+    impl ClientFixture {
+        fn new() -> Self {
+            let (tx, rx) = tokio::sync::mpsc::channel(10);
+            Self {
+                tx,
+                client: ClientLoop::new(rx),
+            }
+        }
+
+        fn make_request<S>(
+            &mut self,
+            request: S::ClientRequest,
+        ) -> tokio::sync::oneshot::Receiver<Result<S::ClientResponse, Error>>
+        where
+            S: Service,
+        {
+            let (tx, rx) = tokio::sync::oneshot::channel();
+            let send_future = self.tx.send(S::create_request(ServiceRequest::new(
+                UnitId::new(1),
+                Duration::from_secs(1),
+                request,
+                tx,
+            )));
+            if let Err(_) = tokio_test::block_on(send_future) {
+                panic!("send failed!");
+            }
+            rx
+        }
+    }
+
     fn get_framed_adu(bytes: &[u8]) -> Vec<u8> {
         let mut fmt = MBAPFormatter::new();
         let bytes = fmt
@@ -241,20 +277,18 @@ mod tests {
 
     #[test]
     fn task_completes_with_shutdown_error_when_sender_dropped() {
-        let (tx, rx) = tokio::sync::mpsc::channel(10);
-        let mut client_loop = ClientLoop::new(rx);
+        let mut fixture = ClientFixture::new();
         let io = tokio_test::io::Builder::new().build();
-        drop(tx);
+        drop(fixture.tx);
         assert_eq!(
-            tokio_test::block_on(client_loop.run(io)),
+            tokio_test::block_on(fixture.client.run(io)),
             SessionError::Shutdown
         );
     }
 
     #[test]
     fn transmit_read_coils_when_requested() {
-        let (mut tx, rx) = tokio::sync::mpsc::channel(10);
-        let mut client_loop = ClientLoop::new(rx);
+        let mut fixture = ClientFixture::new();
 
         let request =
             get_framed_adu(&[FunctionCode::ReadCoils.get_value(), 0x00, 0x00, 0x00, 0x01]);
@@ -265,23 +299,15 @@ mod tests {
             .read(&response)
             .build();
 
-        let (otx, orx) = tokio::sync::oneshot::channel();
-        let sent = tokio_test::block_on(tx.send(Request::ReadCoils(ServiceRequest::new(
-            UnitId::new(1),
-            Duration::from_secs(1),
-            AddressRange::new(0, 1),
-            otx,
-        ))))
-        .is_ok();
-        assert!(sent);
-        drop(tx);
+        let rx = fixture.make_request::<ReadCoils>(AddressRange::new(0, 1));
+        drop(fixture.tx);
 
         assert_eq!(
-            tokio_test::block_on(client_loop.run(io)),
+            tokio_test::block_on(fixture.client.run(io)),
             SessionError::Shutdown
         );
 
-        let res: Vec<Indexed<bool>> = tokio_test::block_on(orx).unwrap().unwrap();
+        let res: Vec<Indexed<bool>> = tokio_test::block_on(rx).unwrap().unwrap();
         assert_eq!(res, vec![Indexed::new(0, true)]);
     }
 }
