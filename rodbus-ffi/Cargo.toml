@@ -1,6 +1,6 @@
 [package]
 name = "rodbus-ffi"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Adam Crain <jadamcrain@automatak.com>", "Émile Grégoire <emile@automatak.com>"]
 edition = "2018"
 license = "BSD-3-Clause"
@@ -11,9 +11,9 @@ repository = "https://www.github.com/automatak/rodbus"
 readme = "../README.md"
 
 [dependencies]
-rodbus = { path = "../rodbus" }
+rodbus = { version = "0.1.1", path = "../rodbus" }
 tokio = { version = "^0.2.5", features = ["rt-threaded"]}
-log = "0.4"
+log = { version = "0.4", features = ["std"] }
 
 [lib]
 crate-type = ["cdylib"]
