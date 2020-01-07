@@ -1,10 +1,11 @@
 cmake_minimum_required(VERSION 3.10)
 
-project(rodbus-ffi NONE)
+project(rodbus-ffi C)
 
 set(CARGO_CMD cargo build --release)
 set(TARGET_DIR "target/release")
-set(RODBUS_HEADER_DIR ${CMAKE_CURRENT_BINARY_DIR}/include/rodbus)
+set(INCLUDES_DIR ${CMAKE_CURRENT_BINARY_DIR}/include)
+set(RODBUS_HEADER_DIR ${INCLUDES_DIR}/rodbus)
 
 set(LIBRARY_NAME librodbus_ffi.so)
 get_filename_component(CRATE_BASE_DIR ../../ ABSOLUTE)
@@ -37,3 +38,13 @@ add_custom_target(doc
 
 install(FILES ${LIBRARY_PATH} DESTINATION lib)
 install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/include/rodbus DESTINATION include)
+
+add_executable(sync_client ${CMAKE_CURRENT_SOURCE_DIR}/examples/sync_client.c)
+target_link_libraries(sync_client ${LIBRARY_PATH})
+target_include_directories(sync_client PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/include")
+add_dependencies(sync_client cbindgen build)
+
+add_executable(async_client ${CMAKE_CURRENT_SOURCE_DIR}/examples/async_client.c)
+target_link_libraries(async_client ${LIBRARY_PATH})
+target_include_directories(async_client PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/include")
+add_dependencies(async_client cbindgen build)
