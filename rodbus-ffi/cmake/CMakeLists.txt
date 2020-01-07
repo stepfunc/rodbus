@@ -2,6 +2,10 @@ cmake_minimum_required(VERSION 3.10)
 
 project(rodbus-ffi C)
 
+if(NOT UNIX)
+    message(FATAL_ERROR "examples only compile on *NIX ATM")
+endif()
+
 set(CARGO_CMD cargo build --release)
 set(TARGET_DIR "target/release")
 set(INCLUDES_DIR ${CMAKE_CURRENT_BINARY_DIR}/include)
