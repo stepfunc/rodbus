@@ -7,7 +7,8 @@ license = "BSD-3-Clause"
 description = "C bindings for the Rodbus crate"
 keywords = ["ffi", "c", "modbus", "ics", "industrial", "plc", "security"]
 categories = ["network-programming"]
-repository = "https://www.github.com/grid-io/rodbus"
+repository = "https://www.github.com/automatak/rodbus"
+readme = "../README.md"
 
 [dependencies]
 rodbus = { path = "../rodbus" }

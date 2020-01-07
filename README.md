@@ -1,7 +1,7 @@
 # rodbus
 
 [![crates.io](https://img.shields.io/crates/v/rodbus.svg)](https://crates.io/crates/rodbus)
-[![docs.rs](https://docs.rs/rodbus/badge.svg)](https://docs.rs/crate/rodbus)
+[![docs.rs](https://docs.rs/rodbus/badge.svg)](https://docs.rs/rodbus)
 ![MSRV](https://img.shields.io/badge/rustc-1.39+-blue.svg) [![Build status](https://github.com/automatak/rodbus/workflows/CI/badge.svg)](https://github.com/automatak/rodbus/actions)
 [![Codecov](https://codecov.io/gh/automatak/rodbus/graph/badge.svg)](https://codecov.io/gh/automatak/rodbus)
 ![License](https://img.shields.io/github/license/automatak/rodbus)
@@ -11,7 +11,7 @@
 
 ## Library
 
-[Documentation](https://docs.rs/crate/rodbus)
+[Documentation](https://docs.rs/rodbus)
 
 The library provides a simple interface to send Modbus requests. Using Rust's powerful type system,
 the library is safe, memory efficient and easy to use. All of the error handling in the library

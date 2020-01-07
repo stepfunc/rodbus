@@ -7,7 +7,12 @@ license = "BSD-3-Clause"
 description = "A high-performance implementation of the Modbus protocol using Tokio and async/await"
 keywords = ["modbus", "ics", "industrial", "plc", "security"]
 categories = ["network-programming"]
-repository = "https://www.github.com/grid-io/rodbus"
+repository = "https://www.github.com/automatak/rodbus"
+readme = "../README.md"
+
+[badges]
+codecov = { repository = "automatak/rodbus", branch = "master", service = "github" }
+maintenance = { status = "actively-developed" }
 
 [dependencies]
 tokio = { version = "^0.2.5", features = ["tcp", "sync", "io-util", "time", "rt-core", "rt-threaded", "macros"]}
