@@ -49,7 +49,7 @@ The [rodbus-ffi](./rodbus-ffi) directory contains an idiomatic C/C++ API to the 
 Requests can be sent asynchronously using callback functions or synchronously with blocking function calls.
 
 In this early release, only the client side of the library has been exposed and is only known to work on *nix platforms.
-Please read the  [C/C++ Documentation](docs.automatak.com/rodbus) and review the [examples](./rodbus-ffi/cmake/examples).
+Please read the  [C/C++ Documentation](https://docs.automatak.com/rodbus) and review the [examples](./rodbus-ffi/cmake/examples).
 
 To generate the bindings, do the following:
 - Install `cbindgen` with `cargo install cbindgen`
