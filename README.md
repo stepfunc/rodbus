@@ -13,17 +13,16 @@
 
 [Documentation](https://docs.rs/rodbus)
 
-The library provides a simple interface to send Modbus requests. Using Rust's powerful type system,
-the library is safe, memory efficient and easy to use. All of the error handling in the library
-is explicit and logging is also available. Three client interfaces are provided for making requests:
+Rodbus is library for implementing [Modbus](https://modbus.org/) client and server applications. The library is safe, 
+memory-efficient and easy to use. All of the error handling in the library is explicit and logging is available by
+providing a backend to the [log](https://crates.io/crates/log) crate. Three client interfaces are provided for making requests:
 
 - Async (Rust futures)
 - Callback-based
 - Synchronous (blocking)
 
-The library also provides a Modbus server API requiring the user to implement a single trait to handle requests.
-The interface is designed to minimize copying of data making the server efficient. The [`server`](./rodbus/examples/server.rs)
-example shows a simple server implementation.
+The [`client`](./rodbus/examples/client.rs) and [`server`](./rodbus/examples/server.rs) examples demonstrate simple
+usage of the API.
 
 The following function codes are supported:
 - Read Coils (`0x01`)
@@ -35,17 +34,22 @@ The following function codes are supported:
 - Write Multiple Coils (`0x0F`)
 - Write Multiple Registers (`0x10`)
 
-Under the hood, the library uses an event loop that can efficiently utilize all the
-system resources. The [`perf`](./rodbus/examples/perf.rs) example is a benchmark that
-creates multiple sessions on a single server and sends multiple requests in parallel.
-On a decent workstation, the benchmark achieved around 200k requests per second spread
-across 100 concurrent sessions in only 800 KB of memory.
+The library uses the Tokio executor under the hood. The [`perf`](./rodbus/examples/perf.rs) example is a benchmark that
+creates multiple sessions on a single server and sends multiple requests in parallel. On a decent workstation,
+the benchmark achieved around 200k requests per second spread across 100 concurrent sessions in only 800 KB of memory.
+
+## Future support
+
+* [Modbus Security](http://modbus.org/docs/MB-TCP-Security-v21_2018-07-24.pdf) using TLS
+* [Modbus RTU](http://modbus.org/docs/PI_MBUS_300.pdf) (serial)
 
 ## C/C++ bindings
 
-The [rodbus-ffi](./rodbus-ffi) directory contains C/C++ bindings to the library.
-Requests can be sent asynchronously using a callback mechanism or synchronously
-with blocking function calls.
+The [rodbus-ffi](./rodbus-ffi) directory contains an idiomatic C/C++ API to the library.
+Requests can be sent asynchronously using callback functions or synchronously with blocking function calls.
+
+In this early release, only the client side of the library has been exposed and is only known to work on *nix platforms.
+Please read the  [C/C++ Documentation](docs.automatak.com/rodbus) and review the [examples](./rodbus-ffi/cmake/examples).
 
 To generate the bindings, do the following:
 - Install `cbindgen` with `cargo install cbindgen`
@@ -53,18 +57,21 @@ To generate the bindings, do the following:
 - Run `cbingen -c cmake/cbindgen.cpp.toml -o rodbus.hpp`
 - Build `rodbus-ffi`
 
-To use the bindings, you will need to include the `prelude.h` file and `rodbus.h`
-or `rodbus.hpp`. You will also need to link with the compiled library
-`rodbus_ffi.[dll|so]` found in the target directory.
+To use the bindings, you will need to include`rodbus.h` or `rodbus.hpp` which each include `prelude.h`. 
+You will also need to link with the compiled library `rodbus_ffi.so` found in the target directory.
 
-There is also a [CMake script](./rodbus-ffi/cmake/CMakeLists.txt) that can help
-you automatically build and link to rodbus from a C/C++ project.
+There is also a [CMake script](./rodbus-ffi/cmake/CMakeLists.txt) that can help you automatically build and link to
+rodbus from a C/C++ project.
 
 ## Modbus client CLI
 
 The [rodbus-client](./rodbus-client) directory contains a Modbus client application for
-testing Modbus servers from the the command line. You can run it with `cargo run -p rodbus-client [...]`.
-For general detailed help, run `cargo run -p rodbus-client -- help`.
+testing Modbus servers from the the command line. It is published as a separate
+[crate](https://crates.io/crates/rodbus-client) and can be installed directly from crates.io using cargo: 
+
+```
+> cargo install rodbus-client
+```
 
 Use the `-h` option to specify the host to connect to and the `-i` option to
 specify the Modbus unit ID.
