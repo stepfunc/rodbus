@@ -4,10 +4,8 @@ use rodbus::prelude::*;
 use std::net::SocketAddr;
 use std::str::FromStr;
 
-use std::sync::Arc;
 use tokio::net::TcpListener;
 use tokio::runtime::Runtime;
-use tokio::sync::Mutex;
 
 use std::time::Duration;
 
@@ -92,109 +90,110 @@ impl ServerHandler for Handler {
     }
 }
 
-fn with_client_and_server<T>(f: T)
-where
-    T: FnOnce(Runtime, AsyncSession, Arc<Mutex<Box<Handler>>>) -> (),
-{
+async fn test_requests_and_responses() {
     let handler = Handler::new().wrap();
     let addr = SocketAddr::from_str("127.0.0.1:40000").unwrap();
-    let mut rt = Runtime::new().unwrap();
-    let listener = rt.block_on(TcpListener::bind(addr)).unwrap();
 
-    let map = ServerHandlerMap::single(UnitId::new(1), handler.clone());
+    spawn_tcp_server_task(
+        1,
+        TcpListener::bind(addr).await.unwrap(),
+        ServerHandlerMap::single(UnitId::new(1), handler.clone()),
+    );
 
-    rt.spawn(create_tcp_server_task(1, listener, map));
+    let mut session = spawn_tcp_client_task(addr, 10, strategy::default())
+        .create_session(UnitId::new(0x01), Duration::from_secs(1));
 
-    let (channel, task) = create_handle_and_task(addr, 10, strategy::default());
+    {
+        let mut guard = handler.lock().await;
+        guard.discrete_inputs[0] = true;
+        guard.input_registers[0] = 0xCAFE;
+    }
 
-    rt.spawn(task);
+    assert_eq!(
+        session
+            .read_discrete_inputs(AddressRange::new(0, 2))
+            .await
+            .unwrap(),
+        vec![Indexed::new(0, true), Indexed::new(1, false)]
+    );
 
-    let session = channel.create_session(UnitId::new(0x01), Duration::from_secs(1));
+    assert_eq!(
+        session
+            .read_input_registers(AddressRange::new(0, 2))
+            .await
+            .unwrap(),
+        vec![Indexed::new(0, 0xCAFE), Indexed::new(1, 0x0000)]
+    );
 
-    f(rt, session, handler)
+    // do a single coil write and verify that it was written by reading it
+    assert_eq!(
+        session
+            .write_single_coil(Indexed::new(1, true))
+            .await
+            .unwrap(),
+        Indexed::new(1, true)
+    );
+    assert_eq!(
+        session.read_coils(AddressRange::new(0, 2)).await.unwrap(),
+        vec![Indexed::new(0, false), Indexed::new(1, true)]
+    );
+
+    // do a single register write and verify that it was written by reading it
+    assert_eq!(
+        session
+            .write_single_register(Indexed::new(1, 0xABCD))
+            .await
+            .unwrap(),
+        Indexed::new(1, 0xABCD)
+    );
+    assert_eq!(
+        session
+            .read_holding_registers(AddressRange::new(0, 2))
+            .await
+            .unwrap(),
+        vec![Indexed::new(0, 0x0000), Indexed::new(1, 0xABCD)]
+    );
+
+    // write multiple coils and verify that they were written
+    assert_eq!(
+        session
+            .write_multiple_coils(WriteMultiple::new(0, vec![true, true, true]))
+            .await
+            .unwrap(),
+        AddressRange::new(0, 3)
+    );
+    assert_eq!(
+        session.read_coils(AddressRange::new(0, 3)).await.unwrap(),
+        vec![
+            Indexed::new(0, true),
+            Indexed::new(1, true),
+            Indexed::new(2, true)
+        ]
+    );
+
+    // write registers and verify that they were written
+    assert_eq!(
+        session
+            .write_multiple_registers(WriteMultiple::new(0, vec![0x0102, 0x0304, 0x0506]))
+            .await
+            .unwrap(),
+        AddressRange::new(0, 3)
+    );
+    assert_eq!(
+        session
+            .read_holding_registers(AddressRange::new(0, 3))
+            .await
+            .unwrap(),
+        vec![
+            Indexed::new(0, 0x0102),
+            Indexed::new(1, 0x0304),
+            Indexed::new(2, 0x0506)
+        ]
+    );
 }
 
 #[test]
 fn can_read_and_write_values() {
-    with_client_and_server(|mut rt, mut session, handler| {
-        // set up some known initial state for the read-only values
-        {
-            let mut guard = rt.block_on(handler.lock());
-            guard.discrete_inputs[0] = true;
-            guard.input_registers[0] = 0xCAFE;
-        }
-
-        assert_eq!(
-            rt.block_on(session.read_discrete_inputs(AddressRange::new(0, 2)))
-                .unwrap(),
-            vec![Indexed::new(0, true), Indexed::new(1, false)]
-        );
-
-        assert_eq!(
-            rt.block_on(session.read_input_registers(AddressRange::new(0, 2)))
-                .unwrap(),
-            vec![Indexed::new(0, 0xCAFE), Indexed::new(1, 0x0000)]
-        );
-
-        // do a single coil write and verify that it was written by reading it
-        assert_eq!(
-            rt.block_on(session.write_single_coil(Indexed::new(1, true)))
-                .unwrap(),
-            Indexed::new(1, true)
-        );
-        assert_eq!(
-            rt.block_on(session.read_coils(AddressRange::new(0, 2)))
-                .unwrap(),
-            vec![Indexed::new(0, false), Indexed::new(1, true)]
-        );
-
-        // do a single register write and verify that it was written by reading it
-        assert_eq!(
-            rt.block_on(session.write_single_register(Indexed::new(1, 0xABCD)))
-                .unwrap(),
-            Indexed::new(1, 0xABCD)
-        );
-        assert_eq!(
-            rt.block_on(session.read_holding_registers(AddressRange::new(0, 2)))
-                .unwrap(),
-            vec![Indexed::new(0, 0x0000), Indexed::new(1, 0xABCD)]
-        );
-
-        // write multiple coils and verify that they were written
-        assert_eq!(
-            rt.block_on(
-                session.write_multiple_coils(WriteMultiple::new(0, vec![true, true, true]))
-            )
-            .unwrap(),
-            AddressRange::new(0, 3)
-        );
-        assert_eq!(
-            rt.block_on(session.read_coils(AddressRange::new(0, 3)))
-                .unwrap(),
-            vec![
-                Indexed::new(0, true),
-                Indexed::new(1, true),
-                Indexed::new(2, true)
-            ]
-        );
-
-        // write registers and verify that they were written
-        assert_eq!(
-            rt.block_on(
-                session
-                    .write_multiple_registers(WriteMultiple::new(0, vec![0x0102, 0x0304, 0x0506]))
-            )
-            .unwrap(),
-            AddressRange::new(0, 3)
-        );
-        assert_eq!(
-            rt.block_on(session.read_holding_registers(AddressRange::new(0, 3)))
-                .unwrap(),
-            vec![
-                Indexed::new(0, 0x0102),
-                Indexed::new(1, 0x0304),
-                Indexed::new(2, 0x0506)
-            ]
-        );
-    });
+    let mut rt = Runtime::new().unwrap();
+    rt.block_on(test_requests_and_responses())
 }
