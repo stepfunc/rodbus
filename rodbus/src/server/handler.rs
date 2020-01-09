@@ -119,10 +119,8 @@ pub trait ServerHandler: Send + 'static {
         I: Iterator<Item = T>,
     {
         let range = Self::get_mut_range_of(slice, range)?;
-        let mut idx = 0;
-        for value in iter {
+        for (idx, value) in iter.enumerate() {
             range[idx] = value;
-            idx += 1;
         }
         Ok(())
     }
