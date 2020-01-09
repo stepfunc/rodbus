@@ -61,7 +61,7 @@ pub trait ServerHandler: Send + 'static {
     fn write_multiple_coils(
         &mut self,
         _range: AddressRange,
-        _iter: &BitIterator,
+        _iter: BitIterator,
     ) -> Result<(), ExceptionCode> {
         Err(ExceptionCode::IllegalFunction)
     }
@@ -70,7 +70,7 @@ pub trait ServerHandler: Send + 'static {
     fn write_multiple_registers(
         &mut self,
         _range: AddressRange,
-        _iter: &RegisterIterator,
+        _iter: RegisterIterator,
     ) -> Result<(), ExceptionCode> {
         Err(ExceptionCode::IllegalFunction)
     }
@@ -88,6 +88,41 @@ pub trait ServerHandler: Send + 'static {
             return Err(ExceptionCode::IllegalDataAddress);
         }
         Ok(&slice[rng])
+    }
+
+    /// Helper function to safely retrieve a mutable sub-range of a slice or
+    /// [`ExceptionCode::IllegalDataAddress`](../../error/details/enum.ExceptionCode.html#variant.IllegalDataAddress)
+    fn get_mut_range_of<T>(
+        slice: &mut [T],
+        range: AddressRange,
+    ) -> Result<&mut [T], ExceptionCode> {
+        let rng = {
+            match range.to_range() {
+                Ok(range) => range,
+                Err(_) => return Err(ExceptionCode::IllegalDataAddress),
+            }
+        };
+        if (rng.start >= slice.len()) || (rng.end > slice.len()) {
+            return Err(ExceptionCode::IllegalDataAddress);
+        }
+        Ok(&mut slice[rng])
+    }
+
+    /// Helper function to safely perform a multi-write operation
+    /// [`ExceptionCode::IllegalDataAddress`](../../error/details/enum.ExceptionCode.html#variant.IllegalDataAddress)
+    fn write_mut_range_of<T, I>(
+        slice: &mut [T],
+        range: AddressRange,
+        iter: I,
+    ) -> Result<(), ExceptionCode>
+    where
+        I: Iterator<Item = T>,
+    {
+        let range = Self::get_mut_range_of(slice, range)?;
+        for (idx, value) in iter.enumerate() {
+            range[idx] = value;
+        }
+        Ok(())
     }
 }
 

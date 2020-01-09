@@ -73,7 +73,7 @@ where
     pub fn write_multiple_coils(
         &mut self,
         range: AddressRange,
-        iter: &BitIterator,
+        iter: BitIterator,
     ) -> Result<(), ExceptionCode> {
         Self::validate_range(range)?;
         self.inner.write_multiple_coils(range, iter)
@@ -82,7 +82,7 @@ where
     pub fn write_multiple_registers(
         &mut self,
         range: AddressRange,
-        iter: &RegisterIterator,
+        iter: RegisterIterator,
     ) -> Result<(), ExceptionCode> {
         Self::validate_range(range)?;
         self.inner.write_multiple_registers(range, iter)

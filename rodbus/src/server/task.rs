@@ -225,7 +225,7 @@ where
                             &ADU::new(function.as_error(), &ExceptionCode::IllegalDataValue),
                         )?
                     }
-                    Ok((range, iterator)) => match handler.write_multiple_coils(range, &iterator) {
+                    Ok((range, iterator)) => match handler.write_multiple_coils(range, iterator) {
                         Err(ex) => self
                             .writer
                             .format(frame.header, &ADU::new(function.as_error(), &ex))?,
@@ -244,7 +244,7 @@ where
                             )?
                         }
                         Ok((range, iterator)) => match handler
-                            .write_multiple_registers(range, &iterator)
+                            .write_multiple_registers(range, iterator)
                         {
                             Err(ex) => self
                                 .writer
