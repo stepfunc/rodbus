@@ -89,6 +89,43 @@ pub trait ServerHandler: Send + 'static {
         }
         Ok(&slice[rng])
     }
+
+    /// Helper function to safely retrieve a mutable sub-range of a slice or
+    /// [`ExceptionCode::IllegalDataAddress`](../../error/details/enum.ExceptionCode.html#variant.IllegalDataAddress)
+    fn get_mut_range_of<T>(
+        slice: &mut [T],
+        range: AddressRange,
+    ) -> Result<&mut [T], ExceptionCode> {
+        let rng = {
+            match range.to_range() {
+                Ok(range) => range,
+                Err(_) => return Err(ExceptionCode::IllegalDataAddress),
+            }
+        };
+        if (rng.start >= slice.len()) || (rng.end > slice.len()) {
+            return Err(ExceptionCode::IllegalDataAddress);
+        }
+        Ok(&mut slice[rng])
+    }
+
+    /// Helper function to safely perform a multi-write operation
+    /// [`ExceptionCode::IllegalDataAddress`](../../error/details/enum.ExceptionCode.html#variant.IllegalDataAddress)
+    fn write_mut_range_of<T, I>(
+        slice: &mut [T],
+        range: AddressRange,
+        iter: I,
+    ) -> Result<(), ExceptionCode>
+    where
+        I: Iterator<Item = T>,
+    {
+        let range = Self::get_mut_range_of(slice, range)?;
+        let mut idx = 0;
+        for value in iter {
+            range[idx] = value;
+            idx += 1;
+        }
+        Ok(())
+    }
 }
 
 type ServerHandlerType<T> = Arc<Mutex<Box<T>>>;
