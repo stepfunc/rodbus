@@ -78,11 +78,11 @@ impl ServerHandler for Handler {
     fn write_multiple_coils(
         &mut self,
         range: AddressRange,
-        iter: &BitIterator,
+        iter: BitIterator,
     ) -> Result<(), details::ExceptionCode> {
         // TODO - validation?
         let mut address = range.start as usize;
-        for value in *iter {
+        for value in iter {
             self.coils[address] = value;
             address += 1;
         }
@@ -92,11 +92,11 @@ impl ServerHandler for Handler {
     fn write_multiple_registers(
         &mut self,
         range: AddressRange,
-        iter: &RegisterIterator,
+        iter: RegisterIterator,
     ) -> Result<(), details::ExceptionCode> {
         // TODO - validation?
         let mut address = range.start as usize;
-        for value in *iter {
+        for value in iter {
             self.holding_registers[address] = value;
             address += 1;
         }

@@ -61,7 +61,7 @@ pub trait ServerHandler: Send + 'static {
     fn write_multiple_coils(
         &mut self,
         _range: AddressRange,
-        _iter: &BitIterator,
+        _iter: BitIterator,
     ) -> Result<(), ExceptionCode> {
         Err(ExceptionCode::IllegalFunction)
     }
@@ -70,7 +70,7 @@ pub trait ServerHandler: Send + 'static {
     fn write_multiple_registers(
         &mut self,
         _range: AddressRange,
-        _iter: &RegisterIterator,
+        _iter: RegisterIterator,
     ) -> Result<(), ExceptionCode> {
         Err(ExceptionCode::IllegalFunction)
     }

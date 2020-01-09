@@ -79,7 +79,7 @@ impl ServerHandler for SimpleHandler {
     fn write_multiple_coils(
         &mut self,
         range: AddressRange,
-        _iter: &BitIterator,
+        _iter: BitIterator,
     ) -> Result<(), details::ExceptionCode> {
         log::info!("write multiple coils {:?}", range);
         Ok(())
@@ -88,7 +88,7 @@ impl ServerHandler for SimpleHandler {
     fn write_multiple_registers(
         &mut self,
         range: AddressRange,
-        _iter: &RegisterIterator,
+        _iter: RegisterIterator,
     ) -> Result<(), details::ExceptionCode> {
         log::info!("write multiple registers {:?}", range);
         Ok(())
