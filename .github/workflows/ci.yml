@@ -73,7 +73,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v1
       - name: Run tarpaulin
-        run: cargo tarpaulin --out Xml
+        run: cargo tarpaulin --exclude-files rodbus-client/** rodbus-ffi/** rodbus/examples/** --out Xml
       - name: Upload to codecov.io
         uses: codecov/codecov-action@v1
         with:

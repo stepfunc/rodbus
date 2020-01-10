@@ -1,6 +1,3 @@
-// TODO: Update to something more modern than `error_chain`
-extern crate clap;
-
 use std::fmt::Formatter;
 use std::net::{AddrParseError, SocketAddr};
 use std::num::ParseIntError;

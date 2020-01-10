@@ -2,9 +2,5 @@ coverage:
   status:
     project:
       informational: true
-    patch: off
+    patch:
       informational: true
-ignore:
-  - "rodbus-client/**/*"
-  - "rodbus-ffi/**/*"
-  - "rodbus/examples/*"
