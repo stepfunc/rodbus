@@ -79,3 +79,35 @@ impl ReadBuffer {
         Ok(count)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tokio_test::*;
+
+    #[test]
+    fn errors_when_reading_to_many_bytes() {
+        let mut buffer = ReadBuffer::new(10);
+        assert_eq!(
+            buffer.read_u8(),
+            Err(details::InternalError::InsufficientBytesForRead(1, 0))
+        );
+        assert_eq!(
+            buffer.read(1),
+            Err(details::InternalError::InsufficientBytesForRead(1, 0))
+        );
+    }
+
+    #[test]
+    fn shifts_contents_when_buffer_at_capacity() {
+        let mut buffer = ReadBuffer::new(3);
+        let mut io = io::Builder::new()
+            .read(&[0x01, 0x02, 0x03])
+            .read(&[0x04, 0x05])
+            .build();
+        assert_eq!(block_on(buffer.read_some(&mut io)).unwrap(), 3);
+        assert_eq!(buffer.read(2).unwrap(), &[0x01, 0x02]);
+        assert_eq!(block_on(buffer.read_some(&mut io)).unwrap(), 2);
+        assert_eq!(buffer.read(3).unwrap(), &[0x03, 0x04, 0x05]);
+    }
+}
