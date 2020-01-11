@@ -239,6 +239,7 @@ mod tests {
         fn make_request<S>(
             &mut self,
             request: S::ClientRequest,
+            timeout: Duration,
         ) -> tokio::sync::oneshot::Receiver<Result<S::ClientResponse, Error>>
         where
             S: Service,
@@ -246,7 +247,7 @@ mod tests {
             let (tx, rx) = tokio::sync::oneshot::channel();
             let send_future = self.tx.send(S::create_request(ServiceRequest::new(
                 UnitId::new(1),
-                Duration::from_secs(0),
+                timeout,
                 request,
                 tx,
             )));
@@ -290,10 +291,10 @@ mod tests {
 
         let io = tokio_test::io::Builder::new()
             .write(&request)
-            .wait(Duration::from_nanos(1))
+            .wait(Duration::from_secs(5))
             .build();
 
-        let rx = fixture.make_request::<ReadCoils>(range);
+        let rx = fixture.make_request::<ReadCoils>(range, Duration::from_secs(0));
         drop(fixture.tx);
 
         assert_eq!(
@@ -320,7 +321,7 @@ mod tests {
             .read(&response)
             .build();
 
-        let rx = fixture.make_request::<ReadCoils>(range);
+        let rx = fixture.make_request::<ReadCoils>(range, Duration::from_secs(1));
         drop(fixture.tx);
 
         assert_eq!(
