@@ -183,3 +183,60 @@ where
         self.handlers.insert(id, server)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    struct DefaultHandler;
+    impl ServerHandler for DefaultHandler {}
+
+    fn range() -> AddressRange {
+        AddressRange::new(0, 1)
+    }
+
+    fn reg_iterator() -> RegisterIterator<'static> {
+        RegisterIterator::create(&[0xFF, 0xFF], range()).unwrap()
+    }
+
+    fn bit_iterator() -> BitIterator<'static> {
+        BitIterator::create(&[0xFF], range()).unwrap()
+    }
+
+    #[test]
+    fn default_handler_returns_illegal_function() {
+        let mut handler = DefaultHandler {};
+        assert_eq!(
+            handler.read_coils(range()),
+            Err(ExceptionCode::IllegalFunction)
+        );
+        assert_eq!(
+            handler.read_discrete_inputs(range()),
+            Err(ExceptionCode::IllegalFunction)
+        );
+        assert_eq!(
+            handler.read_holding_registers(range()),
+            Err(ExceptionCode::IllegalFunction)
+        );
+        assert_eq!(
+            handler.read_input_registers(range()),
+            Err(ExceptionCode::IllegalFunction)
+        );
+        assert_eq!(
+            handler.write_single_coil(Indexed::new(0, true)),
+            Err(ExceptionCode::IllegalFunction)
+        );
+        assert_eq!(
+            handler.write_single_register(Indexed::new(0, 0)),
+            Err(ExceptionCode::IllegalFunction)
+        );
+        assert_eq!(
+            handler.write_multiple_coils(range(), bit_iterator()),
+            Err(ExceptionCode::IllegalFunction)
+        );
+        assert_eq!(
+            handler.write_multiple_registers(range(), reg_iterator()),
+            Err(ExceptionCode::IllegalFunction)
+        );
+    }
+}
