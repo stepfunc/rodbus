@@ -15,6 +15,7 @@ use crate::util::frame::{FrameFormatter, FrameHeader, FramedReader, TxId};
 /**
 * We always service requests in a TCP session until one of the following occurs
 */
+#[derive(Debug, PartialEq)]
 pub(crate) enum SessionError {
     // the stream errors or there is an unrecoverable framing issue
     IOError,
@@ -150,6 +151,10 @@ impl ClientLoop {
             .send_and_receive::<S, T>(io, srv.id, srv.timeout, &srv.argument)
             .await;
 
+        if let Err(e) = result.as_ref() {
+            log::warn!("error occurred making request: {}", e);
+        }
+
         let ret = result.as_ref().err().and_then(|e| SessionError::from(e));
 
         // we always send the result, no matter what happened
@@ -174,6 +179,7 @@ impl ClientLoop {
             FrameHeader::new(unit_id, tx_id),
             &ADU::new(S::REQUEST_FUNCTION_CODE.get_value(), request),
         )?;
+
         io.write_all(bytes).await?;
 
         let deadline = tokio::time::Instant::now() + timeout;
@@ -205,5 +211,127 @@ impl ClientLoop {
                 Ok(Some(request)) => request.fail(Error::NoConnection),
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::service::function::FunctionCode;
+    use crate::service::services::ReadCoils;
+    use crate::service::traits::Serialize;
+    use crate::types::{AddressRange, Indexed};
+
+    struct ClientFixture {
+        tx: tokio::sync::mpsc::Sender<Request>,
+        pub client: ClientLoop,
+    }
+
+    impl ClientFixture {
+        fn new() -> Self {
+            let (tx, rx) = tokio::sync::mpsc::channel(10);
+            Self {
+                tx,
+                client: ClientLoop::new(rx),
+            }
+        }
+
+        fn make_request<S>(
+            &mut self,
+            request: S::ClientRequest,
+            timeout: Duration,
+        ) -> tokio::sync::oneshot::Receiver<Result<S::ClientResponse, Error>>
+        where
+            S: Service,
+        {
+            let (tx, rx) = tokio::sync::oneshot::channel();
+            let send_future = self.tx.send(S::create_request(ServiceRequest::new(
+                UnitId::new(1),
+                timeout,
+                request,
+                tx,
+            )));
+            if let Err(_) = tokio_test::block_on(send_future) {
+                panic!("send failed!");
+            }
+            rx
+        }
+    }
+
+    fn get_framed_adu<T>(f: FunctionCode, payload: &T) -> Vec<u8>
+    where
+        T: Serialize + Sized,
+    {
+        let mut fmt = MBAPFormatter::new();
+        let header = FrameHeader::new(UnitId::new(1), TxId::new(0));
+        let bytes = fmt
+            .format(header, &ADU::new(f.get_value(), payload))
+            .unwrap();
+        Vec::from(bytes)
+    }
+
+    #[test]
+    fn task_completes_with_shutdown_error_when_sender_dropped() {
+        let mut fixture = ClientFixture::new();
+        let io = tokio_test::io::Builder::new().build();
+        drop(fixture.tx);
+        assert_eq!(
+            tokio_test::block_on(fixture.client.run(io)),
+            SessionError::Shutdown
+        );
+    }
+
+    #[test]
+    fn returns_timeout_when_no_response() {
+        let mut fixture = ClientFixture::new();
+
+        let range = AddressRange::new(7, 2);
+
+        let request = get_framed_adu(FunctionCode::ReadCoils, &range);
+
+        let io = tokio_test::io::Builder::new()
+            .write(&request)
+            .wait(Duration::from_secs(5))
+            .build();
+
+        let rx = fixture.make_request::<ReadCoils>(range, Duration::from_secs(0));
+        drop(fixture.tx);
+
+        assert_eq!(
+            tokio_test::block_on(fixture.client.run(io)),
+            SessionError::Shutdown
+        );
+
+        let result = tokio_test::block_on(rx).unwrap();
+
+        assert_eq!(result, Err(Error::ResponseTimeout));
+    }
+
+    #[test]
+    fn transmit_read_coils_when_requested() {
+        let mut fixture = ClientFixture::new();
+
+        let range = AddressRange::new(7, 2);
+
+        let request = get_framed_adu(FunctionCode::ReadCoils, &range);
+        let response = get_framed_adu(FunctionCode::ReadCoils, &[true, false].as_ref());
+
+        let io = tokio_test::io::Builder::new()
+            .write(&request)
+            .read(&response)
+            .build();
+
+        let rx = fixture.make_request::<ReadCoils>(range, Duration::from_secs(1));
+        drop(fixture.tx);
+
+        assert_eq!(
+            tokio_test::block_on(fixture.client.run(io)),
+            SessionError::Shutdown
+        );
+
+        assert_eq!(
+            tokio_test::block_on(rx).unwrap().unwrap(),
+            vec![Indexed::new(7, true), Indexed::new(8, false)]
+        );
     }
 }
