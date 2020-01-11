@@ -237,30 +237,30 @@ mod tests {
     #[test]
     fn errors_on_bad_protocol_id() {
         let frame = &[0x00, 0x07, 0xCA, 0xFE, 0x00, 0x01, 0x2A];
-        match test_error(frame) {
-            Error::BadFrame(details::FrameParseError::UnknownProtocolId(0xCAFE)) => {}
-            err => panic!("error did not match: {}", err),
-        }
+        assert_eq!(
+            test_error(frame),
+            Error::BadFrame(details::FrameParseError::UnknownProtocolId(0xCAFE)),
+        );
     }
 
     #[test]
     fn errors_on_length_of_zero() {
         let frame = &[0x00, 0x07, 0x00, 0x00, 0x00, 0x00, 0x2A];
-        match test_error(frame) {
-            Error::BadFrame(details::FrameParseError::MBAPLengthZero) => {}
-            err => panic!("error did not match: {}", err),
-        }
+        assert_eq!(
+            test_error(frame),
+            Error::BadFrame(details::FrameParseError::MBAPLengthZero)
+        );
     }
 
     #[test]
     fn errors_when_mbap_length_too_big() {
         let frame = &[0x00, 0x07, 0x00, 0x00, 0x00, 0xFF, 0x2A];
-        match test_error(frame) {
+        assert_eq!(
+            test_error(frame),
             Error::BadFrame(details::FrameParseError::MBAPLengthTooBig(
                 0xFF,
                 constants::MAX_LENGTH_FIELD,
-            )) => {}
-            err => panic!("error did not match: {}", err),
-        }
+            ))
+        );
     }
 }
