@@ -7,6 +7,7 @@ use crate::client::message::{Request, ServiceRequest};
 use crate::error::*;
 use crate::service::function::ADU;
 use crate::service::traits::Service;
+use crate::service::*;
 use crate::tcp::frame::{MBAPFormatter, MBAPParser};
 use crate::types::UnitId;
 use crate::util::cursor::ReadCursor;
@@ -53,89 +54,49 @@ impl ClientLoop {
     where
         T: AsyncRead + AsyncWrite + Unpin,
     {
-        while let Some(value) = self.rx.recv().await {
-            match value {
-                Request::ReadCoils(srv) => {
-                    if let Some(err) = self
-                        .handle_request::<crate::service::services::ReadCoils, T>(&mut io, srv)
-                        .await
-                    {
-                        return err;
-                    }
-                }
-                Request::ReadDiscreteInputs(srv) => {
-                    if let Some(err) = self
-                        .handle_request::<crate::service::services::ReadDiscreteInputs, T>(
-                            &mut io, srv,
-                        )
-                        .await
-                    {
-                        return err;
-                    }
-                }
-                Request::ReadHoldingRegisters(srv) => {
-                    if let Some(err) = self
-                        .handle_request::<crate::service::services::ReadHoldingRegisters, T>(
-                            &mut io, srv,
-                        )
-                        .await
-                    {
-                        return err;
-                    }
-                }
-                Request::ReadInputRegisters(srv) => {
-                    if let Some(err) = self
-                        .handle_request::<crate::service::services::ReadInputRegisters, T>(
-                            &mut io, srv,
-                        )
-                        .await
-                    {
-                        return err;
-                    }
-                }
-                Request::WriteSingleCoil(srv) => {
-                    if let Some(err) = self
-                        .handle_request::<crate::service::services::WriteSingleCoil, T>(
-                            &mut io, srv,
-                        )
-                        .await
-                    {
-                        return err;
-                    }
-                }
-                Request::WriteSingleRegister(srv) => {
-                    if let Some(err) = self
-                        .handle_request::<crate::service::services::WriteSingleRegister, T>(
-                            &mut io, srv,
-                        )
-                        .await
-                    {
-                        return err;
-                    }
-                }
-                Request::WriteMultipleCoils(srv) => {
-                    if let Some(err) = self
-                        .handle_request::<crate::service::services::WriteMultipleCoils, T>(
-                            &mut io, srv,
-                        )
-                        .await
-                    {
-                        return err;
-                    }
-                }
-                Request::WriteMultipleRegisters(srv) => {
-                    if let Some(err) = self
-                        .handle_request::<crate::service::services::WriteMultipleRegisters, T>(
-                            &mut io, srv,
-                        )
-                        .await
-                    {
-                        return err;
-                    }
-                }
+        while let Some(request) = self.rx.recv().await {
+            if let Some(err) = self.run_one_request(request, &mut io).await {
+                return err;
             }
         }
         SessionError::Shutdown
+    }
+
+    pub async fn run_one_request<T>(&mut self, request: Request, io: &mut T) -> Option<SessionError>
+    where
+        T: AsyncRead + AsyncWrite + Unpin,
+    {
+        match request {
+            Request::ReadCoils(srv) => self.handle_request::<services::ReadCoils, T>(io, srv).await,
+            Request::ReadDiscreteInputs(srv) => {
+                self.handle_request::<services::ReadDiscreteInputs, T>(io, srv)
+                    .await
+            }
+            Request::ReadHoldingRegisters(srv) => {
+                self.handle_request::<services::ReadHoldingRegisters, T>(io, srv)
+                    .await
+            }
+            Request::ReadInputRegisters(srv) => {
+                self.handle_request::<services::ReadInputRegisters, T>(io, srv)
+                    .await
+            }
+            Request::WriteSingleCoil(srv) => {
+                self.handle_request::<crate::service::services::WriteSingleCoil, T>(io, srv)
+                    .await
+            }
+            Request::WriteSingleRegister(srv) => {
+                self.handle_request::<crate::service::services::WriteSingleRegister, T>(io, srv)
+                    .await
+            }
+            Request::WriteMultipleCoils(srv) => {
+                self.handle_request::<crate::service::services::WriteMultipleCoils, T>(io, srv)
+                    .await
+            }
+            Request::WriteMultipleRegisters(srv) => {
+                self.handle_request::<crate::service::services::WriteMultipleRegisters, T>(io, srv)
+                    .await
+            }
+        }
     }
 
     async fn handle_request<S, T>(
