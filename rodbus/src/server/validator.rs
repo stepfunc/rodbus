@@ -88,3 +88,35 @@ where
         self.inner.write_multiple_registers(range, iter)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    struct BadHandler;
+    impl ServerHandler for BadHandler {
+        fn read_coils(&mut self, _range: AddressRange) -> Result<&[bool], ExceptionCode> {
+            Ok(&[])
+        }
+    }
+
+    #[test]
+    fn validator_traps_bad_address_ranges() {
+        let mut inner = BadHandler {};
+        let mut validator = Validator::wrap(&mut inner);
+        assert_eq!(
+            validator.read_coils(AddressRange::new(0, 0)),
+            Err(ExceptionCode::IllegalDataAddress)
+        );
+    }
+
+    #[test]
+    fn validator_traps_bad_handling_with_server_device_failure() {
+        let mut inner = BadHandler {};
+        let mut validator = Validator::wrap(&mut inner);
+        assert_eq!(
+            validator.read_coils(AddressRange::new(0, 1)),
+            Err(ExceptionCode::ServerDeviceFailure)
+        );
+    }
+}
