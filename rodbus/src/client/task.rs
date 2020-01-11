@@ -182,6 +182,7 @@ impl ClientLoop {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::error::details::FrameParseError;
     use crate::service::function::FunctionCode;
     use crate::service::services::ReadCoils;
     use crate::service::traits::Serialize;
@@ -270,6 +271,35 @@ mod tests {
         let result = tokio_test::block_on(rx).unwrap();
 
         assert_eq!(result, Err(Error::ResponseTimeout));
+    }
+
+    #[test]
+    fn framing_errors_kill_the_session() {
+        let mut fixture = ClientFixture::new();
+
+        let range = AddressRange::new(7, 2);
+
+        let request = get_framed_adu(FunctionCode::ReadCoils, &range);
+
+        let io = tokio_test::io::Builder::new()
+            .write(&request)
+            .read(&[0x00, 0x00, 0xCA, 0xFE, 0x00, 0x01, 0x01]) // non-Modbus protocol id
+            .build();
+
+        let rx = fixture.make_request::<ReadCoils>(range, Duration::from_secs(0));
+        drop(fixture.tx);
+
+        assert_eq!(
+            tokio_test::block_on(fixture.client.run(io)),
+            SessionError::BadFrame
+        );
+
+        let result = tokio_test::block_on(rx).unwrap();
+
+        assert_eq!(
+            result,
+            Err(Error::BadFrame(FrameParseError::UnknownProtocolId(0xCAFE)))
+        );
     }
 
     #[test]
