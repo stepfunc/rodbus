@@ -18,8 +18,10 @@ use crate::util::frame::{FrameFormatter, FrameHeader, FramedReader, TxId};
 */
 #[derive(Debug, PartialEq)]
 pub(crate) enum SessionError {
-    // the stream errors or there is an unrecoverable framing issue
+    // the stream errors
     IOError,
+    // unrecoverable framing issue,
+    BadFrame,
     // the mpsc is closed (dropped)  on the sender side
     Shutdown,
 }
@@ -27,7 +29,9 @@ pub(crate) enum SessionError {
 impl SessionError {
     pub fn from(err: &Error) -> Option<Self> {
         match err {
-            Error::Io(_) | Error::BadFrame(_) => Some(SessionError::IOError),
+            Error::Io(_) => Some(SessionError::IOError),
+            Error::BadFrame(_) => Some(SessionError::BadFrame),
+            // all other errors don't kill the loop
             _ => None,
         }
     }
