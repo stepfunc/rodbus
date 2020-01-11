@@ -239,4 +239,38 @@ mod tests {
             Err(ExceptionCode::IllegalFunction)
         );
     }
+
+    #[test]
+    fn get_range_of_validates_input_range() {
+        let result = DefaultHandler::get_range_of([true].as_ref(), AddressRange::new(0, 0));
+        assert_eq!(result, Err(ExceptionCode::IllegalDataAddress));
+    }
+
+    #[test]
+    fn get_range_of_errors_when_input_range_not_subset_of_slice() {
+        let result = DefaultHandler::get_range_of([true].as_ref(), AddressRange::new(1, 1));
+        assert_eq!(result, Err(ExceptionCode::IllegalDataAddress));
+    }
+
+    #[test]
+    fn get_mut_range_of_validates_input_range() {
+        let mut bytes = [true];
+        let result = DefaultHandler::get_mut_range_of(bytes.as_mut(), AddressRange::new(0, 0));
+        assert_eq!(result, Err(ExceptionCode::IllegalDataAddress));
+    }
+
+    #[test]
+    fn get_mut_range_of_errors_when_input_range_not_subset_of_slice() {
+        let mut bytes = [true];
+        let result = DefaultHandler::get_mut_range_of(bytes.as_mut(), AddressRange::new(1, 1));
+        assert_eq!(result, Err(ExceptionCode::IllegalDataAddress));
+    }
+
+    #[test]
+    fn server_handler_map_returns_old_handler_when_already_present() {
+        let mut map = ServerHandlerMap::new();
+        assert!(map.add(UnitId::new(1), DefaultHandler {}.wrap()).is_none());
+        assert!(map.add(UnitId::new(2), DefaultHandler {}.wrap()).is_none());
+        assert!(map.add(UnitId::new(1), DefaultHandler {}.wrap()).is_some());
+    }
 }
