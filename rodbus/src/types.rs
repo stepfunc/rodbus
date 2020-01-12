@@ -1,6 +1,6 @@
 use std::convert::TryFrom;
 
-use crate::error::details::{ADUParseError, InternalError, InvalidRequest};
+use crate::error::details::{ADUParseError, ExceptionCode, InternalError, InvalidRequest};
 
 /// Modbus unit identifier, just a type-safe wrapper around u8
 #[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Ord, Eq)]
@@ -217,6 +217,12 @@ impl AddressRange {
         let end = start + (self.count as usize);
 
         Ok(start..end)
+    }
+
+    /// Converts to std::ops::Range. If the address is invalid, reports ExceptionCode::IllegalDataAddress
+    pub fn to_range_or_exception(self) -> Result<std::ops::Range<usize>, ExceptionCode> {
+        self.to_range()
+            .map_err(|_| ExceptionCode::IllegalDataAddress)
     }
 }
 

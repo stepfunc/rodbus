@@ -78,16 +78,9 @@ pub trait ServerHandler: Send + 'static {
     /// Helper function to safely retrieve a sub-range of a slice or
     /// [`ExceptionCode::IllegalDataAddress`](../../error/details/enum.ExceptionCode.html#variant.IllegalDataAddress)
     fn get_range_of<T>(slice: &[T], range: AddressRange) -> Result<&[T], ExceptionCode> {
-        let rng = {
-            match range.to_range() {
-                Ok(range) => range,
-                Err(_) => return Err(ExceptionCode::IllegalDataAddress),
-            }
-        };
-        if (rng.start >= slice.len()) || (rng.end > slice.len()) {
-            return Err(ExceptionCode::IllegalDataAddress);
-        }
-        Ok(&slice[rng])
+        slice
+            .get(range.to_range_or_exception()?)
+            .ok_or(ExceptionCode::IllegalDataAddress)
     }
 
     /// Helper function to safely retrieve a mutable sub-range of a slice or
@@ -96,16 +89,9 @@ pub trait ServerHandler: Send + 'static {
         slice: &mut [T],
         range: AddressRange,
     ) -> Result<&mut [T], ExceptionCode> {
-        let rng = {
-            match range.to_range() {
-                Ok(range) => range,
-                Err(_) => return Err(ExceptionCode::IllegalDataAddress),
-            }
-        };
-        if (rng.start >= slice.len()) || (rng.end > slice.len()) {
-            return Err(ExceptionCode::IllegalDataAddress);
-        }
-        Ok(&mut slice[rng])
+        slice
+            .get_mut(range.to_range_or_exception()?)
+            .ok_or(ExceptionCode::IllegalDataAddress)
     }
 
     /// Helper function to safely perform a multi-write operation
