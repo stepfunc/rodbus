@@ -132,6 +132,30 @@ impl<'a> Iterator for RegisterIterator<'a> {
     }
 }
 
+#[derive(Copy, Clone)]
+pub struct WriteCoils<'a> {
+    pub range: AddressRange,
+    pub iterator: BitIterator<'a>,
+}
+
+impl<'a> WriteCoils<'a> {
+    pub fn new(range: AddressRange, iterator: BitIterator<'a>) -> Self {
+        Self { range, iterator }
+    }
+}
+
+#[derive(Copy, Clone)]
+pub struct WriteRegisters<'a> {
+    pub range: AddressRange,
+    pub iterator: RegisterIterator<'a>,
+}
+
+impl<'a> WriteRegisters<'a> {
+    pub fn new(range: AddressRange, iterator: RegisterIterator<'a>) -> Self {
+        Self { range, iterator }
+    }
+}
+
 impl<T> std::convert::From<(u16, T)> for Indexed<T>
 where
     T: Copy,

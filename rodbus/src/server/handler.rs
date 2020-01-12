@@ -58,20 +58,12 @@ pub trait ServerHandler: Send + 'static {
     }
 
     /// Write multiple coils
-    fn write_multiple_coils(
-        &mut self,
-        _range: AddressRange,
-        _iter: BitIterator,
-    ) -> Result<(), ExceptionCode> {
+    fn write_multiple_coils(&mut self, _values: WriteCoils) -> Result<(), ExceptionCode> {
         Err(ExceptionCode::IllegalFunction)
     }
 
     /// Write multiple registers
-    fn write_multiple_registers(
-        &mut self,
-        _range: AddressRange,
-        _iter: RegisterIterator,
-    ) -> Result<(), ExceptionCode> {
+    fn write_multiple_registers(&mut self, _values: WriteRegisters) -> Result<(), ExceptionCode> {
         Err(ExceptionCode::IllegalFunction)
     }
 
@@ -181,12 +173,18 @@ mod tests {
         AddressRange::new(0, 1)
     }
 
-    fn reg_iterator() -> RegisterIterator<'static> {
-        RegisterIterator::create(&[0xFF, 0xFF], range()).unwrap()
+    fn registers() -> WriteRegisters<'static> {
+        WriteRegisters {
+            range: range(),
+            iterator: RegisterIterator::create(&[0xFF, 0xFF], range()).unwrap(),
+        }
     }
 
-    fn bit_iterator() -> BitIterator<'static> {
-        BitIterator::create(&[0xFF], range()).unwrap()
+    fn coils() -> WriteCoils<'static> {
+        WriteCoils {
+            range: range(),
+            iterator: BitIterator::create(&[0xFF], range()).unwrap(),
+        }
     }
 
     #[test]
@@ -217,11 +215,11 @@ mod tests {
             Err(ExceptionCode::IllegalFunction)
         );
         assert_eq!(
-            handler.write_multiple_coils(range(), bit_iterator()),
+            handler.write_multiple_coils(coils()),
             Err(ExceptionCode::IllegalFunction)
         );
         assert_eq!(
-            handler.write_multiple_registers(range(), reg_iterator()),
+            handler.write_multiple_registers(registers()),
             Err(ExceptionCode::IllegalFunction)
         );
     }

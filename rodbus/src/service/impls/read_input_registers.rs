@@ -18,10 +18,4 @@ impl Service for crate::service::services::ReadInputRegisters {
     fn create_request(request: ServiceRequest<Self>) -> Request {
         Request::ReadInputRegisters(request)
     }
-
-    /*
-        fn process(request: &Self::Request, server: &mut dyn ServerHandler) -> Result<Self::Response, ExceptionCode> {
-            server.read_input_registers(*request)
-        }
-    */
 }

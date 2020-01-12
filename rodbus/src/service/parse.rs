@@ -1,12 +1,12 @@
 use crate::error::details::ADUParseError;
 use crate::error::Error;
 use crate::service::traits::ParseRequest;
-use crate::types::{AddressRange, BitIterator, RegisterIterator};
+use crate::types::{AddressRange, BitIterator, RegisterIterator, WriteCoils, WriteRegisters};
 use crate::util::cursor::ReadCursor;
 
 pub fn parse_write_multiple_coils<'a>(
     cursor: &mut ReadCursor<'a>,
-) -> Result<(AddressRange, BitIterator<'a>), Error> {
+) -> Result<WriteCoils<'a>, Error> {
     let range = AddressRange::parse(cursor)?;
     let byte_count = cursor.read_u8()? as usize;
     let expected = crate::util::bits::num_bytes_for_bits(range.count);
@@ -15,12 +15,12 @@ pub fn parse_write_multiple_coils<'a>(
     }
     let iterator = BitIterator::create(cursor.read_bytes(byte_count)?, range)?;
     cursor.expect_empty()?;
-    Ok((range, iterator))
+    Ok(WriteCoils::new(range, iterator))
 }
 
 pub fn parse_write_multiple_registers<'a>(
     cursor: &mut ReadCursor<'a>,
-) -> Result<(AddressRange, RegisterIterator<'a>), Error> {
+) -> Result<WriteRegisters<'a>, Error> {
     let range = AddressRange::parse(cursor)?;
     let byte_count = cursor.read_u8()? as usize;
     let expected = 2 * (range.count as usize);
@@ -30,7 +30,7 @@ pub fn parse_write_multiple_registers<'a>(
 
     let iterator = RegisterIterator::create(cursor.read_bytes(byte_count)?, range)?;
     cursor.expect_empty()?;
-    Ok((range, iterator))
+    Ok(WriteRegisters::new(range, iterator))
 }
 
 #[cfg(test)]
@@ -73,9 +73,9 @@ mod tests {
         #[test]
         fn can_parse_coils() {
             let mut cursor = ReadCursor::new(&[0x00, 0x01, 0x00, 0x03, 0x01, 0x05]);
-            let (range, iter) = parse_write_multiple_coils(&mut cursor).unwrap();
-            let values: Vec<bool> = iter.collect();
-            assert_eq!(range, AddressRange::new(1, 3));
+            let coils = parse_write_multiple_coils(&mut cursor).unwrap();
+            let values: Vec<bool> = coils.iterator.collect();
+            assert_eq!(coils.range, AddressRange::new(1, 3));
             assert_eq!(values, vec![true, false, true])
         }
     }
@@ -118,9 +118,9 @@ mod tests {
         fn can_parse_registers() {
             let mut cursor =
                 ReadCursor::new(&[0x00, 0x01, 0x00, 0x02, 0x04, 0xCA, 0xFE, 0xBB, 0xDD]);
-            let (range, iter) = parse_write_multiple_registers(&mut cursor).unwrap();
-            let values: Vec<u16> = iter.collect();
-            assert_eq!(range, AddressRange::new(1, 2));
+            let registers = parse_write_multiple_registers(&mut cursor).unwrap();
+            let values: Vec<u16> = registers.iterator.collect();
+            assert_eq!(registers.range, AddressRange::new(1, 2));
             assert_eq!(values, vec![0xCAFE, 0xBBDD])
         }
     }

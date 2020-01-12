@@ -73,20 +73,19 @@ impl ServerHandler for Handler {
         }
     }
 
-    fn write_multiple_coils(
-        &mut self,
-        range: AddressRange,
-        iter: BitIterator,
-    ) -> Result<(), details::ExceptionCode> {
-        Self::write_mut_range_of(self.coils.as_mut(), range, iter)
+    fn write_multiple_coils(&mut self, values: WriteCoils) -> Result<(), details::ExceptionCode> {
+        Self::write_mut_range_of(self.coils.as_mut(), values.range, values.iterator)
     }
 
     fn write_multiple_registers(
         &mut self,
-        range: AddressRange,
-        iter: RegisterIterator,
+        values: WriteRegisters,
     ) -> Result<(), details::ExceptionCode> {
-        Self::write_mut_range_of(self.holding_registers.as_mut(), range, iter)
+        Self::write_mut_range_of(
+            self.holding_registers.as_mut(),
+            values.range,
+            values.iterator,
+        )
     }
 }
 

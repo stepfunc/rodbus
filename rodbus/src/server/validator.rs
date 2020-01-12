@@ -1,6 +1,6 @@
 use crate::error::details::ExceptionCode;
 use crate::server::handler::ServerHandler;
-use crate::types::{AddressRange, BitIterator, Indexed, RegisterIterator};
+use crate::types::{AddressRange, Indexed, WriteCoils, WriteRegisters};
 
 pub struct Validator<'a, T>
 where
@@ -70,22 +70,17 @@ where
         self.inner.write_single_register(value)
     }
 
-    pub fn write_multiple_coils(
-        &mut self,
-        range: AddressRange,
-        iter: BitIterator,
-    ) -> Result<(), ExceptionCode> {
-        Self::validate_range(range)?;
-        self.inner.write_multiple_coils(range, iter)
+    pub fn write_multiple_coils(&mut self, values: WriteCoils) -> Result<(), ExceptionCode> {
+        Self::validate_range(values.range)?;
+        self.inner.write_multiple_coils(values)
     }
 
     pub fn write_multiple_registers(
         &mut self,
-        range: AddressRange,
-        iter: RegisterIterator,
+        values: WriteRegisters,
     ) -> Result<(), ExceptionCode> {
-        Self::validate_range(range)?;
-        self.inner.write_multiple_registers(range, iter)
+        Self::validate_range(values.range)?;
+        self.inner.write_multiple_registers(values)
     }
 }
 

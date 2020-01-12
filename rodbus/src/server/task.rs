@@ -225,13 +225,13 @@ where
                             &ADU::new(function.as_error(), &ExceptionCode::IllegalDataValue),
                         )?
                     }
-                    Ok((range, iterator)) => match handler.write_multiple_coils(range, iterator) {
+                    Ok(coils) => match handler.write_multiple_coils(coils) {
                         Err(ex) => self
                             .writer
                             .format(frame.header, &ADU::new(function.as_error(), &ex))?,
                         Ok(()) => self
                             .writer
-                            .format(frame.header, &ADU::new(function.get_value(), &range))?,
+                            .format(frame.header, &ADU::new(function.get_value(), &coils.range))?,
                     },
                 },
                 FunctionCode::WriteMultipleRegisters => {
@@ -243,15 +243,14 @@ where
                                 &ADU::new(function.as_error(), &ExceptionCode::IllegalDataValue),
                             )?
                         }
-                        Ok((range, iterator)) => match handler
-                            .write_multiple_registers(range, iterator)
-                        {
+                        Ok(registers) => match handler.write_multiple_registers(registers) {
                             Err(ex) => self
                                 .writer
                                 .format(frame.header, &ADU::new(function.as_error(), &ex))?,
-                            Ok(()) => self
-                                .writer
-                                .format(frame.header, &ADU::new(function.get_value(), &range))?,
+                            Ok(()) => self.writer.format(
+                                frame.header,
+                                &ADU::new(function.get_value(), &registers.range),
+                            )?,
                         },
                     }
                 }

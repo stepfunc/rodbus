@@ -18,10 +18,4 @@ impl Service for crate::service::services::ReadHoldingRegisters {
     fn create_request(request: ServiceRequest<Self>) -> Request {
         Request::ReadHoldingRegisters(request)
     }
-
-    /*
-        fn process(request: &Self::Request, server: &mut dyn ServerHandler) -> Result<Self::Response, ExceptionCode> {
-            server.read_holding_registers(*request)
-        }
-    */
 }
