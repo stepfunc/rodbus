@@ -26,6 +26,32 @@ where
     writer: MBAPFormatter,
 }
 
+fn get_read_coils_response<'a, H, F>(
+    cursor: &mut ReadCursor,
+    function: FunctionCode,
+    header: FrameHeader,
+    handler: &mut Validator<H>,
+    formatter: &'a mut F,
+) -> Result<&'a [u8], Error>
+where
+    H: ServerHandler,
+    F: FrameFormatter,
+{
+    match AddressRange::parse(cursor) {
+        Err(e) => {
+            log::warn!("error parsing {:?} request: {}", function, e);
+            formatter.format(
+                header,
+                &ADU::new(function.as_error(), &ExceptionCode::IllegalDataValue),
+            )
+        }
+        Ok(request) => match handler.read_coils(request) {
+            Err(ex) => formatter.format(header, &ADU::new(function.as_error(), &ex)),
+            Ok(value) => formatter.format(header, &ADU::new(function.get_value(), &value)),
+        },
+    }
+}
+
 impl<T, U> SessionTask<T, U>
 where
     T: ServerHandler,
@@ -115,23 +141,13 @@ where
             let mut lock = handler.lock().await;
             let mut handler = Validator::wrap(lock.as_mut());
             match function {
-                FunctionCode::ReadCoils => match AddressRange::parse(&mut cursor) {
-                    Err(e) => {
-                        log::warn!("error parsing {:?} request: {}", function, e);
-                        self.writer.format(
-                            frame.header,
-                            &ADU::new(function.as_error(), &ExceptionCode::IllegalDataValue),
-                        )?
-                    }
-                    Ok(request) => match handler.read_coils(request) {
-                        Err(ex) => self
-                            .writer
-                            .format(frame.header, &ADU::new(function.as_error(), &ex))?,
-                        Ok(value) => self
-                            .writer
-                            .format(frame.header, &ADU::new(function.get_value(), &value))?,
-                    },
-                },
+                FunctionCode::ReadCoils => get_read_coils_response(
+                    &mut cursor,
+                    function,
+                    frame.header,
+                    &mut handler,
+                    &mut self.writer,
+                )?,
                 FunctionCode::ReadDiscreteInputs => match AddressRange::parse(&mut cursor) {
                     Err(e) => {
                         log::warn!("error parsing {:?} request: {}", function, e);
