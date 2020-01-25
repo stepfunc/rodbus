@@ -4,7 +4,6 @@ use rodbus::error::details::ExceptionCode;
 use rodbus::server::handler::{ServerHandler, ServerHandlerMap};
 use rodbus::types::{AddressRange, Indexed, UnitId};
 use std::os::raw::c_void;
-use std::ptr::null_mut;
 use std::sync::Arc;
 use tokio::runtime::Runtime;
 use tokio::sync::Mutex;
@@ -37,6 +36,21 @@ pub struct Sizes {
     num_discrete_inputs: u16,
     num_holding_registers: u16,
     num_input_registers: u16,
+}
+
+#[no_mangle]
+pub extern "C" fn create_sizes(
+    num_coils: u16,
+    num_discrete_inputs: u16,
+    num_holding_registers: u16,
+    num_input_registers: u16,
+) -> Sizes {
+    Sizes::new(
+        num_coils,
+        num_discrete_inputs,
+        num_holding_registers,
+        num_input_registers,
+    )
 }
 
 impl Sizes {
@@ -76,6 +90,14 @@ impl Callbacks {
             write_single_register_cb,
         }
     }
+}
+
+#[no_mangle]
+pub extern "C" fn create_callbacks(
+    write_single_coil_cb: WriteSingleCallback<bool>,
+    write_single_register_cb: WriteSingleCallback<u16>,
+) -> Callbacks {
+    Callbacks::new(write_single_coil_cb, write_single_register_cb)
 }
 
 impl FFIHandler {
@@ -182,6 +204,23 @@ pub unsafe extern "C" fn acquire_updater<'a>(
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn update_handler(
+    runtime: *mut Runtime,
+    handler: *mut Handler,
+    callback: Option<unsafe extern "C" fn(*mut Updater)>,
+) {
+    if let Some(func) = callback {
+        let wrapper = handler.as_mut().unwrap().wrapper.clone();
+        runtime.as_mut().unwrap().block_on(async move {
+            let mut updater = Updater {
+                guard: wrapper.lock().await,
+            };
+            func(&mut updater)
+        });
+    }
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn release_updater(updater: *mut Updater) {
     if !updater.is_null() {
         Box::from_raw(updater);
@@ -204,31 +243,30 @@ pub unsafe extern "C" fn create_server(
     runtime: *mut Runtime,
     address: *const std::os::raw::c_char,
     unit_id: u8,
-) -> *mut Handler {
+    handler: *mut Handler,
+) -> bool {
     let rt = runtime.as_mut().unwrap();
 
     let addr = match parse_socket_address(address) {
         Some(addr) => addr,
-        None => return null_mut(),
+        None => return false,
     };
-
-    let sizes = Sizes::new(10, 10, 10, 10);
-    let callbacks = Callbacks::new(None, None);
-    let handler = FFIHandler::new(Data::new(sizes), callbacks, null_mut()).wrap();
 
     let listener = match rt.block_on(async move { tokio::net::TcpListener::bind(addr).await }) {
         Err(err) => {
             log::error!("Unable to bind listener: {}", err);
-            return null_mut();
+            return false;
         }
         Ok(listener) => listener,
     };
 
+    let handler = handler.as_mut().unwrap().wrapper.clone();
+
     rt.spawn(rodbus::server::create_tcp_server_task(
         100,
         listener,
-        ServerHandlerMap::single(UnitId::new(unit_id), handler.clone()),
+        ServerHandlerMap::single(UnitId::new(unit_id), handler),
     ));
 
-    Box::into_raw(Box::new(Handler { wrapper: handler }))
+    true
 }
