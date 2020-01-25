@@ -2,10 +2,12 @@ use crate::user_data::UserData;
 use rodbus::error::details::ExceptionCode;
 use rodbus::server::handler::ServerHandler;
 use rodbus::types::{AddressRange, Indexed};
-use std::ops::DerefMut;
 use std::os::raw::c_void;
+use std::sync::Arc;
+use tokio::runtime::Runtime;
+use tokio::sync::Mutex;
 
-// if these return true, we update the underlying value automatically
+// if this returns true, we update the underlying value automatically
 type WriteSingleCallback<T> = Option<unsafe extern "C" fn(T, u16, *mut c_void) -> bool>;
 
 struct Data {
@@ -15,8 +17,8 @@ struct Data {
     ai: Vec<u16>,
 }
 
-struct Callbacks {
-    user_data: UserData,
+#[repr(C)]
+pub struct Callbacks {
     write_single_coil_cb: WriteSingleCallback<bool>,
     write_single_register_cb: WriteSingleCallback<u16>,
 }
@@ -24,27 +26,50 @@ struct Callbacks {
 struct FFIHandler {
     data: Data,
     callbacks: Callbacks,
+    user_data: UserData,
+}
+
+#[repr(C)]
+pub struct Sizes {
+    num_coils: u16,
+    num_discrete_inputs: u16,
+    num_holding_registers: u16,
+    num_input_registers: u16,
+}
+
+impl Sizes {
+    fn new(
+        num_coils: u16,
+        num_discrete_inputs: u16,
+        num_holding_registers: u16,
+        num_input_registers: u16,
+    ) -> Self {
+        Self {
+            num_coils,
+            num_discrete_inputs,
+            num_holding_registers,
+            num_input_registers,
+        }
+    }
 }
 
 impl Data {
-    pub(crate) fn new(bo: u16, bi: u16, ao: u16, ai: u16) -> Self {
+    pub(crate) fn new(sizes: Sizes) -> Self {
         Self {
-            bo: vec![false; bo as usize],
-            bi: vec![false; bi as usize],
-            ao: vec![0; ao as usize],
-            ai: vec![0; ai as usize],
+            bo: vec![false; sizes.num_coils as usize],
+            bi: vec![false; sizes.num_discrete_inputs as usize],
+            ao: vec![0; sizes.num_holding_registers as usize],
+            ai: vec![0; sizes.num_input_registers as usize],
         }
     }
 }
 
 impl Callbacks {
     pub(crate) fn new(
-        user_data: *mut c_void,
         write_single_coil_cb: WriteSingleCallback<bool>,
         write_single_register_cb: WriteSingleCallback<u16>,
     ) -> Self {
         Self {
-            user_data: UserData::new(user_data),
             write_single_coil_cb,
             write_single_register_cb,
         }
@@ -52,8 +77,12 @@ impl Callbacks {
 }
 
 impl FFIHandler {
-    pub fn new(data: Data, callbacks: Callbacks) -> Self {
-        Self { data, callbacks }
+    pub fn new(data: Data, callbacks: Callbacks, user_data: *mut c_void) -> Self {
+        Self {
+            data,
+            callbacks,
+            user_data: UserData::new(user_data),
+        }
     }
 
     fn write_single<T>(
@@ -102,7 +131,7 @@ impl ServerHandler for FFIHandler {
             pair,
             &mut self.data.bo,
             self.callbacks.write_single_coil_cb,
-            &mut self.callbacks.user_data,
+            &mut self.user_data,
         )
     }
 
@@ -111,7 +140,59 @@ impl ServerHandler for FFIHandler {
             pair,
             &mut self.data.ao,
             self.callbacks.write_single_register_cb,
-            &mut self.callbacks.user_data,
+            &mut self.user_data,
         )
+    }
+}
+
+pub struct Handler {
+    wrapper: Arc<Mutex<Box<FFIHandler>>>,
+}
+
+pub struct Updater<'a> {
+    guard: tokio::sync::MutexGuard<'a, Box<FFIHandler>>,
+}
+
+#[no_mangle]
+pub extern "C" fn create_handler(
+    sizes: Sizes,
+    callbacks: Callbacks,
+    user_data: *mut c_void,
+) -> *mut Handler {
+    let handler = FFIHandler::new(Data::new(sizes), callbacks, user_data);
+    Box::into_raw(Box::new(Handler {
+        wrapper: handler.wrap(),
+    }))
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn acquire_updater<'a>(
+    runtime: *mut Runtime,
+    handler: *mut Handler,
+) -> *mut Updater<'a> {
+    let handler = handler.as_mut().unwrap();
+    let updater = runtime.as_mut().unwrap().block_on(async move {
+        Updater {
+            guard: handler.wrapper.lock().await,
+        }
+    });
+    Box::into_raw(Box::new(updater))
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn release_updater(updater: *mut Updater) {
+    if !updater.is_null() {
+        Box::from_raw(updater);
+    };
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn update_coil(updater: *mut Updater, value: bool, index: u16) -> bool {
+    let updater = updater.as_mut().unwrap();
+    if let Some(data) = updater.guard.data.bo.get_mut(index as usize) {
+        *data = value;
+        true
+    } else {
+        false
     }
 }
