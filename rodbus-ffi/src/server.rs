@@ -148,9 +148,9 @@ impl FFIHandler {
     }
 
     fn write_multiple<T>(
-        items: &[T],
+        input: &[T],
         range: AddressRange,
-        vec: &mut Vec<T>,
+        output: &mut [T],
         callback: WriteMultipleCallback<T>,
         user_data: &mut UserData,
     ) -> Result<(), ExceptionCode>
@@ -158,11 +158,10 @@ impl FFIHandler {
         T: Copy,
     {
         match callback {
-            Some(func) => match vec.get_mut(range.to_range_or_exception()?) {
-                Some(value) => unsafe {
-                    // TODO - can this be done well w/o allocating?
-                    if func(items.as_ptr(), range.count, range.start, user_data.value) {
-                        value.copy_from_slice(items)
+            Some(func) => match output.get_mut(range.to_range_or_exception()?) {
+                Some(subslice) => unsafe {
+                    if func(input.as_ptr(), range.count, range.start, user_data.value) {
+                        subslice.copy_from_slice(input)
                     }
                     Ok(())
                 },
@@ -209,6 +208,7 @@ impl ServerHandler for FFIHandler {
     }
 
     fn write_multiple_coils(&mut self, values: WriteCoils) -> Result<(), ExceptionCode> {
+        // TODO - possibly copy into fixed size array
         let vec: Vec<bool> = values.iterator.collect();
         Self::write_multiple(
             vec.as_slice(),
@@ -220,6 +220,7 @@ impl ServerHandler for FFIHandler {
     }
 
     fn write_multiple_registers(&mut self, values: WriteRegisters) -> Result<(), ExceptionCode> {
+        // TODO - possibly copy into fixed size array
         let vec: Vec<u16> = values.iterator.collect();
         Self::write_multiple(
             vec.as_slice(),
