@@ -230,7 +230,5 @@ pub unsafe extern "C" fn create_server(
         ServerHandlerMap::single(UnitId::new(unit_id), handler.clone()),
     ));
 
-    Box::into_raw(Box::new(Handler {
-        wrapper: handler.clone(),
-    }))
+    Box::into_raw(Box::new(Handler { wrapper: handler }))
 }
