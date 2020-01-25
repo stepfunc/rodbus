@@ -1,8 +1,10 @@
+use crate::parse_socket_address;
 use crate::user_data::UserData;
 use rodbus::error::details::ExceptionCode;
-use rodbus::server::handler::ServerHandler;
-use rodbus::types::{AddressRange, Indexed};
+use rodbus::server::handler::{ServerHandler, ServerHandlerMap};
+use rodbus::types::{AddressRange, Indexed, UnitId};
 use std::os::raw::c_void;
+use std::ptr::null_mut;
 use std::sync::Arc;
 use tokio::runtime::Runtime;
 use tokio::sync::Mutex;
@@ -195,4 +197,40 @@ pub unsafe extern "C" fn update_coil(updater: *mut Updater, value: bool, index: 
     } else {
         false
     }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn create_server(
+    runtime: *mut Runtime,
+    address: *const std::os::raw::c_char,
+    unit_id: u8,
+) -> *mut Handler {
+    let rt = runtime.as_mut().unwrap();
+
+    let addr = match parse_socket_address(address) {
+        Some(addr) => addr,
+        None => return null_mut(),
+    };
+
+    let sizes = Sizes::new(10, 10, 10, 10);
+    let callbacks = Callbacks::new(None, None);
+    let handler = FFIHandler::new(Data::new(sizes), callbacks, null_mut()).wrap();
+
+    let listener = match rt.block_on(async move { tokio::net::TcpListener::bind(addr).await }) {
+        Err(err) => {
+            log::error!("Unable to bind listener: {}", err);
+            return null_mut();
+        }
+        Ok(listener) => listener,
+    };
+
+    rt.spawn(rodbus::server::create_tcp_server_task(
+        100,
+        listener,
+        ServerHandlerMap::single(UnitId::new(unit_id), handler.clone()),
+    ));
+
+    Box::into_raw(Box::new(Handler {
+        wrapper: handler.clone(),
+    }))
 }
