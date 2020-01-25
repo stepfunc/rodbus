@@ -13,12 +13,15 @@ use rodbus::client::session::{CallbackSession, SyncSession};
 use rodbus::error::Error;
 use rodbus::types::{AddressRange, UnitId, WriteMultiple};
 
+pub(crate) mod user_data;
 // asynchronous API
 pub mod asynchronous;
 // synchronous API
 pub mod synchronous;
 // bridge to Rust Log
 pub mod logging;
+// server types
+pub mod server;
 
 /// Exception values from the Modbus specification
 #[repr(u8)]
