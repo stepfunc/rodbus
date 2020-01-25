@@ -2,7 +2,7 @@ use crate::parse_socket_address;
 use crate::user_data::UserData;
 use rodbus::error::details::ExceptionCode;
 use rodbus::server::handler::{ServerHandler, ServerHandlerMap};
-use rodbus::types::{AddressRange, Indexed, UnitId};
+use rodbus::types::{AddressRange, Indexed, UnitId, WriteCoils, WriteRegisters};
 use std::os::raw::c_void;
 use std::sync::Arc;
 use tokio::runtime::Runtime;
@@ -10,6 +10,8 @@ use tokio::sync::Mutex;
 
 // if this returns true, we update the underlying value automatically
 type WriteSingleCallback<T> = Option<unsafe extern "C" fn(T, u16, *mut c_void) -> bool>;
+type WriteMultipleCallback<T> =
+    Option<unsafe extern "C" fn(*const T, u16, u16, *mut c_void) -> bool>;
 
 struct Data {
     bo: Vec<bool>,
@@ -22,6 +24,8 @@ struct Data {
 pub struct Callbacks {
     write_single_coil_cb: WriteSingleCallback<bool>,
     write_single_register_cb: WriteSingleCallback<u16>,
+    write_multiple_coils: WriteMultipleCallback<bool>,
+    write_multiple_registers: WriteMultipleCallback<u16>,
 }
 
 struct FFIHandler {
@@ -84,10 +88,14 @@ impl Callbacks {
     pub(crate) fn new(
         write_single_coil_cb: WriteSingleCallback<bool>,
         write_single_register_cb: WriteSingleCallback<u16>,
+        write_multiple_coils: WriteMultipleCallback<bool>,
+        write_multiple_registers: WriteMultipleCallback<u16>,
     ) -> Self {
         Self {
             write_single_coil_cb,
             write_single_register_cb,
+            write_multiple_coils,
+            write_multiple_registers,
         }
     }
 }
@@ -96,8 +104,15 @@ impl Callbacks {
 pub extern "C" fn create_callbacks(
     write_single_coil_cb: WriteSingleCallback<bool>,
     write_single_register_cb: WriteSingleCallback<u16>,
+    write_multiple_coils: WriteMultipleCallback<bool>,
+    write_multiple_registers: WriteMultipleCallback<u16>,
 ) -> Callbacks {
-    Callbacks::new(write_single_coil_cb, write_single_register_cb)
+    Callbacks::new(
+        write_single_coil_cb,
+        write_single_register_cb,
+        write_multiple_coils,
+        write_multiple_registers,
+    )
 }
 
 impl FFIHandler {
@@ -123,6 +138,31 @@ impl FFIHandler {
                 Some(value) => unsafe {
                     if func(pair.value, pair.index, user_data.value) {
                         *value = pair.value
+                    }
+                    Ok(())
+                },
+                None => Err(ExceptionCode::IllegalDataValue),
+            },
+            None => Err(ExceptionCode::IllegalFunction),
+        }
+    }
+
+    fn write_multiple<T>(
+        items: &[T],
+        range: AddressRange,
+        vec: &mut Vec<T>,
+        callback: WriteMultipleCallback<T>,
+        user_data: &mut UserData,
+    ) -> Result<(), ExceptionCode>
+    where
+        T: Copy,
+    {
+        match callback {
+            Some(func) => match vec.get_mut(range.to_range_or_exception()?) {
+                Some(value) => unsafe {
+                    // TODO - can this be done well w/o allocating?
+                    if func(items.as_ptr(), range.count, range.start, user_data.value) {
+                        value.copy_from_slice(items)
                     }
                     Ok(())
                 },
@@ -167,9 +207,32 @@ impl ServerHandler for FFIHandler {
             &mut self.user_data,
         )
     }
+
+    fn write_multiple_coils(&mut self, values: WriteCoils) -> Result<(), ExceptionCode> {
+        let vec: Vec<bool> = values.iterator.collect();
+        Self::write_multiple(
+            vec.as_slice(),
+            values.range,
+            &mut self.data.bo,
+            self.callbacks.write_multiple_coils,
+            &mut self.user_data,
+        )
+    }
+
+    fn write_multiple_registers(&mut self, values: WriteRegisters) -> Result<(), ExceptionCode> {
+        let vec: Vec<u16> = values.iterator.collect();
+        Self::write_multiple(
+            vec.as_slice(),
+            values.range,
+            &mut self.data.ao,
+            self.callbacks.write_multiple_registers,
+            &mut self.user_data,
+        )
+    }
 }
 
 pub struct Handler {
+    runtime: *mut Runtime,
     wrapper: Arc<Mutex<Box<FFIHandler>>>,
 }
 
@@ -179,23 +242,22 @@ pub struct Updater<'a> {
 
 #[no_mangle]
 pub extern "C" fn create_handler(
+    runtime: *mut Runtime,
     sizes: Sizes,
     callbacks: Callbacks,
     user_data: *mut c_void,
 ) -> *mut Handler {
     let handler = FFIHandler::new(Data::new(sizes), callbacks, user_data);
     Box::into_raw(Box::new(Handler {
+        runtime,
         wrapper: handler.wrap(),
     }))
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn acquire_updater<'a>(
-    runtime: *mut Runtime,
-    handler: *mut Handler,
-) -> *mut Updater<'a> {
+pub unsafe extern "C" fn acquire_updater<'a>(handler: *mut Handler) -> *mut Updater<'a> {
     let handler = handler.as_mut().unwrap();
-    let updater = runtime.as_mut().unwrap().block_on(async move {
+    let updater = handler.runtime.as_mut().unwrap().block_on(async move {
         Updater {
             guard: handler.wrapper.lock().await,
         }
@@ -205,13 +267,13 @@ pub unsafe extern "C" fn acquire_updater<'a>(
 
 #[no_mangle]
 pub unsafe extern "C" fn update_handler(
-    runtime: *mut Runtime,
     handler: *mut Handler,
     callback: Option<unsafe extern "C" fn(*mut Updater)>,
 ) {
     if let Some(func) = callback {
-        let wrapper = handler.as_mut().unwrap().wrapper.clone();
-        runtime.as_mut().unwrap().block_on(async move {
+        let handler = handler.as_mut().unwrap();
+        let wrapper = handler.wrapper.clone();
+        handler.runtime.as_mut().unwrap().block_on(async move {
             let mut updater = Updater {
                 guard: wrapper.lock().await,
             };
