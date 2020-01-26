@@ -32,6 +32,8 @@ struct FFIHandler {
     data: Data,
     callbacks: Callbacks,
     user_data: UserData,
+    coil_write_buffer: [bool; rodbus::constants::limits::MAX_WRITE_COILS_COUNT as usize],
+    reg_write_buffer: [u16; rodbus::constants::limits::MAX_WRITE_REGISTERS_COUNT as usize],
 }
 
 #[repr(C)]
@@ -121,7 +123,22 @@ impl FFIHandler {
             data,
             callbacks,
             user_data: UserData::new(user_data),
+            coil_write_buffer: [false; rodbus::constants::limits::MAX_WRITE_COILS_COUNT as usize],
+            reg_write_buffer: [0; rodbus::constants::limits::MAX_WRITE_REGISTERS_COUNT as usize],
         }
+    }
+
+    fn copy_to<T, I>(dest: &mut [T], iterator: I) -> Result<(), ExceptionCode>
+    where
+        I: Iterator<Item = T>,
+    {
+        for (index, item) in iterator.enumerate() {
+            match dest.get_mut(index) {
+                Some(value) => *value = item,
+                None => return Err(ExceptionCode::ServerDeviceFailure),
+            }
+        }
+        Ok(())
     }
 
     fn write_single<T>(
@@ -208,10 +225,16 @@ impl ServerHandler for FFIHandler {
     }
 
     fn write_multiple_coils(&mut self, values: WriteCoils) -> Result<(), ExceptionCode> {
-        // TODO - possibly copy into fixed size array
-        let vec: Vec<bool> = values.iterator.collect();
+        let dest = match self
+            .coil_write_buffer
+            .get_mut(values.range.to_range_or_exception()?)
+        {
+            Some(dest) => dest,
+            None => return Err(ExceptionCode::ServerDeviceFailure),
+        };
+        Self::copy_to(dest, values.iterator)?;
         Self::write_multiple(
-            vec.as_slice(),
+            dest,
             values.range,
             &mut self.data.bo,
             self.callbacks.write_multiple_coils,
@@ -220,10 +243,16 @@ impl ServerHandler for FFIHandler {
     }
 
     fn write_multiple_registers(&mut self, values: WriteRegisters) -> Result<(), ExceptionCode> {
-        // TODO - possibly copy into fixed size array
-        let vec: Vec<u16> = values.iterator.collect();
+        let dest = match self
+            .reg_write_buffer
+            .get_mut(values.range.to_range_or_exception()?)
+        {
+            Some(dest) => dest,
+            None => return Err(ExceptionCode::ServerDeviceFailure),
+        };
+        Self::copy_to(dest, values.iterator)?;
         Self::write_multiple(
-            vec.as_slice(),
+            dest,
             values.range,
             &mut self.data.ao,
             self.callbacks.write_multiple_registers,

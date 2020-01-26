@@ -1,5 +1,5 @@
 pub fn num_bytes_for_bits(count: u16) -> usize {
-    ((count as usize + 7) / 8)
+    (count as usize + 7) / 8
 }
 
 #[cfg(test)]
