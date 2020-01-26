@@ -133,6 +133,8 @@
 //!}
 //!```
 
+#![forbid(unsafe_code)]
+
 /// client API
 pub mod client;
 /// public constant values related to the Modbus specification
