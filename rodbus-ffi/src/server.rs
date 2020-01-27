@@ -285,9 +285,7 @@ pub extern "C" fn create_handler(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn destroy_handler(
-    handler: *mut Handler
-) {
+pub unsafe extern "C" fn destroy_handler(handler: *mut Handler) {
     if !handler.is_null() {
         Box::from_raw(handler);
     };
