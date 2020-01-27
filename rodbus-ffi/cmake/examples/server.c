@@ -3,6 +3,8 @@
 #include <stdio.h>
 #include <unistd.h>
 
+#define NUM_VALUES 10
+
 void log_callback(Level level, const char* msg)
 {
     printf("%d - %s \n", level, msg);
@@ -10,7 +12,7 @@ void log_callback(Level level, const char* msg)
 
 void toggle_coils(Updater* updater, void* user_data) {
    bool value = *(bool*) user_data;
-   for(uint16_t index=0; index < 10; ++index) {
+   for(uint16_t index=0; index < NUM_VALUES; ++index) {
       update_coil(updater, value, index);
    }
 }
@@ -34,7 +36,7 @@ int main() {
 
   handler = create_handler(
             runtime,
-            create_sizes(10, 10, 10, 10),
+            create_sizes(NUM_VALUES, NUM_VALUES, NUM_VALUES, NUM_VALUES),
             create_callbacks(NULL, NULL, NULL, NULL),
             NULL);
 
