@@ -1,5 +1,8 @@
 use tokio::io::{AsyncRead, AsyncReadExt};
 
+#[cfg(feature = "no_panic")]
+use no_panic::no_panic;
+
 use crate::error::*;
 
 pub struct ReadBuffer {
@@ -25,6 +28,7 @@ impl ReadBuffer {
         self.begin == self.end
     }
 
+    #[cfg_attr(feature = "no_panic", no_panic)]
     pub fn read(&mut self, count: usize) -> std::result::Result<&[u8], details::InternalError> {
         if self.len() < count {
             return Err(details::InternalError::InsufficientBytesForRead(
@@ -37,14 +41,16 @@ impl ReadBuffer {
         self.begin += count;
         Ok(ret)
     }
-    pub fn read_u8(&mut self) -> std::result::Result<u8, details::InternalError> {
-        if self.is_empty() {
-            return Err(details::InternalError::InsufficientBytesForRead(1, 0));
-        }
 
-        let ret = self.buffer[self.begin];
-        self.begin += 1;
-        Ok(ret)
+    #[cfg_attr(feature = "no_panic", no_panic)]
+    pub fn read_u8(&mut self) -> std::result::Result<u8, details::InternalError> {
+        match self.buffer.get(self.begin) {
+            Some(ret) => {
+                self.begin += 1;
+                Ok(*ret)
+            }
+            None => Err(details::InternalError::InsufficientBytesForRead(1, 0)),
+        }
     }
     pub fn read_u16_be(&mut self) -> std::result::Result<u16, details::InternalError> {
         let b1 = self.read_u8()? as u16;
