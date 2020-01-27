@@ -34,13 +34,13 @@ impl<'a> ReadCursor<'a> {
     }
 
     pub fn read_u8(&mut self) -> Result<u8, details::ADUParseError> {
-        if self.src.is_empty() {
-            return Err(details::ADUParseError::InsufficientBytes);
+        match self.src.split_first() {
+            Some((first, rest)) => {
+                self.src = rest;
+                Ok(*first)
+            }
+            None => Err(details::ADUParseError::InsufficientBytes),
         }
-
-        let ret = self.src[0];
-        self.src = &self.src[1..];
-        Ok(ret)
     }
 
     pub fn read_u16_be(&mut self) -> Result<u16, details::ADUParseError> {
@@ -50,13 +50,13 @@ impl<'a> ReadCursor<'a> {
     }
 
     pub fn read_bytes(&mut self, count: usize) -> Result<&'a [u8], details::ADUParseError> {
-        if self.src.len() < count {
-            return Err(details::ADUParseError::InsufficientBytes);
+        match (self.src.get(0..count), self.src.get(count..)) {
+            (Some(first), Some(rest)) => {
+                self.src = rest;
+                Ok(first)
+            }
+            _ => Err(details::ADUParseError::InsufficientBytes),
         }
-
-        let ret = &self.src[0..count];
-        self.src = &self.src[count..];
-        Ok(ret)
     }
 }
 
@@ -90,12 +90,14 @@ impl<'a> WriteCursor<'a> {
     }
 
     pub fn write_u8(&mut self, value: u8) -> Result<(), details::InternalError> {
-        if self.remaining() == 0 {
-            return Err(details::InternalError::InsufficientWriteSpace(1, 0));
+        match self.dest.get_mut(self.pos) {
+            Some(x) => {
+                *x = value;
+                self.pos += 1;
+                Ok(())
+            }
+            None => Err(details::InternalError::InsufficientWriteSpace(1, 0)),
         }
-        self.dest[self.pos] = value;
-        self.pos += 1;
-        Ok(())
     }
 
     pub fn write_u16_be(&mut self, value: u16) -> Result<(), details::InternalError> {
