@@ -285,6 +285,15 @@ pub extern "C" fn create_handler(
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn destroy_handler(
+    handler: *mut Handler
+) {
+    if !handler.is_null() {
+        Box::from_raw(handler);
+    };
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn acquire_updater<'a>(handler: *mut Handler) -> *mut Updater<'a> {
     let handler = handler.as_mut().unwrap();
     let updater = handler.runtime.as_mut().unwrap().block_on(async move {
@@ -298,7 +307,8 @@ pub unsafe extern "C" fn acquire_updater<'a>(handler: *mut Handler) -> *mut Upda
 #[no_mangle]
 pub unsafe extern "C" fn update_handler(
     handler: *mut Handler,
-    callback: Option<unsafe extern "C" fn(*mut Updater)>,
+    user_data: *mut c_void,
+    callback: Option<unsafe extern "C" fn(*mut Updater, *mut c_void)>,
 ) {
     if let Some(func) = callback {
         let handler = handler.as_mut().unwrap();
@@ -307,7 +317,7 @@ pub unsafe extern "C" fn update_handler(
             let mut updater = Updater {
                 guard: wrapper.lock().await,
             };
-            func(&mut updater)
+            func(&mut updater, user_data)
         });
     }
 }

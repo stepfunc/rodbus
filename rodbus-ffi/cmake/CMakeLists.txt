@@ -52,3 +52,8 @@ add_executable(async_client ${CMAKE_CURRENT_SOURCE_DIR}/examples/async_client.c)
 target_link_libraries(async_client ${LIBRARY_PATH})
 target_include_directories(async_client PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/include")
 add_dependencies(async_client cbindgen build)
+
+add_executable(server ${CMAKE_CURRENT_SOURCE_DIR}/examples/server.c)
+target_link_libraries(server ${LIBRARY_PATH})
+target_include_directories(server PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/include")
+add_dependencies(server cbindgen build)
