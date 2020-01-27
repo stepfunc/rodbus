@@ -13,12 +13,33 @@ use rodbus::client::session::{CallbackSession, SyncSession};
 use rodbus::error::Error;
 use rodbus::types::{AddressRange, UnitId, WriteMultiple};
 
+pub(crate) mod user_data;
 // asynchronous API
 pub mod asynchronous;
 // synchronous API
 pub mod synchronous;
 // bridge to Rust Log
 pub mod logging;
+// server types
+pub mod server;
+
+unsafe fn parse_socket_address(address: *const std::os::raw::c_char) -> Option<SocketAddr> {
+    match CStr::from_ptr(address).to_str() {
+        // TODO - consider logging?
+        Err(err) => {
+            log::error!("Error parsing socket address: {}", err);
+            None
+        }
+        Ok(s) => match SocketAddr::from_str(s) {
+            // TODO - consider logging?
+            Err(err) => {
+                log::error!("Error parsing socket address: {}", err);
+                None
+            }
+            Ok(addr) => Some(addr),
+        },
+    }
+}
 
 /// Exception values from the Modbus specification
 #[repr(u8)]
@@ -259,16 +280,9 @@ pub unsafe extern "C" fn create_tcp_client(
     let rt = runtime.as_mut().unwrap();
 
     // if we can't turn the c-string into SocketAddr, return null
-    let addr = {
-        match CStr::from_ptr(address).to_str() {
-            // TODO - consider logging?
-            Err(_) => return null_mut(),
-            Ok(s) => match SocketAddr::from_str(s) {
-                // TODO - consider logging?
-                Err(_) => return null_mut(),
-                Ok(addr) => addr,
-            },
-        }
+    let addr = match parse_socket_address(address) {
+        Some(addr) => addr,
+        None => return null_mut(),
     };
 
     let (handle, task) = rodbus::client::create_handle_and_task(

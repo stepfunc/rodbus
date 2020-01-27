@@ -1,20 +1,5 @@
 use super::*;
-
-struct UserData {
-    value: *mut c_void,
-}
-
-impl UserData {
-    pub fn new(value: *mut c_void) -> Self {
-        Self { value }
-    }
-}
-
-// we need these so we can send the callback user_data to the executor
-// we rely on the C program to keep the user_data value alive
-// for the duration of the operation, and for it to be thread-safe
-unsafe impl Send for UserData {}
-unsafe impl Sync for UserData {}
+use crate::user_data::UserData;
 
 unsafe fn get_callback_session<'a>(
     session: *mut Session,
