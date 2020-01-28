@@ -42,6 +42,7 @@ int main() {
   int ret = 0;
   Runtime *runtime = NULL;
   Handler *handler = NULL;
+  ServerHandle  *server = NULL;
 
   set_max_level(LEVEL_TRACE);
   set_log_callback(log_callback);
@@ -65,9 +66,9 @@ int main() {
             ),
             NULL);
 
-  bool result = create_server(runtime, "127.0.0.1:40000", 1, handler);
+  server = create_server(runtime, "127.0.0.1:40000", 1, handler);
 
-  if(!result) {
+  if(!server) {
     printf("unable to create server \n");
     ret = -1;
     goto cleanup;
@@ -83,7 +84,7 @@ int main() {
 
 cleanup:
 
-
+  destroy_server(server);
   destroy_runtime(runtime);
   destroy_handler(handler);
 
