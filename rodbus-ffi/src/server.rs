@@ -4,6 +4,7 @@ use rodbus::error::details::ExceptionCode;
 use rodbus::server::handler::{ServerHandler, ServerHandlerMap};
 use rodbus::types::{AddressRange, Indexed, UnitId, WriteCoils, WriteRegisters};
 use std::os::raw::c_void;
+use std::ptr::null_mut;
 use std::sync::Arc;
 use tokio::runtime::Runtime;
 use tokio::sync::Mutex;
@@ -270,6 +271,10 @@ pub struct Updater<'a> {
     guard: tokio::sync::MutexGuard<'a, Box<FFIHandler>>,
 }
 
+pub struct ServerHandle {
+    _tx: tokio::sync::mpsc::Sender<()>,
+}
+
 #[no_mangle]
 pub extern "C" fn create_handler(
     runtime: *mut Runtime,
@@ -344,29 +349,39 @@ pub unsafe extern "C" fn create_server(
     address: *const std::os::raw::c_char,
     unit_id: u8,
     handler: *mut Handler,
-) -> bool {
+) -> *mut ServerHandle {
     let rt = runtime.as_mut().unwrap();
 
     let addr = match parse_socket_address(address) {
         Some(addr) => addr,
-        None => return false,
+        None => return null_mut(),
     };
 
     let listener = match rt.block_on(async move { tokio::net::TcpListener::bind(addr).await }) {
         Err(err) => {
             log::error!("Unable to bind listener: {}", err);
-            return false;
+            return null_mut();
         }
         Ok(listener) => listener,
     };
 
     let handler = handler.as_mut().unwrap().wrapper.clone();
 
+    let (tx, rx) = tokio::sync::mpsc::channel(1);
+
     rt.spawn(rodbus::server::create_tcp_server_task(
+        rx,
         100,
         listener,
         ServerHandlerMap::single(UnitId::new(unit_id), handler),
     ));
 
-    true
+    Box::into_raw(Box::new(ServerHandle { _tx: tx }))
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn destroy_server(handle: *mut ServerHandle) {
+    if !handle.is_null() {
+        Box::from_raw(handle);
+    }
 }

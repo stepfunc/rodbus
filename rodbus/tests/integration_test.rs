@@ -93,7 +93,7 @@ async fn test_requests_and_responses() {
     let handler = Handler::new().wrap();
     let addr = SocketAddr::from_str("127.0.0.1:40000").unwrap();
 
-    spawn_tcp_server_task(
+    let _server = spawn_tcp_server_task(
         1,
         TcpListener::bind(addr).await.unwrap(),
         ServerHandlerMap::single(UnitId::new(1), handler.clone()),

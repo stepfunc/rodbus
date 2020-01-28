@@ -8,6 +8,12 @@ pub mod handler;
 pub(crate) mod task;
 pub(crate) mod validator;
 
+/// A handle that can be dropped to shutdown the server
+/// and all of its active connections
+pub struct ServerHandle {
+    _sender: tokio::sync::mpsc::Sender<()>,
+}
+
 /// Spawns a TCP server task onto the runtime. This method can only
 /// be called from within the runtime context. Use [`create_tcp_server_task`]
 /// and then spawn it manually if using outside the Tokio runtime.
@@ -23,8 +29,10 @@ pub fn spawn_tcp_server_task<T: ServerHandler>(
     max_sessions: usize,
     listener: TcpListener,
     handlers: ServerHandlerMap<T>,
-) {
-    tokio::spawn(create_tcp_server_task(max_sessions, listener, handlers));
+) -> ServerHandle {
+    let (tx, rx) = tokio::sync::mpsc::channel(1);
+    tokio::spawn(create_tcp_server_task(rx, max_sessions, listener, handlers));
+    ServerHandle { _sender: tx }
 }
 
 /// Creates a TCP server task that can then be spawned onto the runtime manually.
@@ -40,11 +48,12 @@ pub fn spawn_tcp_server_task<T: ServerHandler>(
 ///
 /// [`spawn_tcp_server_task`]: fn.spawn_tcp_server_task.html
 pub async fn create_tcp_server_task<T: ServerHandler>(
+    rx: tokio::sync::mpsc::Receiver<()>,
     max_sessions: usize,
     listener: TcpListener,
     handlers: ServerHandlerMap<T>,
-) -> std::io::Result<()> {
-    ServerTask::new(max_sessions, listener, handlers)
+) {
+    ServerTask::new(rx, max_sessions, listener, handlers)
         .run()
         .await
 }

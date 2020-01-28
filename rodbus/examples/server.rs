@@ -113,7 +113,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let map = ServerHandlerMap::single(UnitId::new(1), handler.clone());
 
     // spawn a server to handle connections onto its own task
-    rodbus::server::spawn_tcp_server_task(
+    // if we ever drop this handle, the server will shutdown
+    // along with all of its active sessions
+    let _server = rodbus::server::spawn_tcp_server_task(
         1,
         TcpListener::bind(SocketAddr::from_str(address)?).await?,
         map,
