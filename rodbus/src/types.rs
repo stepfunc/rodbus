@@ -2,6 +2,9 @@ use std::convert::TryFrom;
 
 use crate::error::details::{ADUParseError, ExceptionCode, InternalError, InvalidRequest};
 
+#[cfg(feature = "no-panic")]
+use no_panic::no_panic;
+
 /// Modbus unit identifier, just a type-safe wrapper around u8
 #[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Ord, Eq)]
 pub struct UnitId {
@@ -90,6 +93,7 @@ impl<'a> RegisterIterator<'a> {
 impl<'a> Iterator for BitIterator<'a> {
     type Item = bool;
 
+    #[cfg_attr(feature = "no-panic", no_panic)]
     fn next(&mut self) -> Option<Self::Item> {
         if self.pos == self.range.count {
             return None;
@@ -97,12 +101,17 @@ impl<'a> Iterator for BitIterator<'a> {
         let byte = self.pos / 8;
         let bit = (self.pos % 8) as u8;
 
-        let value = (self.bytes[byte as usize] & (1 << bit)) != 0;
-        self.pos += 1;
-        Some(value)
+        match self.bytes.get(byte as usize) {
+            Some(value) => {
+                self.pos += 1;
+                Some((*value & (1 << bit)) != 0)
+            }
+            None => None,
+        }
     }
 
     // implementing this allows collect to optimize the vector capacity
+    #[cfg_attr(feature = "no-panic", no_panic)]
     fn size_hint(&self) -> (usize, Option<usize>) {
         let remaining = (self.range.count - self.pos) as usize;
         (remaining, Some(remaining))
@@ -112,20 +121,24 @@ impl<'a> Iterator for BitIterator<'a> {
 impl<'a> Iterator for RegisterIterator<'a> {
     type Item = u16;
 
+    #[cfg_attr(feature = "no-panic", no_panic)]
     fn next(&mut self) -> Option<Self::Item> {
         if self.pos == self.range.count {
             return None;
         }
 
         let pos = 2 * (self.pos as usize);
-        let high = self.bytes[pos];
-        let low = self.bytes[pos + 1];
-        let value = ((high as u16) << 8) | low as u16;
-        self.pos += 1;
-        Some(value)
+        match self.bytes.get(pos..pos + 2) {
+            Some([high, low]) => {
+                self.pos += 1;
+                Some(((*high as u16) << 8) | *low as u16)
+            }
+            _ => None,
+        }
     }
 
     // implementing this allows collect to optimize the vector capacity
+    #[cfg_attr(feature = "no-panic", no_panic)]
     fn size_hint(&self) -> (usize, Option<usize>) {
         let remaining = (self.range.count - self.pos) as usize;
         (remaining, Some(remaining))

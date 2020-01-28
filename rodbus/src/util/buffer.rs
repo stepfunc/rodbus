@@ -1,5 +1,8 @@
 use tokio::io::{AsyncRead, AsyncReadExt};
 
+#[cfg(feature = "no-panic")]
+use no_panic::no_panic;
+
 use crate::error::*;
 
 pub struct ReadBuffer {
@@ -17,14 +20,17 @@ impl ReadBuffer {
         }
     }
 
+    #[cfg_attr(feature = "no-panic", no_panic)]
     pub fn len(&self) -> usize {
         self.end - self.begin
     }
 
+    #[cfg_attr(feature = "no-panic", no_panic)]
     pub fn is_empty(&self) -> bool {
         self.begin == self.end
     }
 
+    #[cfg_attr(feature = "no-panic", no_panic)]
     pub fn read(&mut self, count: usize) -> std::result::Result<&[u8], details::InternalError> {
         if self.len() < count {
             return Err(details::InternalError::InsufficientBytesForRead(
@@ -33,19 +39,33 @@ impl ReadBuffer {
             ));
         }
 
-        let ret = &self.buffer[self.begin..(self.begin + count)];
-        self.begin += count;
-        Ok(ret)
+        match self.buffer.get(self.begin..(self.begin + count)) {
+            Some(ret) => {
+                self.begin += count;
+                Ok(ret)
+            }
+            None => Err(details::InternalError::InsufficientBytesForRead(
+                count,
+                self.len(),
+            )),
+        }
     }
+
+    #[cfg_attr(feature = "no-panic", no_panic)]
     pub fn read_u8(&mut self) -> std::result::Result<u8, details::InternalError> {
         if self.is_empty() {
             return Err(details::InternalError::InsufficientBytesForRead(1, 0));
         }
-
-        let ret = self.buffer[self.begin];
-        self.begin += 1;
-        Ok(ret)
+        match self.buffer.get(self.begin) {
+            Some(ret) => {
+                self.begin += 1;
+                Ok(*ret)
+            }
+            None => Err(details::InternalError::InsufficientBytesForRead(1, 0)),
+        }
     }
+
+    #[cfg_attr(feature = "no-panic", no_panic)]
     pub fn read_u16_be(&mut self) -> std::result::Result<u16, details::InternalError> {
         let b1 = self.read_u8()? as u16;
         let b2 = self.read_u8()? as u16;
