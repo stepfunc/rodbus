@@ -1,18 +1,13 @@
 use tokio::net::TcpListener;
 
 use crate::server::handler::{ServerHandler, ServerHandlerMap};
+use crate::shutdown::TaskHandle;
 use crate::tcp::server::ServerTask;
 
 /// server handling
 pub mod handler;
 pub(crate) mod task;
 pub(crate) mod validator;
-
-/// A handle that can be dropped to shutdown the server
-/// and all of its active connections
-pub struct ServerHandle {
-    _sender: tokio::sync::mpsc::Sender<()>,
-}
 
 /// Spawns a TCP server task onto the runtime. This method can only
 /// be called from within the runtime context. Use [`create_tcp_server_task`]
@@ -29,10 +24,10 @@ pub fn spawn_tcp_server_task<T: ServerHandler>(
     max_sessions: usize,
     listener: TcpListener,
     handlers: ServerHandlerMap<T>,
-) -> ServerHandle {
+) -> TaskHandle {
     let (tx, rx) = tokio::sync::mpsc::channel(1);
-    tokio::spawn(create_tcp_server_task(rx, max_sessions, listener, handlers));
-    ServerHandle { _sender: tx }
+    let handle = tokio::spawn(create_tcp_server_task(rx, max_sessions, listener, handlers));
+    TaskHandle::new(tx, handle)
 }
 
 /// Creates a TCP server task that can then be spawned onto the runtime manually.

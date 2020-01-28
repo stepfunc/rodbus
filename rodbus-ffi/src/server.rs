@@ -2,6 +2,7 @@ use crate::parse_socket_address;
 use crate::user_data::UserData;
 use rodbus::error::details::ExceptionCode;
 use rodbus::server::handler::{ServerHandler, ServerHandlerMap};
+use rodbus::shutdown::TaskHandle;
 use rodbus::types::{AddressRange, Indexed, UnitId, WriteCoils, WriteRegisters};
 use std::os::raw::c_void;
 use std::ptr::null_mut;
@@ -272,7 +273,8 @@ pub struct Updater<'a> {
 }
 
 pub struct ServerHandle {
-    _tx: tokio::sync::mpsc::Sender<()>,
+    rt: *mut Runtime,
+    inner: TaskHandle,
 }
 
 #[no_mangle]
@@ -369,19 +371,26 @@ pub unsafe extern "C" fn create_server(
 
     let (tx, rx) = tokio::sync::mpsc::channel(1);
 
-    rt.spawn(rodbus::server::create_tcp_server_task(
+    let handle = rt.spawn(rodbus::server::create_tcp_server_task(
         rx,
         100,
         listener,
         ServerHandlerMap::single(UnitId::new(unit_id), handler),
     ));
 
-    Box::into_raw(Box::new(ServerHandle { _tx: tx }))
+    Box::into_raw(Box::new(ServerHandle {
+        rt: runtime,
+        inner: TaskHandle::new(tx, handle),
+    }))
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn destroy_server(handle: *mut ServerHandle) {
     if !handle.is_null() {
-        Box::from_raw(handle);
+        let handle = Box::from_raw(handle);
+        let rt = handle.rt.as_mut().unwrap();
+        rt.block_on(async move {
+            handle.inner.shutdown().await.ok();
+        })
     }
 }

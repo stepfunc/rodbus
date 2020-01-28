@@ -146,6 +146,8 @@ pub mod error;
 pub mod prelude;
 /// server API
 pub mod server;
+/// types used to shutdown async tasks
+pub mod shutdown;
 /// types used in requests and responses
 pub mod types;
 
