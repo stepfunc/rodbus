@@ -17,6 +17,26 @@ void toggle_coils(Updater* updater, void* user_data) {
    }
 }
 
+bool write_single_coil_handler(bool value, uint16_t index, void* userdata)
+{
+    return true;
+}
+
+bool write_single_register_handler(uint16_t value, uint16_t index, void* userdata)
+{
+    return true;
+}
+
+bool write_multiple_coils_handler(const bool* values, uint16_t count, uint16_t index, void* userdata)
+{
+    return true;
+}
+
+bool write_multiple_registers_handler(const uint16_t* values, uint16_t count, uint16_t index, void* userdata)
+{
+    return true;
+}
+
 int main() {
 
   int ret = 0;
@@ -37,7 +57,12 @@ int main() {
   handler = create_handler(
             runtime,
             create_sizes(NUM_VALUES, NUM_VALUES, NUM_VALUES, NUM_VALUES),
-            create_callbacks(NULL, NULL, NULL, NULL),
+            create_callbacks(
+                    write_single_coil_handler,
+                    write_single_register_handler,
+                    write_multiple_coils_handler,
+                    write_multiple_registers_handler
+            ),
             NULL);
 
   bool result = create_server(runtime, "127.0.0.1:40000", 1, handler);
