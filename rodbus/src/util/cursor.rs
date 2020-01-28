@@ -16,18 +16,22 @@ pub struct WriteCursor<'a> {
 }
 
 impl<'a> ReadCursor<'a> {
+    #[cfg_attr(feature = "no-panic", no_panic)]
     pub fn new(src: &'a [u8]) -> ReadCursor {
         ReadCursor { src }
     }
 
+    #[cfg_attr(feature = "no-panic", no_panic)]
     pub fn len(&self) -> usize {
         self.src.len()
     }
 
+    #[cfg_attr(feature = "no-panic", no_panic)]
     pub fn is_empty(&self) -> bool {
         self.src.is_empty()
     }
 
+    #[cfg_attr(feature = "no-panic", no_panic)]
     pub fn expect_empty(&self) -> Result<(), details::ADUParseError> {
         if self.is_empty() {
             Ok(())
