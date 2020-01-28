@@ -158,7 +158,7 @@ impl FFIHandler {
                     }
                     Ok(())
                 },
-                None => Err(ExceptionCode::IllegalDataValue),
+                None => Err(ExceptionCode::IllegalDataAddress),
             },
             None => Err(ExceptionCode::IllegalFunction),
         }
@@ -182,7 +182,7 @@ impl FFIHandler {
                     }
                     Ok(())
                 },
-                None => Err(ExceptionCode::IllegalDataValue),
+                None => Err(ExceptionCode::IllegalDataAddress),
             },
             None => Err(ExceptionCode::IllegalFunction),
         }
