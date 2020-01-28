@@ -1,6 +1,6 @@
 use tokio::io::{AsyncRead, AsyncReadExt};
 
-#[cfg(feature = "no_panic")]
+#[cfg(feature = "no-panic")]
 use no_panic::no_panic;
 
 use crate::error::*;
@@ -28,7 +28,6 @@ impl ReadBuffer {
         self.begin == self.end
     }
 
-    #[cfg_attr(feature = "no_panic", no_panic)]
     pub fn read(&mut self, count: usize) -> std::result::Result<&[u8], details::InternalError> {
         if self.len() < count {
             return Err(details::InternalError::InsufficientBytesForRead(
@@ -42,8 +41,11 @@ impl ReadBuffer {
         Ok(ret)
     }
 
-    #[cfg_attr(feature = "no_panic", no_panic)]
+    #[cfg_attr(feature="no-panic", no_panic)]
     pub fn read_u8(&mut self) -> std::result::Result<u8, details::InternalError> {
+        if self.is_empty() {
+            return Err(details::InternalError::InsufficientBytesForRead(1, 0));
+        }
         match self.buffer.get(self.begin) {
             Some(ret) => {
                 self.begin += 1;
