@@ -15,11 +15,9 @@ codecov = { repository = "automatak/rodbus", branch = "master", service = "githu
 maintenance = { status = "actively-developed" }
 
 [dependencies]
-tokio = { version = "^0.2.5", features = ["tcp", "sync", "io-util", "time", "rt-core", "rt-threaded", "macros"]}
+tokio = { version = "^0.2.11", features = ["tcp", "sync", "io-util", "time", "rt-core", "rt-threaded", "macros"]}
 log = "0.4"
-futures = "0.3"
 no-panic = { version = "0.1", optional = true }
-pin-utils = "0.1.0-alpha.3"
 
 [dev-dependencies]
 tokio-test = "0.2"

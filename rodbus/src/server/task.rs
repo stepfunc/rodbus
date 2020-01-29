@@ -1,5 +1,3 @@
-use futures::future::FutureExt;
-use futures::select;
 use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
 
 use crate::error::details::ExceptionCode;
@@ -63,12 +61,12 @@ where
     }
 
     pub async fn run_one(&mut self) -> std::result::Result<(), Error> {
-        select! {
-            frame = self.reader.next_frame(&mut self.io).fuse() => {
-               return self.reply_to_request(frame?).await;
+        tokio::select! {
+            frame = self.reader.next_frame(&mut self.io) => {
+               self.reply_to_request(frame?).await
             }
-            _ = self.shutdown.recv().fuse() => {
-               return Err(crate::error::Error::Shutdown.into());
+            _ = self.shutdown.recv() => {
+               Err(crate::error::Error::Shutdown)
             }
         }
     }

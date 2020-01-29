@@ -1,11 +1,11 @@
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
+use std::net::SocketAddr;
 use tokio::net::TcpListener;
 use tokio::sync::Mutex;
 
 use crate::server::handler::{ServerHandler, ServerHandlerMap};
-use futures::future::{self, Either};
 
 struct SessionTracker {
     max: usize,
@@ -74,38 +74,39 @@ where
 
     pub async fn run(&mut self, mut shutdown: tokio::sync::mpsc::Receiver<()>) {
         loop {
-            let f1 = shutdown.recv();
-            let f2 = self.listener.accept();
-            pin_utils::pin_mut!(f1);
-            pin_utils::pin_mut!(f2);
-
-            match future::select(f1, f2).await {
-                Either::Left(_) => {
-                    return; // shutdown signal
-                }
-                Either::Right((Err(err), _)) => {
-                    log::error!("error accepting connection: {}", err);
-                    return;
-                }
-                Either::Right((Ok((socket, addr)), _)) => {
-                    let handlers = self.handlers.clone();
-                    let tracker = self.tracker.clone();
-                    let (tx, rx) = tokio::sync::mpsc::channel(1);
-
-                    let id = self.tracker.lock().await.add(tx);
-
-                    log::info!("accepted connection {} from: {}", id, addr);
-
-                    tokio::spawn(async move {
-                        crate::server::task::SessionTask::new(socket, handlers, rx)
-                            .run()
-                            .await
-                            .ok();
-                        log::info!("shutdown session: {}", id);
-                        tracker.lock().await.remove(id);
-                    });
-                }
+            tokio::select! {
+               _ = shutdown.recv() => return, // shutdown signal
+               result = self.listener.accept() => {
+                   match result {
+                        Err(err) => {
+                            log::error!("error accepting connection: {}", err);
+                            return;
+                        }
+                        Ok((socket, addr)) => {
+                            self.handle(socket, addr).await
+                        }
+                   }
+               }
             }
         }
+    }
+
+    async fn handle(&self, socket: tokio::net::TcpStream, addr: SocketAddr) {
+        let handlers = self.handlers.clone();
+        let tracker = self.tracker.clone();
+        let (tx, rx) = tokio::sync::mpsc::channel(1);
+
+        let id = self.tracker.lock().await.add(tx);
+
+        log::info!("accepted connection {} from: {}", id, addr);
+
+        tokio::spawn(async move {
+            crate::server::task::SessionTask::new(socket, handlers, rx)
+                .run()
+                .await
+                .ok();
+            log::info!("shutdown session: {}", id);
+            tracker.lock().await.remove(id);
+        });
     }
 }

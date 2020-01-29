@@ -12,7 +12,7 @@ readme = "../README.md"
 
 [dependencies]
 rodbus = { version = "0.1.1", path = "../rodbus" }
-tokio = { version = "^0.2.5", features = ["rt-threaded"]}
+tokio = { version = "^0.2.11", features = ["rt-threaded"]}
 log = { version = "0.4", features = ["std"] }
 
 [lib]
