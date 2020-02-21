@@ -2,16 +2,16 @@ cmake_minimum_required(VERSION 3.10)
 
 project(rodbus-ffi C)
 
-if(NOT UNIX)
-    message(FATAL_ERROR "examples only compile on *NIX ATM")
-endif()
-
 set(CARGO_CMD cargo build --release)
 set(TARGET_DIR "target/release")
 set(INCLUDES_DIR ${CMAKE_CURRENT_BINARY_DIR}/include)
 set(RODBUS_HEADER_DIR ${INCLUDES_DIR}/rodbus)
 
-set(LIBRARY_NAME librodbus_ffi.so)
+if(WIN32)
+    set(LIBRARY_NAME rodbus_ffi.dll.lib)
+else()
+    set(LIBRARY_NAME librodbus_ffi.so)
+endif()
 get_filename_component(CRATE_BASE_DIR ../../ ABSOLUTE)
 set(LIBRARY_PATH "${CRATE_BASE_DIR}/${TARGET_DIR}/${LIBRARY_NAME}")
 
