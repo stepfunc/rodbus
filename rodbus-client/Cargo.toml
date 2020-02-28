@@ -8,7 +8,7 @@ description = "A command line program for making Modbus client requests using th
 keywords = ["modbus", "ics", "industrial", "plc", "security"]
 categories = ["network-programming"]
 repository = "https://www.github.com/automatak/rodbus"
-readme = "../README.md"
+readme = "README.md"
 
 [[bin]]
 name = "rodbus-client"
