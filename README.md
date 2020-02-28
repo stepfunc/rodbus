@@ -66,3 +66,10 @@ rodbus from a C/C++ project.
 ## Modbus client CLI
 
 You can test Modbus servers from the command line with the [rodbus-client](https://crates.io/crates/rodbus-client) crate.
+
+## License
+
+Licensed under the 3-Clause BSD License. See [LICENSE.md](./LICENSE.md) for more
+details.
+
+Copyright 2019-2020 Automatak LLC. All rights reserved.

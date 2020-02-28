@@ -51,9 +51,3 @@ It is also possible to send periodic requests with the `-p` argument. For exampl
 to send a read coils request every 2 seconds, you would do this:
 `cargo run -p rodbus-client -- -p 2000 rc -s 10 -q 10`
 
-## License
-
-Licensed under the 3-Clause BSD License. See [LICENSE.md](./LICENSE.md) for more
-details.
-
-Copyright 2019-2020 Automatak LLC. All rights reserved.
