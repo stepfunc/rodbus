@@ -69,7 +69,6 @@ You can test Modbus servers from the command line with the [rodbus-client](https
 
 ## License
 
-Licensed under the 3-Clause BSD License. See [LICENSE.md](./LICENSE.md) for more
-details.
+Licensed under the GPL version 3. See [LICENSE.md](./LICENSE.md) for more details.
 
 Copyright 2019-2020 Automatak LLC. All rights reserved.
