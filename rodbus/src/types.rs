@@ -47,11 +47,8 @@ pub struct RegisterIterator<'a> {
 }
 
 impl<'a> BitIterator<'a> {
-    pub(crate) fn create(
-        bytes: &'a [u8],
-        range: AddressRange,
-    ) -> Result<Self, crate::error::details::InternalError> {
-        if bytes.len() < crate::util::bits::num_bytes_for_bits(range.count) as usize {
+    pub(crate) fn create(bytes: &'a [u8], range: AddressRange) -> Result<Self, InternalError> {
+        if bytes.len() < crate::util::bits::num_bytes_for_bits(range.count) {
             return Err(InternalError::BadBitIteratorArgs);
         }
 
@@ -68,10 +65,7 @@ impl<'a> BitIterator<'a> {
 }
 
 impl<'a> RegisterIterator<'a> {
-    pub(crate) fn create(
-        bytes: &'a [u8],
-        range: AddressRange,
-    ) -> Result<Self, crate::error::details::InternalError> {
+    pub(crate) fn create(bytes: &'a [u8], range: AddressRange) -> Result<Self, InternalError> {
         let required_bytes = 2 * (range.count as usize);
 
         if bytes.len() != required_bytes {
@@ -169,7 +163,7 @@ impl<'a> WriteRegisters<'a> {
     }
 }
 
-impl<T> std::convert::From<(u16, T)> for Indexed<T>
+impl<T> From<(u16, T)> for Indexed<T>
 where
     T: Copy,
 {

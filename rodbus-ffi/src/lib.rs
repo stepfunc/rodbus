@@ -139,7 +139,7 @@ impl Result {
     }
 }
 
-impl std::convert::From<rodbus::error::Error> for Result {
+impl From<rodbus::error::Error> for Result {
     fn from(err: rodbus::error::Error) -> Self {
         match err {
             Error::Internal(_) => Result::status(Status::InternalError),
@@ -155,7 +155,7 @@ impl std::convert::From<rodbus::error::Error> for Result {
     }
 }
 
-impl<T> std::convert::From<std::result::Result<T, rodbus::error::Error>> for Result {
+impl<T> From<std::result::Result<T, rodbus::error::Error>> for Result {
     fn from(result: std::result::Result<T, rodbus::error::Error>) -> Self {
         match result {
             Ok(_) => Result::ok(),

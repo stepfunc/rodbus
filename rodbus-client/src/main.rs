@@ -33,25 +33,25 @@ impl std::fmt::Display for Error {
     }
 }
 
-impl std::convert::From<rodbus::error::Error> for Error {
+impl From<rodbus::error::Error> for Error {
     fn from(err: rodbus::error::Error) -> Self {
         Error::Request(err)
     }
 }
 
-impl std::convert::From<AddrParseError> for Error {
+impl From<AddrParseError> for Error {
     fn from(err: AddrParseError) -> Self {
         Error::BadAddr(err)
     }
 }
 
-impl std::convert::From<ParseIntError> for Error {
+impl From<ParseIntError> for Error {
     fn from(err: ParseIntError) -> Self {
         Error::BadInt(err)
     }
 }
 
-impl std::convert::From<ParseBoolError> for Error {
+impl From<ParseBoolError> for Error {
     fn from(err: ParseBoolError) -> Self {
         Error::BadBool(err)
     }

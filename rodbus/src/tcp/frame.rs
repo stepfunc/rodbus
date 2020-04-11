@@ -139,7 +139,7 @@ impl FrameFormatter for MBAPFormatter {
             cursor.write_u16_be(frame_length_value)?;
         }
 
-        let total_length = constants::HEADER_LENGTH + adu_length as usize;
+        let total_length = constants::HEADER_LENGTH + adu_length;
 
         Ok(&self.buffer[..total_length])
     }

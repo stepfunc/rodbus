@@ -48,19 +48,19 @@ where
         header: FrameHeader,
         function: u8,
         ex: ExceptionCode,
-    ) -> std::result::Result<(), Error> {
+    ) -> Result<(), Error> {
         let bytes = self.writer.format(header, &ADU::new(function, &ex))?;
         self.io.write_all(bytes).await?;
         Ok(())
     }
 
-    pub(crate) async fn run(&mut self) -> std::result::Result<(), Error> {
+    pub(crate) async fn run(&mut self) -> Result<(), Error> {
         loop {
             self.run_one().await?;
         }
     }
 
-    pub async fn run_one(&mut self) -> std::result::Result<(), Error> {
+    pub async fn run_one(&mut self) -> Result<(), Error> {
         tokio::select! {
             frame = self.reader.next_frame(&mut self.io) => {
                self.reply_to_request(frame?).await
@@ -73,7 +73,7 @@ where
 
     // TODO: Simplify this function
     #[allow(clippy::cognitive_complexity)]
-    pub async fn reply_to_request(&mut self, frame: Frame) -> std::result::Result<(), Error> {
+    pub async fn reply_to_request(&mut self, frame: Frame) -> Result<(), Error> {
         let mut cursor = ReadCursor::new(frame.payload());
 
         // if no addresses match, then don't respond

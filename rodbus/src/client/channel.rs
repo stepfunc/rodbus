@@ -46,7 +46,7 @@ pub mod strategy {
     }
 
     impl Doubling {
-        pub fn create(min: Duration, max: Duration) -> Box<dyn ReconnectStrategy + Send> {
+        pub(crate) fn create(min: Duration, max: Duration) -> Box<dyn ReconnectStrategy + Send> {
             Box::new(Doubling {
                 min,
                 max,

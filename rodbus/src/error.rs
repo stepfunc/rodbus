@@ -1,7 +1,5 @@
 use std::fmt::Formatter;
 
-use crate::error::details::InvalidRequest;
-
 /// Top level error type for the client API
 #[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Ord, Eq)]
 pub enum Error {
@@ -37,37 +35,37 @@ impl std::fmt::Display for Error {
     }
 }
 
-impl std::convert::From<std::io::Error> for Error {
+impl From<std::io::Error> for Error {
     fn from(err: std::io::Error) -> Self {
         Error::Io(err.kind())
     }
 }
 
-impl std::convert::From<details::InvalidRequest> for Error {
-    fn from(err: InvalidRequest) -> Self {
+impl From<details::InvalidRequest> for Error {
+    fn from(err: details::InvalidRequest) -> Self {
         Error::BadRequest(err)
     }
 }
 
-impl std::convert::From<details::InternalError> for Error {
+impl From<details::InternalError> for Error {
     fn from(err: details::InternalError) -> Self {
         Error::Internal(err)
     }
 }
 
-impl std::convert::From<details::ADUParseError> for Error {
+impl From<details::ADUParseError> for Error {
     fn from(err: details::ADUParseError) -> Self {
         Error::BadResponse(err)
     }
 }
 
-impl std::convert::From<details::ExceptionCode> for Error {
+impl From<details::ExceptionCode> for Error {
     fn from(err: details::ExceptionCode) -> Self {
         Error::Exception(err)
     }
 }
 
-impl std::convert::From<details::FrameParseError> for Error {
+impl From<details::FrameParseError> for Error {
     fn from(err: details::FrameParseError) -> Self {
         Error::BadFrame(err)
     }
@@ -183,7 +181,7 @@ pub mod details {
         Unknown(u8),
     }
 
-    impl std::convert::From<u8> for ExceptionCode {
+    impl From<u8> for ExceptionCode {
         fn from(value: u8) -> Self {
             match value {
                 crate::constants::exceptions::ILLEGAL_FUNCTION => ExceptionCode::IllegalFunction,
@@ -210,7 +208,7 @@ pub mod details {
         }
     }
 
-    impl std::convert::From<ExceptionCode> for u8 {
+    impl From<ExceptionCode> for u8 {
         fn from(ex: ExceptionCode) -> Self {
             match ex {
                 ExceptionCode::IllegalFunction => crate::constants::exceptions::ILLEGAL_FUNCTION,

@@ -38,7 +38,7 @@ pub extern "C" fn set_max_level(level: Level) {
     log::set_max_level(to_filter(level));
 }
 
-impl std::convert::From<log::Level> for Level {
+impl From<log::Level> for Level {
     fn from(level: log::Level) -> Self {
         match level {
             log::Level::Error => Level::Error,

@@ -32,7 +32,7 @@ impl<'a> ReadCursor<'a> {
     }
 
     #[cfg_attr(feature = "no-panic", no_panic)]
-    pub fn expect_empty(&self) -> Result<(), details::ADUParseError> {
+    pub fn expect_empty(&self) -> Result<(), ADUParseError> {
         if self.is_empty() {
             Ok(())
         } else {
@@ -41,31 +41,31 @@ impl<'a> ReadCursor<'a> {
     }
 
     #[cfg_attr(feature = "no-panic", no_panic)]
-    pub fn read_u8(&mut self) -> Result<u8, details::ADUParseError> {
+    pub fn read_u8(&mut self) -> Result<u8, ADUParseError> {
         match self.src.split_first() {
             Some((first, rest)) => {
                 self.src = rest;
                 Ok(*first)
             }
-            None => Err(details::ADUParseError::InsufficientBytes),
+            None => Err(ADUParseError::InsufficientBytes),
         }
     }
 
     #[cfg_attr(feature = "no-panic", no_panic)]
-    pub fn read_u16_be(&mut self) -> Result<u16, details::ADUParseError> {
+    pub fn read_u16_be(&mut self) -> Result<u16, ADUParseError> {
         let high = self.read_u8()?;
         let low = self.read_u8()?;
         Ok((high as u16) << 8 | (low as u16))
     }
 
     #[cfg_attr(feature = "no-panic", no_panic)]
-    pub fn read_bytes(&mut self, count: usize) -> Result<&'a [u8], details::ADUParseError> {
+    pub fn read_bytes(&mut self, count: usize) -> Result<&'a [u8], ADUParseError> {
         match (self.src.get(0..count), self.src.get(count..)) {
             (Some(first), Some(rest)) => {
                 self.src = rest;
                 Ok(first)
             }
-            _ => Err(details::ADUParseError::InsufficientBytes),
+            _ => Err(ADUParseError::InsufficientBytes),
         }
     }
 }

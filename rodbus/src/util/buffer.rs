@@ -31,7 +31,7 @@ impl ReadBuffer {
     }
 
     #[cfg_attr(feature = "no-panic", no_panic)]
-    pub fn read(&mut self, count: usize) -> std::result::Result<&[u8], details::InternalError> {
+    pub fn read(&mut self, count: usize) -> Result<&[u8], details::InternalError> {
         if self.len() < count {
             return Err(details::InternalError::InsufficientBytesForRead(
                 count,
@@ -52,7 +52,7 @@ impl ReadBuffer {
     }
 
     #[cfg_attr(feature = "no-panic", no_panic)]
-    pub fn read_u8(&mut self) -> std::result::Result<u8, details::InternalError> {
+    pub fn read_u8(&mut self) -> Result<u8, details::InternalError> {
         if self.is_empty() {
             return Err(details::InternalError::InsufficientBytesForRead(1, 0));
         }
@@ -66,7 +66,7 @@ impl ReadBuffer {
     }
 
     #[cfg_attr(feature = "no-panic", no_panic)]
-    pub fn read_u16_be(&mut self) -> std::result::Result<u16, details::InternalError> {
+    pub fn read_u16_be(&mut self) -> Result<u16, details::InternalError> {
         let b1 = self.read_u8()? as u16;
         let b2 = self.read_u8()? as u16;
         Ok((b1 << 8) | b2)
@@ -75,7 +75,7 @@ impl ReadBuffer {
     pub async fn read_some<T: AsyncRead + Unpin>(
         &mut self,
         io: &mut T,
-    ) -> std::result::Result<usize, std::io::Error> {
+    ) -> Result<usize, std::io::Error> {
         // before we read any data, check to see if the buffer is empty and adjust the indices
         // this allows use to make the biggest read possible, and avoids subsequent buffer shifting later
         if self.is_empty() {
