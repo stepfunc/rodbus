@@ -13,7 +13,7 @@ pub struct UnitId {
 }
 
 /// Start and count tuple used when making various requests
-#[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Ord, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct AddressRange {
     /// starting address of the range
     pub start: u16,
@@ -22,7 +22,7 @@ pub struct AddressRange {
 }
 
 /// Value and its address
-#[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Ord, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Indexed<T> {
     /// address of the value
     pub index: u16,

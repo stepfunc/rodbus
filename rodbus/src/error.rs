@@ -1,7 +1,7 @@
 use std::fmt::Formatter;
 
 /// Top level error type for the client API
-#[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Ord, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Error {
     Io(::std::io::ErrorKind),
     Exception(details::ExceptionCode),
@@ -78,7 +78,7 @@ pub mod details {
     use crate::types::AddressRange;
 
     /// errors that indicate faulty logic in the library itself if they occur
-    #[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Ord, Eq)]
+    #[derive(Clone, Copy, Debug, PartialEq)]
     pub enum InternalError {
         /// Insufficient space for write operation
         InsufficientWriteSpace(usize, usize), // written vs remaining space
@@ -343,7 +343,7 @@ pub mod details {
     }
 
     /// errors that result because of bad request parameter
-    #[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Ord, Eq)]
+    #[derive(Clone, Copy, Debug, PartialEq)]
     pub enum InvalidRequest {
         /// Count is set to zero, which is invalid
         CountOfZero,
