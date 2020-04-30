@@ -251,7 +251,7 @@ mod tests {
     fn returns_timeout_when_no_response() {
         let mut fixture = ClientFixture::new();
 
-        let range = AddressRange::new(7, 2);
+        let range = AddressRange::try_from(7, 2).unwrap();
 
         let request = get_framed_adu(FunctionCode::ReadCoils, &range);
 
@@ -277,7 +277,7 @@ mod tests {
     fn framing_errors_kill_the_session() {
         let mut fixture = ClientFixture::new();
 
-        let range = AddressRange::new(7, 2);
+        let range = AddressRange::try_from(7, 2).unwrap();
 
         let request = get_framed_adu(FunctionCode::ReadCoils, &range);
 
@@ -306,7 +306,7 @@ mod tests {
     fn transmit_read_coils_when_requested() {
         let mut fixture = ClientFixture::new();
 
-        let range = AddressRange::new(7, 2);
+        let range = AddressRange::try_from(7, 2).unwrap();
 
         let request = get_framed_adu(FunctionCode::ReadCoils, &range);
         let response = get_framed_adu(FunctionCode::ReadCoils, &[true, false].as_ref());

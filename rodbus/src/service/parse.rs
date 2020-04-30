@@ -75,7 +75,7 @@ mod tests {
             let mut cursor = ReadCursor::new(&[0x00, 0x01, 0x00, 0x03, 0x01, 0x05]);
             let coils = parse_write_multiple_coils(&mut cursor).unwrap();
             let values: Vec<bool> = coils.iterator.collect();
-            assert_eq!(coils.range, AddressRange::new(1, 3));
+            assert_eq!(coils.range, AddressRange::try_from(1, 3).unwrap());
             assert_eq!(values, vec![true, false, true])
         }
     }
@@ -120,7 +120,7 @@ mod tests {
                 ReadCursor::new(&[0x00, 0x01, 0x00, 0x02, 0x04, 0xCA, 0xFE, 0xBB, 0xDD]);
             let registers = parse_write_multiple_registers(&mut cursor).unwrap();
             let values: Vec<u16> = registers.iterator.collect();
-            assert_eq!(registers.range, AddressRange::new(1, 2));
+            assert_eq!(registers.range, AddressRange::try_from(1, 2).unwrap());
             assert_eq!(values, vec![0xCAFE, 0xBBDD])
         }
     }

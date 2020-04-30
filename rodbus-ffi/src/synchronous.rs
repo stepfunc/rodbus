@@ -36,7 +36,14 @@ where
 {
     let (runtime, mut session) = get_synchronous_session(session);
 
-    match read(runtime, &mut session, AddressRange::new(start, count)) {
+    let range = match AddressRange::try_from(start, count) {
+        Ok(x) => x,
+        Err(_) => {
+            return Result::status(Status::BadRequest);
+        }
+    };
+
+    match read(runtime, &mut session, range) {
         Ok(coils) => {
             for (i, indexed) in coils.iter().enumerate() {
                 *output.add(i) = indexed.value

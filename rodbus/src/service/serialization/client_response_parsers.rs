@@ -149,8 +149,11 @@ mod tests {
         let input = [0x01, 0b00000101]; // 0b00000101
         let mut cursor = ReadCursor::new(&input);
 
-        let result =
-            Vec::<Indexed<bool>>::parse_response(&mut cursor, &AddressRange::new(0, 3)).unwrap();
+        let result = Vec::<Indexed<bool>>::parse_response(
+            &mut cursor,
+            &AddressRange::try_from(0, 3).unwrap(),
+        )
+        .unwrap();
         let expected = vec![
             Indexed::new(0, true),
             Indexed::new(1, false),

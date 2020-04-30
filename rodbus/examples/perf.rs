@@ -64,7 +64,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     for mut session in sessions {
         let handle: tokio::task::JoinHandle<()> = tokio::spawn(async move {
             for _ in 0..num_requests {
-                if let Err(err) = session.read_coils(AddressRange::new(0, 100)).await {
+                if let Err(err) = session
+                    .read_coils(AddressRange::try_from(0, 100).unwrap())
+                    .await
+                {
                     println!("failure: {}", err);
                 }
             }

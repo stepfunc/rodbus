@@ -61,7 +61,7 @@
 //!
 //!    // try to poll for some coils every 3 seconds
 //!    loop {
-//!        match session.read_coils(AddressRange::new(0, 5)).await {
+//!        match session.read_coils(AddressRange::try_from(0, 5).unwrap()).await {
 //!            Ok(values) => {
 //!                for x in values {
 //!                    println!("index: {} value: {}", x.index, x.value)

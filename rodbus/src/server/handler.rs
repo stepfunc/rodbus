@@ -71,7 +71,7 @@ pub trait ServerHandler: Send + 'static {
     /// [`ExceptionCode::IllegalDataAddress`](../../error/details/enum.ExceptionCode.html#variant.IllegalDataAddress)
     fn get_range_of<T>(slice: &[T], range: AddressRange) -> Result<&[T], ExceptionCode> {
         slice
-            .get(range.to_range_or_exception()?)
+            .get(range.to_std_range())
             .ok_or(ExceptionCode::IllegalDataAddress)
     }
 
@@ -82,7 +82,7 @@ pub trait ServerHandler: Send + 'static {
         range: AddressRange,
     ) -> Result<&mut [T], ExceptionCode> {
         slice
-            .get_mut(range.to_range_or_exception()?)
+            .get_mut(range.to_std_range())
             .ok_or(ExceptionCode::IllegalDataAddress)
     }
 
@@ -170,7 +170,7 @@ mod tests {
     impl ServerHandler for DefaultHandler {}
 
     fn range() -> AddressRange {
-        AddressRange::new(0, 1)
+        AddressRange::try_from(0, 1).unwrap()
     }
 
     fn registers() -> WriteRegisters<'static> {
@@ -225,28 +225,17 @@ mod tests {
     }
 
     #[test]
-    fn get_range_of_validates_input_range() {
-        let result = DefaultHandler::get_range_of([true].as_ref(), AddressRange::new(0, 0));
-        assert_eq!(result, Err(ExceptionCode::IllegalDataAddress));
-    }
-
-    #[test]
     fn get_range_of_errors_when_input_range_not_subset_of_slice() {
-        let result = DefaultHandler::get_range_of([true].as_ref(), AddressRange::new(1, 1));
-        assert_eq!(result, Err(ExceptionCode::IllegalDataAddress));
-    }
-
-    #[test]
-    fn get_mut_range_of_validates_input_range() {
-        let mut bytes = [true];
-        let result = DefaultHandler::get_mut_range_of(bytes.as_mut(), AddressRange::new(0, 0));
+        let result =
+            DefaultHandler::get_range_of([true].as_ref(), AddressRange::try_from(1, 1).unwrap());
         assert_eq!(result, Err(ExceptionCode::IllegalDataAddress));
     }
 
     #[test]
     fn get_mut_range_of_errors_when_input_range_not_subset_of_slice() {
         let mut bytes = [true];
-        let result = DefaultHandler::get_mut_range_of(bytes.as_mut(), AddressRange::new(1, 1));
+        let result =
+            DefaultHandler::get_mut_range_of(bytes.as_mut(), AddressRange::try_from(1, 1).unwrap());
         assert_eq!(result, Err(ExceptionCode::IllegalDataAddress));
     }
 

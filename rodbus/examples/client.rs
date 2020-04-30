@@ -12,7 +12,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let mut session = channel.create_session(UnitId::new(1), Duration::from_secs(1));
 
     // Send request
-    for x in session.read_coils(AddressRange::new(0, 10)).await? {
+    for x in session
+        .read_coils(AddressRange::try_from(0, 10).unwrap())
+        .await?
+    {
         println!("index: {} value: {}", x.index, x.value);
     }
 

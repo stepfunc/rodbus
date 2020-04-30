@@ -17,6 +17,7 @@ where
         Self { inner }
     }
 
+    /*
     fn validate_range(range: AddressRange) -> Result<(), ExceptionCode> {
         if let Err(err) = range.validate() {
             log::warn!("Received invalid address range from server: {}", err);
@@ -24,6 +25,7 @@ where
         }
         Ok(())
     }
+    */
 
     fn validate_result<U>(
         range: AddressRange,
@@ -43,22 +45,18 @@ where
     }
 
     pub fn read_coils(&mut self, range: AddressRange) -> Result<&[bool], ExceptionCode> {
-        Self::validate_range(range)?;
         Self::validate_result(range, self.inner.read_coils(range))
     }
 
     pub fn read_discrete_inputs(&mut self, range: AddressRange) -> Result<&[bool], ExceptionCode> {
-        Self::validate_range(range)?;
         Self::validate_result(range, self.inner.read_discrete_inputs(range))
     }
 
     pub fn read_holding_registers(&mut self, range: AddressRange) -> Result<&[u16], ExceptionCode> {
-        Self::validate_range(range)?;
         Self::validate_result(range, self.inner.read_holding_registers(range))
     }
 
     pub fn read_input_registers(&mut self, range: AddressRange) -> Result<&[u16], ExceptionCode> {
-        Self::validate_range(range)?;
         Self::validate_result(range, self.inner.read_input_registers(range))
     }
 
@@ -71,7 +69,6 @@ where
     }
 
     pub fn write_multiple_coils(&mut self, values: WriteCoils) -> Result<(), ExceptionCode> {
-        Self::validate_range(values.range)?;
         self.inner.write_multiple_coils(values)
     }
 
@@ -79,7 +76,6 @@ where
         &mut self,
         values: WriteRegisters,
     ) -> Result<(), ExceptionCode> {
-        Self::validate_range(values.range)?;
         self.inner.write_multiple_registers(values)
     }
 }
@@ -96,21 +92,11 @@ mod tests {
     }
 
     #[test]
-    fn validator_traps_bad_address_ranges() {
-        let mut inner = BadHandler {};
-        let mut validator = Validator::wrap(&mut inner);
-        assert_eq!(
-            validator.read_coils(AddressRange::new(0, 0)),
-            Err(ExceptionCode::IllegalDataAddress)
-        );
-    }
-
-    #[test]
     fn validator_traps_bad_handling_with_server_device_failure() {
         let mut inner = BadHandler {};
         let mut validator = Validator::wrap(&mut inner);
         assert_eq!(
-            validator.read_coils(AddressRange::new(0, 1)),
+            validator.read_coils(AddressRange::try_from(0, 1).unwrap()),
             Err(ExceptionCode::ServerDeviceFailure)
         );
     }

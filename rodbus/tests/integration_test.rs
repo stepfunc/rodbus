@@ -110,7 +110,7 @@ async fn test_requests_and_responses() {
 
     assert_eq!(
         session
-            .read_discrete_inputs(AddressRange::new(0, 2))
+            .read_discrete_inputs(AddressRange::try_from(0, 2).unwrap())
             .await
             .unwrap(),
         vec![Indexed::new(0, true), Indexed::new(1, false)]
@@ -118,7 +118,7 @@ async fn test_requests_and_responses() {
 
     assert_eq!(
         session
-            .read_input_registers(AddressRange::new(0, 2))
+            .read_input_registers(AddressRange::try_from(0, 2).unwrap())
             .await
             .unwrap(),
         vec![Indexed::new(0, 0xCAFE), Indexed::new(1, 0x0000)]
@@ -133,7 +133,10 @@ async fn test_requests_and_responses() {
         Indexed::new(1, true)
     );
     assert_eq!(
-        session.read_coils(AddressRange::new(0, 2)).await.unwrap(),
+        session
+            .read_coils(AddressRange::try_from(0, 2).unwrap())
+            .await
+            .unwrap(),
         vec![Indexed::new(0, false), Indexed::new(1, true)]
     );
 
@@ -147,7 +150,7 @@ async fn test_requests_and_responses() {
     );
     assert_eq!(
         session
-            .read_holding_registers(AddressRange::new(0, 2))
+            .read_holding_registers(AddressRange::try_from(0, 2).unwrap())
             .await
             .unwrap(),
         vec![Indexed::new(0, 0x0000), Indexed::new(1, 0xABCD)]
@@ -159,10 +162,13 @@ async fn test_requests_and_responses() {
             .write_multiple_coils(WriteMultiple::new(0, vec![true, true, true]))
             .await
             .unwrap(),
-        AddressRange::new(0, 3)
+        AddressRange::try_from(0, 3).unwrap()
     );
     assert_eq!(
-        session.read_coils(AddressRange::new(0, 3)).await.unwrap(),
+        session
+            .read_coils(AddressRange::try_from(0, 3).unwrap())
+            .await
+            .unwrap(),
         vec![
             Indexed::new(0, true),
             Indexed::new(1, true),
@@ -176,11 +182,11 @@ async fn test_requests_and_responses() {
             .write_multiple_registers(WriteMultiple::new(0, vec![0x0102, 0x0304, 0x0506]))
             .await
             .unwrap(),
-        AddressRange::new(0, 3)
+        AddressRange::try_from(0, 3).unwrap()
     );
     assert_eq!(
         session
-            .read_holding_registers(AddressRange::new(0, 3))
+            .read_holding_registers(AddressRange::try_from(0, 3).unwrap())
             .await
             .unwrap(),
         vec![

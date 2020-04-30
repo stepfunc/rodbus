@@ -72,11 +72,15 @@ pub unsafe extern "C" fn read_coils_cb(
     user_data: *mut c_void,
 ) {
     let (runtime, mut session) = get_callback_session(session);
-    session.read_coils(
-        runtime,
-        AddressRange::new(start, count),
-        data_callback_to_fn(user_data, callback),
-    );
+    let callback = data_callback_to_fn(user_data, callback);
+    let range = match AddressRange::try_from(start, count) {
+        Ok(x) => x,
+        Err(err) => {
+            return callback(Err(err.into()));
+        }
+    };
+
+    session.read_coils(runtime, range, callback);
 }
 
 /// @brief perform a non-blocking operation to read discrete inputs
@@ -97,11 +101,14 @@ pub unsafe extern "C" fn read_discrete_inputs_cb(
     user_data: *mut c_void,
 ) {
     let (runtime, mut session) = get_callback_session(session);
-    session.read_discrete_inputs(
-        runtime,
-        AddressRange::new(start, count),
-        data_callback_to_fn(user_data, callback),
-    );
+    let callback = data_callback_to_fn(user_data, callback);
+    let range = match AddressRange::try_from(start, count) {
+        Ok(x) => x,
+        Err(err) => {
+            return callback(Err(err.into()));
+        }
+    };
+    session.read_discrete_inputs(runtime, range, callback);
 }
 
 /// @brief perform a non-blocking operation to read holding registers
@@ -122,11 +129,14 @@ pub unsafe extern "C" fn read_holding_registers_cb(
     user_data: *mut c_void,
 ) {
     let (runtime, mut session) = get_callback_session(session);
-    session.read_holding_registers(
-        runtime,
-        AddressRange::new(start, count),
-        data_callback_to_fn(user_data, callback),
-    );
+    let callback = data_callback_to_fn(user_data, callback);
+    let range = match AddressRange::try_from(start, count) {
+        Ok(x) => x,
+        Err(err) => {
+            return callback(Err(err.into()));
+        }
+    };
+    session.read_holding_registers(runtime, range, callback);
 }
 
 /// @brief perform a non-blocking operation to read input registers
@@ -147,11 +157,14 @@ pub unsafe extern "C" fn read_input_registers_cb(
     user_data: *mut c_void,
 ) {
     let (runtime, mut session) = get_callback_session(session);
-    session.read_input_registers(
-        runtime,
-        AddressRange::new(start, count),
-        data_callback_to_fn(user_data, callback),
-    );
+    let callback = data_callback_to_fn(user_data, callback);
+    let range = match AddressRange::try_from(start, count) {
+        Ok(x) => x,
+        Err(err) => {
+            return callback(Err(err.into()));
+        }
+    };
+    session.read_input_registers(runtime, range, callback);
 }
 
 /// @brief perform a non-blocking operation to write a single coil

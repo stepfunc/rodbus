@@ -1,5 +1,3 @@
-use std::fmt::Formatter;
-
 /// Top level error type for the client API
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Error {
@@ -20,7 +18,7 @@ pub enum Error {
 impl std::error::Error for Error {}
 
 impl std::fmt::Display for Error {
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
         match self {
             Error::Io(kind) => std::io::Error::from(*kind).fmt(f),
             Error::Exception(err) => err.fmt(f),
@@ -71,11 +69,29 @@ impl From<details::FrameParseError> for Error {
     }
 }
 
+impl From<details::InvalidRange> for details::InvalidRequest {
+    fn from(x: details::InvalidRange) -> Self {
+        details::InvalidRequest::BadRange(x)
+    }
+}
+
+impl From<details::InvalidRange> for Error {
+    fn from(x: details::InvalidRange) -> Self {
+        Error::BadRequest(x.into())
+    }
+}
+
 /// detailed sub-errors that can occur while processing a request
 pub mod details {
-    use std::fmt::{Error, Formatter};
 
-    use crate::types::AddressRange;
+    /// errors that can be produced when validating start/count
+    #[derive(Copy, Clone, Debug, PartialEq)]
+    pub enum InvalidRange {
+        /// count of zero not allowed
+        CountOfZero,
+        /// address in range overflows u16
+        AddressOverflow(u16, u16),
+    }
 
     /// errors that indicate faulty logic in the library itself if they occur
     #[derive(Clone, Copy, Debug, PartialEq)]
@@ -101,7 +117,7 @@ pub mod details {
     impl std::error::Error for InternalError {}
 
     impl std::fmt::Display for InternalError {
-        fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
+        fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
             match self {
                 InternalError::InsufficientWriteSpace(written, remaining) => write!(
                     f,
@@ -238,7 +254,7 @@ pub mod details {
     impl std::error::Error for ExceptionCode {}
 
     impl std::fmt::Display for ExceptionCode {
-        fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
+        fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
             match self {
                 ExceptionCode::IllegalFunction=> f.write_str("function code received in the query is not an allowable action for the server"),
                 ExceptionCode::IllegalDataAddress=> f.write_str("data address received in the query is not an allowable address for the server"),
@@ -268,7 +284,7 @@ pub mod details {
     impl std::error::Error for FrameParseError {}
 
     impl std::fmt::Display for FrameParseError {
-        fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
+        fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
             match self {
                 FrameParseError::MBAPLengthZero => {
                     f.write_str("Received TCP frame with the length field set to zero")
@@ -307,7 +323,7 @@ pub mod details {
     impl std::error::Error for ADUParseError {}
 
     impl std::fmt::Display for ADUParseError {
-        fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
+        fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
             match self {
                 ADUParseError::InsufficientBytes => {
                     f.write_str("response is too short to be valid")
@@ -345,38 +361,42 @@ pub mod details {
     /// errors that result because of bad request parameter
     #[derive(Clone, Copy, Debug, PartialEq)]
     pub enum InvalidRequest {
-        /// Count is set to zero, which is invalid
-        CountOfZero,
+        BadRange(InvalidRange),
         /// Count is too big to fit in a u16
         CountTooBigForU16(usize),
-        /// Start + count > u16
-        AddressOverflow(AddressRange),
         /// Count too big for specific request
-        ///
-        /// First element is the count, second element is the maximum value
         CountTooBigForType(u16, u16),
     }
 
     impl std::error::Error for InvalidRequest {}
 
     impl std::fmt::Display for InvalidRequest {
-        fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
+        fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
             match self {
-                InvalidRequest::CountOfZero => f.write_str("request contains a count of zero"),
+                InvalidRequest::BadRange(err) => write!(f, "{}", err),
+
                 InvalidRequest::CountTooBigForU16(count) => write!(
                     f,
                     "The requested count of objects exceeds the maximum value of u16: {}",
                     count
                 ),
-                InvalidRequest::AddressOverflow(range) => write!(
-                    f,
-                    "start == {} and count == {} would overflow the representation of u16",
-                    range.start, range.count
-                ),
                 InvalidRequest::CountTooBigForType(count, max) => write!(
                     f,
                     "the request count of {} exceeds maximum allowed count of {} for this type",
                     count, max
+                ),
+            }
+        }
+    }
+
+    impl std::fmt::Display for InvalidRange {
+        fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
+            match self {
+                InvalidRange::CountOfZero => f.write_str("range contains count == 0"),
+                InvalidRange::AddressOverflow(start, count) => write!(
+                    f,
+                    "start == {} and count = {} would overflow u16 representation",
+                    start, count
                 ),
             }
         }

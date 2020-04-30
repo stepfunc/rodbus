@@ -1,6 +1,6 @@
 use std::convert::TryFrom;
 
-use crate::error::details::{ADUParseError, ExceptionCode, InternalError, InvalidRequest};
+use crate::error::details::{ADUParseError, InternalError, InvalidRange, InvalidRequest};
 
 #[cfg(feature = "no-panic")]
 use no_panic::no_panic;
@@ -13,6 +13,7 @@ pub struct UnitId {
 }
 
 /// Start and count tuple used when making various requests
+/// Cannot be constructed with invalid start/count
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct AddressRange {
     /// starting address of the range
@@ -52,10 +53,6 @@ impl<'a> BitIterator<'a> {
             return Err(InternalError::BadBitIteratorArgs);
         }
 
-        if range.validate().is_err() {
-            return Err(InternalError::BadBitIteratorArgs);
-        }
-
         Ok(Self {
             bytes,
             range,
@@ -69,10 +66,6 @@ impl<'a> RegisterIterator<'a> {
         let required_bytes = 2 * (range.count as usize);
 
         if bytes.len() != required_bytes {
-            return Err(InternalError::BadRegisterIteratorArgs);
-        }
-
-        if range.validate().is_err() {
             return Err(InternalError::BadRegisterIteratorArgs);
         }
 
@@ -193,11 +186,7 @@ impl<T> WriteMultiple<T> {
     /// Convert to a range and checking for overflow
     pub fn to_address_range(&self) -> Result<AddressRange, InvalidRequest> {
         match u16::try_from(self.values.len()) {
-            Ok(count) => {
-                let range = AddressRange::new(self.start, count);
-                range.validate()?;
-                Ok(range)
-            }
+            Ok(count) => Ok(AddressRange::try_from(self.start, count)?),
             Err(_) => Err(InvalidRequest::CountTooBigForU16(self.values.len())),
         }
     }
@@ -221,39 +210,25 @@ pub(crate) fn coil_to_u16(value: bool) -> u16 {
 
 impl AddressRange {
     /// Create a new address range
-    pub fn new(start: u16, count: u16) -> Self {
-        AddressRange { start, count }
-    }
-
-    /// Validate the count and check for overflow
-    pub fn validate(self) -> Result<(), InvalidRequest> {
-        if self.count == 0 {
-            return Err(InvalidRequest::CountOfZero);
+    pub fn try_from(start: u16, count: u16) -> Result<Self, InvalidRange> {
+        if count == 0 {
+            return Err(InvalidRange::CountOfZero);
         }
 
-        let max_start = std::u16::MAX - (self.count - 1);
+        let max_start = std::u16::MAX - (count - 1);
 
-        if self.start > max_start {
-            return Err(InvalidRequest::AddressOverflow(self));
+        if start > max_start {
+            return Err(InvalidRange::AddressOverflow(start, count));
         }
 
-        Ok(())
+        Ok(Self { start, count })
     }
 
     /// Converts to std::ops::Range
-    pub fn to_range(self) -> Result<std::ops::Range<usize>, InvalidRequest> {
-        self.validate()?;
-
+    pub fn to_std_range(self) -> std::ops::Range<usize> {
         let start = self.start as usize;
         let end = start + (self.count as usize);
-
-        Ok(start..end)
-    }
-
-    /// Converts to std::ops::Range. If the address is invalid, reports ExceptionCode::IllegalDataAddress
-    pub fn to_range_or_exception(self) -> Result<std::ops::Range<usize>, ExceptionCode> {
-        self.to_range()
-            .map_err(|_| ExceptionCode::IllegalDataAddress)
+        start..end
     }
 }
 
@@ -284,53 +259,37 @@ mod tests {
 
     #[test]
     fn address_start_max_count_of_one_is_allowed() {
-        assert_eq!(AddressRange::new(std::u16::MAX, 1).validate(), Ok(()));
+        AddressRange::try_from(std::u16::MAX, 1).unwrap();
     }
 
     #[test]
     fn address_maximum_range_is_ok() {
-        assert_eq!(AddressRange::new(0, 0xFFFF).validate(), Ok(()));
+        AddressRange::try_from(0, 0xFFFF).unwrap();
     }
 
     #[test]
     fn address_count_zero_fails_validation() {
-        assert_eq!(
-            AddressRange::new(0, 0).validate(),
-            Err(InvalidRequest::CountOfZero)
-        );
+        assert_eq!(AddressRange::try_from(0, 0), Err(InvalidRange::CountOfZero));
     }
 
     #[test]
     fn start_max_count_of_two_overflows() {
         assert_eq!(
-            AddressRange::new(std::u16::MAX, 2).validate(),
-            Err(InvalidRequest::AddressOverflow(AddressRange::new(
-                std::u16::MAX,
-                2
-            )))
+            AddressRange::try_from(std::u16::MAX, 2),
+            Err(InvalidRange::AddressOverflow(std::u16::MAX, 2))
         );
     }
 
     #[test]
     fn cannot_create_bit_iterator_with_bad_count() {
         assert_eq!(
-            BitIterator::create(&[], AddressRange::new(0, 1))
+            BitIterator::create(&[], AddressRange::try_from(0, 1).unwrap())
                 .err()
                 .unwrap(),
             InternalError::BadBitIteratorArgs
         );
         assert_eq!(
-            BitIterator::create(&[0xFF], AddressRange::new(0, 9))
-                .err()
-                .unwrap(),
-            InternalError::BadBitIteratorArgs
-        );
-    }
-
-    #[test]
-    fn cannot_create_bit_iterator_with_invalid_address_range() {
-        assert_eq!(
-            BitIterator::create(&[0xFF], AddressRange::new(0xFFFF, 7))
+            BitIterator::create(&[0xFF], AddressRange::try_from(0, 9).unwrap())
                 .err()
                 .unwrap(),
             InternalError::BadBitIteratorArgs
@@ -339,7 +298,7 @@ mod tests {
 
     #[test]
     fn correctly_iterates_over_low_order_bits() {
-        let iterator = BitIterator::create(&[0x03], AddressRange::new(1, 3)).unwrap();
+        let iterator = BitIterator::create(&[0x03], AddressRange::try_from(1, 3).unwrap()).unwrap();
         assert_eq!(iterator.size_hint(), (3, Some(3)));
         let values: Vec<bool> = iterator.collect();
         assert_eq!(values, vec![true, true, false]);
@@ -348,23 +307,13 @@ mod tests {
     #[test]
     fn cannot_create_register_iterator_with_invalid_byte_count() {
         assert_eq!(
-            RegisterIterator::create(&[], AddressRange::new(0, 1))
+            RegisterIterator::create(&[], AddressRange::try_from(0, 1).unwrap())
                 .err()
                 .unwrap(),
             InternalError::BadRegisterIteratorArgs
         );
         assert_eq!(
-            RegisterIterator::create(&[0xFF, 0xFF, 0xFF], AddressRange::new(0, 2))
-                .err()
-                .unwrap(),
-            InternalError::BadRegisterIteratorArgs
-        );
-    }
-
-    #[test]
-    fn cannot_create_register_iterator_with_invalid_address_range() {
-        assert_eq!(
-            RegisterIterator::create(&[0xFF], AddressRange::new(0xFFFF, 7))
+            RegisterIterator::create(&[0xFF, 0xFF, 0xFF], AddressRange::try_from(0, 2).unwrap())
                 .err()
                 .unwrap(),
             InternalError::BadRegisterIteratorArgs
@@ -373,8 +322,11 @@ mod tests {
 
     #[test]
     fn correctly_iterates_over_registers() {
-        let iterator =
-            RegisterIterator::create(&[0xFF, 0xFF, 0x01, 0xCC], AddressRange::new(1, 2)).unwrap();
+        let iterator = RegisterIterator::create(
+            &[0xFF, 0xFF, 0x01, 0xCC],
+            AddressRange::try_from(1, 2).unwrap(),
+        )
+        .unwrap();
         assert_eq!(iterator.size_hint(), (2, Some(2)));
         let values: Vec<u16> = iterator.collect();
         assert_eq!(values, vec![0xFFFF, 0x01CC]);

@@ -5,8 +5,10 @@ use crate::util::cursor::ReadCursor;
 
 impl ParseRequest for AddressRange {
     fn parse(cursor: &mut ReadCursor) -> Result<Self, Error> {
-        let range = AddressRange::new(cursor.read_u16_be()?, cursor.read_u16_be()?);
-        Ok(range)
+        Ok(AddressRange::try_from(
+            cursor.read_u16_be()?,
+            cursor.read_u16_be()?,
+        )?)
     }
 }
 

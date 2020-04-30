@@ -104,7 +104,7 @@ mod tests {
 
     #[test]
     fn serializes_address_range() {
-        let range = AddressRange::new(3, 512);
+        let range = AddressRange::try_from(3, 512).unwrap();
         let mut buffer = [0u8; 4];
         let mut cursor = WriteCursor::new(&mut buffer);
         range.serialize(&mut cursor).unwrap();

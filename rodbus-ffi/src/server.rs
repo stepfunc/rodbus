@@ -177,7 +177,7 @@ impl FFIHandler {
         T: Copy,
     {
         match callback {
-            Some(func) => match output.get_mut(range.to_range_or_exception()?) {
+            Some(func) => match output.get_mut(range.to_std_range()) {
                 Some(subslice) => unsafe {
                     if func(input.as_ptr(), range.count, range.start, user_data.value) {
                         subslice.copy_from_slice(input)
@@ -227,10 +227,7 @@ impl ServerHandler for FFIHandler {
     }
 
     fn write_multiple_coils(&mut self, values: WriteCoils) -> Result<(), ExceptionCode> {
-        let dest = match self
-            .coil_write_buffer
-            .get_mut(values.range.to_range_or_exception()?)
-        {
+        let dest = match self.coil_write_buffer.get_mut(values.range.to_std_range()) {
             Some(dest) => dest,
             None => return Err(ExceptionCode::ServerDeviceFailure),
         };
@@ -245,10 +242,7 @@ impl ServerHandler for FFIHandler {
     }
 
     fn write_multiple_registers(&mut self, values: WriteRegisters) -> Result<(), ExceptionCode> {
-        let dest = match self
-            .reg_write_buffer
-            .get_mut(values.range.to_range_or_exception()?)
-        {
+        let dest = match self.reg_write_buffer.get_mut(values.range.to_std_range()) {
             Some(dest) => dest,
             None => return Err(ExceptionCode::ServerDeviceFailure),
         };

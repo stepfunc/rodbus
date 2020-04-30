@@ -6,55 +6,18 @@ use std::time::Duration;
 
 use clap::{App, Arg, ArgMatches, SubCommand};
 
+use rodbus::error::details::InvalidRange;
 use rodbus::prelude::*;
 
 #[derive(Debug)]
 enum Error {
+    BadRange(InvalidRange),
     BadAddr(std::net::AddrParseError),
     BadInt(std::num::ParseIntError),
     BadBool(std::str::ParseBoolError),
     BadCharInBitString(char),
     Request(rodbus::error::Error),
     MissingSubCommand,
-}
-
-impl std::error::Error for Error {}
-
-impl std::fmt::Display for Error {
-    fn fmt(&self, f: &mut Formatter) -> Result<(), std::fmt::Error> {
-        match self {
-            Error::BadAddr(err) => err.fmt(f),
-            Error::BadInt(err) => err.fmt(f),
-            Error::BadBool(err) => err.fmt(f),
-            Error::BadCharInBitString(char) => write!(f, "Bad character in bit string: {}", char),
-            Error::Request(err) => err.fmt(f),
-            Error::MissingSubCommand => f.write_str("No sub-command provided"),
-        }
-    }
-}
-
-impl From<rodbus::error::Error> for Error {
-    fn from(err: rodbus::error::Error) -> Self {
-        Error::Request(err)
-    }
-}
-
-impl From<AddrParseError> for Error {
-    fn from(err: AddrParseError) -> Self {
-        Error::BadAddr(err)
-    }
-}
-
-impl From<ParseIntError> for Error {
-    fn from(err: ParseIntError) -> Self {
-        Error::BadInt(err)
-    }
-}
-
-impl From<ParseBoolError> for Error {
-    fn from(err: ParseBoolError) -> Self {
-        Error::BadBool(err)
-    }
 }
 
 enum Command {
@@ -195,8 +158,8 @@ fn get_period_ms(value: &str) -> Result<Duration, ParseIntError> {
     Ok(Duration::from_millis(num as u64))
 }
 
-fn get_address_range(arg: &ArgMatches) -> Result<AddressRange, ParseIntError> {
-    Ok(AddressRange::new(get_start(arg)?, get_quantity(arg)?))
+fn get_address_range(arg: &ArgMatches) -> Result<AddressRange, Error> {
+    Ok(AddressRange::try_from(get_start(arg)?, get_quantity(arg)?)?)
 }
 
 fn get_indexed_register_value(arg: &ArgMatches) -> Result<Indexed<u16>, Error> {
@@ -452,4 +415,50 @@ fn parse_args() -> Result<Args, Error> {
     let command = get_command(&matches)?;
 
     Ok(Args::new(address, id, command, period))
+}
+
+impl std::error::Error for Error {}
+
+impl std::fmt::Display for Error {
+    fn fmt(&self, f: &mut Formatter) -> Result<(), std::fmt::Error> {
+        match self {
+            Error::BadRange(err) => write!(f, "{}", err),
+            Error::BadAddr(err) => write!(f, "{}", err),
+            Error::BadInt(err) => err.fmt(f),
+            Error::BadBool(err) => err.fmt(f),
+            Error::BadCharInBitString(char) => write!(f, "Bad character in bit string: {}", char),
+            Error::Request(err) => err.fmt(f),
+            Error::MissingSubCommand => f.write_str("No sub-command provided"),
+        }
+    }
+}
+
+impl From<rodbus::error::Error> for Error {
+    fn from(err: rodbus::error::Error) -> Self {
+        Error::Request(err)
+    }
+}
+
+impl From<AddrParseError> for Error {
+    fn from(err: AddrParseError) -> Self {
+        Error::BadAddr(err)
+    }
+}
+
+impl From<ParseIntError> for Error {
+    fn from(err: ParseIntError) -> Self {
+        Error::BadInt(err)
+    }
+}
+
+impl From<ParseBoolError> for Error {
+    fn from(err: ParseBoolError) -> Self {
+        Error::BadBool(err)
+    }
+}
+
+impl From<InvalidRange> for Error {
+    fn from(err: InvalidRange) -> Self {
+        Error::BadRange(err)
+    }
 }
