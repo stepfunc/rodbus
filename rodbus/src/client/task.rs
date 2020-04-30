@@ -182,6 +182,7 @@ impl ClientLoop {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::client::message::Promise;
     use crate::error::details::FrameParseError;
     use crate::service::function::FunctionCode;
     use crate::service::services::ReadCoils;
@@ -215,7 +216,7 @@ mod tests {
                 UnitId::new(1),
                 timeout,
                 request,
-                tx,
+                Promise::Channel(tx),
             )));
             if let Err(_) = tokio_test::block_on(send_future) {
                 panic!("send failed!");

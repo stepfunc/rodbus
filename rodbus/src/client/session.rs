@@ -3,7 +3,7 @@ use std::time::Duration;
 use tokio::runtime::Runtime;
 use tokio::sync::{mpsc, oneshot};
 
-use crate::client::message::{Request, ServiceRequest};
+use crate::client::message::{Promise, Request, ServiceRequest};
 use crate::error::*;
 use crate::service::services::*;
 use crate::service::traits::Service;
@@ -48,7 +48,7 @@ impl AsyncSession {
             self.id,
             self.response_timeout,
             request,
-            tx,
+            Promise::Channel(tx),
         ));
         self.request_channel
             .send(request)

@@ -35,13 +35,27 @@ impl Request {
     }
 }
 
+pub enum Promise<T> {
+    Channel(oneshot::Sender<T>),
+}
+
+impl<T> Promise<T> {
+    pub(crate) fn complete(self, x: T) {
+        match self {
+            Promise::Channel(sender) => {
+                sender.send(x).ok();
+            }
+        }
+    }
+}
+
 /// All of the information that the channel task
 /// needs to process the request
 pub struct ServiceRequest<S: Service> {
     pub id: UnitId,
     pub timeout: Duration,
     pub argument: S::Request,
-    reply_to: oneshot::Sender<Result<S::Response, Error>>,
+    promise: Promise<Result<S::Response, Error>>,
 }
 
 impl<S: Service> ServiceRequest<S> {
@@ -49,18 +63,18 @@ impl<S: Service> ServiceRequest<S> {
         id: UnitId,
         timeout: Duration,
         argument: S::Request,
-        reply_to: oneshot::Sender<Result<S::Response, Error>>,
+        promise: Promise<Result<S::Response, Error>>,
     ) -> Self {
         Self {
             id,
             timeout,
             argument,
-            reply_to,
+            promise,
         }
     }
 
     pub fn reply(self, value: Result<S::Response, Error>) {
-        self.reply_to.send(value).ok();
+        self.promise.complete(value)
     }
 
     pub fn fail(self, err: Error) {

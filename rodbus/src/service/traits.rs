@@ -6,7 +6,7 @@ use crate::util::cursor::*;
 
 const ERROR_DELIMITER: u8 = 0x80;
 
-pub trait Serialize: Sync {
+pub trait Serialize {
     fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), Error>;
 }
 
@@ -23,10 +23,10 @@ pub trait Service: Sized {
     const REQUEST_FUNCTION_CODE_VALUE: u8 = Self::REQUEST_FUNCTION_CODE.get_value();
     const RESPONSE_ERROR_CODE_VALUE: u8 = Self::REQUEST_FUNCTION_CODE_VALUE | ERROR_DELIMITER;
 
-    /// The type used in the client API for requests
+    /// The type used in the client API for requests that cross thread boundaries
     type Request: Serialize + Send + Sync + 'static;
 
-    /// The type used in the client API for responses
+    /// The type used in the client API for responses that cross thread boundaries
     type Response: ParseResponse<Self::Request> + Send + Sync + 'static;
 
     /// check the validity of a request
