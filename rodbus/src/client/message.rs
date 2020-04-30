@@ -40,16 +40,16 @@ impl Request {
 pub struct ServiceRequest<S: Service> {
     pub id: UnitId,
     pub timeout: Duration,
-    pub argument: S::ClientRequest,
-    reply_to: oneshot::Sender<Result<S::ClientResponse, Error>>,
+    pub argument: S::Request,
+    reply_to: oneshot::Sender<Result<S::Response, Error>>,
 }
 
 impl<S: Service> ServiceRequest<S> {
     pub fn new(
         id: UnitId,
         timeout: Duration,
-        argument: S::ClientRequest,
-        reply_to: oneshot::Sender<Result<S::ClientResponse, Error>>,
+        argument: S::Request,
+        reply_to: oneshot::Sender<Result<S::Response, Error>>,
     ) -> Self {
         Self {
             id,
@@ -59,7 +59,7 @@ impl<S: Service> ServiceRequest<S> {
         }
     }
 
-    pub fn reply(self, value: Result<S::ClientResponse, Error>) {
+    pub fn reply(self, value: Result<S::Response, Error>) {
         self.reply_to.send(value).ok();
     }
 

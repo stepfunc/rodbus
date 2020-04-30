@@ -133,8 +133,8 @@ impl ClientLoop {
         io: &mut T,
         unit_id: UnitId,
         timeout: Duration,
-        request: &S::ClientRequest,
-    ) -> Result<S::ClientResponse, Error>
+        request: &S::Request,
+    ) -> Result<S::Response, Error>
     where
         S: Service,
         T: AsyncRead + AsyncWrite + Unpin,
@@ -204,9 +204,9 @@ mod tests {
 
         fn make_request<S>(
             &mut self,
-            request: S::ClientRequest,
+            request: S::Request,
             timeout: Duration,
-        ) -> tokio::sync::oneshot::Receiver<Result<S::ClientResponse, Error>>
+        ) -> tokio::sync::oneshot::Receiver<Result<S::Response, Error>>
         where
             S: Service,
         {

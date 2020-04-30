@@ -8,10 +8,10 @@ use crate::types::{AddressRange, Indexed};
 impl Service for crate::service::services::ReadHoldingRegisters {
     const REQUEST_FUNCTION_CODE: FunctionCode = FunctionCode::ReadHoldingRegisters;
 
-    type ClientRequest = AddressRange;
-    type ClientResponse = Vec<Indexed<u16>>;
+    type Request = AddressRange;
+    type Response = Vec<Indexed<u16>>;
 
-    fn check_request_validity(request: &Self::ClientRequest) -> Result<(), InvalidRequest> {
+    fn check_request_validity(request: &Self::Request) -> Result<(), InvalidRequest> {
         range::check_validity_for_read_registers(*request)
     }
 

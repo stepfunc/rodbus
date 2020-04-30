@@ -8,12 +8,10 @@ use crate::types::{AddressRange, Indexed};
 impl Service for crate::service::services::ReadCoils {
     const REQUEST_FUNCTION_CODE: FunctionCode = FunctionCode::ReadCoils;
 
-    type ClientRequest = AddressRange;
-    type ClientResponse = Vec<Indexed<bool>>;
+    type Request = AddressRange;
+    type Response = Vec<Indexed<bool>>;
 
-    fn check_request_validity(
-        request: &Self::ClientRequest,
-    ) -> Result<(), details::InvalidRequest> {
+    fn check_request_validity(request: &Self::Request) -> Result<(), details::InvalidRequest> {
         check_validity_for_read_bits(*request)
     }
 

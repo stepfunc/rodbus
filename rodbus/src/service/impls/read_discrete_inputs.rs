@@ -8,20 +8,14 @@ use crate::types::{AddressRange, Indexed};
 impl Service for crate::service::services::ReadDiscreteInputs {
     const REQUEST_FUNCTION_CODE: FunctionCode = FunctionCode::ReadDiscreteInputs;
 
-    type ClientRequest = AddressRange;
-    type ClientResponse = Vec<Indexed<bool>>;
+    type Request = AddressRange;
+    type Response = Vec<Indexed<bool>>;
 
-    fn check_request_validity(request: &Self::ClientRequest) -> Result<(), InvalidRequest> {
+    fn check_request_validity(request: &Self::Request) -> Result<(), InvalidRequest> {
         check_validity_for_read_bits(*request)
     }
 
     fn create_request(request: ServiceRequest<Self>) -> Request {
         Request::ReadDiscreteInputs(request)
     }
-
-    /*
-        fn process(request: &Self::Request, server: &mut dyn ServerHandler) -> Result<Self::Response, ExceptionCode> {
-            server.read_discrete_inputs(*request)
-        }
-    */
 }

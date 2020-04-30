@@ -9,10 +9,10 @@ use crate::types::{AddressRange, WriteMultiple};
 impl Service for WriteMultipleCoils {
     const REQUEST_FUNCTION_CODE: FunctionCode = FunctionCode::WriteMultipleCoils;
 
-    type ClientRequest = WriteMultiple<bool>;
-    type ClientResponse = AddressRange;
+    type Request = WriteMultiple<bool>;
+    type Response = AddressRange;
 
-    fn check_request_validity(request: &Self::ClientRequest) -> Result<(), InvalidRequest> {
+    fn check_request_validity(request: &Self::Request) -> Result<(), InvalidRequest> {
         range::check_validity_for_write_multiple_coils(request.to_address_range()?)
     }
 

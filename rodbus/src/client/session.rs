@@ -40,10 +40,10 @@ impl AsyncSession {
 
     async fn make_service_call<S: Service>(
         &mut self,
-        request: S::ClientRequest,
-    ) -> Result<S::ClientResponse, Error> {
+        request: S::Request,
+    ) -> Result<S::Response, Error> {
         S::check_request_validity(&request)?;
-        let (tx, rx) = oneshot::channel::<Result<S::ClientResponse, Error>>();
+        let (tx, rx) = oneshot::channel::<Result<S::Response, Error>>();
         let request = S::create_request(ServiceRequest::new(
             self.id,
             self.response_timeout,
@@ -131,10 +131,10 @@ impl CallbackSession {
         CallbackSession { inner }
     }
 
-    fn start_request<S, C>(&mut self, runtime: &mut Runtime, request: S::ClientRequest, callback: C)
+    fn start_request<S, C>(&mut self, runtime: &mut Runtime, request: S::Request, callback: C)
     where
         S: Service + 'static,
-        C: FnOnce(Result<S::ClientResponse, Error>) + Send + Sync + 'static,
+        C: FnOnce(Result<S::Response, Error>) + Send + Sync + 'static,
     {
         let mut session = self.inner.clone();
         runtime.spawn(async move {
@@ -245,8 +245,8 @@ impl SyncSession {
     fn make_request<S>(
         &mut self,
         runtime: &mut Runtime,
-        request: S::ClientRequest,
-    ) -> Result<S::ClientResponse, Error>
+        request: S::Request,
+    ) -> Result<S::Response, Error>
     where
         S: Service,
     {

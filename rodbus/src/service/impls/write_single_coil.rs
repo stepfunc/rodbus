@@ -7,21 +7,14 @@ use crate::types::Indexed;
 
 impl Service for WriteSingleCoil {
     const REQUEST_FUNCTION_CODE: FunctionCode = FunctionCode::WriteSingleCoil;
-    type ClientRequest = Indexed<bool>;
-    type ClientResponse = Indexed<bool>;
+    type Request = Indexed<bool>;
+    type Response = Indexed<bool>;
 
-    fn check_request_validity(_: &Self::ClientRequest) -> Result<(), InvalidRequest> {
+    fn check_request_validity(_: &Self::Request) -> Result<(), InvalidRequest> {
         Ok(()) // can't be invalid
     }
 
     fn create_request(request: ServiceRequest<Self>) -> Request {
         Request::WriteSingleCoil(request)
     }
-
-    /*
-        fn process(request: &Self::Request, server: &mut dyn ServerHandler) -> Result<Self::Response, ExceptionCode> {
-            server.write_single_coil(*request)?;
-            Ok(*request)
-        }
-    */
 }

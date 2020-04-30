@@ -24,26 +24,25 @@ pub trait Service: Sized {
     const RESPONSE_ERROR_CODE_VALUE: u8 = Self::REQUEST_FUNCTION_CODE_VALUE | ERROR_DELIMITER;
 
     /// The type used in the client API for requests
-    type ClientRequest: Serialize + Send + Sync + 'static;
+    type Request: Serialize + Send + Sync + 'static;
 
     /// The type used in the client API for responses
-    type ClientResponse: ParseResponse<Self::ClientRequest> + Send + Sync + 'static;
+    type Response: ParseResponse<Self::Request> + Send + Sync + 'static;
 
     /// check the validity of a request
-    fn check_request_validity(request: &Self::ClientRequest)
-        -> Result<(), details::InvalidRequest>;
+    fn check_request_validity(request: &Self::Request) -> Result<(), details::InvalidRequest>;
 
     /// create the request enumeration used by the Client channel
     fn create_request(request: ServiceRequest<Self>) -> Request;
 
     fn parse_response(
         cursor: &mut ReadCursor,
-        request: &Self::ClientRequest,
-    ) -> Result<Self::ClientResponse, Error> {
+        request: &Self::Request,
+    ) -> Result<Self::Response, Error> {
         let function = cursor.read_u8()?;
 
         if function == Self::REQUEST_FUNCTION_CODE_VALUE {
-            let response = Self::ClientResponse::parse_response(cursor, request)?;
+            let response = Self::Response::parse_response(cursor, request)?;
             if !cursor.is_empty() {
                 return Err(details::ADUParseError::TrailingBytes(cursor.len()).into());
             }
