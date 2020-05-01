@@ -36,11 +36,19 @@ impl Request {
 }
 
 pub enum Promise<T> {
-    Channel(oneshot::Sender<T>),
+    Channel(oneshot::Sender<Result<T, Error>>),
 }
 
 impl<T> Promise<T> {
-    pub(crate) fn complete(self, x: T) {
+    pub(crate) fn failure(self, err: Error) {
+        self.complete(Err(err))
+    }
+
+    pub(crate) fn success(self, x: T) {
+        self.complete(Ok(x))
+    }
+
+    fn complete(self, x: Result<T, Error>) {
         match self {
             Promise::Channel(sender) => {
                 sender.send(x).ok();
@@ -55,7 +63,7 @@ pub struct ServiceRequest<S: Service> {
     pub id: UnitId,
     pub timeout: Duration,
     pub argument: S::Request,
-    promise: Promise<Result<S::Response, Error>>,
+    promise: Promise<S::Response>,
 }
 
 impl<S: Service> ServiceRequest<S> {
@@ -63,7 +71,7 @@ impl<S: Service> ServiceRequest<S> {
         id: UnitId,
         timeout: Duration,
         argument: S::Request,
-        promise: Promise<Result<S::Response, Error>>,
+        promise: Promise<S::Response>,
     ) -> Self {
         Self {
             id,

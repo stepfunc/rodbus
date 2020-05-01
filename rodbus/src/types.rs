@@ -2,8 +2,11 @@ use std::convert::TryFrom;
 
 use crate::error::details::{ADUParseError, InternalError, InvalidRange, InvalidRequest};
 
+use crate::error::Error;
+use crate::util::cursor::ReadCursor;
 #[cfg(feature = "no-panic")]
 use no_panic::no_panic;
+use std::io::Cursor;
 
 /// Modbus unit identifier, just a type-safe wrapper around u8
 #[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Ord, Eq)]
@@ -55,6 +58,14 @@ impl<'a> BitIterator<'a> {
 
         Ok(Self {
             bytes,
+            range,
+            pos: 0,
+        })
+    }
+
+    pub(crate) fn parse(range: AddressRange, cursor: &'a mut ReadCursor) -> Result<Self, Error> {
+        Ok(Self {
+            bytes: cursor.read_bytes(crate::util::bits::num_bytes_for_bits(range.count))?,
             range,
             pos: 0,
         })
