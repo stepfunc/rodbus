@@ -41,6 +41,7 @@ mod tests {
         use crate::util::cursor::ReadCursor;
 
         use super::super::*;
+        use crate::types::Indexed;
 
         #[test]
         fn fails_when_too_few_bytes_for_coil_byte_count() {
@@ -74,9 +75,16 @@ mod tests {
         fn can_parse_coils() {
             let mut cursor = ReadCursor::new(&[0x00, 0x01, 0x00, 0x03, 0x01, 0x05]);
             let coils = parse_write_multiple_coils(&mut cursor).unwrap();
-            let values: Vec<bool> = coils.iterator.collect();
+            let values: Vec<Indexed<bool>> = coils.iterator.collect();
             assert_eq!(coils.range, AddressRange::try_from(1, 3).unwrap());
-            assert_eq!(values, vec![true, false, true])
+            assert_eq!(
+                values,
+                vec![
+                    Indexed::new(1, true),
+                    Indexed::new(2, false,),
+                    Indexed::new(3, true)
+                ]
+            )
         }
     }
 
@@ -85,6 +93,7 @@ mod tests {
         use crate::util::cursor::ReadCursor;
 
         use super::super::*;
+        use crate::types::Indexed;
 
         #[test]
         fn fails_when_too_few_bytes_for_coil_byte_count() {
@@ -119,9 +128,12 @@ mod tests {
             let mut cursor =
                 ReadCursor::new(&[0x00, 0x01, 0x00, 0x02, 0x04, 0xCA, 0xFE, 0xBB, 0xDD]);
             let registers = parse_write_multiple_registers(&mut cursor).unwrap();
-            let values: Vec<u16> = registers.iterator.collect();
+            let values: Vec<Indexed<u16>> = registers.iterator.collect();
             assert_eq!(registers.range, AddressRange::try_from(1, 2).unwrap());
-            assert_eq!(values, vec![0xCAFE, 0xBBDD])
+            assert_eq!(
+                values,
+                vec![Indexed::new(1, 0xCAFE), Indexed::new(2, 0xBBDD)]
+            )
         }
     }
 }

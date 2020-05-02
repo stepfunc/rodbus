@@ -117,9 +117,8 @@ impl ParseResponse<WriteMultiple<bool>> for AddressRange {
         cursor: &mut ReadCursor,
         request: &WriteMultiple<bool>,
     ) -> Result<Self, Error> {
-        let range = request.to_address_range()?;
         let parsed = AddressRange::parse(cursor)?;
-        if range != parsed {
+        if request.range != parsed {
             return Err(ADUParseError::ReplyEchoMismatch.into());
         }
         Ok(parsed)
@@ -131,9 +130,8 @@ impl ParseResponse<WriteMultiple<u16>> for AddressRange {
         cursor: &mut ReadCursor,
         request: &WriteMultiple<u16>,
     ) -> Result<Self, Error> {
-        let range = request.to_address_range()?;
         let parsed = AddressRange::parse(cursor)?;
-        if range != parsed {
+        if request.range != parsed {
             return Err(ADUParseError::ReplyEchoMismatch.into());
         }
         Ok(parsed)

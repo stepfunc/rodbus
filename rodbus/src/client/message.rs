@@ -1,36 +1,136 @@
-use std::time::Duration;
+use crate::error::details::{ADUParseError, ExceptionCode};
+use crate::error::*;
+use crate::service::function::FunctionCode;
+use crate::service::impls::read_bits::ReadBits;
+use crate::service::traits::Serialize;
+use crate::types::{Indexed, UnitId};
+use crate::util::cursor::{ReadCursor, WriteCursor};
 
+use crate::service::impls::read_registers::ReadRegisters;
+use crate::service::impls::write_multiple::MultipleWrite;
+use crate::service::impls::write_single::SingleWrite;
+use std::time::Duration;
 use tokio::sync::oneshot;
 
-use crate::error::*;
-use crate::service::services::*;
-use crate::service::traits::Service;
-use crate::types::UnitId;
+pub(crate) struct Request {
+    pub(crate) id: UnitId,
+    pub(crate) timeout: Duration,
+    pub(crate) details: RequestDetails,
+}
 
-/// possible requests that can be sent through the channel
-/// each variant is just a wrapper around a ServiceRequest<S>
-pub enum Request {
-    ReadCoils(ServiceRequest<ReadCoils>),
-    ReadDiscreteInputs(ServiceRequest<ReadDiscreteInputs>),
-    ReadHoldingRegisters(ServiceRequest<ReadHoldingRegisters>),
-    ReadInputRegisters(ServiceRequest<ReadInputRegisters>),
-    WriteSingleCoil(ServiceRequest<WriteSingleCoil>),
-    WriteSingleRegister(ServiceRequest<WriteSingleRegister>),
-    WriteMultipleCoils(ServiceRequest<WriteMultipleCoils>),
-    WriteMultipleRegisters(ServiceRequest<WriteMultipleRegisters>),
+// possible requests that can be sent through the channel
+pub(crate) enum RequestDetails {
+    ReadCoils(ReadBits),
+    ReadDiscreteInputs(ReadBits),
+    ReadHoldingRegisters(ReadRegisters),
+    ReadInputRegisters(ReadRegisters),
+    WriteSingleCoil(SingleWrite<Indexed<bool>>),
+    WriteSingleRegister(SingleWrite<Indexed<u16>>),
+    WriteMultipleCoils(MultipleWrite<bool>),
+    WriteMultipleRegisters(MultipleWrite<u16>),
 }
 
 impl Request {
-    pub fn fail(self, err: Error) {
+    pub(crate) fn new(id: UnitId, timeout: Duration, details: RequestDetails) -> Self {
+        Self {
+            id,
+            timeout,
+            details,
+        }
+    }
+
+    pub(crate) fn handle_response(self, payload: &[u8]) {
+        let code = self.details.function();
+        let mut cursor = ReadCursor::new(payload);
+        let function = match cursor.read_u8() {
+            Ok(x) => x,
+            Err(err) => return self.details.fail(err.into()),
+        };
+        if function == code.get_value() {
+            // call the request-specific response handler
+            return self.details.handle_response(cursor);
+        }
+        // complete the promise with the correct error
+        self.details
+            .fail(Self::get_error_for(function, code, cursor));
+    }
+
+    fn get_error_for(function: u8, code: FunctionCode, mut cursor: ReadCursor) -> Error {
+        if function == code.as_error() {
+            match cursor.read_u8() {
+                Ok(x) => {
+                    let exception = ExceptionCode::from(x);
+                    if cursor.is_empty() {
+                        Error::BadResponse(ADUParseError::TrailingBytes(cursor.len()))
+                    } else {
+                        Error::Exception(exception)
+                    }
+                }
+                Err(err) => err.into(),
+            }
+        } else {
+            Error::BadResponse(ADUParseError::UnknownResponseFunction(
+                function,
+                code.get_value(),
+                code.as_error(),
+            ))
+        }
+    }
+}
+
+impl RequestDetails {
+    pub(crate) fn function(&self) -> FunctionCode {
         match self {
-            Request::ReadCoils(r) => r.fail(err),
-            Request::ReadDiscreteInputs(r) => r.fail(err),
-            Request::ReadHoldingRegisters(r) => r.fail(err),
-            Request::ReadInputRegisters(r) => r.fail(err),
-            Request::WriteSingleCoil(r) => r.fail(err),
-            Request::WriteSingleRegister(r) => r.fail(err),
-            Request::WriteMultipleCoils(r) => r.fail(err),
-            Request::WriteMultipleRegisters(r) => r.fail(err),
+            RequestDetails::ReadCoils(_) => FunctionCode::ReadCoils,
+            RequestDetails::ReadDiscreteInputs(_) => FunctionCode::ReadDiscreteInputs,
+            RequestDetails::ReadHoldingRegisters(_) => FunctionCode::ReadHoldingRegisters,
+            RequestDetails::ReadInputRegisters(_) => FunctionCode::ReadInputRegisters,
+            RequestDetails::WriteSingleCoil(_) => FunctionCode::WriteSingleCoil,
+            RequestDetails::WriteSingleRegister(_) => FunctionCode::WriteSingleRegister,
+            RequestDetails::WriteMultipleCoils(_) => FunctionCode::WriteMultipleCoils,
+            RequestDetails::WriteMultipleRegisters(_) => FunctionCode::WriteMultipleRegisters,
+        }
+    }
+
+    pub(crate) fn fail(self, err: Error) {
+        match self {
+            RequestDetails::ReadCoils(x) => x.failure(err),
+            RequestDetails::ReadDiscreteInputs(x) => x.failure(err),
+            RequestDetails::ReadHoldingRegisters(x) => x.failure(err),
+            RequestDetails::ReadInputRegisters(x) => x.failure(err),
+            RequestDetails::WriteSingleCoil(x) => x.failure(err),
+            RequestDetails::WriteSingleRegister(x) => x.failure(err),
+            RequestDetails::WriteMultipleCoils(x) => x.failure(err),
+            RequestDetails::WriteMultipleRegisters(x) => x.failure(err),
+        }
+    }
+
+    fn handle_response(self, cursor: ReadCursor) {
+        match self {
+            RequestDetails::ReadCoils(x) => x.handle_response(cursor),
+            RequestDetails::ReadDiscreteInputs(x) => x.handle_response(cursor),
+            RequestDetails::ReadHoldingRegisters(x) => x.handle_response(cursor),
+            RequestDetails::ReadInputRegisters(x) => x.handle_response(cursor),
+            RequestDetails::WriteSingleCoil(x) => x.handle_response(cursor),
+            RequestDetails::WriteSingleRegister(x) => x.handle_response(cursor),
+            RequestDetails::WriteMultipleCoils(x) => x.handle_response(cursor),
+            RequestDetails::WriteMultipleRegisters(x) => x.handle_response(cursor),
+        }
+    }
+}
+
+impl Serialize for RequestDetails {
+    fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), Error> {
+        cursor.write_u8(self.function().get_value())?;
+        match self {
+            RequestDetails::ReadCoils(x) => x.serialize(cursor),
+            RequestDetails::ReadDiscreteInputs(x) => x.serialize(cursor),
+            RequestDetails::ReadHoldingRegisters(x) => x.serialize(cursor),
+            RequestDetails::ReadInputRegisters(x) => x.serialize(cursor),
+            RequestDetails::WriteSingleCoil(x) => x.serialize(cursor),
+            RequestDetails::WriteSingleRegister(x) => x.serialize(cursor),
+            RequestDetails::WriteMultipleCoils(x) => x.serialize(cursor),
+            RequestDetails::WriteMultipleRegisters(x) => x.serialize(cursor),
         }
     }
 }
@@ -48,44 +148,11 @@ impl<T> Promise<T> {
         self.complete(Ok(x))
     }
 
-    fn complete(self, x: Result<T, Error>) {
+    pub(crate) fn complete(self, x: Result<T, Error>) {
         match self {
             Promise::Channel(sender) => {
                 sender.send(x).ok();
             }
         }
-    }
-}
-
-/// All of the information that the channel task
-/// needs to process the request
-pub struct ServiceRequest<S: Service> {
-    pub id: UnitId,
-    pub timeout: Duration,
-    pub argument: S::Request,
-    promise: Promise<S::Response>,
-}
-
-impl<S: Service> ServiceRequest<S> {
-    pub fn new(
-        id: UnitId,
-        timeout: Duration,
-        argument: S::Request,
-        promise: Promise<S::Response>,
-    ) -> Self {
-        Self {
-            id,
-            timeout,
-            argument,
-            promise,
-        }
-    }
-
-    pub fn reply(self, value: Result<S::Response, Error>) {
-        self.promise.complete(value)
-    }
-
-    pub fn fail(self, err: Error) {
-        self.reply(Err(err))
     }
 }

@@ -10,6 +10,7 @@ use tokio::runtime;
 
 use rodbus::client::channel::Channel;
 use rodbus::client::session::{CallbackSession, SyncSession};
+use rodbus::error::details::InvalidRequest;
 use rodbus::error::Error;
 use rodbus::types::{AddressRange, UnitId, WriteMultiple};
 
@@ -152,6 +153,12 @@ impl From<rodbus::error::Error> for Result {
             Error::Io(_) => Result::status(Status::IOError),
             Error::BadResponse(_) => Result::status(Status::BadResponse),
         }
+    }
+}
+
+impl From<rodbus::error::details::InvalidRequest> for Result {
+    fn from(_: InvalidRequest) -> Self {
+        Result::status(Status::BadRequest)
     }
 }
 
@@ -316,7 +323,7 @@ pub(crate) unsafe fn to_write_multiple<T>(
     start: u16,
     values: *const T,
     count: u16,
-) -> WriteMultiple<T>
+) -> std::result::Result<WriteMultiple<T>, InvalidRequest>
 where
     T: Copy,
 {
@@ -324,5 +331,5 @@ where
     for i in 0..count {
         vec.push(*values.add(i as usize));
     }
-    WriteMultiple::new(start, vec)
+    WriteMultiple::from(start, vec)
 }

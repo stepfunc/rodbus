@@ -3,11 +3,13 @@ use std::time::Duration;
 use tokio::runtime::Runtime;
 use tokio::sync::{mpsc, oneshot};
 
-use crate::client::message::{Promise, Request, ServiceRequest};
+use crate::client::message::{Promise, Request, RequestDetails};
 use crate::error::*;
-use crate::service::services::*;
-use crate::service::traits::Service;
-use crate::types::{AddressRange, Indexed, UnitId, WriteMultiple};
+use crate::service::impls::read_bits::ReadBits;
+use crate::service::impls::read_registers::ReadRegisters;
+use crate::service::impls::write_multiple::MultipleWrite;
+use crate::service::impls::write_single::SingleWrite;
+use crate::types::{AddressRange, Indexed, ReadBitsRange, UnitId, WriteMultiple};
 
 /// A handle used to make requests against an underlying channel task.
 ///
@@ -38,77 +40,109 @@ impl AsyncSession {
         }
     }
 
-    async fn make_service_call<S: Service>(
-        &mut self,
-        request: S::Request,
-    ) -> Result<S::Response, Error> {
-        S::check_request_validity(&request)?;
-        let (tx, rx) = oneshot::channel::<Result<S::Response, Error>>();
-        let request = S::create_request(ServiceRequest::new(
-            self.id,
-            self.response_timeout,
-            request,
-            Promise::Channel(tx),
-        ));
-        self.request_channel
-            .send(request)
-            .await
-            .map_err(|_| Error::Shutdown)?;
-        rx.await.map_err(|_| Error::Shutdown)?
-    }
-
     pub async fn read_coils(&mut self, range: AddressRange) -> Result<Vec<Indexed<bool>>, Error> {
-        self.make_service_call::<ReadCoils>(range).await
+        let (tx, rx) = oneshot::channel::<Result<Vec<Indexed<bool>>, Error>>();
+        let request = self.wrap(RequestDetails::ReadCoils(ReadBits::new(
+            range.of_read_bits()?,
+            Promise::Channel(tx),
+        )));
+        self.request_channel.send(request).await?;
+        rx.await?
     }
 
     pub async fn read_discrete_inputs(
         &mut self,
         range: AddressRange,
     ) -> Result<Vec<Indexed<bool>>, Error> {
-        self.make_service_call::<ReadDiscreteInputs>(range).await
+        let (tx, rx) = oneshot::channel::<Result<Vec<Indexed<bool>>, Error>>();
+        let request = self.wrap(RequestDetails::ReadDiscreteInputs(ReadBits::new(
+            range.of_read_bits()?,
+            Promise::Channel(tx),
+        )));
+        self.request_channel.send(request).await?;
+        rx.await?
     }
 
     pub async fn read_holding_registers(
         &mut self,
         range: AddressRange,
     ) -> Result<Vec<Indexed<u16>>, Error> {
-        self.make_service_call::<ReadHoldingRegisters>(range).await
+        let (tx, rx) = oneshot::channel::<Result<Vec<Indexed<u16>>, Error>>();
+        let request = self.wrap(RequestDetails::ReadHoldingRegisters(ReadRegisters::new(
+            range.of_read_registers()?,
+            Promise::Channel(tx),
+        )));
+        self.request_channel.send(request).await?;
+        rx.await?
     }
 
     pub async fn read_input_registers(
         &mut self,
         range: AddressRange,
     ) -> Result<Vec<Indexed<u16>>, Error> {
-        self.make_service_call::<ReadInputRegisters>(range).await
+        let (tx, rx) = oneshot::channel::<Result<Vec<Indexed<u16>>, Error>>();
+        let request = self.wrap(RequestDetails::ReadInputRegisters(ReadRegisters::new(
+            range.of_read_registers()?,
+            Promise::Channel(tx),
+        )));
+        self.request_channel.send(request).await?;
+        rx.await?
     }
 
     pub async fn write_single_coil(
         &mut self,
-        value: Indexed<bool>,
+        request: Indexed<bool>,
     ) -> Result<Indexed<bool>, Error> {
-        self.make_service_call::<WriteSingleCoil>(value).await
+        let (tx, rx) = oneshot::channel::<Result<Indexed<bool>, Error>>();
+        let request = self.wrap(RequestDetails::WriteSingleCoil(SingleWrite::new(
+            request,
+            Promise::Channel(tx),
+        )));
+        self.request_channel.send(request).await?;
+        rx.await?
     }
 
     pub async fn write_single_register(
         &mut self,
-        value: Indexed<u16>,
+        request: Indexed<u16>,
     ) -> Result<Indexed<u16>, Error> {
-        self.make_service_call::<WriteSingleRegister>(value).await
+        let (tx, rx) = oneshot::channel::<Result<Indexed<u16>, Error>>();
+        let request = self.wrap(RequestDetails::WriteSingleRegister(SingleWrite::new(
+            request,
+            Promise::Channel(tx),
+        )));
+        self.request_channel.send(request).await?;
+        rx.await?
     }
 
     pub async fn write_multiple_coils(
         &mut self,
-        value: WriteMultiple<bool>,
+        request: WriteMultiple<bool>,
     ) -> Result<AddressRange, Error> {
-        self.make_service_call::<WriteMultipleCoils>(value).await
+        let (tx, rx) = oneshot::channel::<Result<AddressRange, Error>>();
+        let request = self.wrap(RequestDetails::WriteMultipleCoils(MultipleWrite::new(
+            request,
+            Promise::Channel(tx),
+        )));
+        self.request_channel.send(request).await?;
+        rx.await?
     }
 
     pub async fn write_multiple_registers(
         &mut self,
-        value: WriteMultiple<u16>,
+        request: WriteMultiple<u16>,
     ) -> Result<AddressRange, Error> {
-        self.make_service_call::<WriteMultipleRegisters>(value)
-            .await
+        let (tx, rx) = oneshot::channel::<Result<AddressRange, Error>>();
+        let request = self.wrap(RequestDetails::WriteMultipleRegisters(MultipleWrite::new(
+            request,
+            Promise::Channel(tx),
+        )));
+        self.request_channel.send(request).await?;
+        rx.await?
+    }
+
+    fn wrap(&self, details: RequestDetails) -> Request {
+        Request::new(self.id, self.response_timeout, details)
     }
 }
 
@@ -131,22 +165,11 @@ impl CallbackSession {
         CallbackSession { inner }
     }
 
-    fn start_request<S, C>(&mut self, runtime: &mut Runtime, request: S::Request, callback: C)
-    where
-        S: Service + 'static,
-        C: FnOnce(Result<S::Response, Error>) + Send + Sync + 'static,
-    {
-        let mut session = self.inner.clone();
-        runtime.spawn(async move {
-            callback(session.make_service_call::<S>(request).await);
-        });
-    }
-
     pub fn read_coils<C>(&mut self, runtime: &mut Runtime, range: AddressRange, callback: C)
     where
         C: FnOnce(Result<Vec<Indexed<bool>>, Error>) + Send + Sync + 'static,
     {
-        self.start_request::<ReadCoils, C>(runtime, range, callback);
+        unimplemented!();
     }
 
     pub fn read_discrete_inputs<C>(
@@ -157,7 +180,7 @@ impl CallbackSession {
     ) where
         C: FnOnce(Result<Vec<Indexed<bool>>, Error>) + Send + Sync + 'static,
     {
-        self.start_request::<ReadDiscreteInputs, C>(runtime, range, callback);
+        unimplemented!();
     }
 
     pub fn read_holding_registers<C>(
@@ -168,7 +191,7 @@ impl CallbackSession {
     ) where
         C: FnOnce(Result<Vec<Indexed<u16>>, Error>) + Send + Sync + 'static,
     {
-        self.start_request::<ReadHoldingRegisters, C>(runtime, range, callback);
+        unimplemented!();
     }
 
     pub fn read_input_registers<C>(
@@ -179,14 +202,14 @@ impl CallbackSession {
     ) where
         C: FnOnce(Result<Vec<Indexed<u16>>, Error>) + Send + Sync + 'static,
     {
-        self.start_request::<ReadInputRegisters, C>(runtime, range, callback);
+        unimplemented!();
     }
 
     pub fn write_single_coil<C>(&mut self, runtime: &mut Runtime, value: Indexed<bool>, callback: C)
     where
         C: FnOnce(Result<Indexed<bool>, Error>) + Send + Sync + 'static,
     {
-        self.start_request::<WriteSingleCoil, C>(runtime, value, callback);
+        unimplemented!();
     }
 
     pub fn write_single_register<C>(
@@ -197,7 +220,7 @@ impl CallbackSession {
     ) where
         C: FnOnce(Result<Indexed<u16>, Error>) + Send + Sync + 'static,
     {
-        self.start_request::<WriteSingleRegister, C>(runtime, value, callback);
+        unimplemented!();
     }
 
     pub fn write_multiple_registers<C>(
@@ -208,7 +231,7 @@ impl CallbackSession {
     ) where
         C: FnOnce(Result<AddressRange, Error>) + Send + Sync + 'static,
     {
-        self.start_request::<WriteMultipleRegisters, C>(runtime, value, callback);
+        unimplemented!();
     }
 
     pub fn write_multiple_coils<C>(
@@ -219,7 +242,7 @@ impl CallbackSession {
     ) where
         C: FnOnce(Result<AddressRange, Error>) + Send + Sync + 'static,
     {
-        self.start_request::<WriteMultipleCoils, C>(runtime, value, callback);
+        unimplemented!();
     }
 }
 
@@ -242,23 +265,12 @@ impl SyncSession {
         SyncSession { inner }
     }
 
-    fn make_request<S>(
-        &mut self,
-        runtime: &mut Runtime,
-        request: S::Request,
-    ) -> Result<S::Response, Error>
-    where
-        S: Service,
-    {
-        runtime.block_on(self.inner.make_service_call::<S>(request))
-    }
-
     pub fn read_coils(
         &mut self,
         runtime: &mut Runtime,
         range: AddressRange,
     ) -> Result<Vec<Indexed<bool>>, Error> {
-        self.make_request::<ReadCoils>(runtime, range)
+        runtime.block_on(self.inner.read_coils(range))
     }
 
     pub fn read_discrete_inputs(
@@ -266,7 +278,7 @@ impl SyncSession {
         runtime: &mut Runtime,
         range: AddressRange,
     ) -> Result<Vec<Indexed<bool>>, Error> {
-        self.make_request::<ReadDiscreteInputs>(runtime, range)
+        runtime.block_on(self.inner.read_discrete_inputs(range))
     }
 
     pub fn read_holding_registers(
@@ -274,7 +286,7 @@ impl SyncSession {
         runtime: &mut Runtime,
         range: AddressRange,
     ) -> Result<Vec<Indexed<u16>>, Error> {
-        self.make_request::<ReadHoldingRegisters>(runtime, range)
+        runtime.block_on(self.inner.read_holding_registers(range))
     }
 
     pub fn read_input_registers(
@@ -282,7 +294,7 @@ impl SyncSession {
         runtime: &mut Runtime,
         range: AddressRange,
     ) -> Result<Vec<Indexed<u16>>, Error> {
-        self.make_request::<ReadInputRegisters>(runtime, range)
+        runtime.block_on(self.inner.read_input_registers(range))
     }
 
     pub fn write_single_coil(
@@ -290,7 +302,7 @@ impl SyncSession {
         runtime: &mut Runtime,
         value: Indexed<bool>,
     ) -> Result<Indexed<bool>, Error> {
-        self.make_request::<WriteSingleCoil>(runtime, value)
+        runtime.block_on(self.inner.write_single_coil(value))
     }
 
     pub fn write_single_register(
@@ -298,7 +310,7 @@ impl SyncSession {
         runtime: &mut Runtime,
         value: Indexed<u16>,
     ) -> Result<Indexed<u16>, Error> {
-        self.make_request::<WriteSingleRegister>(runtime, value)
+        runtime.block_on(self.inner.write_single_register(value))
     }
 
     pub fn write_multiple_coils(
@@ -306,7 +318,7 @@ impl SyncSession {
         runtime: &mut Runtime,
         value: WriteMultiple<bool>,
     ) -> Result<AddressRange, Error> {
-        self.make_request::<WriteMultipleCoils>(runtime, value)
+        runtime.block_on(self.inner.write_multiple_coils(value))
     }
 
     pub fn write_multiple_registers(
@@ -314,6 +326,6 @@ impl SyncSession {
         runtime: &mut Runtime,
         value: WriteMultiple<u16>,
     ) -> Result<AddressRange, Error> {
-        self.make_request::<WriteMultipleRegisters>(runtime, value)
+        runtime.block_on(self.inner.write_multiple_registers(value))
     }
 }

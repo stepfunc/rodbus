@@ -239,11 +239,12 @@ pub unsafe extern "C" fn write_multiple_coils_cb(
     user_data: *mut c_void,
 ) {
     let (runtime, mut session) = get_callback_session(session);
-    session.write_multiple_coils(
-        runtime,
-        to_write_multiple(start, values, count),
-        status_callback_to_fn(user_data, callback),
-    );
+    let callback = status_callback_to_fn(user_data, callback);
+    let request = match to_write_multiple(start, values, count) {
+        Ok(x) => x,
+        Err(err) => return callback(Err(err.into())),
+    };
+    session.write_multiple_coils(runtime, request, callback);
 }
 
 /// @brief perform a non-blocking operation to write multiple registers
@@ -268,9 +269,10 @@ pub unsafe extern "C" fn write_multiple_registers_cb(
     user_data: *mut c_void,
 ) {
     let (runtime, mut session) = get_callback_session(session);
-    session.write_multiple_registers(
-        runtime,
-        to_write_multiple(start, values, count),
-        status_callback_to_fn(user_data, callback),
-    );
+    let callback = status_callback_to_fn(user_data, callback);
+    let request = match to_write_multiple(start, values, count) {
+        Ok(x) => x,
+        Err(err) => return callback(Err(err.into())),
+    };
+    session.write_multiple_registers(runtime, request, callback);
 }

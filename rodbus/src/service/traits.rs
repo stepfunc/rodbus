@@ -1,10 +1,10 @@
-use crate::client::message::{Request, ServiceRequest};
+use crate::client::message::Request;
 use crate::error::details::ExceptionCode;
 use crate::error::*;
 use crate::service::function::FunctionCode;
 use crate::util::cursor::*;
 
-const ERROR_DELIMITER: u8 = 0x80;
+//const ERROR_DELIMITER: u8 = 0x80;
 
 pub trait Serialize {
     fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), Error>;
@@ -18,7 +18,8 @@ pub trait ParseRequest: Sized {
     fn parse(cursor: &mut ReadCursor) -> Result<Self, Error>;
 }
 
-pub trait Service: Sized {
+/*
+pub(crate) trait Service: Sized {
     const REQUEST_FUNCTION_CODE: FunctionCode;
     const REQUEST_FUNCTION_CODE_VALUE: u8 = Self::REQUEST_FUNCTION_CODE.get_value();
     const RESPONSE_ERROR_CODE_VALUE: u8 = Self::REQUEST_FUNCTION_CODE_VALUE | ERROR_DELIMITER;
@@ -65,3 +66,4 @@ pub trait Service: Sized {
         .into())
     }
 }
+*/

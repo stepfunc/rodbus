@@ -231,7 +231,7 @@ impl ServerHandler for FFIHandler {
             Some(dest) => dest,
             None => return Err(ExceptionCode::ServerDeviceFailure),
         };
-        Self::copy_to(dest, values.iterator)?;
+        Self::copy_to(dest, values.iterator.map(|x| x.value))?;
         Self::write_multiple(
             dest,
             values.range,
@@ -246,7 +246,7 @@ impl ServerHandler for FFIHandler {
             Some(dest) => dest,
             None => return Err(ExceptionCode::ServerDeviceFailure),
         };
-        Self::copy_to(dest, values.iterator)?;
+        Self::copy_to(dest, values.iterator.map(|x| x.value))?;
         Self::write_multiple(
             dest,
             values.range,

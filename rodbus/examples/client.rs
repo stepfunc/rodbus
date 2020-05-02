@@ -13,7 +13,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     // Send request
     for x in session
-        .read_coils(AddressRange::try_from(0, 10).unwrap())
+        .read_discrete_inputs(AddressRange::try_from(0, 10).unwrap())
         .await?
     {
         println!("index: {} value: {}", x.index, x.value);

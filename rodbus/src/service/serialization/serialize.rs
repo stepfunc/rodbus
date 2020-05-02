@@ -86,14 +86,14 @@ impl Serialize for &[u16] {
 
 impl Serialize for WriteMultiple<bool> {
     fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), Error> {
-        self.to_address_range()?.serialize(cursor)?;
+        self.range.serialize(cursor)?;
         self.values.as_slice().serialize(cursor)
     }
 }
 
 impl Serialize for WriteMultiple<u16> {
     fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), Error> {
-        self.to_address_range()?.serialize(cursor)?;
+        self.range.serialize(cursor)?;
         self.values.as_slice().serialize(cursor)
     }
 }

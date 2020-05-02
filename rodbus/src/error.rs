@@ -1,3 +1,5 @@
+use std::sync::mpsc::{RecvError, SendError};
+
 /// Top level error type for the client API
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Error {
@@ -75,6 +77,18 @@ impl From<details::InvalidRange> for details::InvalidRequest {
     }
 }
 
+impl<T> From<tokio::sync::mpsc::error::SendError<T>> for Error {
+    fn from(_: tokio::sync::mpsc::error::SendError<T>) -> Self {
+        Error::Shutdown
+    }
+}
+
+impl From<tokio::sync::oneshot::error::RecvError> for Error {
+    fn from(_: tokio::sync::oneshot::error::RecvError) -> Self {
+        Error::Shutdown
+    }
+}
+
 impl From<details::InvalidRange> for Error {
     fn from(x: details::InvalidRange) -> Self {
         Error::BadRequest(x.into())
@@ -91,6 +105,8 @@ pub mod details {
         CountOfZero,
         /// address in range overflows u16
         AddressOverflow(u16, u16),
+        /// count too large for type
+        CountTooLargeForType(u16, u16), // actual and limit
     }
 
     /// errors that indicate faulty logic in the library itself if they occur
@@ -397,6 +413,11 @@ pub mod details {
                     f,
                     "start == {} and count = {} would overflow u16 representation",
                     start, count
+                ),
+                InvalidRange::CountTooLargeForType(x, y) => write!(
+                    f,
+                    "count of {} is too large for the specified type (max == {})",
+                    x, y
                 ),
             }
         }
