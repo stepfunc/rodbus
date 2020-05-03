@@ -4,11 +4,12 @@ use crate::client::channel::{Channel, ReconnectStrategy};
 
 /// persistent communication channel such as a TCP connection
 pub mod channel;
-/// messages exchanged between the session and the channel task
-pub(crate) mod message;
+
 /// API used to communicate with the server
 pub mod session;
-/// asynchronous task that executes Modbus requests against the underlying I/O
+
+pub(crate) mod message;
+pub(crate) mod requests;
 pub(crate) mod task;
 
 /// Spawns a channel task onto the runtime that maintains a TCP connection and processes

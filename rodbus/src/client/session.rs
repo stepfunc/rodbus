@@ -4,11 +4,11 @@ use tokio::runtime::Runtime;
 use tokio::sync::{mpsc, oneshot};
 
 use crate::client::message::{Promise, Request, RequestDetails};
+use crate::client::requests::read_bits::ReadBits;
+use crate::client::requests::read_registers::ReadRegisters;
+use crate::client::requests::write_multiple::MultipleWrite;
+use crate::client::requests::write_single::SingleWrite;
 use crate::error::*;
-use crate::service::impls::read_bits::ReadBits;
-use crate::service::impls::read_registers::ReadRegisters;
-use crate::service::impls::write_multiple::MultipleWrite;
-use crate::service::impls::write_single::SingleWrite;
 use crate::types::{AddressRange, BitIterator, Indexed, RegisterIterator, UnitId, WriteMultiple};
 
 /// A handle used to make requests against an underlying channel task.
@@ -44,7 +44,7 @@ impl AsyncSession {
         let (tx, rx) = oneshot::channel::<Result<Vec<Indexed<bool>>, Error>>();
         let request = self.wrap(RequestDetails::ReadCoils(ReadBits::new(
             range.of_read_bits()?,
-            crate::service::impls::read_bits::Promise::Channel(tx),
+            crate::client::requests::read_bits::Promise::Channel(tx),
         )));
         self.request_channel.send(request).await?;
         rx.await?
@@ -57,7 +57,7 @@ impl AsyncSession {
         let (tx, rx) = oneshot::channel::<Result<Vec<Indexed<bool>>, Error>>();
         let request = self.wrap(RequestDetails::ReadDiscreteInputs(ReadBits::new(
             range.of_read_bits()?,
-            crate::service::impls::read_bits::Promise::Channel(tx),
+            crate::client::requests::read_bits::Promise::Channel(tx),
         )));
         self.request_channel.send(request).await?;
         rx.await?
@@ -70,7 +70,7 @@ impl AsyncSession {
         let (tx, rx) = oneshot::channel::<Result<Vec<Indexed<u16>>, Error>>();
         let request = self.wrap(RequestDetails::ReadHoldingRegisters(ReadRegisters::new(
             range.of_read_registers()?,
-            crate::service::impls::read_registers::Promise::Channel(tx),
+            crate::client::requests::read_registers::Promise::Channel(tx),
         )));
         self.request_channel.send(request).await?;
         rx.await?
@@ -83,7 +83,7 @@ impl AsyncSession {
         let (tx, rx) = oneshot::channel::<Result<Vec<Indexed<u16>>, Error>>();
         let request = self.wrap(RequestDetails::ReadInputRegisters(ReadRegisters::new(
             range.of_read_registers()?,
-            crate::service::impls::read_registers::Promise::Channel(tx),
+            crate::client::requests::read_registers::Promise::Channel(tx),
         )));
         self.request_channel.send(request).await?;
         rx.await?
@@ -258,7 +258,7 @@ impl CallbackSession {
         C: FnOnce(Result<BitIterator, Error>) + Send + Sync + 'static,
         W: Fn(ReadBits) -> RequestDetails,
     {
-        let promise = crate::service::impls::read_bits::Promise::Callback(Box::new(callback));
+        let promise = crate::client::requests::read_bits::Promise::Callback(Box::new(callback));
         let range = match range.of_read_bits() {
             Ok(x) => x,
             Err(err) => return promise.failure(err.into()),
@@ -272,7 +272,8 @@ impl CallbackSession {
         C: FnOnce(Result<RegisterIterator, Error>) + Send + Sync + 'static,
         W: Fn(ReadRegisters) -> RequestDetails,
     {
-        let promise = crate::service::impls::read_registers::Promise::Callback(Box::new(callback));
+        let promise =
+            crate::client::requests::read_registers::Promise::Callback(Box::new(callback));
         let range = match range.of_read_registers() {
             Ok(x) => x,
             Err(err) => return promise.failure(err.into()),

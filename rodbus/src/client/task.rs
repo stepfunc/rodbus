@@ -139,9 +139,9 @@ impl ClientLoop {
 mod tests {
     use super::*;
     use crate::client::message::RequestDetails;
+    use crate::client::requests::read_bits::ReadBits;
     use crate::error::details::FrameParseError;
     use crate::service::function::{FunctionCode, ADU};
-    use crate::service::impls::read_bits::ReadBits;
     use crate::service::traits::Serialize;
     use crate::types::{AddressRange, Indexed, UnitId};
 
@@ -167,7 +167,7 @@ mod tests {
             let (tx, rx) = tokio::sync::oneshot::channel();
             let details = RequestDetails::ReadCoils(ReadBits::new(
                 range.of_read_bits().unwrap(),
-                crate::service::impls::read_bits::Promise::Channel(tx),
+                crate::client::requests::read_bits::Promise::Channel(tx),
             ));
             let request = Request::new(UnitId::new(1), timeout, details);
             if let Err(_) = tokio_test::block_on(self.tx.send(request)) {

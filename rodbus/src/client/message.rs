@@ -1,14 +1,14 @@
 use crate::error::details::{ADUParseError, ExceptionCode};
 use crate::error::*;
 use crate::service::function::FunctionCode;
-use crate::service::impls::read_bits::ReadBits;
+
+use crate::client::requests::read_bits::ReadBits;
+use crate::client::requests::read_registers::ReadRegisters;
+use crate::client::requests::write_multiple::MultipleWrite;
+use crate::client::requests::write_single::SingleWrite;
 use crate::service::traits::Serialize;
 use crate::types::{Indexed, UnitId};
 use crate::util::cursor::{ReadCursor, WriteCursor};
-
-use crate::service::impls::read_registers::ReadRegisters;
-use crate::service::impls::write_multiple::MultipleWrite;
-use crate::service::impls::write_single::SingleWrite;
 use std::time::Duration;
 use tokio::sync::oneshot;
 
