@@ -9,7 +9,7 @@ use crate::service::impls::read_bits::ReadBits;
 use crate::service::impls::read_registers::ReadRegisters;
 use crate::service::impls::write_multiple::MultipleWrite;
 use crate::service::impls::write_single::SingleWrite;
-use crate::types::{AddressRange, Indexed, ReadBitsRange, UnitId, WriteMultiple};
+use crate::types::{AddressRange, BitIterator, Indexed, RegisterIterator, UnitId, WriteMultiple};
 
 /// A handle used to make requests against an underlying channel task.
 ///
@@ -44,7 +44,7 @@ impl AsyncSession {
         let (tx, rx) = oneshot::channel::<Result<Vec<Indexed<bool>>, Error>>();
         let request = self.wrap(RequestDetails::ReadCoils(ReadBits::new(
             range.of_read_bits()?,
-            Promise::Channel(tx),
+            crate::service::impls::read_bits::Promise::Channel(tx),
         )));
         self.request_channel.send(request).await?;
         rx.await?
@@ -57,7 +57,7 @@ impl AsyncSession {
         let (tx, rx) = oneshot::channel::<Result<Vec<Indexed<bool>>, Error>>();
         let request = self.wrap(RequestDetails::ReadDiscreteInputs(ReadBits::new(
             range.of_read_bits()?,
-            Promise::Channel(tx),
+            crate::service::impls::read_bits::Promise::Channel(tx),
         )));
         self.request_channel.send(request).await?;
         rx.await?
@@ -70,7 +70,7 @@ impl AsyncSession {
         let (tx, rx) = oneshot::channel::<Result<Vec<Indexed<u16>>, Error>>();
         let request = self.wrap(RequestDetails::ReadHoldingRegisters(ReadRegisters::new(
             range.of_read_registers()?,
-            Promise::Channel(tx),
+            crate::service::impls::read_registers::Promise::Channel(tx),
         )));
         self.request_channel.send(request).await?;
         rx.await?
@@ -83,7 +83,7 @@ impl AsyncSession {
         let (tx, rx) = oneshot::channel::<Result<Vec<Indexed<u16>>, Error>>();
         let request = self.wrap(RequestDetails::ReadInputRegisters(ReadRegisters::new(
             range.of_read_registers()?,
-            Promise::Channel(tx),
+            crate::service::impls::read_registers::Promise::Channel(tx),
         )));
         self.request_channel.send(request).await?;
         rx.await?
@@ -165,84 +165,128 @@ impl CallbackSession {
         CallbackSession { inner }
     }
 
-    pub fn read_coils<C>(&mut self, runtime: &mut Runtime, range: AddressRange, callback: C)
+    pub async fn read_coils<C>(&mut self, range: AddressRange, callback: C)
     where
-        C: FnOnce(Result<Vec<Indexed<bool>>, Error>) + Send + Sync + 'static,
+        C: FnOnce(Result<BitIterator, Error>) + Send + Sync + 'static,
     {
-        unimplemented!();
+        self.read_bits(range, callback, RequestDetails::ReadCoils)
+            .await;
     }
 
-    pub fn read_discrete_inputs<C>(
-        &mut self,
-        runtime: &mut Runtime,
-        range: AddressRange,
-        callback: C,
-    ) where
-        C: FnOnce(Result<Vec<Indexed<bool>>, Error>) + Send + Sync + 'static,
+    pub async fn read_discrete_inputs<C>(&mut self, range: AddressRange, callback: C)
+    where
+        C: FnOnce(Result<BitIterator, Error>) + Send + Sync + 'static,
     {
-        unimplemented!();
+        self.read_bits(range, callback, RequestDetails::ReadDiscreteInputs)
+            .await;
     }
 
-    pub fn read_holding_registers<C>(
-        &mut self,
-        runtime: &mut Runtime,
-        range: AddressRange,
-        callback: C,
-    ) where
-        C: FnOnce(Result<Vec<Indexed<u16>>, Error>) + Send + Sync + 'static,
+    pub async fn read_holding_registers<C>(&mut self, range: AddressRange, callback: C)
+    where
+        C: FnOnce(Result<RegisterIterator, Error>) + Send + Sync + 'static,
     {
-        unimplemented!();
+        self.read_registers(range, callback, RequestDetails::ReadHoldingRegisters)
+            .await;
     }
 
-    pub fn read_input_registers<C>(
-        &mut self,
-        runtime: &mut Runtime,
-        range: AddressRange,
-        callback: C,
-    ) where
-        C: FnOnce(Result<Vec<Indexed<u16>>, Error>) + Send + Sync + 'static,
+    pub async fn read_input_registers<C>(&mut self, range: AddressRange, callback: C)
+    where
+        C: FnOnce(Result<RegisterIterator, Error>) + Send + Sync + 'static,
     {
-        unimplemented!();
+        self.read_registers(range, callback, RequestDetails::ReadInputRegisters)
+            .await;
     }
 
-    pub fn write_single_coil<C>(&mut self, runtime: &mut Runtime, value: Indexed<bool>, callback: C)
+    pub async fn write_single_coil<C>(&mut self, value: Indexed<bool>, callback: C)
     where
         C: FnOnce(Result<Indexed<bool>, Error>) + Send + Sync + 'static,
     {
-        unimplemented!();
+        self.send(
+            self.inner
+                .wrap(RequestDetails::WriteSingleCoil(SingleWrite::new(
+                    value,
+                    Promise::Callback(Box::new(callback)),
+                ))),
+        )
+        .await;
     }
 
-    pub fn write_single_register<C>(
-        &mut self,
-        runtime: &mut Runtime,
-        value: Indexed<u16>,
-        callback: C,
-    ) where
+    pub async fn write_single_register<C>(&mut self, value: Indexed<u16>, callback: C)
+    where
         C: FnOnce(Result<Indexed<u16>, Error>) + Send + Sync + 'static,
     {
-        unimplemented!();
+        self.send(
+            self.inner
+                .wrap(RequestDetails::WriteSingleRegister(SingleWrite::new(
+                    value,
+                    Promise::Callback(Box::new(callback)),
+                ))),
+        )
+        .await;
     }
 
-    pub fn write_multiple_registers<C>(
-        &mut self,
-        runtime: &mut Runtime,
-        value: WriteMultiple<u16>,
-        callback: C,
-    ) where
+    pub async fn write_multiple_registers<C>(&mut self, value: WriteMultiple<u16>, callback: C)
+    where
         C: FnOnce(Result<AddressRange, Error>) + Send + Sync + 'static,
     {
-        unimplemented!();
+        self.send(
+            self.inner
+                .wrap(RequestDetails::WriteMultipleRegisters(MultipleWrite::new(
+                    value,
+                    Promise::Callback(Box::new(callback)),
+                ))),
+        )
+        .await;
     }
 
-    pub fn write_multiple_coils<C>(
-        &mut self,
-        runtime: &mut Runtime,
-        value: WriteMultiple<bool>,
-        callback: C,
-    ) where
+    pub async fn write_multiple_coils<C>(&mut self, value: WriteMultiple<bool>, callback: C)
+    where
         C: FnOnce(Result<AddressRange, Error>) + Send + Sync + 'static,
     {
-        unimplemented!();
+        self.send(
+            self.inner
+                .wrap(RequestDetails::WriteMultipleCoils(MultipleWrite::new(
+                    value,
+                    Promise::Callback(Box::new(callback)),
+                ))),
+        )
+        .await;
+    }
+
+    async fn read_bits<C, W>(&mut self, range: AddressRange, callback: C, wrap: W)
+    where
+        C: FnOnce(Result<BitIterator, Error>) + Send + Sync + 'static,
+        W: Fn(ReadBits) -> RequestDetails,
+    {
+        let promise = crate::service::impls::read_bits::Promise::Callback(Box::new(callback));
+        let range = match range.of_read_bits() {
+            Ok(x) => x,
+            Err(err) => return promise.failure(err.into()),
+        };
+        self.send(self.inner.wrap(wrap(ReadBits::new(range, promise))))
+            .await;
+    }
+
+    async fn read_registers<C, W>(&mut self, range: AddressRange, callback: C, wrap: W)
+    where
+        C: FnOnce(Result<RegisterIterator, Error>) + Send + Sync + 'static,
+        W: Fn(ReadRegisters) -> RequestDetails,
+    {
+        let promise = crate::service::impls::read_registers::Promise::Callback(Box::new(callback));
+        let range = match range.of_read_registers() {
+            Ok(x) => x,
+            Err(err) => return promise.failure(err.into()),
+        };
+        self.send(self.inner.wrap(wrap(ReadRegisters::new(range, promise))))
+            .await;
+    }
+
+    async fn send(&mut self, request: Request) {
+        if let Err(tokio::sync::mpsc::error::SendError(x)) =
+            self.inner.request_channel.send(request).await
+        {
+            x.details.fail(Error::Shutdown);
+        }
     }
 }
 

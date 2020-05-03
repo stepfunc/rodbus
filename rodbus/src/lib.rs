@@ -135,7 +135,7 @@
 //!```
 
 #![deny(
-// dead_code,
+dead_code,
 // arithmetic_overflow,
 invalid_type_param_default,
 missing_fragment_specifier,
@@ -161,7 +161,7 @@ type_alias_bounds,
 tyvar_behind_raw_pointer,
 unconditional_recursion,
 unused_comparisons,
-//unreachable_pub,
+unreachable_pub,
 anonymous_parameters,
 missing_copy_implementations,
 // missing_debug_implementations,

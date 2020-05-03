@@ -1,5 +1,6 @@
 use super::*;
 use crate::user_data::UserData;
+use rodbus::types::{BitIterator, RegisterIterator};
 
 unsafe fn get_callback_session<'a>(
     session: *mut Session,
@@ -16,24 +17,62 @@ unsafe fn get_callback_session<'a>(
     (runtime, session)
 }
 
-unsafe fn data_callback_to_fn<T>(
+unsafe fn bit_iterator_callback_to_fn(
     user_data: *mut c_void,
-    callback: Option<unsafe extern "C" fn(Result, *const T, u16, *mut c_void)>,
-) -> impl Fn(std::result::Result<Vec<rodbus::types::Indexed<T>>, rodbus::error::Error>) -> ()
-where
-    T: Copy,
-{
+    callback: Option<unsafe extern "C" fn(Result, *const bool, u16, *mut c_void)>,
+) -> impl FnOnce(std::result::Result<BitIterator, rodbus::error::Error>) -> () {
+    let user_data = UserData::new(user_data);
+    move |result: std::result::Result<BitIterator, rodbus::error::Error>| {
+        if let Some(cb) = callback {
+            match result {
+                Err(err) => cb(err.into(), null(), 0, user_data.value),
+                Ok(values) => {
+                    // TODO - this is pretty large for the stack... 2000 bytes.
+                    // consider making some kind of customer iterator for C?
+                    let mut buffer =
+                        [false; rodbus::constants::limits::MAX_READ_COILS_COUNT as usize];
+                    let mut count: u16 = 0;
+                    for x in values {
+                        if let Some(dest) = buffer.get_mut(count as usize) {
+                            *dest = x.value;
+                        }
+                        count += 1;
+                    }
+                    cb(
+                        Result::status(Status::Ok),
+                        buffer.as_ptr(),
+                        count,
+                        user_data.value,
+                    )
+                }
+            }
+        }
+    }
+}
+
+unsafe fn register_iterator_callback_to_fn(
+    user_data: *mut c_void,
+    callback: Option<unsafe extern "C" fn(Result, *const u16, u16, *mut c_void)>,
+) -> impl FnOnce(std::result::Result<RegisterIterator, rodbus::error::Error>) -> () {
     let user_data = UserData::new(user_data);
     move |result| {
         if let Some(cb) = callback {
             match result {
                 Err(err) => cb(err.into(), null(), 0, user_data.value),
                 Ok(values) => {
-                    let transformed: Vec<T> = values.iter().map(|x| x.value).collect();
+                    let mut buffer =
+                        [0u16; rodbus::constants::limits::MAX_READ_REGISTERS_COUNT as usize];
+                    let mut count: u16 = 0;
+                    for x in values {
+                        if let Some(dest) = buffer.get_mut(count as usize) {
+                            *dest = x.value;
+                        }
+                        count += 1;
+                    }
                     cb(
                         Result::status(Status::Ok),
-                        transformed.as_ptr(),
-                        transformed.len() as u16,
+                        buffer.as_ptr(),
+                        count,
                         user_data.value,
                     )
                 }
@@ -72,7 +111,7 @@ pub unsafe extern "C" fn read_coils_cb(
     user_data: *mut c_void,
 ) {
     let (runtime, mut session) = get_callback_session(session);
-    let callback = data_callback_to_fn(user_data, callback);
+    let callback = bit_iterator_callback_to_fn(user_data, callback);
     let range = match AddressRange::try_from(start, count) {
         Ok(x) => x,
         Err(err) => {
@@ -80,7 +119,7 @@ pub unsafe extern "C" fn read_coils_cb(
         }
     };
 
-    session.read_coils(runtime, range, callback);
+    runtime.block_on(session.read_coils(range, callback))
 }
 
 /// @brief perform a non-blocking operation to read discrete inputs
@@ -101,14 +140,14 @@ pub unsafe extern "C" fn read_discrete_inputs_cb(
     user_data: *mut c_void,
 ) {
     let (runtime, mut session) = get_callback_session(session);
-    let callback = data_callback_to_fn(user_data, callback);
+    let callback = bit_iterator_callback_to_fn(user_data, callback);
     let range = match AddressRange::try_from(start, count) {
         Ok(x) => x,
         Err(err) => {
             return callback(Err(err.into()));
         }
     };
-    session.read_discrete_inputs(runtime, range, callback);
+    runtime.block_on(session.read_discrete_inputs(range, Box::new(callback)));
 }
 
 /// @brief perform a non-blocking operation to read holding registers
@@ -129,14 +168,14 @@ pub unsafe extern "C" fn read_holding_registers_cb(
     user_data: *mut c_void,
 ) {
     let (runtime, mut session) = get_callback_session(session);
-    let callback = data_callback_to_fn(user_data, callback);
+    let callback = register_iterator_callback_to_fn(user_data, callback);
     let range = match AddressRange::try_from(start, count) {
         Ok(x) => x,
         Err(err) => {
             return callback(Err(err.into()));
         }
     };
-    session.read_holding_registers(runtime, range, callback);
+    runtime.block_on(session.read_holding_registers(range, callback));
 }
 
 /// @brief perform a non-blocking operation to read input registers
@@ -157,14 +196,14 @@ pub unsafe extern "C" fn read_input_registers_cb(
     user_data: *mut c_void,
 ) {
     let (runtime, mut session) = get_callback_session(session);
-    let callback = data_callback_to_fn(user_data, callback);
+    let callback = register_iterator_callback_to_fn(user_data, callback);
     let range = match AddressRange::try_from(start, count) {
         Ok(x) => x,
         Err(err) => {
             return callback(Err(err.into()));
         }
     };
-    session.read_input_registers(runtime, range, callback);
+    runtime.block_on(session.read_input_registers(range, callback));
 }
 
 /// @brief perform a non-blocking operation to write a single coil
@@ -185,11 +224,10 @@ pub unsafe extern "C" fn write_single_coil_cb(
     user_data: *mut c_void,
 ) {
     let (runtime, mut session) = get_callback_session(session);
-    session.write_single_coil(
-        runtime,
+    runtime.block_on(session.write_single_coil(
         (index, value).into(),
         status_callback_to_fn(user_data, callback),
-    );
+    ));
 }
 
 /// @brief perform a non-blocking operation to write a single register
@@ -210,11 +248,10 @@ pub unsafe extern "C" fn write_single_register_cb(
     user_data: *mut c_void,
 ) {
     let (runtime, mut session) = get_callback_session(session);
-    session.write_single_register(
-        runtime,
+    runtime.block_on(session.write_single_register(
         (index, value).into(),
         status_callback_to_fn(user_data, callback),
-    );
+    ));
 }
 
 /// @brief perform a non-blocking operation to write multiple coils
@@ -244,7 +281,7 @@ pub unsafe extern "C" fn write_multiple_coils_cb(
         Ok(x) => x,
         Err(err) => return callback(Err(err.into())),
     };
-    session.write_multiple_coils(runtime, request, callback);
+    runtime.block_on(session.write_multiple_coils(request, callback));
 }
 
 /// @brief perform a non-blocking operation to write multiple registers
@@ -274,5 +311,5 @@ pub unsafe extern "C" fn write_multiple_registers_cb(
         Ok(x) => x,
         Err(err) => return callback(Err(err.into())),
     };
-    session.write_multiple_registers(runtime, request, callback);
+    runtime.block_on(session.write_multiple_registers(request, callback));
 }

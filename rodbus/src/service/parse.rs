@@ -4,7 +4,7 @@ use crate::service::traits::ParseRequest;
 use crate::types::{AddressRange, BitIterator, RegisterIterator, WriteCoils, WriteRegisters};
 use crate::util::cursor::ReadCursor;
 
-pub fn parse_write_multiple_coils<'a>(
+pub(crate) fn parse_write_multiple_coils<'a>(
     cursor: &mut ReadCursor<'a>,
 ) -> Result<WriteCoils<'a>, Error> {
     let range = AddressRange::parse(cursor)?;
@@ -18,7 +18,7 @@ pub fn parse_write_multiple_coils<'a>(
     Ok(WriteCoils::new(range, iterator))
 }
 
-pub fn parse_write_multiple_registers<'a>(
+pub(crate) fn parse_write_multiple_registers<'a>(
     cursor: &mut ReadCursor<'a>,
 ) -> Result<WriteRegisters<'a>, Error> {
     let range = AddressRange::parse(cursor)?;

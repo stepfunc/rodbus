@@ -60,7 +60,7 @@ where
         }
     }
 
-    pub async fn run_one(&mut self) -> Result<(), Error> {
+    pub(crate) async fn run_one(&mut self) -> Result<(), Error> {
         tokio::select! {
             frame = self.reader.next_frame(&mut self.io) => {
                self.reply_to_request(frame?).await
@@ -73,7 +73,7 @@ where
 
     // TODO: Simplify this function
     #[allow(clippy::cognitive_complexity)]
-    pub async fn reply_to_request(&mut self, frame: Frame) -> Result<(), Error> {
+    pub(crate) async fn reply_to_request(&mut self, frame: Frame) -> Result<(), Error> {
         let mut cursor = ReadCursor::new(frame.payload());
 
         // if no addresses match, then don't respond

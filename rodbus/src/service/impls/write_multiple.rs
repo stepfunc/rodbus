@@ -3,7 +3,7 @@ use crate::error::details::ADUParseError;
 use crate::error::Error;
 use crate::service::traits::ParseRequest;
 use crate::service::traits::Serialize;
-use crate::types::{coil_from_u16, coil_to_u16, AddressRange, Indexed, WriteMultiple};
+use crate::types::{AddressRange, WriteMultiple};
 use crate::util::cursor::{ReadCursor, WriteCursor};
 
 pub(crate) struct MultipleWrite<T>

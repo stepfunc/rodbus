@@ -135,8 +135,9 @@ impl Serialize for RequestDetails {
     }
 }
 
-pub enum Promise<T> {
+pub(crate) enum Promise<T> {
     Channel(oneshot::Sender<Result<T, Error>>),
+    Callback(Box<dyn FnOnce(Result<T, Error>) + Send + Sync + 'static>),
 }
 
 impl<T> Promise<T> {
@@ -153,6 +154,13 @@ impl<T> Promise<T> {
             Promise::Channel(sender) => {
                 sender.send(x).ok();
             }
+            Promise::Callback(func) => {
+                func(x);
+            }
         }
     }
+}
+
+trait Callback<U> {
+    fn complete(self, result: Result<U, Error>);
 }

@@ -5,19 +5,19 @@ use crate::service::traits::Serialize;
 use crate::util::cursor::WriteCursor;
 
 mod constants {
-    pub const READ_COILS: u8 = 1;
-    pub const READ_DISCRETE_INPUTS: u8 = 2;
-    pub const READ_HOLDING_REGISTERS: u8 = 3;
-    pub const READ_INPUT_REGISTERS: u8 = 4;
-    pub const WRITE_SINGLE_COIL: u8 = 5;
-    pub const WRITE_SINGLE_REGISTER: u8 = 6;
-    pub const WRITE_MULTIPLE_COILS: u8 = 15;
-    pub const WRITE_MULTIPLE_REGISTERS: u8 = 16;
+    pub(crate) const READ_COILS: u8 = 1;
+    pub(crate) const READ_DISCRETE_INPUTS: u8 = 2;
+    pub(crate) const READ_HOLDING_REGISTERS: u8 = 3;
+    pub(crate) const READ_INPUT_REGISTERS: u8 = 4;
+    pub(crate) const WRITE_SINGLE_COIL: u8 = 5;
+    pub(crate) const WRITE_SINGLE_REGISTER: u8 = 6;
+    pub(crate) const WRITE_MULTIPLE_COILS: u8 = 15;
+    pub(crate) const WRITE_MULTIPLE_REGISTERS: u8 = 16;
 }
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 #[repr(u8)]
-pub enum FunctionCode {
+pub(crate) enum FunctionCode {
     ReadCoils = constants::READ_COILS,
     ReadDiscreteInputs = constants::READ_DISCRETE_INPUTS,
     ReadHoldingRegisters = constants::READ_HOLDING_REGISTERS,
@@ -44,15 +44,15 @@ impl Display for FunctionCode {
 }
 
 impl FunctionCode {
-    pub const fn get_value(self) -> u8 {
+    pub(crate) const fn get_value(self) -> u8 {
         self as u8
     }
 
-    pub const fn as_error(self) -> u8 {
+    pub(crate) const fn as_error(self) -> u8 {
         self.get_value() | 0x80
     }
 
-    pub fn get(value: u8) -> Option<Self> {
+    pub(crate) fn get(value: u8) -> Option<Self> {
         match value {
             constants::READ_COILS => Some(FunctionCode::ReadCoils),
             constants::READ_DISCRETE_INPUTS => Some(FunctionCode::ReadDiscreteInputs),
@@ -67,7 +67,7 @@ impl FunctionCode {
     }
 }
 
-pub struct ADU<'a, T>
+pub(crate) struct ADU<'a, T>
 where
     T: Serialize,
 {
@@ -79,7 +79,7 @@ impl<'a, T> ADU<'a, T>
 where
     T: Serialize,
 {
-    pub fn new(function: u8, body: &'a T) -> Self {
+    pub(crate) fn new(function: u8, body: &'a T) -> Self {
         ADU { function, body }
     }
 }

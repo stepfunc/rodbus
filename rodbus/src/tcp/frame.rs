@@ -7,12 +7,12 @@ use crate::util::buffer::ReadBuffer;
 use crate::util::cursor::WriteCursor;
 use crate::util::frame::{Frame, FrameFormatter, FrameHeader, FrameParser, TxId};
 
-pub mod constants {
-    pub const HEADER_LENGTH: usize = 7;
-    pub const MAX_FRAME_LENGTH: usize =
+pub(crate) mod constants {
+    pub(crate) const HEADER_LENGTH: usize = 7;
+    pub(crate) const MAX_FRAME_LENGTH: usize =
         HEADER_LENGTH + crate::util::frame::constants::MAX_ADU_LENGTH;
     // cannot be < 1 b/c of the unit identifier
-    pub const MAX_LENGTH_FIELD: usize = crate::util::frame::constants::MAX_ADU_LENGTH + 1;
+    pub(crate) const MAX_LENGTH_FIELD: usize = crate::util::frame::constants::MAX_ADU_LENGTH + 1;
 }
 
 #[derive(Clone, Copy)]
@@ -28,7 +28,7 @@ enum ParseState {
     Header(MBAPHeader),
 }
 
-pub struct MBAPParser {
+pub(crate) struct MBAPParser {
     state: ParseState,
 }
 
@@ -37,7 +37,7 @@ pub(crate) struct MBAPFormatter {
 }
 
 impl MBAPFormatter {
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             buffer: [0; constants::MAX_FRAME_LENGTH],
         }
@@ -45,7 +45,7 @@ impl MBAPFormatter {
 }
 
 impl MBAPParser {
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             state: ParseState::Begin,
         }

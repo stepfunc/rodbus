@@ -1,18 +1,35 @@
-use crate::client::message::{Promise, Request};
-use crate::error::details::InvalidRequest;
 use crate::error::Error;
-use crate::service::function::FunctionCode;
-use crate::service::traits::{ParseRequest, Serialize};
+use crate::service::traits::Serialize;
 use crate::types::{AddressRange, BitIterator, Indexed, ReadBitsRange};
 use crate::util::cursor::{ReadCursor, WriteCursor};
 
+pub(crate) enum Promise {
+    Channel(tokio::sync::oneshot::Sender<Result<Vec<Indexed<bool>>, Error>>),
+    Callback(Box<dyn FnOnce(Result<BitIterator, Error>) + Send + Sync + 'static>),
+}
+
+impl Promise {
+    pub(crate) fn failure(self, err: Error) {
+        self.complete(Err(err))
+    }
+
+    pub(crate) fn complete(self, x: Result<BitIterator, Error>) {
+        match self {
+            Promise::Channel(sender) => {
+                sender.send(x.map(|y| y.collect())).ok();
+            }
+            Promise::Callback(callback) => callback(x),
+        }
+    }
+}
+
 pub(crate) struct ReadBits {
     request: ReadBitsRange,
-    promise: Promise<Vec<Indexed<bool>>>,
+    promise: Promise,
 }
 
 impl ReadBits {
-    pub(crate) fn new(request: ReadBitsRange, promise: Promise<Vec<Indexed<bool>>>) -> Self {
+    pub(crate) fn new(request: ReadBitsRange, promise: Promise) -> Self {
         Self { request, promise }
     }
 
@@ -25,9 +42,8 @@ impl ReadBits {
     }
 
     pub(crate) fn handle_response(self, mut cursor: ReadCursor) {
-        self.promise.complete(
-            Self::parse_bits_response(self.request.inner, &mut cursor).map(|x| x.collect()),
-        )
+        self.promise
+            .complete(Self::parse_bits_response(self.request.inner, &mut cursor))
     }
 
     fn parse_bits_response<'a>(

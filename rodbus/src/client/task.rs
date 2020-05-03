@@ -5,12 +5,8 @@ use tokio::sync::*;
 
 use crate::client::message::Request;
 use crate::error::*;
-use crate::service::function::ADU;
-use crate::service::*;
 use crate::tcp::frame::{MBAPFormatter, MBAPParser};
-use crate::types::UnitId;
-use crate::util::cursor::ReadCursor;
-use crate::util::frame::{Frame, FrameFormatter, FrameHeader, FramedReader, TxId};
+use crate::util::frame::{FrameFormatter, FrameHeader, FramedReader, TxId};
 
 /**
 * We always service requests in a TCP session until one of the following occurs
@@ -26,7 +22,7 @@ pub(crate) enum SessionError {
 }
 
 impl SessionError {
-    pub fn from(err: &Error) -> Option<Self> {
+    pub(crate) fn from(err: &Error) -> Option<Self> {
         match err {
             Error::Io(_) => Some(SessionError::IOError),
             Error::BadFrame(_) => Some(SessionError::BadFrame),
@@ -44,7 +40,7 @@ pub(crate) struct ClientLoop {
 }
 
 impl ClientLoop {
-    pub fn new(rx: mpsc::Receiver<Request>) -> Self {
+    pub(crate) fn new(rx: mpsc::Receiver<Request>) -> Self {
         Self {
             rx,
             formatter: MBAPFormatter::new(),
@@ -53,7 +49,7 @@ impl ClientLoop {
         }
     }
 
-    pub async fn run<T>(&mut self, mut io: T) -> SessionError
+    pub(crate) async fn run<T>(&mut self, mut io: T) -> SessionError
     where
         T: AsyncRead + AsyncWrite + Unpin,
     {
@@ -123,7 +119,7 @@ impl ClientLoop {
         Ok(())
     }
 
-    pub async fn fail_requests_for(&mut self, duration: Duration) -> Result<(), ()> {
+    pub(crate) async fn fail_requests_for(&mut self, duration: Duration) -> Result<(), ()> {
         let deadline = tokio::time::Instant::now() + duration;
 
         loop {
@@ -142,15 +138,16 @@ impl ClientLoop {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::client::message::Promise;
+    use crate::client::message::RequestDetails;
     use crate::error::details::FrameParseError;
-    use crate::service::function::FunctionCode;
+    use crate::service::function::{FunctionCode, ADU};
+    use crate::service::impls::read_bits::ReadBits;
     use crate::service::traits::Serialize;
-    use crate::types::{AddressRange, Indexed};
+    use crate::types::{AddressRange, Indexed, UnitId};
 
     struct ClientFixture {
         tx: tokio::sync::mpsc::Sender<Request>,
-        pub client: ClientLoop,
+        client: ClientLoop,
     }
 
     impl ClientFixture {
@@ -160,6 +157,23 @@ mod tests {
                 tx,
                 client: ClientLoop::new(rx),
             }
+        }
+
+        fn read_coils(
+            &mut self,
+            range: AddressRange,
+            timeout: Duration,
+        ) -> tokio::sync::oneshot::Receiver<Result<Vec<Indexed<bool>>, Error>> {
+            let (tx, rx) = tokio::sync::oneshot::channel();
+            let details = RequestDetails::ReadCoils(ReadBits::new(
+                range.of_read_bits().unwrap(),
+                crate::service::impls::read_bits::Promise::Channel(tx),
+            ));
+            let request = Request::new(UnitId::new(1), timeout, details);
+            if let Err(_) = tokio_test::block_on(self.tx.send(request)) {
+                panic!("can't send");
+            }
+            rx
         }
     }
 
@@ -186,7 +200,6 @@ mod tests {
         );
     }
 
-    /*
     #[test]
     fn returns_timeout_when_no_response() {
         let mut fixture = ClientFixture::new();
@@ -200,7 +213,7 @@ mod tests {
             .wait(Duration::from_secs(5))
             .build();
 
-        let rx = fixture.make_request::<ReadCoils>(range, Duration::from_secs(0));
+        let rx = fixture.read_coils(range, Duration::from_secs(0));
         drop(fixture.tx);
 
         assert_eq!(
@@ -226,7 +239,7 @@ mod tests {
             .read(&[0x00, 0x00, 0xCA, 0xFE, 0x00, 0x01, 0x01]) // non-Modbus protocol id
             .build();
 
-        let rx = fixture.make_request::<ReadCoils>(range, Duration::from_secs(0));
+        let rx = fixture.read_coils(range, Duration::from_secs(0));
         drop(fixture.tx);
 
         assert_eq!(
@@ -256,7 +269,7 @@ mod tests {
             .read(&response)
             .build();
 
-        let rx = fixture.make_request::<ReadCoils>(range, Duration::from_secs(1));
+        let rx = fixture.read_coils(range, Duration::from_secs(1));
         drop(fixture.tx);
 
         assert_eq!(
@@ -269,5 +282,4 @@ mod tests {
             vec![Indexed::new(7, true), Indexed::new(8, false)]
         );
     }
-    */
 }

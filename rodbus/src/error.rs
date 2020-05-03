@@ -1,5 +1,3 @@
-use std::sync::mpsc::{RecvError, SendError};
-
 /// Top level error type for the client API
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Error {

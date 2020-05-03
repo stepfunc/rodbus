@@ -2,7 +2,7 @@ use crate::error::details::ExceptionCode;
 use crate::server::handler::ServerHandler;
 use crate::types::{AddressRange, Indexed, WriteCoils, WriteRegisters};
 
-pub struct Validator<'a, T>
+pub(crate) struct Validator<'a, T>
 where
     T: ServerHandler,
 {
@@ -13,19 +13,9 @@ impl<'a, T> Validator<'a, T>
 where
     T: ServerHandler,
 {
-    pub fn wrap(inner: &'a mut T) -> Self {
+    pub(crate) fn wrap(inner: &'a mut T) -> Self {
         Self { inner }
     }
-
-    /*
-    fn validate_range(range: AddressRange) -> Result<(), ExceptionCode> {
-        if let Err(err) = range.validate() {
-            log::warn!("Received invalid address range from server: {}", err);
-            return Err(ExceptionCode::IllegalDataAddress);
-        }
-        Ok(())
-    }
-    */
 
     fn validate_result<U>(
         range: AddressRange,
@@ -44,35 +34,47 @@ where
         result
     }
 
-    pub fn read_coils(&mut self, range: AddressRange) -> Result<&[bool], ExceptionCode> {
+    pub(crate) fn read_coils(&mut self, range: AddressRange) -> Result<&[bool], ExceptionCode> {
         Self::validate_result(range, self.inner.read_coils(range))
     }
 
-    pub fn read_discrete_inputs(&mut self, range: AddressRange) -> Result<&[bool], ExceptionCode> {
+    pub(crate) fn read_discrete_inputs(
+        &mut self,
+        range: AddressRange,
+    ) -> Result<&[bool], ExceptionCode> {
         Self::validate_result(range, self.inner.read_discrete_inputs(range))
     }
 
-    pub fn read_holding_registers(&mut self, range: AddressRange) -> Result<&[u16], ExceptionCode> {
+    pub(crate) fn read_holding_registers(
+        &mut self,
+        range: AddressRange,
+    ) -> Result<&[u16], ExceptionCode> {
         Self::validate_result(range, self.inner.read_holding_registers(range))
     }
 
-    pub fn read_input_registers(&mut self, range: AddressRange) -> Result<&[u16], ExceptionCode> {
+    pub(crate) fn read_input_registers(
+        &mut self,
+        range: AddressRange,
+    ) -> Result<&[u16], ExceptionCode> {
         Self::validate_result(range, self.inner.read_input_registers(range))
     }
 
-    pub fn write_single_coil(&mut self, value: Indexed<bool>) -> Result<(), ExceptionCode> {
+    pub(crate) fn write_single_coil(&mut self, value: Indexed<bool>) -> Result<(), ExceptionCode> {
         self.inner.write_single_coil(value)
     }
 
-    pub fn write_single_register(&mut self, value: Indexed<u16>) -> Result<(), ExceptionCode> {
+    pub(crate) fn write_single_register(
+        &mut self,
+        value: Indexed<u16>,
+    ) -> Result<(), ExceptionCode> {
         self.inner.write_single_register(value)
     }
 
-    pub fn write_multiple_coils(&mut self, values: WriteCoils) -> Result<(), ExceptionCode> {
+    pub(crate) fn write_multiple_coils(&mut self, values: WriteCoils) -> Result<(), ExceptionCode> {
         self.inner.write_multiple_coils(values)
     }
 
-    pub fn write_multiple_registers(
+    pub(crate) fn write_multiple_registers(
         &mut self,
         values: WriteRegisters,
     ) -> Result<(), ExceptionCode> {

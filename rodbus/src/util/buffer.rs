@@ -5,14 +5,14 @@ use no_panic::no_panic;
 
 use crate::error::*;
 
-pub struct ReadBuffer {
+pub(crate) struct ReadBuffer {
     buffer: Vec<u8>,
     begin: usize,
     end: usize,
 }
 
 impl ReadBuffer {
-    pub fn new(capacity: usize) -> Self {
+    pub(crate) fn new(capacity: usize) -> Self {
         ReadBuffer {
             buffer: vec![0; capacity],
             begin: 0,
@@ -21,17 +21,17 @@ impl ReadBuffer {
     }
 
     #[cfg_attr(feature = "no-panic", no_panic)]
-    pub fn len(&self) -> usize {
+    pub(crate) fn len(&self) -> usize {
         self.end - self.begin
     }
 
     #[cfg_attr(feature = "no-panic", no_panic)]
-    pub fn is_empty(&self) -> bool {
+    pub(crate) fn is_empty(&self) -> bool {
         self.begin == self.end
     }
 
     #[cfg_attr(feature = "no-panic", no_panic)]
-    pub fn read(&mut self, count: usize) -> Result<&[u8], details::InternalError> {
+    pub(crate) fn read(&mut self, count: usize) -> Result<&[u8], details::InternalError> {
         if self.len() < count {
             return Err(details::InternalError::InsufficientBytesForRead(
                 count,
@@ -52,7 +52,7 @@ impl ReadBuffer {
     }
 
     #[cfg_attr(feature = "no-panic", no_panic)]
-    pub fn read_u8(&mut self) -> Result<u8, details::InternalError> {
+    pub(crate) fn read_u8(&mut self) -> Result<u8, details::InternalError> {
         if self.is_empty() {
             return Err(details::InternalError::InsufficientBytesForRead(1, 0));
         }
@@ -66,13 +66,13 @@ impl ReadBuffer {
     }
 
     #[cfg_attr(feature = "no-panic", no_panic)]
-    pub fn read_u16_be(&mut self) -> Result<u16, details::InternalError> {
+    pub(crate) fn read_u16_be(&mut self) -> Result<u16, details::InternalError> {
         let b1 = self.read_u8()? as u16;
         let b2 = self.read_u8()? as u16;
         Ok((b1 << 8) | b2)
     }
 
-    pub async fn read_some<T: AsyncRead + Unpin>(
+    pub(crate) async fn read_some<T: AsyncRead + Unpin>(
         &mut self,
         io: &mut T,
     ) -> Result<usize, std::io::Error> {

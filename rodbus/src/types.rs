@@ -6,7 +6,6 @@ use crate::error::Error;
 use crate::util::cursor::ReadCursor;
 #[cfg(feature = "no-panic")]
 use no_panic::no_panic;
-use std::io::Cursor;
 
 /// Modbus unit identifier, just a type-safe wrapper around u8
 #[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Ord, Eq)]

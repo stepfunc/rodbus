@@ -13,7 +13,7 @@ pub(crate) struct TcpChannelTask {
 }
 
 impl TcpChannelTask {
-    pub fn new(
+    pub(crate) fn new(
         addr: SocketAddr,
         rx: Receiver<Request>,
         connect_retry: Box<dyn ReconnectStrategy + Send>,
@@ -25,7 +25,7 @@ impl TcpChannelTask {
         }
     }
 
-    pub async fn run(&mut self) {
+    pub(crate) async fn run(&mut self) {
         // try to connect
         loop {
             match tokio::net::TcpStream::connect(self.addr).await {
