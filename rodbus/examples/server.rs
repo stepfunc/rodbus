@@ -33,29 +33,29 @@ impl SimpleHandler {
 }
 
 impl ServerHandler for SimpleHandler {
-    fn read_coils(&mut self, range: AddressRange) -> Result<&[bool], details::ExceptionCode> {
-        Self::get_range_of(self.coils.as_slice(), range)
+    fn read_coils(&mut self, range: ReadBitsRange) -> Result<&[bool], details::ExceptionCode> {
+        Self::get_range_of(self.coils.as_slice(), range.get())
     }
 
     fn read_discrete_inputs(
         &mut self,
-        range: AddressRange,
+        range: ReadBitsRange,
     ) -> Result<&[bool], details::ExceptionCode> {
-        Self::get_range_of(self.discrete_inputs.as_slice(), range)
+        Self::get_range_of(self.discrete_inputs.as_slice(), range.get())
     }
 
     fn read_holding_registers(
         &mut self,
-        range: AddressRange,
+        range: ReadRegistersRange,
     ) -> Result<&[u16], details::ExceptionCode> {
-        Self::get_range_of(self.holding_registers.as_slice(), range)
+        Self::get_range_of(self.holding_registers.as_slice(), range.get())
     }
 
     fn read_input_registers(
         &mut self,
-        range: AddressRange,
+        range: ReadRegistersRange,
     ) -> Result<&[u16], details::ExceptionCode> {
-        Self::get_range_of(self.input_registers.as_slice(), range)
+        Self::get_range_of(self.input_registers.as_slice(), range.get())
     }
 
     fn write_single_coil(&mut self, value: Indexed<bool>) -> Result<(), details::ExceptionCode> {

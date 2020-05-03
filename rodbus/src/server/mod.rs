@@ -6,6 +6,7 @@ use crate::tcp::server::ServerTask;
 
 /// server handling
 pub mod handler;
+pub(crate) mod request;
 pub(crate) mod task;
 pub(crate) mod validator;
 

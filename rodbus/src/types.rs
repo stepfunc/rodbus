@@ -27,15 +27,27 @@ pub struct AddressRange {
 /// Specialized wrapper around an address
 /// range only valid for ReadCoils / ReadDiscreteInputs
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) struct ReadBitsRange {
+pub struct ReadBitsRange {
     pub(crate) inner: AddressRange,
+}
+
+impl ReadBitsRange {
+    pub fn get(self) -> AddressRange {
+        self.inner
+    }
 }
 
 /// Specialized wrapper around an `AddressRange`
 /// only valid for ReadHoldingRegisters / ReadInputRegisters
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) struct ReadRegistersRange {
+pub struct ReadRegistersRange {
     pub(crate) inner: AddressRange,
+}
+
+impl ReadRegistersRange {
+    pub fn get(self) -> AddressRange {
+        self.inner
+    }
 }
 
 /// Value and its address

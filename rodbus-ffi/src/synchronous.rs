@@ -3,6 +3,7 @@ use tokio::runtime::Runtime;
 use rodbus::types::Indexed;
 
 use super::*;
+use rodbus::client::session::SyncSession;
 
 unsafe fn get_synchronous_session<'a>(
     session: *mut Session,
