@@ -3,7 +3,7 @@ use crate::error::Error;
 use crate::server::handler::ServerHandler;
 use crate::server::validator::Validator;
 use crate::service::function::{FunctionCode, ADU};
-use crate::service::traits::{ParseRequest, Serialize};
+use crate::service::traits::{Parse, Serialize};
 use crate::tcp::frame::MBAPFormatter;
 use crate::types::*;
 use crate::util::cursor::ReadCursor;

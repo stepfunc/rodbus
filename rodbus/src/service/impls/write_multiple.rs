@@ -1,8 +1,7 @@
 use crate::client::message::Promise;
 use crate::error::details::ADUParseError;
 use crate::error::Error;
-use crate::service::traits::ParseRequest;
-use crate::service::traits::Serialize;
+use crate::service::traits::{Parse, Serialize};
 use crate::types::{AddressRange, WriteMultiple};
 use crate::util::cursor::{ReadCursor, WriteCursor};
 
