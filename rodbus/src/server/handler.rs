@@ -179,20 +179,6 @@ mod tests {
         AddressRange::try_from(0, 1).unwrap()
     }
 
-    fn registers() -> WriteRegisters<'static> {
-        WriteRegisters {
-            range: range(),
-            iterator: RegisterIterator::create(&[0xFF, 0xFF], range()).unwrap(),
-        }
-    }
-
-    fn coils() -> WriteCoils<'static> {
-        WriteCoils {
-            range: range(),
-            iterator: BitIterator::create(&[0xFF], range()).unwrap(),
-        }
-    }
-
     #[test]
     fn default_handler_returns_illegal_function() {
         let mut handler = DefaultHandler {};
@@ -218,14 +204,6 @@ mod tests {
         );
         assert_eq!(
             handler.write_single_register(Indexed::new(0, 0)),
-            Err(ExceptionCode::IllegalFunction)
-        );
-        assert_eq!(
-            handler.write_multiple_coils(coils()),
-            Err(ExceptionCode::IllegalFunction)
-        );
-        assert_eq!(
-            handler.write_multiple_registers(registers()),
             Err(ExceptionCode::IllegalFunction)
         );
     }

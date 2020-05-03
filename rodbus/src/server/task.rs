@@ -6,7 +6,6 @@ use crate::server::handler::{ServerHandler, ServerHandlerMap};
 use crate::server::request::Request;
 use crate::server::validator::Validator;
 use crate::service::function::{FunctionCode, ADU};
-use crate::service::parse::{parse_write_multiple_coils, parse_write_multiple_registers};
 use crate::tcp::frame::{MBAPFormatter, MBAPParser};
 use crate::util::cursor::ReadCursor;
 use crate::util::frame::{Frame, FrameFormatter, FrameHeader, FramedReader};

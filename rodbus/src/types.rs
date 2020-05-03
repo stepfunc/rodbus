@@ -1,6 +1,6 @@
 use std::convert::TryFrom;
 
-use crate::error::details::{ADUParseError, InternalError, InvalidRange, InvalidRequest};
+use crate::error::details::{ADUParseError, InvalidRange, InvalidRequest};
 
 use crate::error::Error;
 use crate::util::cursor::ReadCursor;
@@ -76,18 +76,6 @@ pub struct RegisterIterator<'a> {
 }
 
 impl<'a> BitIterator<'a> {
-    pub(crate) fn create(bytes: &'a [u8], range: AddressRange) -> Result<Self, InternalError> {
-        if bytes.len() < crate::util::bits::num_bytes_for_bits(range.count) {
-            return Err(InternalError::BadBitIteratorArgs);
-        }
-
-        Ok(Self {
-            bytes,
-            range,
-            pos: 0,
-        })
-    }
-
     pub(crate) fn parse_all(
         range: AddressRange,
         cursor: &'a mut ReadCursor,
@@ -103,20 +91,6 @@ impl<'a> BitIterator<'a> {
 }
 
 impl<'a> RegisterIterator<'a> {
-    pub(crate) fn create(bytes: &'a [u8], range: AddressRange) -> Result<Self, InternalError> {
-        let required_bytes = 2 * (range.count as usize);
-
-        if bytes.len() != required_bytes {
-            return Err(InternalError::BadRegisterIteratorArgs);
-        }
-
-        Ok(Self {
-            bytes,
-            range,
-            pos: 0,
-        })
-    }
-
     pub(crate) fn parse_all(
         range: AddressRange,
         cursor: &'a mut ReadCursor,
@@ -355,24 +329,10 @@ mod tests {
     }
 
     #[test]
-    fn cannot_create_bit_iterator_with_bad_count() {
-        assert_eq!(
-            BitIterator::create(&[], AddressRange::try_from(0, 1).unwrap())
-                .err()
-                .unwrap(),
-            InternalError::BadBitIteratorArgs
-        );
-        assert_eq!(
-            BitIterator::create(&[0xFF], AddressRange::try_from(0, 9).unwrap())
-                .err()
-                .unwrap(),
-            InternalError::BadBitIteratorArgs
-        );
-    }
-
-    #[test]
     fn correctly_iterates_over_low_order_bits() {
-        let iterator = BitIterator::create(&[0x03], AddressRange::try_from(1, 3).unwrap()).unwrap();
+        let mut cursor = ReadCursor::new(&[0x03]);
+        let iterator =
+            BitIterator::parse_all(AddressRange::try_from(1, 3).unwrap(), &mut cursor).unwrap();
         assert_eq!(iterator.size_hint(), (3, Some(3)));
         let values: Vec<Indexed<bool>> = iterator.collect();
         assert_eq!(
@@ -386,28 +346,12 @@ mod tests {
     }
 
     #[test]
-    fn cannot_create_register_iterator_with_invalid_byte_count() {
-        assert_eq!(
-            RegisterIterator::create(&[], AddressRange::try_from(0, 1).unwrap())
-                .err()
-                .unwrap(),
-            InternalError::BadRegisterIteratorArgs
-        );
-        assert_eq!(
-            RegisterIterator::create(&[0xFF, 0xFF, 0xFF], AddressRange::try_from(0, 2).unwrap())
-                .err()
-                .unwrap(),
-            InternalError::BadRegisterIteratorArgs
-        );
-    }
-
-    #[test]
     fn correctly_iterates_over_registers() {
-        let iterator = RegisterIterator::create(
-            &[0xFF, 0xFF, 0x01, 0xCC],
-            AddressRange::try_from(1, 2).unwrap(),
-        )
-        .unwrap();
+        let mut cursor = ReadCursor::new(&[0xFF, 0xFF, 0x01, 0xCC]);
+        let iterator =
+            RegisterIterator::parse_all(AddressRange::try_from(1, 2).unwrap(), &mut cursor)
+                .unwrap();
+
         assert_eq!(iterator.size_hint(), (2, Some(2)));
         let values: Vec<Indexed<u16>> = iterator.collect();
         assert_eq!(

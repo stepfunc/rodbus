@@ -1,8 +1,6 @@
 use crate::error::details::ExceptionCode;
 use crate::server::handler::ServerHandler;
-use crate::types::{
-    AddressRange, Indexed, ReadBitsRange, ReadRegistersRange, WriteCoils, WriteRegisters,
-};
+use crate::types::{Indexed, ReadBitsRange, ReadRegistersRange, WriteCoils, WriteRegisters};
 
 pub(crate) struct Validator<'a, T>
 where
@@ -87,7 +85,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::ReadBitsRange;
+    use crate::types::{AddressRange, ReadBitsRange};
 
     struct BadHandler;
     impl ServerHandler for BadHandler {

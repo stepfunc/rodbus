@@ -1,9 +1,10 @@
 use crate::client::message::Promise;
+use crate::error::details::ADUParseError;
 use crate::error::Error;
 use crate::types::{coil_from_u16, coil_to_u16, Indexed};
 use crate::util::cursor::{ReadCursor, WriteCursor};
 
-pub(crate) trait SingleWriteOperation: Sized {
+pub(crate) trait SingleWriteOperation: Sized + PartialEq {
     fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), Error>;
     fn parse(cursor: &mut ReadCursor) -> Result<Self, Error>;
 }
@@ -32,15 +33,18 @@ where
         self.promise.failure(err)
     }
 
-    pub(crate) fn handle_response(self, mut cursor: ReadCursor) {
-        let response = match T::parse(&mut cursor) {
-            Ok(x) => x,
-            Err(err) => return self.promise.failure(err),
-        };
-        if let Err(err) = cursor.expect_empty() {
-            return self.promise.failure(err.into());
+    pub(crate) fn handle_response(self, cursor: ReadCursor) {
+        let result = self.parse_all(cursor);
+        self.promise.complete(result)
+    }
+
+    fn parse_all(&self, mut cursor: ReadCursor) -> Result<T, Error> {
+        let response = T::parse(&mut cursor)?;
+        cursor.expect_empty()?;
+        if self.request != response {
+            return Err(ADUParseError::ReplyEchoMismatch.into());
         }
-        self.promise.success(response)
+        Ok(response)
     }
 }
 

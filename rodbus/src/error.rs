@@ -122,10 +122,6 @@ pub mod details {
         BadSeekOperation,
         /// Byte count would exceed maximum allowed size in the ADU of u8
         BadByteCount(usize),
-        /// BitIterator with bad arguments
-        BadBitIteratorArgs,
-        /// RegisterIterator with bad arguments
-        BadRegisterIteratorArgs,
     }
 
     impl std::error::Error for InternalError {}
@@ -161,12 +157,6 @@ pub mod details {
                     "Byte count of in ADU {} exceeds maximum size of u8",
                     size
                 ),
-                InternalError::BadBitIteratorArgs => {
-                    f.write_str("Bit iterator created with bad arguments")
-                }
-                InternalError::BadRegisterIteratorArgs => {
-                    f.write_str("Register iterator created with bad arguments")
-                }
             }
         }
     }
@@ -320,8 +310,6 @@ pub mod details {
     pub enum ADUParseError {
         /// response is too short to be valid
         InsufficientBytes,
-        /// byte count doesn't match what is expected based on request
-        RequestByteCountMismatch(usize, usize), // expected count / actual count
         /// byte count doesn't match the actual number of bytes present
         InsufficientBytesForByteCount(usize, usize), // count / remaining
         /// response contains extra trailing bytes
@@ -342,11 +330,6 @@ pub mod details {
                 ADUParseError::InsufficientBytes => {
                     f.write_str("response is too short to be valid")
                 }
-                ADUParseError::RequestByteCountMismatch(request, response) => write!(
-                    f,
-                    "byte count ({}) doesn't match what is expected based on request ({})",
-                    response, request
-                ),
                 ADUParseError::InsufficientBytesForByteCount(count, remaining) => write!(
                     f,
                     "byte count ({}) doesn't match the actual number of bytes remaining ({})",

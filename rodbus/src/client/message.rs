@@ -145,10 +145,6 @@ impl<T> Promise<T> {
         self.complete(Err(err))
     }
 
-    pub(crate) fn success(self, x: T) {
-        self.complete(Ok(x))
-    }
-
     pub(crate) fn complete(self, x: Result<T, Error>) {
         match self {
             Promise::Channel(sender) => {
