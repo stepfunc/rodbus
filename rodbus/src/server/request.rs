@@ -1,11 +1,13 @@
+use crate::error::details::ExceptionCode;
 use crate::error::Error;
-use crate::service::function::FunctionCode;
-use crate::service::traits::ParseRequest;
-use crate::types::{
-    AddressRange, BitIterator, Indexed, ReadBitsRange, ReadRegistersRange, RegisterIterator,
-    WriteCoils, WriteRegisters,
-};
+use crate::server::handler::ServerHandler;
+use crate::server::validator::Validator;
+use crate::service::function::{FunctionCode, ADU};
+use crate::service::traits::{ParseRequest, Serialize};
+use crate::tcp::frame::MBAPFormatter;
+use crate::types::*;
 use crate::util::cursor::ReadCursor;
+use crate::util::frame::{FrameFormatter, FrameHeader};
 
 pub(crate) enum Request<'a> {
     ReadCoils(ReadBitsRange),
@@ -19,6 +21,93 @@ pub(crate) enum Request<'a> {
 }
 
 impl<'a> Request<'a> {
+    pub(crate) fn get_function(&self) -> FunctionCode {
+        match self {
+            Request::ReadCoils(_) => FunctionCode::ReadCoils,
+            Request::ReadDiscreteInputs(_) => FunctionCode::ReadDiscreteInputs,
+            Request::ReadHoldingRegisters(_) => FunctionCode::ReadHoldingRegisters,
+            Request::ReadInputRegisters(_) => FunctionCode::ReadInputRegisters,
+            Request::WriteSingleCoil(_) => FunctionCode::WriteSingleCoil,
+            Request::WriteSingleRegister(_) => FunctionCode::WriteSingleRegister,
+            Request::WriteMultipleCoils(_) => FunctionCode::WriteMultipleCoils,
+            Request::WriteMultipleRegisters(_) => FunctionCode::WriteMultipleRegisters,
+        }
+    }
+
+    pub(crate) fn get_reply<'b, T>(
+        self,
+        header: FrameHeader,
+        handler: &mut Validator<T>,
+        writer: &'b mut MBAPFormatter,
+    ) -> Result<&'b [u8], Error>
+    where
+        T: ServerHandler,
+    {
+        fn serialize<T>(
+            function: FunctionCode,
+            header: FrameHeader,
+            writer: &mut MBAPFormatter,
+            result: Result<T, ExceptionCode>,
+        ) -> Result<&[u8], Error>
+        where
+            T: Serialize,
+        {
+            match result {
+                Ok(data) => writer.format(header, &ADU::new(function.get_value(), &data)),
+                Err(ex) => writer.format(header, &ADU::new(function.as_error(), &ex)),
+            }
+        }
+
+        let function = self.get_function();
+        match self {
+            Request::ReadCoils(range) => {
+                serialize(function, header, writer, handler.read_coils(range))
+            }
+            Request::ReadDiscreteInputs(range) => serialize(
+                function,
+                header,
+                writer,
+                handler.read_discrete_inputs(range),
+            ),
+            Request::ReadHoldingRegisters(range) => serialize(
+                function,
+                header,
+                writer,
+                handler.read_holding_registers(range),
+            ),
+            Request::ReadInputRegisters(range) => serialize(
+                function,
+                header,
+                writer,
+                handler.read_input_registers(range),
+            ),
+            Request::WriteSingleCoil(request) => serialize(
+                function,
+                header,
+                writer,
+                handler.write_single_coil(request).map(|_| request),
+            ),
+            Request::WriteSingleRegister(request) => serialize(
+                function,
+                header,
+                writer,
+                handler.write_single_register(request).map(|_| request),
+            ),
+            Request::WriteMultipleCoils(items) => serialize(
+                function,
+                header,
+                writer,
+                handler.write_multiple_coils(items).map(|_| items.range),
+            ),
+            Request::WriteMultipleRegisters(items) => serialize(
+                function,
+                header,
+                writer,
+                handler.write_multiple_registers(items).map(|_| items.range),
+            ),
+        }
+    }
+
     pub(crate) fn parse(function: FunctionCode, cursor: &'a mut ReadCursor) -> Result<Self, Error> {
         match function {
             FunctionCode::ReadCoils => {

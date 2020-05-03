@@ -58,7 +58,7 @@ where
         }
     }
 
-    pub(crate) async fn run_one(&mut self) -> Result<(), Error> {
+    async fn run_one(&mut self) -> Result<(), Error> {
         tokio::select! {
             frame = self.reader.next_frame(&mut self.io) => {
                self.reply_to_request(frame?).await
@@ -69,9 +69,7 @@ where
         }
     }
 
-    // TODO: Simplify this function
-    #[allow(clippy::cognitive_complexity)]
-    pub(crate) async fn reply_to_request(&mut self, frame: Frame) -> Result<(), Error> {
+    async fn reply_to_request(&mut self, frame: Frame) -> Result<(), Error> {
         let mut cursor = ReadCursor::new(frame.payload());
 
         // if no addresses match, then don't respond
@@ -119,83 +117,11 @@ where
             }
         };
 
-        // get the frame to reply with or error out trying
+        // get the reply data (or exception reply)
         let reply_frame: &[u8] = {
             let mut lock = handler.lock().await;
             let mut validator = Validator::wrap(lock.as_mut());
-            match request {
-                Request::ReadCoils(range) => match validator.read_coils(range) {
-                    Err(ex) => self
-                        .writer
-                        .format(frame.header, &ADU::new(function.as_error(), &ex))?,
-                    Ok(value) => self
-                        .writer
-                        .format(frame.header, &ADU::new(function.get_value(), &value))?,
-                },
-                Request::ReadDiscreteInputs(range) => match validator.read_discrete_inputs(range) {
-                    Err(ex) => self
-                        .writer
-                        .format(frame.header, &ADU::new(function.as_error(), &ex))?,
-                    Ok(value) => self
-                        .writer
-                        .format(frame.header, &ADU::new(function.get_value(), &value))?,
-                },
-                Request::ReadHoldingRegisters(range) => {
-                    match validator.read_holding_registers(range) {
-                        Err(ex) => self
-                            .writer
-                            .format(frame.header, &ADU::new(function.as_error(), &ex))?,
-                        Ok(value) => self
-                            .writer
-                            .format(frame.header, &ADU::new(function.get_value(), &value))?,
-                    }
-                }
-                Request::ReadInputRegisters(range) => match validator.read_input_registers(range) {
-                    Err(ex) => self
-                        .writer
-                        .format(frame.header, &ADU::new(function.as_error(), &ex))?,
-                    Ok(value) => self
-                        .writer
-                        .format(frame.header, &ADU::new(function.get_value(), &value))?,
-                },
-                Request::WriteSingleCoil(value) => match validator.write_single_coil(value) {
-                    Err(ex) => self
-                        .writer
-                        .format(frame.header, &ADU::new(function.as_error(), &ex))?,
-                    Ok(()) => self
-                        .writer
-                        .format(frame.header, &ADU::new(function.get_value(), &value))?,
-                },
-                Request::WriteSingleRegister(value) => {
-                    match validator.write_single_register(value) {
-                        Err(ex) => self
-                            .writer
-                            .format(frame.header, &ADU::new(function.as_error(), &ex))?,
-                        Ok(()) => self
-                            .writer
-                            .format(frame.header, &ADU::new(function.get_value(), &value))?,
-                    }
-                }
-                Request::WriteMultipleCoils(coils) => match validator.write_multiple_coils(coils) {
-                    Err(ex) => self
-                        .writer
-                        .format(frame.header, &ADU::new(function.as_error(), &ex))?,
-                    Ok(()) => self
-                        .writer
-                        .format(frame.header, &ADU::new(function.get_value(), &coils.range))?,
-                },
-                Request::WriteMultipleRegisters(registers) => {
-                    match validator.write_multiple_registers(registers) {
-                        Err(ex) => self
-                            .writer
-                            .format(frame.header, &ADU::new(function.as_error(), &ex))?,
-                        Ok(()) => self.writer.format(
-                            frame.header,
-                            &ADU::new(function.get_value(), &registers.range),
-                        )?,
-                    }
-                }
-            }
+            request.get_reply(frame.header, &mut validator, &mut self.writer)?
         };
 
         // reply with the bytes
