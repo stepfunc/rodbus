@@ -79,7 +79,10 @@ where
     pub(crate) async fn run(&mut self, mut shutdown: tokio::sync::mpsc::Receiver<()>) {
         loop {
             tokio::select! {
-               _ = shutdown.recv() => return, // shutdown signal
+               _ = shutdown.recv() => {
+                    log::info!("server shutdown");
+                    return; // shutdown signal
+               }
                result = self.listener.accept() => {
                    match result {
                         Err(err) => {

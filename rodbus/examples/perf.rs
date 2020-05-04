@@ -41,7 +41,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     .wrap();
     let listener = TcpListener::bind(addr).await?;
 
-    spawn_tcp_server_task(
+    let _handle = spawn_tcp_server_task(
         num_sessions,
         listener,
         ServerHandlerMap::single(UnitId::new(1), handler),
@@ -56,27 +56,30 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         );
     }
 
-    let mut query_tasks: Vec<tokio::task::JoinHandle<()>> = Vec::new();
+    let mut query_tasks: Vec<tokio::task::JoinHandle<bool>> = Vec::new();
 
     let start = std::time::Instant::now();
 
     // spawn tasks that make a query 1000 times
     for mut session in sessions {
-        let handle: tokio::task::JoinHandle<()> = tokio::spawn(async move {
+        let handle: tokio::task::JoinHandle<bool> = tokio::spawn(async move {
             for _ in 0..num_requests {
                 if let Err(err) = session
                     .read_coils(AddressRange::try_from(0, 100).unwrap())
                     .await
                 {
                     println!("failure: {}", err);
+                    return false;
                 }
             }
+            true
         });
         query_tasks.push(handle);
     }
 
     for handle in query_tasks {
-        handle.await.unwrap();
+        let is_success = handle.await.unwrap();
+        assert!(is_success);
     }
 
     let elapsed = std::time::Instant::now() - start;
