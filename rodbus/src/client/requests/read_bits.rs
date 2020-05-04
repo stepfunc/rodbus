@@ -1,7 +1,7 @@
+use crate::common::cursor::{ReadCursor, WriteCursor};
+use crate::common::traits::Serialize;
 use crate::error::Error;
-use crate::service::traits::Serialize;
 use crate::types::{AddressRange, BitIterator, Indexed, ReadBitsRange};
-use crate::util::cursor::{ReadCursor, WriteCursor};
 
 pub(crate) enum Promise {
     Channel(tokio::sync::oneshot::Sender<Result<Vec<Indexed<bool>>, Error>>),

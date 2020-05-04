@@ -1,13 +1,14 @@
+use crate::common::cursor::ReadCursor;
+use crate::common::frame::{FrameFormatter, FrameHeader};
+use crate::common::function::FunctionCode;
+use crate::common::traits::{Parse, Serialize};
 use crate::error::details::ExceptionCode;
 use crate::error::Error;
 use crate::server::handler::ServerHandler;
+use crate::server::response::{ErrorResponse, Response};
 use crate::server::validator::Validator;
-use crate::service::function::{FunctionCode, ADU};
-use crate::service::traits::{Parse, Serialize};
 use crate::tcp::frame::MBAPFormatter;
 use crate::types::*;
-use crate::util::cursor::ReadCursor;
-use crate::util::frame::{FrameFormatter, FrameHeader};
 
 pub(crate) enum Request<'a> {
     ReadCoils(ReadBitsRange),
@@ -53,8 +54,8 @@ impl<'a> Request<'a> {
             T: Serialize,
         {
             match result {
-                Ok(data) => writer.format(header, &ADU::new(function.get_value(), &data)),
-                Err(ex) => writer.format(header, &ADU::new(function.as_error(), &ex)),
+                Ok(data) => writer.format(header, &Response::new(function, &data)),
+                Err(ex) => writer.format(header, &ErrorResponse::new(function, ex)),
             }
         }
 
@@ -170,7 +171,7 @@ mod tests {
 
     #[cfg(test)]
     mod coils {
-        use crate::util::cursor::ReadCursor;
+        use crate::common::cursor::ReadCursor;
 
         use super::super::*;
         use crate::error::details::ADUParseError;
@@ -235,7 +236,7 @@ mod tests {
 
     #[cfg(test)]
     mod registers {
-        use crate::util::cursor::ReadCursor;
+        use crate::common::cursor::ReadCursor;
 
         use super::super::*;
         use crate::error::details::ADUParseError;

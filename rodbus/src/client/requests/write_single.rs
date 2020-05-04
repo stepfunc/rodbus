@@ -1,8 +1,8 @@
 use crate::client::message::Promise;
+use crate::common::cursor::{ReadCursor, WriteCursor};
 use crate::error::details::ADUParseError;
 use crate::error::Error;
 use crate::types::{coil_from_u16, coil_to_u16, Indexed};
-use crate::util::cursor::{ReadCursor, WriteCursor};
 
 pub(crate) trait SingleWriteOperation: Sized + PartialEq {
     fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), Error>;

@@ -1,18 +1,18 @@
 use std::convert::TryFrom;
 
+use crate::common::buffer::ReadBuffer;
+use crate::common::cursor::WriteCursor;
+use crate::common::frame::{Frame, FrameFormatter, FrameHeader, FrameParser, TxId};
+use crate::common::traits::Serialize;
 use crate::error::*;
-use crate::service::traits::Serialize;
 use crate::types::UnitId;
-use crate::util::buffer::ReadBuffer;
-use crate::util::cursor::WriteCursor;
-use crate::util::frame::{Frame, FrameFormatter, FrameHeader, FrameParser, TxId};
 
 pub(crate) mod constants {
     pub(crate) const HEADER_LENGTH: usize = 7;
     pub(crate) const MAX_FRAME_LENGTH: usize =
-        HEADER_LENGTH + crate::util::frame::constants::MAX_ADU_LENGTH;
+        HEADER_LENGTH + crate::common::frame::constants::MAX_ADU_LENGTH;
     // cannot be < 1 b/c of the unit identifier
-    pub(crate) const MAX_LENGTH_FIELD: usize = crate::util::frame::constants::MAX_ADU_LENGTH + 1;
+    pub(crate) const MAX_LENGTH_FIELD: usize = crate::common::frame::constants::MAX_ADU_LENGTH + 1;
 }
 
 #[derive(Clone, Copy)]
@@ -150,8 +150,8 @@ mod tests {
     use tokio_test::block_on;
     use tokio_test::io::Builder;
 
+    use crate::common::frame::FramedReader;
     use crate::error::*;
-    use crate::util::frame::FramedReader;
 
     use super::*;
 

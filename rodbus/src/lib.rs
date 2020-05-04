@@ -196,6 +196,5 @@ pub mod shutdown;
 pub mod types;
 
 // internal modules
-mod service;
+mod common;
 mod tcp;
-mod util;

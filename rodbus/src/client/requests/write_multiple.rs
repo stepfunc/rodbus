@@ -1,9 +1,9 @@
 use crate::client::message::Promise;
+use crate::common::cursor::{ReadCursor, WriteCursor};
+use crate::common::traits::{Parse, Serialize};
 use crate::error::details::ADUParseError;
 use crate::error::Error;
-use crate::service::traits::{Parse, Serialize};
 use crate::types::{AddressRange, WriteMultiple};
-use crate::util::cursor::{ReadCursor, WriteCursor};
 
 pub(crate) struct MultipleWrite<T>
 where

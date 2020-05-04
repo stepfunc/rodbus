@@ -1,14 +1,15 @@
 use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
 
+use crate::common::cursor::ReadCursor;
+use crate::common::frame::{Frame, FrameFormatter, FrameHeader, FramedReader};
+use crate::common::function::FunctionCode;
 use crate::error::details::ExceptionCode;
 use crate::error::*;
 use crate::server::handler::{ServerHandler, ServerHandlerMap};
 use crate::server::request::Request;
+use crate::server::response::ErrorResponse;
 use crate::server::validator::Validator;
-use crate::service::function::{FunctionCode, ADU};
 use crate::tcp::frame::{MBAPFormatter, MBAPParser};
-use crate::util::cursor::ReadCursor;
-use crate::util::frame::{Frame, FrameFormatter, FrameHeader, FramedReader};
 
 pub(crate) struct SessionTask<T, U>
 where
@@ -44,10 +45,9 @@ where
     async fn reply_with_exception(
         &mut self,
         header: FrameHeader,
-        function: u8,
-        ex: ExceptionCode,
+        response: ErrorResponse,
     ) -> Result<(), Error> {
-        let bytes = self.writer.format(header, &ADU::new(function, &ex))?;
+        let bytes = self.writer.format(header, &response)?;
         self.io.write_all(bytes).await?;
         Ok(())
     }
@@ -94,11 +94,7 @@ where
                 None => {
                     log::warn!("received unknown function code: {}", value);
                     return self
-                        .reply_with_exception(
-                            frame.header,
-                            value | 0x80,
-                            ExceptionCode::IllegalFunction,
-                        )
+                        .reply_with_exception(frame.header, ErrorResponse::unknown_function(value))
                         .await;
                 }
             },
@@ -110,7 +106,7 @@ where
                 log::warn!("error parsing {:?} request: {}", function, err);
                 let reply = self.writer.format(
                     frame.header,
-                    &ADU::new(function.as_error(), &ExceptionCode::IllegalDataValue),
+                    &ErrorResponse::new(function, ExceptionCode::IllegalDataValue),
                 )?;
                 self.io.write_all(reply).await?;
                 return Ok(());

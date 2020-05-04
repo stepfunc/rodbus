@@ -1,9 +1,5 @@
 use std::fmt::{Display, Formatter};
 
-use crate::error::*;
-use crate::service::traits::Serialize;
-use crate::util::cursor::WriteCursor;
-
 mod constants {
     pub(crate) const READ_COILS: u8 = 1;
     pub(crate) const READ_DISCRETE_INPUTS: u8 = 2;
@@ -64,32 +60,5 @@ impl FunctionCode {
             constants::WRITE_MULTIPLE_REGISTERS => Some(FunctionCode::WriteMultipleRegisters),
             _ => None,
         }
-    }
-}
-
-pub(crate) struct ADU<'a, T>
-where
-    T: Serialize,
-{
-    function: u8,
-    body: &'a T,
-}
-
-impl<'a, T> ADU<'a, T>
-where
-    T: Serialize,
-{
-    pub(crate) fn new(function: u8, body: &'a T) -> Self {
-        ADU { function, body }
-    }
-}
-
-impl<'a, T> Serialize for ADU<'a, T>
-where
-    T: Serialize,
-{
-    fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), Error> {
-        cursor.write_u8(self.function)?;
-        self.body.serialize(cursor)
     }
 }

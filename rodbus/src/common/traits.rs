@@ -1,5 +1,5 @@
+use crate::common::cursor::*;
 use crate::error::*;
-use crate::util::cursor::*;
 
 pub(crate) trait Serialize {
     fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), Error>;

@@ -2,8 +2,8 @@ use std::convert::TryFrom;
 
 use crate::error::details::{ADUParseError, InvalidRange, InvalidRequest};
 
+use crate::common::cursor::ReadCursor;
 use crate::error::Error;
-use crate::util::cursor::ReadCursor;
 #[cfg(feature = "no-panic")]
 use no_panic::no_panic;
 
@@ -80,7 +80,7 @@ impl<'a> BitIterator<'a> {
         range: AddressRange,
         cursor: &'a mut ReadCursor,
     ) -> Result<Self, Error> {
-        let bytes = cursor.read_bytes(crate::util::bits::num_bytes_for_bits(range.count))?;
+        let bytes = cursor.read_bytes(crate::common::bits::num_bytes_for_bits(range.count))?;
         cursor.expect_empty()?;
         Ok(Self {
             bytes,

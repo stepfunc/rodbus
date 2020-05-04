@@ -4,12 +4,12 @@ use tokio::prelude::*;
 use tokio::sync::*;
 
 use crate::client::message::Request;
+use crate::common::frame::{FrameFormatter, FrameHeader, FramedReader, TxId};
 use crate::error::*;
 use crate::tcp::frame::{MBAPFormatter, MBAPParser};
-use crate::util::frame::{FrameFormatter, FrameHeader, FramedReader, TxId};
 
 /**
-* We always service requests in a TCP session until one of the following occurs
+* We always common requests in a TCP session until one of the following occurs
 */
 #[derive(Debug, PartialEq)]
 pub(crate) enum SessionError {
@@ -140,9 +140,10 @@ mod tests {
     use super::*;
     use crate::client::message::RequestDetails;
     use crate::client::requests::read_bits::ReadBits;
+    use crate::common::function::FunctionCode;
+    use crate::common::traits::Serialize;
     use crate::error::details::FrameParseError;
-    use crate::service::function::{FunctionCode, ADU};
-    use crate::service::traits::Serialize;
+    use crate::server::response::Response;
     use crate::types::{AddressRange, Indexed, UnitId};
 
     struct ClientFixture {
@@ -183,9 +184,7 @@ mod tests {
     {
         let mut fmt = MBAPFormatter::new();
         let header = FrameHeader::new(UnitId::new(1), TxId::new(0));
-        let bytes = fmt
-            .format(header, &ADU::new(f.get_value(), payload))
-            .unwrap();
+        let bytes = fmt.format(header, &Response::new(f, payload)).unwrap();
         Vec::from(bytes)
     }
 
