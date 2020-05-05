@@ -56,30 +56,29 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         );
     }
 
-    let mut query_tasks: Vec<tokio::task::JoinHandle<bool>> = Vec::new();
+    let mut query_tasks: Vec<tokio::task::JoinHandle<Result<(), Error>>> = Vec::new();
 
     let start = std::time::Instant::now();
 
     // spawn tasks that make a query 1000 times
     for mut session in sessions {
-        let handle: tokio::task::JoinHandle<bool> = tokio::spawn(async move {
+        let handle: tokio::task::JoinHandle<Result<(), Error>> = tokio::spawn(async move {
             for _ in 0..num_requests {
                 if let Err(err) = session
                     .read_coils(AddressRange::try_from(0, 100).unwrap())
                     .await
                 {
                     println!("failure: {}", err);
-                    return false;
+                    return Err(err);
                 }
             }
-            true
+            Ok(())
         });
         query_tasks.push(handle);
     }
 
     for handle in query_tasks {
-        let is_success = handle.await.unwrap();
-        assert!(is_success);
+        handle.await.unwrap().unwrap();
     }
 
     let elapsed = std::time::Instant::now() - start;
