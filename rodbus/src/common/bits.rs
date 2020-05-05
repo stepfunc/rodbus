@@ -1,4 +1,4 @@
-pub fn num_bytes_for_bits(count: u16) -> usize {
+pub(crate) fn num_bytes_for_bits(count: u16) -> usize {
     (count as usize + 7) / 8
 }
 

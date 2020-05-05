@@ -28,22 +28,28 @@ pub trait ServerHandler: Send + 'static {
     }
 
     /// Read a range of coils, returning the matching slice of bool or an exception
-    fn read_coils(&mut self, _range: AddressRange) -> Result<&[bool], ExceptionCode> {
+    fn read_coils(&mut self, _range: ReadBitsRange) -> Result<&[bool], ExceptionCode> {
         Err(ExceptionCode::IllegalFunction)
     }
 
     /// Read a range of discrete inputs, returning the matching slice of bool or an exception
-    fn read_discrete_inputs(&mut self, _range: AddressRange) -> Result<&[bool], ExceptionCode> {
+    fn read_discrete_inputs(&mut self, _range: ReadBitsRange) -> Result<&[bool], ExceptionCode> {
         Err(ExceptionCode::IllegalFunction)
     }
 
     /// Read a range of holding registers, returning the matching slice of u16 or an exception
-    fn read_holding_registers(&mut self, _range: AddressRange) -> Result<&[u16], ExceptionCode> {
+    fn read_holding_registers(
+        &mut self,
+        _range: ReadRegistersRange,
+    ) -> Result<&[u16], ExceptionCode> {
         Err(ExceptionCode::IllegalFunction)
     }
 
     /// Read a range of input registers, returning the matching slice of u16 or an exception
-    fn read_input_registers(&mut self, _range: AddressRange) -> Result<&[u16], ExceptionCode> {
+    fn read_input_registers(
+        &mut self,
+        _range: ReadRegistersRange,
+    ) -> Result<&[u16], ExceptionCode> {
         Err(ExceptionCode::IllegalFunction)
     }
 
@@ -173,37 +179,23 @@ mod tests {
         AddressRange::try_from(0, 1).unwrap()
     }
 
-    fn registers() -> WriteRegisters<'static> {
-        WriteRegisters {
-            range: range(),
-            iterator: RegisterIterator::create(&[0xFF, 0xFF], range()).unwrap(),
-        }
-    }
-
-    fn coils() -> WriteCoils<'static> {
-        WriteCoils {
-            range: range(),
-            iterator: BitIterator::create(&[0xFF], range()).unwrap(),
-        }
-    }
-
     #[test]
     fn default_handler_returns_illegal_function() {
         let mut handler = DefaultHandler {};
         assert_eq!(
-            handler.read_coils(range()),
+            handler.read_coils(range().of_read_bits().unwrap()),
             Err(ExceptionCode::IllegalFunction)
         );
         assert_eq!(
-            handler.read_discrete_inputs(range()),
+            handler.read_discrete_inputs(range().of_read_bits().unwrap()),
             Err(ExceptionCode::IllegalFunction)
         );
         assert_eq!(
-            handler.read_holding_registers(range()),
+            handler.read_holding_registers(range().of_read_registers().unwrap()),
             Err(ExceptionCode::IllegalFunction)
         );
         assert_eq!(
-            handler.read_input_registers(range()),
+            handler.read_input_registers(range().of_read_registers().unwrap()),
             Err(ExceptionCode::IllegalFunction)
         );
         assert_eq!(
@@ -212,14 +204,6 @@ mod tests {
         );
         assert_eq!(
             handler.write_single_register(Indexed::new(0, 0)),
-            Err(ExceptionCode::IllegalFunction)
-        );
-        assert_eq!(
-            handler.write_multiple_coils(coils()),
-            Err(ExceptionCode::IllegalFunction)
-        );
-        assert_eq!(
-            handler.write_multiple_registers(registers()),
             Err(ExceptionCode::IllegalFunction)
         );
     }

@@ -97,8 +97,8 @@
 //! }
 //!
 //! impl ServerHandler for CoilsOnlyHandler {
-//!    fn read_coils(&mut self, range: AddressRange) -> Result<&[bool], details::ExceptionCode> {
-//!        Self::get_range_of(self.coils.as_ref(), range)
+//!    fn read_coils(&mut self, range: ReadBitsRange) -> Result<&[bool], details::ExceptionCode> {
+//!        Self::get_range_of(self.coils.as_ref(), range.get())
 //!    }
 //! }
 //!
@@ -135,7 +135,7 @@
 //!```
 
 #![deny(
-dead_code,
+// dead_code,
 // arithmetic_overflow,
 invalid_type_param_default,
 missing_fragment_specifier,
@@ -161,7 +161,7 @@ type_alias_bounds,
 tyvar_behind_raw_pointer,
 unconditional_recursion,
 unused_comparisons,
-//unreachable_pub,
+unreachable_pub,
 anonymous_parameters,
 missing_copy_implementations,
 // missing_debug_implementations,
@@ -196,6 +196,5 @@ pub mod shutdown;
 pub mod types;
 
 // internal modules
-mod service;
+mod common;
 mod tcp;
-mod util;

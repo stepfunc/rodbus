@@ -1,7 +1,9 @@
 use std::convert::TryFrom;
 
-use crate::error::details::{ADUParseError, InternalError, InvalidRange, InvalidRequest};
+use crate::error::details::{ADUParseError, InvalidRange, InvalidRequest};
 
+use crate::common::cursor::ReadCursor;
+use crate::error::Error;
 #[cfg(feature = "no-panic")]
 use no_panic::no_panic;
 
@@ -20,6 +22,32 @@ pub struct AddressRange {
     pub start: u16,
     /// count of elements in the range
     pub count: u16,
+}
+
+/// Specialized wrapper around an address
+/// range only valid for ReadCoils / ReadDiscreteInputs
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ReadBitsRange {
+    pub(crate) inner: AddressRange,
+}
+
+impl ReadBitsRange {
+    pub fn get(self) -> AddressRange {
+        self.inner
+    }
+}
+
+/// Specialized wrapper around an `AddressRange`
+/// only valid for ReadHoldingRegisters / ReadInputRegisters
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ReadRegistersRange {
+    pub(crate) inner: AddressRange,
+}
+
+impl ReadRegistersRange {
+    pub fn get(self) -> AddressRange {
+        self.inner
+    }
 }
 
 /// Value and its address
@@ -48,11 +76,12 @@ pub struct RegisterIterator<'a> {
 }
 
 impl<'a> BitIterator<'a> {
-    pub(crate) fn create(bytes: &'a [u8], range: AddressRange) -> Result<Self, InternalError> {
-        if bytes.len() < crate::util::bits::num_bytes_for_bits(range.count) {
-            return Err(InternalError::BadBitIteratorArgs);
-        }
-
+    pub(crate) fn parse_all(
+        range: AddressRange,
+        cursor: &'a mut ReadCursor,
+    ) -> Result<Self, Error> {
+        let bytes = cursor.read_bytes(crate::common::bits::num_bytes_for_bits(range.count))?;
+        cursor.expect_empty()?;
         Ok(Self {
             bytes,
             range,
@@ -62,13 +91,12 @@ impl<'a> BitIterator<'a> {
 }
 
 impl<'a> RegisterIterator<'a> {
-    pub(crate) fn create(bytes: &'a [u8], range: AddressRange) -> Result<Self, InternalError> {
-        let required_bytes = 2 * (range.count as usize);
-
-        if bytes.len() != required_bytes {
-            return Err(InternalError::BadRegisterIteratorArgs);
-        }
-
+    pub(crate) fn parse_all(
+        range: AddressRange,
+        cursor: &'a mut ReadCursor,
+    ) -> Result<Self, Error> {
+        let bytes = cursor.read_bytes(2 * (range.count as usize))?;
+        cursor.expect_empty()?;
         Ok(Self {
             bytes,
             range,
@@ -78,7 +106,7 @@ impl<'a> RegisterIterator<'a> {
 }
 
 impl<'a> Iterator for BitIterator<'a> {
-    type Item = bool;
+    type Item = Indexed<bool>;
 
     #[cfg_attr(feature = "no-panic", no_panic)]
     fn next(&mut self) -> Option<Self::Item> {
@@ -90,8 +118,10 @@ impl<'a> Iterator for BitIterator<'a> {
 
         match self.bytes.get(byte as usize) {
             Some(value) => {
+                let bit = (*value & (1 << bit)) != 0;
+                let address = self.range.start + self.pos;
                 self.pos += 1;
-                Some((*value & (1 << bit)) != 0)
+                Some(Indexed::new(address, bit))
             }
             None => None,
         }
@@ -106,7 +136,7 @@ impl<'a> Iterator for BitIterator<'a> {
 }
 
 impl<'a> Iterator for RegisterIterator<'a> {
-    type Item = u16;
+    type Item = Indexed<u16>;
 
     #[cfg_attr(feature = "no-panic", no_panic)]
     fn next(&mut self) -> Option<Self::Item> {
@@ -117,8 +147,10 @@ impl<'a> Iterator for RegisterIterator<'a> {
         let pos = 2 * (self.pos as usize);
         match self.bytes.get(pos..pos + 2) {
             Some([high, low]) => {
+                let value = ((*high as u16) << 8) | *low as u16;
+                let index = self.pos + self.range.start;
                 self.pos += 1;
-                Some(((*high as u16) << 8) | *low as u16)
+                Some(Indexed::new(index, value))
             }
             _ => None,
         }
@@ -172,23 +204,20 @@ where
 #[derive(Debug, Clone)]
 pub struct WriteMultiple<T> {
     /// starting address
-    pub start: u16,
+    pub(crate) range: AddressRange,
     /// vector of values
-    pub values: Vec<T>,
+    pub(crate) values: Vec<T>,
 }
 
 impl<T> WriteMultiple<T> {
     /// Create new collection of values
-    pub fn new(start: u16, values: Vec<T>) -> Self {
-        Self { start, values }
-    }
-
-    /// Convert to a range and checking for overflow
-    pub fn to_address_range(&self) -> Result<AddressRange, InvalidRequest> {
-        match u16::try_from(self.values.len()) {
-            Ok(count) => Ok(AddressRange::try_from(self.start, count)?),
-            Err(_) => Err(InvalidRequest::CountTooBigForU16(self.values.len())),
-        }
+    pub fn from(start: u16, values: Vec<T>) -> Result<Self, InvalidRequest> {
+        let count = match u16::try_from(values.len()) {
+            Ok(x) => x,
+            Err(_) => return Err(InvalidRequest::CountTooBigForU16(values.len())),
+        };
+        let range = AddressRange::try_from(start, count)?;
+        Ok(Self { range, values })
     }
 }
 
@@ -229,6 +258,25 @@ impl AddressRange {
         let start = self.start as usize;
         let end = start + (self.count as usize);
         start..end
+    }
+
+    pub(crate) fn of_read_bits(self) -> Result<ReadBitsRange, InvalidRange> {
+        Ok(ReadBitsRange {
+            inner: self.limited_count(crate::constants::limits::MAX_READ_COILS_COUNT)?,
+        })
+    }
+
+    pub(crate) fn of_read_registers(self) -> Result<ReadRegistersRange, InvalidRange> {
+        Ok(ReadRegistersRange {
+            inner: self.limited_count(crate::constants::limits::MAX_READ_REGISTERS_COUNT)?,
+        })
+    }
+
+    fn limited_count(self, limit: u16) -> Result<Self, InvalidRange> {
+        if self.count > limit {
+            return Err(InvalidRange::CountTooLargeForType(self.count, limit));
+        }
+        Ok(self)
     }
 }
 
@@ -281,54 +329,34 @@ mod tests {
     }
 
     #[test]
-    fn cannot_create_bit_iterator_with_bad_count() {
-        assert_eq!(
-            BitIterator::create(&[], AddressRange::try_from(0, 1).unwrap())
-                .err()
-                .unwrap(),
-            InternalError::BadBitIteratorArgs
-        );
-        assert_eq!(
-            BitIterator::create(&[0xFF], AddressRange::try_from(0, 9).unwrap())
-                .err()
-                .unwrap(),
-            InternalError::BadBitIteratorArgs
-        );
-    }
-
-    #[test]
     fn correctly_iterates_over_low_order_bits() {
-        let iterator = BitIterator::create(&[0x03], AddressRange::try_from(1, 3).unwrap()).unwrap();
+        let mut cursor = ReadCursor::new(&[0x03]);
+        let iterator =
+            BitIterator::parse_all(AddressRange::try_from(1, 3).unwrap(), &mut cursor).unwrap();
         assert_eq!(iterator.size_hint(), (3, Some(3)));
-        let values: Vec<bool> = iterator.collect();
-        assert_eq!(values, vec![true, true, false]);
-    }
-
-    #[test]
-    fn cannot_create_register_iterator_with_invalid_byte_count() {
+        let values: Vec<Indexed<bool>> = iterator.collect();
         assert_eq!(
-            RegisterIterator::create(&[], AddressRange::try_from(0, 1).unwrap())
-                .err()
-                .unwrap(),
-            InternalError::BadRegisterIteratorArgs
-        );
-        assert_eq!(
-            RegisterIterator::create(&[0xFF, 0xFF, 0xFF], AddressRange::try_from(0, 2).unwrap())
-                .err()
-                .unwrap(),
-            InternalError::BadRegisterIteratorArgs
+            values,
+            vec![
+                Indexed::new(1, true),
+                Indexed::new(2, true),
+                Indexed::new(3, false)
+            ]
         );
     }
 
     #[test]
     fn correctly_iterates_over_registers() {
-        let iterator = RegisterIterator::create(
-            &[0xFF, 0xFF, 0x01, 0xCC],
-            AddressRange::try_from(1, 2).unwrap(),
-        )
-        .unwrap();
+        let mut cursor = ReadCursor::new(&[0xFF, 0xFF, 0x01, 0xCC]);
+        let iterator =
+            RegisterIterator::parse_all(AddressRange::try_from(1, 2).unwrap(), &mut cursor)
+                .unwrap();
+
         assert_eq!(iterator.size_hint(), (2, Some(2)));
-        let values: Vec<u16> = iterator.collect();
-        assert_eq!(values, vec![0xFFFF, 0x01CC]);
+        let values: Vec<Indexed<u16>> = iterator.collect();
+        assert_eq!(
+            values,
+            vec![Indexed::new(1, 0xFFFF), Indexed::new(2, 0x01CC)]
+        );
     }
 }

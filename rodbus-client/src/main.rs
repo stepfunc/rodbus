@@ -6,7 +6,7 @@ use std::time::Duration;
 
 use clap::{App, Arg, ArgMatches, SubCommand};
 
-use rodbus::error::details::InvalidRange;
+use rodbus::error::details::{InvalidRange, InvalidRequest};
 use rodbus::prelude::*;
 
 #[derive(Debug)]
@@ -198,17 +198,17 @@ fn get_command(matches: &ArgMatches) -> Result<Command, Error> {
     if let Some(matches) = matches.subcommand_matches("wmc") {
         let start = get_start(matches)?;
         let values = get_bit_values(matches)?;
-        return Ok(Command::WriteMultipleCoils(WriteMultiple::new(
+        return Ok(Command::WriteMultipleCoils(WriteMultiple::from(
             start, values,
-        )));
+        )?));
     }
 
     if let Some(matches) = matches.subcommand_matches("wmr") {
         let start = get_start(matches)?;
         let values = get_register_values(matches)?;
-        return Ok(Command::WriteMultipleRegisters(WriteMultiple::new(
+        return Ok(Command::WriteMultipleRegisters(WriteMultiple::from(
             start, values,
-        )));
+        )?));
     }
 
     Err(Error::MissingSubCommand)
@@ -460,5 +460,11 @@ impl From<ParseBoolError> for Error {
 impl From<InvalidRange> for Error {
     fn from(err: InvalidRange) -> Self {
         Error::BadRange(err)
+    }
+}
+
+impl From<InvalidRequest> for Error {
+    fn from(err: InvalidRequest) -> Self {
+        Error::Request(err.into())
     }
 }

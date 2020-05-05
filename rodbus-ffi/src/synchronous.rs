@@ -3,6 +3,7 @@ use tokio::runtime::Runtime;
 use rodbus::types::Indexed;
 
 use super::*;
+use rodbus::client::session::SyncSession;
 
 unsafe fn get_synchronous_session<'a>(
     session: *mut Session,
@@ -210,11 +211,14 @@ pub unsafe extern "C" fn write_multiple_coils(
     values: *const bool,
     count: u16,
 ) -> Result {
-    perform_write(
-        session,
-        to_write_multiple(start, values, count),
-        |rt, session, value| session.write_multiple_coils(rt, value),
-    )
+    let request = match to_write_multiple(start, values, count) {
+        Ok(x) => x,
+        Err(err) => return err.into(),
+    };
+
+    perform_write(session, request, |rt, session, value| {
+        session.write_multiple_coils(rt, value)
+    })
 }
 
 /// @brief perform a blocking operation to write multiple registers
@@ -235,9 +239,11 @@ pub unsafe extern "C" fn write_multiple_registers(
     values: *const u16,
     count: u16,
 ) -> Result {
-    perform_write(
-        session,
-        to_write_multiple(start, values, count),
-        |rt, session, value| session.write_multiple_registers(rt, value),
-    )
+    let request = match to_write_multiple(start, values, count) {
+        Ok(x) => x,
+        Err(err) => return err.into(),
+    };
+    perform_write(session, request, |rt, session, value| {
+        session.write_multiple_registers(rt, value)
+    })
 }

@@ -75,6 +75,18 @@ impl From<details::InvalidRange> for details::InvalidRequest {
     }
 }
 
+impl<T> From<tokio::sync::mpsc::error::SendError<T>> for Error {
+    fn from(_: tokio::sync::mpsc::error::SendError<T>) -> Self {
+        Error::Shutdown
+    }
+}
+
+impl From<tokio::sync::oneshot::error::RecvError> for Error {
+    fn from(_: tokio::sync::oneshot::error::RecvError) -> Self {
+        Error::Shutdown
+    }
+}
+
 impl From<details::InvalidRange> for Error {
     fn from(x: details::InvalidRange) -> Self {
         Error::BadRequest(x.into())
@@ -91,6 +103,8 @@ pub mod details {
         CountOfZero,
         /// address in range overflows u16
         AddressOverflow(u16, u16),
+        /// count too large for type
+        CountTooLargeForType(u16, u16), // actual and limit
     }
 
     /// errors that indicate faulty logic in the library itself if they occur
@@ -108,10 +122,6 @@ pub mod details {
         BadSeekOperation,
         /// Byte count would exceed maximum allowed size in the ADU of u8
         BadByteCount(usize),
-        /// BitIterator with bad arguments
-        BadBitIteratorArgs,
-        /// RegisterIterator with bad arguments
-        BadRegisterIteratorArgs,
     }
 
     impl std::error::Error for InternalError {}
@@ -147,12 +157,6 @@ pub mod details {
                     "Byte count of in ADU {} exceeds maximum size of u8",
                     size
                 ),
-                InternalError::BadBitIteratorArgs => {
-                    f.write_str("Bit iterator created with bad arguments")
-                }
-                InternalError::BadRegisterIteratorArgs => {
-                    f.write_str("Register iterator created with bad arguments")
-                }
             }
         }
     }
@@ -306,8 +310,6 @@ pub mod details {
     pub enum ADUParseError {
         /// response is too short to be valid
         InsufficientBytes,
-        /// byte count doesn't match what is expected based on request
-        RequestByteCountMismatch(usize, usize), // expected count / actual count
         /// byte count doesn't match the actual number of bytes present
         InsufficientBytesForByteCount(usize, usize), // count / remaining
         /// response contains extra trailing bytes
@@ -328,11 +330,6 @@ pub mod details {
                 ADUParseError::InsufficientBytes => {
                     f.write_str("response is too short to be valid")
                 }
-                ADUParseError::RequestByteCountMismatch(request, response) => write!(
-                    f,
-                    "byte count ({}) doesn't match what is expected based on request ({})",
-                    response, request
-                ),
                 ADUParseError::InsufficientBytesForByteCount(count, remaining) => write!(
                     f,
                     "byte count ({}) doesn't match the actual number of bytes remaining ({})",
@@ -397,6 +394,11 @@ pub mod details {
                     f,
                     "start == {} and count = {} would overflow u16 representation",
                     start, count
+                ),
+                InvalidRange::CountTooLargeForType(x, y) => write!(
+                    f,
+                    "count of {} is too large for the specified type (max == {})",
+                    x, y
                 ),
             }
         }

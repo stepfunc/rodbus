@@ -3,7 +3,9 @@ use crate::user_data::UserData;
 use rodbus::error::details::ExceptionCode;
 use rodbus::server::handler::{ServerHandler, ServerHandlerMap};
 use rodbus::shutdown::TaskHandle;
-use rodbus::types::{AddressRange, Indexed, UnitId, WriteCoils, WriteRegisters};
+use rodbus::types::{
+    AddressRange, Indexed, ReadBitsRange, ReadRegistersRange, UnitId, WriteCoils, WriteRegisters,
+};
 use std::os::raw::c_void;
 use std::ptr::null_mut;
 use std::sync::Arc;
@@ -192,20 +194,23 @@ impl FFIHandler {
 }
 
 impl ServerHandler for FFIHandler {
-    fn read_coils(&mut self, range: AddressRange) -> Result<&[bool], ExceptionCode> {
-        Self::get_range_of(&self.data.bo, range)
+    fn read_coils(&mut self, range: ReadBitsRange) -> Result<&[bool], ExceptionCode> {
+        Self::get_range_of(&self.data.bo, range.get())
     }
 
-    fn read_discrete_inputs(&mut self, range: AddressRange) -> Result<&[bool], ExceptionCode> {
-        Self::get_range_of(&self.data.bi, range)
+    fn read_discrete_inputs(&mut self, range: ReadBitsRange) -> Result<&[bool], ExceptionCode> {
+        Self::get_range_of(&self.data.bi, range.get())
     }
 
-    fn read_holding_registers(&mut self, range: AddressRange) -> Result<&[u16], ExceptionCode> {
-        Self::get_range_of(&self.data.ao, range)
+    fn read_holding_registers(
+        &mut self,
+        range: ReadRegistersRange,
+    ) -> Result<&[u16], ExceptionCode> {
+        Self::get_range_of(&self.data.ao, range.get())
     }
 
-    fn read_input_registers(&mut self, range: AddressRange) -> Result<&[u16], ExceptionCode> {
-        Self::get_range_of(&self.data.ai, range)
+    fn read_input_registers(&mut self, range: ReadRegistersRange) -> Result<&[u16], ExceptionCode> {
+        Self::get_range_of(&self.data.ai, range.get())
     }
 
     fn write_single_coil(&mut self, pair: Indexed<bool>) -> Result<(), ExceptionCode> {
@@ -231,7 +236,7 @@ impl ServerHandler for FFIHandler {
             Some(dest) => dest,
             None => return Err(ExceptionCode::ServerDeviceFailure),
         };
-        Self::copy_to(dest, values.iterator)?;
+        Self::copy_to(dest, values.iterator.map(|x| x.value))?;
         Self::write_multiple(
             dest,
             values.range,
@@ -246,7 +251,7 @@ impl ServerHandler for FFIHandler {
             Some(dest) => dest,
             None => return Err(ExceptionCode::ServerDeviceFailure),
         };
-        Self::copy_to(dest, values.iterator)?;
+        Self::copy_to(dest, values.iterator.map(|x| x.value))?;
         Self::write_multiple(
             dest,
             values.range,

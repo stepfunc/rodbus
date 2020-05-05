@@ -30,11 +30,11 @@ impl SessionTracker {
         ret
     }
 
-    pub fn wrapped(max: usize) -> SessionTrackerWrapper {
+    pub(crate) fn wrapped(max: usize) -> SessionTrackerWrapper {
         Arc::new(Mutex::new(Box::new(Self::new(max))))
     }
 
-    pub fn add(&mut self, sender: tokio::sync::mpsc::Sender<()>) -> u64 {
+    pub(crate) fn add(&mut self, sender: tokio::sync::mpsc::Sender<()>) -> u64 {
         // TODO - this is so ugly. there's a nightly API on BTreeMap that has a remove_first
         if !self.sessions.is_empty() && self.sessions.len() >= self.max {
             let id = *self.sessions.keys().next().unwrap();
@@ -49,12 +49,12 @@ impl SessionTracker {
         id
     }
 
-    pub fn remove(&mut self, id: u64) {
+    pub(crate) fn remove(&mut self, id: u64) {
         self.sessions.remove(&id);
     }
 }
 
-pub struct ServerTask<T: ServerHandler> {
+pub(crate) struct ServerTask<T: ServerHandler> {
     listener: TcpListener,
     handlers: ServerHandlerMap<T>,
     tracker: SessionTrackerWrapper,
@@ -64,7 +64,11 @@ impl<T> ServerTask<T>
 where
     T: ServerHandler,
 {
-    pub fn new(max_sessions: usize, listener: TcpListener, handlers: ServerHandlerMap<T>) -> Self {
+    pub(crate) fn new(
+        max_sessions: usize,
+        listener: TcpListener,
+        handlers: ServerHandlerMap<T>,
+    ) -> Self {
         Self {
             listener,
             handlers,
@@ -72,10 +76,13 @@ where
         }
     }
 
-    pub async fn run(&mut self, mut shutdown: tokio::sync::mpsc::Receiver<()>) {
+    pub(crate) async fn run(&mut self, mut shutdown: tokio::sync::mpsc::Receiver<()>) {
         loop {
             tokio::select! {
-               _ = shutdown.recv() => return, // shutdown signal
+               _ = shutdown.recv() => {
+                    log::info!("server shutdown");
+                    return; // shutdown signal
+               }
                result = self.listener.accept() => {
                    match result {
                         Err(err) => {

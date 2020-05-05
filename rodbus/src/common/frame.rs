@@ -1,29 +1,29 @@
 use tokio::io::AsyncRead;
 
+use crate::common::buffer::ReadBuffer;
+use crate::common::traits::Serialize;
 use crate::error::Error;
-use crate::service::traits::Serialize;
 use crate::types::UnitId;
-use crate::util::buffer::ReadBuffer;
 
-pub mod constants {
-    pub const MAX_ADU_LENGTH: usize = 253;
+pub(crate) mod constants {
+    pub(crate) const MAX_ADU_LENGTH: usize = 253;
 }
 
 #[derive(PartialEq, Copy, Clone, Debug)]
-pub struct TxId {
+pub(crate) struct TxId {
     value: u16,
 }
 
 impl TxId {
-    pub fn new(value: u16) -> Self {
+    pub(crate) fn new(value: u16) -> Self {
         TxId { value }
     }
 
-    pub fn to_u16(self) -> u16 {
+    pub(crate) fn to_u16(self) -> u16 {
         self.value
     }
 
-    pub fn next(&mut self) -> TxId {
+    pub(crate) fn next(&mut self) -> TxId {
         if self.value == u16::max_value() {
             self.value = 0;
             TxId::new(u16::max_value())
@@ -42,25 +42,25 @@ impl Default for TxId {
 }
 
 #[derive(Copy, Clone)]
-pub struct FrameHeader {
-    pub unit_id: UnitId,
-    pub tx_id: TxId,
+pub(crate) struct FrameHeader {
+    pub(crate) unit_id: UnitId,
+    pub(crate) tx_id: TxId,
 }
 
 impl FrameHeader {
-    pub fn new(unit_id: UnitId, tx_id: TxId) -> Self {
+    pub(crate) fn new(unit_id: UnitId, tx_id: TxId) -> Self {
         FrameHeader { unit_id, tx_id }
     }
 }
 
-pub struct Frame {
-    pub header: FrameHeader,
+pub(crate) struct Frame {
+    pub(crate) header: FrameHeader,
     length: usize,
     adu: [u8; constants::MAX_ADU_LENGTH],
 }
 
 impl Frame {
-    pub fn new(header: FrameHeader) -> Frame {
+    pub(crate) fn new(header: FrameHeader) -> Frame {
         Frame {
             header,
             length: 0,
@@ -68,7 +68,7 @@ impl Frame {
         }
     }
 
-    pub fn set(&mut self, src: &[u8]) -> bool {
+    pub(crate) fn set(&mut self, src: &[u8]) -> bool {
         if src.len() > self.adu.len() {
             return false;
         }
@@ -78,7 +78,7 @@ impl Frame {
         true
     }
 
-    pub fn payload(&self) -> &[u8] {
+    pub(crate) fn payload(&self) -> &[u8] {
         &self.adu[0..self.length]
     }
 }
@@ -86,7 +86,7 @@ impl Frame {
 /**
 *  Defines an interface for reading and writing complete frames (TCP or RTU)
 */
-pub trait FrameParser {
+pub(crate) trait FrameParser {
     fn max_frame_size(&self) -> usize;
 
     /**
@@ -104,7 +104,7 @@ pub(crate) trait FrameFormatter {
     fn format(&mut self, header: FrameHeader, msg: &dyn Serialize) -> Result<&[u8], Error>;
 }
 
-pub struct FramedReader<T>
+pub(crate) struct FramedReader<T>
 where
     T: FrameParser,
 {
@@ -113,7 +113,7 @@ where
 }
 
 impl<T: FrameParser> FramedReader<T> {
-    pub fn new(parser: T) -> Self {
+    pub(crate) fn new(parser: T) -> Self {
         let size = parser.max_frame_size();
         Self {
             parser,
@@ -121,7 +121,7 @@ impl<T: FrameParser> FramedReader<T> {
         }
     }
 
-    pub async fn next_frame<R>(&mut self, io: &mut R) -> Result<Frame, Error>
+    pub(crate) async fn next_frame<R>(&mut self, io: &mut R) -> Result<Frame, Error>
     where
         R: AsyncRead + Unpin,
     {

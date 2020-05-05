@@ -3,18 +3,13 @@ use std::time::Duration;
 use tokio::prelude::*;
 use tokio::sync::*;
 
-use crate::client::message::{Request, ServiceRequest};
+use crate::client::message::Request;
+use crate::common::frame::{FrameFormatter, FrameHeader, FramedReader, TxId};
 use crate::error::*;
-use crate::service::function::ADU;
-use crate::service::traits::Service;
-use crate::service::*;
 use crate::tcp::frame::{MBAPFormatter, MBAPParser};
-use crate::types::UnitId;
-use crate::util::cursor::ReadCursor;
-use crate::util::frame::{FrameFormatter, FrameHeader, FramedReader, TxId};
 
 /**
-* We always service requests in a TCP session until one of the following occurs
+* We always common requests in a TCP session until one of the following occurs
 */
 #[derive(Debug, PartialEq)]
 pub(crate) enum SessionError {
@@ -27,7 +22,7 @@ pub(crate) enum SessionError {
 }
 
 impl SessionError {
-    pub fn from(err: &Error) -> Option<Self> {
+    pub(crate) fn from(err: &Error) -> Option<Self> {
         match err {
             Error::Io(_) => Some(SessionError::IOError),
             Error::BadFrame(_) => Some(SessionError::BadFrame),
@@ -45,7 +40,7 @@ pub(crate) struct ClientLoop {
 }
 
 impl ClientLoop {
-    pub fn new(rx: mpsc::Receiver<Request>) -> Self {
+    pub(crate) fn new(rx: mpsc::Receiver<Request>) -> Self {
         Self {
             rx,
             formatter: MBAPFormatter::new(),
@@ -54,116 +49,77 @@ impl ClientLoop {
         }
     }
 
-    pub async fn run<T>(&mut self, mut io: T) -> SessionError
+    pub(crate) async fn run<T>(&mut self, mut io: T) -> SessionError
     where
         T: AsyncRead + AsyncWrite + Unpin,
     {
         while let Some(request) = self.rx.recv().await {
-            if let Some(err) = self.run_one_request(request, &mut io).await {
+            if let Some(err) = self.run_one_request(&mut io, request).await {
                 return err;
             }
         }
         SessionError::Shutdown
     }
 
-    pub async fn run_one_request<T>(&mut self, request: Request, io: &mut T) -> Option<SessionError>
+    async fn run_one_request<T>(&mut self, io: &mut T, request: Request) -> Option<SessionError>
     where
         T: AsyncRead + AsyncWrite + Unpin,
     {
-        match request {
-            Request::ReadCoils(srv) => self.handle_request::<services::ReadCoils, T>(io, srv).await,
-            Request::ReadDiscreteInputs(srv) => {
-                self.handle_request::<services::ReadDiscreteInputs, T>(io, srv)
-                    .await
-            }
-            Request::ReadHoldingRegisters(srv) => {
-                self.handle_request::<services::ReadHoldingRegisters, T>(io, srv)
-                    .await
-            }
-            Request::ReadInputRegisters(srv) => {
-                self.handle_request::<services::ReadInputRegisters, T>(io, srv)
-                    .await
-            }
-            Request::WriteSingleCoil(srv) => {
-                self.handle_request::<crate::service::services::WriteSingleCoil, T>(io, srv)
-                    .await
-            }
-            Request::WriteSingleRegister(srv) => {
-                self.handle_request::<crate::service::services::WriteSingleRegister, T>(io, srv)
-                    .await
-            }
-            Request::WriteMultipleCoils(srv) => {
-                self.handle_request::<crate::service::services::WriteMultipleCoils, T>(io, srv)
-                    .await
-            }
-            Request::WriteMultipleRegisters(srv) => {
-                self.handle_request::<crate::service::services::WriteMultipleRegisters, T>(io, srv)
-                    .await
-            }
-        }
-    }
-
-    async fn handle_request<S, T>(
-        &mut self,
-        io: &mut T,
-        srv: ServiceRequest<S>,
-    ) -> Option<SessionError>
-    where
-        S: Service,
-        T: AsyncRead + AsyncWrite + Unpin,
-    {
-        let result = self
-            .send_and_receive::<S, T>(io, srv.id, srv.timeout, &srv.argument)
-            .await;
+        let result = self.execute_request::<T>(io, request).await;
 
         if let Err(e) = result.as_ref() {
             log::warn!("error occurred making request: {}", e);
         }
 
-        let ret = result.as_ref().err().and_then(|e| SessionError::from(e));
-
-        // we always send the result, no matter what happened
-        srv.reply(result);
-
-        ret
+        result.as_ref().err().and_then(|e| SessionError::from(e))
     }
 
-    async fn send_and_receive<S, T>(
-        &mut self,
-        io: &mut T,
-        unit_id: UnitId,
-        timeout: Duration,
-        request: &S::ClientRequest,
-    ) -> Result<S::ClientResponse, Error>
+    async fn execute_request<T>(&mut self, io: &mut T, request: Request) -> Result<(), Error>
     where
-        S: Service,
         T: AsyncRead + AsyncWrite + Unpin,
     {
         let tx_id = self.tx_id.next();
-        let bytes = self.formatter.format(
-            FrameHeader::new(unit_id, tx_id),
-            &ADU::new(S::REQUEST_FUNCTION_CODE.get_value(), request),
-        )?;
+        let bytes = self
+            .formatter
+            .format(FrameHeader::new(request.id, tx_id), &request.details)?;
 
         io.write_all(bytes).await?;
 
-        let deadline = tokio::time::Instant::now() + timeout;
+        let deadline = tokio::time::Instant::now() + request.timeout;
 
         // loop until we get a response with the correct tx id or we timeout
-        loop {
-            let frame = tokio::time::timeout_at(deadline, self.reader.next_frame(io))
-                .await
-                .map_err(|_err| Error::ResponseTimeout)??;
+        let response = loop {
+            let frame = match tokio::time::timeout_at(deadline, self.reader.next_frame(io)).await {
+                Err(_) => {
+                    request.details.fail(Error::ResponseTimeout);
+                    return Ok(());
+                }
+                Ok(result) => match result {
+                    Ok(frame) => frame,
+                    Err(err) => {
+                        request.details.fail(err);
+                        return Err(err);
+                    }
+                },
+            };
 
-            // TODO - log that non-matching tx_id found
-            if frame.header.tx_id == tx_id {
-                let mut cursor = ReadCursor::new(frame.payload());
-                return S::parse_response(&mut cursor, request);
+            if frame.header.tx_id != tx_id {
+                log::warn!(
+                    "received {:?} while expecting {:?}",
+                    frame.header.tx_id,
+                    tx_id
+                );
+                continue; // next iteration of loop
             }
-        }
+
+            break frame;
+        };
+
+        request.handle_response(response.payload());
+        Ok(())
     }
 
-    pub async fn fail_requests_for(&mut self, duration: Duration) -> Result<(), ()> {
+    pub(crate) async fn fail_requests_for(&mut self, duration: Duration) -> Result<(), ()> {
         let deadline = tokio::time::Instant::now() + duration;
 
         loop {
@@ -173,7 +129,7 @@ impl ClientLoop {
                 // channel was closed
                 Ok(None) => return Err(()),
                 // fail request, do another iteration
-                Ok(Some(request)) => request.fail(Error::NoConnection),
+                Ok(Some(request)) => request.details.fail(Error::NoConnection),
             }
         }
     }
@@ -182,15 +138,17 @@ impl ClientLoop {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::client::message::RequestDetails;
+    use crate::client::requests::read_bits::ReadBits;
+    use crate::common::function::FunctionCode;
+    use crate::common::traits::Serialize;
     use crate::error::details::FrameParseError;
-    use crate::service::function::FunctionCode;
-    use crate::service::services::ReadCoils;
-    use crate::service::traits::Serialize;
-    use crate::types::{AddressRange, Indexed};
+    use crate::server::response::Response;
+    use crate::types::{AddressRange, Indexed, UnitId};
 
     struct ClientFixture {
         tx: tokio::sync::mpsc::Sender<Request>,
-        pub client: ClientLoop,
+        client: ClientLoop,
     }
 
     impl ClientFixture {
@@ -202,23 +160,19 @@ mod tests {
             }
         }
 
-        fn make_request<S>(
+        fn read_coils(
             &mut self,
-            request: S::ClientRequest,
+            range: AddressRange,
             timeout: Duration,
-        ) -> tokio::sync::oneshot::Receiver<Result<S::ClientResponse, Error>>
-        where
-            S: Service,
-        {
+        ) -> tokio::sync::oneshot::Receiver<Result<Vec<Indexed<bool>>, Error>> {
             let (tx, rx) = tokio::sync::oneshot::channel();
-            let send_future = self.tx.send(S::create_request(ServiceRequest::new(
-                UnitId::new(1),
-                timeout,
-                request,
-                tx,
-            )));
-            if let Err(_) = tokio_test::block_on(send_future) {
-                panic!("send failed!");
+            let details = RequestDetails::ReadCoils(ReadBits::new(
+                range.of_read_bits().unwrap(),
+                crate::client::requests::read_bits::Promise::Channel(tx),
+            ));
+            let request = Request::new(UnitId::new(1), timeout, details);
+            if let Err(_) = tokio_test::block_on(self.tx.send(request)) {
+                panic!("can't send");
             }
             rx
         }
@@ -230,9 +184,7 @@ mod tests {
     {
         let mut fmt = MBAPFormatter::new();
         let header = FrameHeader::new(UnitId::new(1), TxId::new(0));
-        let bytes = fmt
-            .format(header, &ADU::new(f.get_value(), payload))
-            .unwrap();
+        let bytes = fmt.format(header, &Response::new(f, payload)).unwrap();
         Vec::from(bytes)
     }
 
@@ -260,7 +212,7 @@ mod tests {
             .wait(Duration::from_secs(5))
             .build();
 
-        let rx = fixture.make_request::<ReadCoils>(range, Duration::from_secs(0));
+        let rx = fixture.read_coils(range, Duration::from_secs(0));
         drop(fixture.tx);
 
         assert_eq!(
@@ -286,7 +238,7 @@ mod tests {
             .read(&[0x00, 0x00, 0xCA, 0xFE, 0x00, 0x01, 0x01]) // non-Modbus protocol id
             .build();
 
-        let rx = fixture.make_request::<ReadCoils>(range, Duration::from_secs(0));
+        let rx = fixture.read_coils(range, Duration::from_secs(0));
         drop(fixture.tx);
 
         assert_eq!(
@@ -316,7 +268,7 @@ mod tests {
             .read(&response)
             .build();
 
-        let rx = fixture.make_request::<ReadCoils>(range, Duration::from_secs(1));
+        let rx = fixture.read_coils(range, Duration::from_secs(1));
         drop(fixture.tx);
 
         assert_eq!(

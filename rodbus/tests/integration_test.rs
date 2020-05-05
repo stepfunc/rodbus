@@ -28,29 +28,29 @@ impl Handler {
 }
 
 impl ServerHandler for Handler {
-    fn read_coils(&mut self, range: AddressRange) -> Result<&[bool], details::ExceptionCode> {
-        Self::get_range_of(self.coils.as_ref(), range)
+    fn read_coils(&mut self, range: ReadBitsRange) -> Result<&[bool], details::ExceptionCode> {
+        Self::get_range_of(self.coils.as_ref(), range.get())
     }
 
     fn read_discrete_inputs(
         &mut self,
-        range: AddressRange,
+        range: ReadBitsRange,
     ) -> Result<&[bool], details::ExceptionCode> {
-        Self::get_range_of(self.discrete_inputs.as_ref(), range)
+        Self::get_range_of(self.discrete_inputs.as_ref(), range.get())
     }
 
     fn read_holding_registers(
         &mut self,
-        range: AddressRange,
+        range: ReadRegistersRange,
     ) -> Result<&[u16], details::ExceptionCode> {
-        Self::get_range_of(self.holding_registers.as_ref(), range)
+        Self::get_range_of(self.holding_registers.as_ref(), range.get())
     }
 
     fn read_input_registers(
         &mut self,
-        range: AddressRange,
+        range: ReadRegistersRange,
     ) -> Result<&[u16], details::ExceptionCode> {
-        Self::get_range_of(self.input_registers.as_ref(), range)
+        Self::get_range_of(self.input_registers.as_ref(), range.get())
     }
 
     fn write_single_coil(&mut self, value: Indexed<bool>) -> Result<(), details::ExceptionCode> {
@@ -74,7 +74,11 @@ impl ServerHandler for Handler {
     }
 
     fn write_multiple_coils(&mut self, values: WriteCoils) -> Result<(), details::ExceptionCode> {
-        Self::write_mut_range_of(self.coils.as_mut(), values.range, values.iterator)
+        Self::write_mut_range_of(
+            self.coils.as_mut(),
+            values.range,
+            values.iterator.map(|x| x.value),
+        )
     }
 
     fn write_multiple_registers(
@@ -84,7 +88,7 @@ impl ServerHandler for Handler {
         Self::write_mut_range_of(
             self.holding_registers.as_mut(),
             values.range,
-            values.iterator,
+            values.iterator.map(|x| x.value),
         )
     }
 }
@@ -159,7 +163,7 @@ async fn test_requests_and_responses() {
     // write multiple coils and verify that they were written
     assert_eq!(
         session
-            .write_multiple_coils(WriteMultiple::new(0, vec![true, true, true]))
+            .write_multiple_coils(WriteMultiple::from(0, vec![true, true, true]).unwrap())
             .await
             .unwrap(),
         AddressRange::try_from(0, 3).unwrap()
@@ -179,7 +183,7 @@ async fn test_requests_and_responses() {
     // write registers and verify that they were written
     assert_eq!(
         session
-            .write_multiple_registers(WriteMultiple::new(0, vec![0x0102, 0x0304, 0x0506]))
+            .write_multiple_registers(WriteMultiple::from(0, vec![0x0102, 0x0304, 0x0506]).unwrap())
             .await
             .unwrap(),
         AddressRange::try_from(0, 3).unwrap()

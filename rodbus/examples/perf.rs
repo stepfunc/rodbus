@@ -12,8 +12,8 @@ struct Handler {
     coils: [bool; 100],
 }
 impl ServerHandler for Handler {
-    fn read_coils(&mut self, range: AddressRange) -> Result<&[bool], ExceptionCode> {
-        Self::get_range_of(self.coils.as_ref(), range)
+    fn read_coils(&mut self, range: ReadBitsRange) -> Result<&[bool], ExceptionCode> {
+        Self::get_range_of(self.coils.as_ref(), range.get())
     }
 }
 
@@ -41,7 +41,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     .wrap();
     let listener = TcpListener::bind(addr).await?;
 
-    spawn_tcp_server_task(
+    let _handle = spawn_tcp_server_task(
         num_sessions,
         listener,
         ServerHandlerMap::single(UnitId::new(1), handler),
@@ -56,27 +56,29 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         );
     }
 
-    let mut query_tasks: Vec<tokio::task::JoinHandle<()>> = Vec::new();
+    let mut query_tasks: Vec<tokio::task::JoinHandle<Result<(), Error>>> = Vec::new();
 
     let start = std::time::Instant::now();
 
     // spawn tasks that make a query 1000 times
     for mut session in sessions {
-        let handle: tokio::task::JoinHandle<()> = tokio::spawn(async move {
+        let handle: tokio::task::JoinHandle<Result<(), Error>> = tokio::spawn(async move {
             for _ in 0..num_requests {
                 if let Err(err) = session
                     .read_coils(AddressRange::try_from(0, 100).unwrap())
                     .await
                 {
                     println!("failure: {}", err);
+                    return Err(err);
                 }
             }
+            Ok(())
         });
         query_tasks.push(handle);
     }
 
     for handle in query_tasks {
-        handle.await.unwrap();
+        handle.await.unwrap().unwrap();
     }
 
     let elapsed = std::time::Instant::now() - start;

@@ -1,9 +1,9 @@
 /// u16 representation of coils when performing write single coil
-pub mod coil {
+pub(crate) mod coil {
     /// u16 representation of COIL == ON when performing write single coil
-    pub const ON: u16 = 0xFF00;
+    pub(crate) const ON: u16 = 0xFF00;
     /// u16 representation of COIL == OFF when performing write single coil
-    pub const OFF: u16 = 0x0000;
+    pub(crate) const OFF: u16 = 0x0000;
 }
 
 /// limits of request sizes

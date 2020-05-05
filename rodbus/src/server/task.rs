@@ -1,16 +1,15 @@
 use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
 
+use crate::common::cursor::ReadCursor;
+use crate::common::frame::{Frame, FrameFormatter, FrameHeader, FramedReader};
+use crate::common::function::FunctionCode;
 use crate::error::details::ExceptionCode;
 use crate::error::*;
 use crate::server::handler::{ServerHandler, ServerHandlerMap};
+use crate::server::request::Request;
+use crate::server::response::ErrorResponse;
 use crate::server::validator::Validator;
-use crate::service::function::{FunctionCode, ADU};
-use crate::service::parse::{parse_write_multiple_coils, parse_write_multiple_registers};
-use crate::service::traits::ParseRequest;
 use crate::tcp::frame::{MBAPFormatter, MBAPParser};
-use crate::types::{AddressRange, Indexed};
-use crate::util::cursor::ReadCursor;
-use crate::util::frame::{Frame, FrameFormatter, FrameHeader, FramedReader};
 
 pub(crate) struct SessionTask<T, U>
 where
@@ -46,10 +45,9 @@ where
     async fn reply_with_exception(
         &mut self,
         header: FrameHeader,
-        function: u8,
-        ex: ExceptionCode,
+        response: ErrorResponse,
     ) -> Result<(), Error> {
-        let bytes = self.writer.format(header, &ADU::new(function, &ex))?;
+        let bytes = self.writer.format(header, &response)?;
         self.io.write_all(bytes).await?;
         Ok(())
     }
@@ -60,7 +58,7 @@ where
         }
     }
 
-    pub async fn run_one(&mut self) -> Result<(), Error> {
+    async fn run_one(&mut self) -> Result<(), Error> {
         tokio::select! {
             frame = self.reader.next_frame(&mut self.io) => {
                self.reply_to_request(frame?).await
@@ -71,9 +69,7 @@ where
         }
     }
 
-    // TODO: Simplify this function
-    #[allow(clippy::cognitive_complexity)]
-    pub async fn reply_to_request(&mut self, frame: Frame) -> Result<(), Error> {
+    async fn reply_to_request(&mut self, frame: Frame) -> Result<(), Error> {
         let mut cursor = ReadCursor::new(frame.payload());
 
         // if no addresses match, then don't respond
@@ -98,161 +94,30 @@ where
                 None => {
                     log::warn!("received unknown function code: {}", value);
                     return self
-                        .reply_with_exception(
-                            frame.header,
-                            value | 0x80,
-                            ExceptionCode::IllegalFunction,
-                        )
+                        .reply_with_exception(frame.header, ErrorResponse::unknown_function(value))
                         .await;
                 }
             },
         };
 
-        // get the frame to reply with or error out trying
+        let request = match Request::parse(function, &mut cursor) {
+            Ok(x) => x,
+            Err(err) => {
+                log::warn!("error parsing {:?} request: {}", function, err);
+                let reply = self.writer.format(
+                    frame.header,
+                    &ErrorResponse::new(function, ExceptionCode::IllegalDataValue),
+                )?;
+                self.io.write_all(reply).await?;
+                return Ok(());
+            }
+        };
+
+        // get the reply data (or exception reply)
         let reply_frame: &[u8] = {
             let mut lock = handler.lock().await;
-            let mut handler = Validator::wrap(lock.as_mut());
-            match function {
-                FunctionCode::ReadCoils => match AddressRange::parse(&mut cursor) {
-                    Err(e) => {
-                        log::warn!("error parsing {:?} request: {}", function, e);
-                        self.writer.format(
-                            frame.header,
-                            &ADU::new(function.as_error(), &ExceptionCode::IllegalDataValue),
-                        )?
-                    }
-                    Ok(request) => match handler.read_coils(request) {
-                        Err(ex) => self
-                            .writer
-                            .format(frame.header, &ADU::new(function.as_error(), &ex))?,
-                        Ok(value) => self
-                            .writer
-                            .format(frame.header, &ADU::new(function.get_value(), &value))?,
-                    },
-                },
-                FunctionCode::ReadDiscreteInputs => match AddressRange::parse(&mut cursor) {
-                    Err(e) => {
-                        log::warn!("error parsing {:?} request: {}", function, e);
-                        self.writer.format(
-                            frame.header,
-                            &ADU::new(function.as_error(), &ExceptionCode::IllegalDataValue),
-                        )?
-                    }
-                    Ok(request) => match handler.read_discrete_inputs(request) {
-                        Err(ex) => self
-                            .writer
-                            .format(frame.header, &ADU::new(function.as_error(), &ex))?,
-                        Ok(value) => self
-                            .writer
-                            .format(frame.header, &ADU::new(function.get_value(), &value))?,
-                    },
-                },
-                FunctionCode::ReadHoldingRegisters => match AddressRange::parse(&mut cursor) {
-                    Err(e) => {
-                        log::warn!("error parsing {:?} request: {}", function, e);
-                        self.writer.format(
-                            frame.header,
-                            &ADU::new(function.as_error(), &ExceptionCode::IllegalDataValue),
-                        )?
-                    }
-                    Ok(request) => match handler.read_holding_registers(request) {
-                        Err(ex) => self
-                            .writer
-                            .format(frame.header, &ADU::new(function.as_error(), &ex))?,
-                        Ok(value) => self
-                            .writer
-                            .format(frame.header, &ADU::new(function.get_value(), &value))?,
-                    },
-                },
-                FunctionCode::ReadInputRegisters => match AddressRange::parse(&mut cursor) {
-                    Err(e) => {
-                        log::warn!("error parsing {:?} request: {}", function, e);
-                        self.writer.format(
-                            frame.header,
-                            &ADU::new(function.as_error(), &ExceptionCode::IllegalDataValue),
-                        )?
-                    }
-                    Ok(request) => match handler.read_input_registers(request) {
-                        Err(ex) => self
-                            .writer
-                            .format(frame.header, &ADU::new(function.as_error(), &ex))?,
-                        Ok(value) => self
-                            .writer
-                            .format(frame.header, &ADU::new(function.get_value(), &value))?,
-                    },
-                },
-                FunctionCode::WriteSingleCoil => match Indexed::<bool>::parse(&mut cursor) {
-                    Err(e) => {
-                        log::warn!("error parsing {:?} request: {}", function, e);
-                        self.writer.format(
-                            frame.header,
-                            &ADU::new(function.as_error(), &ExceptionCode::IllegalDataValue),
-                        )?
-                    }
-                    Ok(value) => match handler.write_single_coil(value) {
-                        Err(ex) => self
-                            .writer
-                            .format(frame.header, &ADU::new(function.as_error(), &ex))?,
-                        Ok(()) => self
-                            .writer
-                            .format(frame.header, &ADU::new(function.get_value(), &value))?,
-                    },
-                },
-                FunctionCode::WriteSingleRegister => match Indexed::<u16>::parse(&mut cursor) {
-                    Err(e) => {
-                        log::warn!("error parsing {:?} request: {}", function, e);
-                        self.writer.format(
-                            frame.header,
-                            &ADU::new(function.as_error(), &ExceptionCode::IllegalDataValue),
-                        )?
-                    }
-                    Ok(value) => match handler.write_single_register(value) {
-                        Err(ex) => self
-                            .writer
-                            .format(frame.header, &ADU::new(function.as_error(), &ex))?,
-                        Ok(()) => self
-                            .writer
-                            .format(frame.header, &ADU::new(function.get_value(), &value))?,
-                    },
-                },
-                FunctionCode::WriteMultipleCoils => match parse_write_multiple_coils(&mut cursor) {
-                    Err(e) => {
-                        log::warn!("error parsing {:?} request: {}", function, e);
-                        self.writer.format(
-                            frame.header,
-                            &ADU::new(function.as_error(), &ExceptionCode::IllegalDataValue),
-                        )?
-                    }
-                    Ok(coils) => match handler.write_multiple_coils(coils) {
-                        Err(ex) => self
-                            .writer
-                            .format(frame.header, &ADU::new(function.as_error(), &ex))?,
-                        Ok(()) => self
-                            .writer
-                            .format(frame.header, &ADU::new(function.get_value(), &coils.range))?,
-                    },
-                },
-                FunctionCode::WriteMultipleRegisters => {
-                    match parse_write_multiple_registers(&mut cursor) {
-                        Err(e) => {
-                            log::warn!("error parsing {:?} request: {}", function, e);
-                            self.writer.format(
-                                frame.header,
-                                &ADU::new(function.as_error(), &ExceptionCode::IllegalDataValue),
-                            )?
-                        }
-                        Ok(registers) => match handler.write_multiple_registers(registers) {
-                            Err(ex) => self
-                                .writer
-                                .format(frame.header, &ADU::new(function.as_error(), &ex))?,
-                            Ok(()) => self.writer.format(
-                                frame.header,
-                                &ADU::new(function.get_value(), &registers.range),
-                            )?,
-                        },
-                    }
-                }
-            }
+            let mut validator = Validator::wrap(lock.as_mut());
+            request.get_reply(frame.header, &mut validator, &mut self.writer)?
         };
 
         // reply with the bytes

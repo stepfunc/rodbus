@@ -1,9 +1,9 @@
+use crate::common::cursor::ReadCursor;
+use crate::common::traits::Parse;
 use crate::error::*;
-use crate::service::traits::ParseRequest;
 use crate::types::{coil_from_u16, AddressRange, Indexed};
-use crate::util::cursor::ReadCursor;
 
-impl ParseRequest for AddressRange {
+impl Parse for AddressRange {
     fn parse(cursor: &mut ReadCursor) -> Result<Self, Error> {
         Ok(AddressRange::try_from(
             cursor.read_u16_be()?,
@@ -12,7 +12,7 @@ impl ParseRequest for AddressRange {
     }
 }
 
-impl ParseRequest for Indexed<bool> {
+impl Parse for Indexed<bool> {
     fn parse(cursor: &mut ReadCursor) -> Result<Self, Error> {
         Ok(Indexed::new(
             cursor.read_u16_be()?,
@@ -21,7 +21,7 @@ impl ParseRequest for Indexed<bool> {
     }
 }
 
-impl ParseRequest for Indexed<u16> {
+impl Parse for Indexed<u16> {
     fn parse(cursor: &mut ReadCursor) -> Result<Self, Error> {
         Ok(Indexed::new(cursor.read_u16_be()?, cursor.read_u16_be()?))
     }
@@ -29,10 +29,10 @@ impl ParseRequest for Indexed<u16> {
 
 #[cfg(test)]
 mod coils {
+    use crate::common::cursor::ReadCursor;
+    use crate::common::traits::Parse;
     use crate::error::details::ADUParseError;
-    use crate::service::traits::ParseRequest;
     use crate::types::Indexed;
-    use crate::util::cursor::ReadCursor;
 
     #[test]
     fn parse_fails_for_unknown_coil_value() {
