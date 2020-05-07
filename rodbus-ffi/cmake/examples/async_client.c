@@ -14,13 +14,14 @@ void log_callback(Level level, const char* msg)
     printf("%d - %s \n", level, msg);
 }
 
-void coils_callback(Result result, const bool *values, uint16_t count,
-                    void *ctx) {
+void coils_callback(Result result, BitIterator* iterator, void *ctx) {
   switch (result.status) {
   case (STATUS_OK): {
     printf("success!\n");
-    for (uintptr_t i = 0; i < count; ++i) {
-      printf("value: %d\n", values[i]);
+    bool value;
+    uint16_t index;
+    while(get_next_bit(iterator, &value, &index)) {
+        printf("value: %d index: %d\n", value, index);
     }
     break;
   }
@@ -50,7 +51,7 @@ int main() {
     goto cleanup;
   }
 
-  channel = create_tcp_client(runtime, "127.0.0.1:40000", 10);
+  channel = create_tcp_client(runtime, "127.0.0.1:502", 10);
 
   if (!channel) {
     printf("unable to initialize channel \n");
