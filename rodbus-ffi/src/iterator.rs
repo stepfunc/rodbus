@@ -36,8 +36,8 @@ pub unsafe extern "C" fn get_next_bit(
     };
 
     let next = match x.inner.next() {
-        None => return false,
         Some(x) => x,
+        None => return false,
     };
 
     if let Some(x) = value.as_mut() {
@@ -69,8 +69,8 @@ pub unsafe extern "C" fn get_next_register(
     };
 
     let next = match x.inner.next() {
-        None => return false,
         Some(x) => x,
+        None => return false,
     };
 
     if let Some(x) = value.as_mut() {
