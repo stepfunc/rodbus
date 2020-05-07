@@ -3,7 +3,7 @@
 use std::ffi::CStr;
 use std::net::SocketAddr;
 use std::os::raw::c_void;
-use std::ptr::{null, null_mut};
+use std::ptr::null_mut;
 use std::str::FromStr;
 
 use tokio::runtime;
@@ -17,6 +17,8 @@ use rodbus::types::{AddressRange, UnitId, WriteMultiple};
 pub(crate) mod user_data;
 // asynchronous API
 pub mod asynchronous;
+// iterator adaptors
+pub mod iterator;
 // synchronous API
 pub mod synchronous;
 // bridge to Rust Log

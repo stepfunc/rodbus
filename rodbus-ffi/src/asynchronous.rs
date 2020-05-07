@@ -19,29 +19,18 @@ unsafe fn get_callback_session<'a>(
 
 unsafe fn bit_iterator_callback_to_fn(
     user_data: *mut c_void,
-    callback: Option<unsafe extern "C" fn(Result, *const bool, u16, *mut c_void)>,
+    callback: Option<unsafe extern "C" fn(Result, *mut crate::iterator::BitIterator, *mut c_void)>,
 ) -> impl FnOnce(std::result::Result<BitIterator, rodbus::error::Error>) -> () {
     let user_data = UserData::new(user_data);
     move |result: std::result::Result<BitIterator, rodbus::error::Error>| {
         if let Some(cb) = callback {
             match result {
-                Err(err) => cb(err.into(), null(), 0, user_data.value),
+                Err(err) => cb(err.into(), null_mut(), user_data.value),
                 Ok(values) => {
-                    // TODO - this is pretty large for the stack... 2000 bytes.
-                    // consider making some kind of customer iterator for C?
-                    let mut buffer =
-                        [false; rodbus::constants::limits::MAX_READ_COILS_COUNT as usize];
-                    let mut count: u16 = 0;
-                    for x in values {
-                        if let Some(dest) = buffer.get_mut(count as usize) {
-                            *dest = x.value;
-                        }
-                        count += 1;
-                    }
+                    let mut iterator = crate::iterator::BitIterator::new(values);
                     cb(
                         Result::status(Status::Ok),
-                        buffer.as_ptr(),
-                        count,
+                        &mut iterator as *mut crate::iterator::BitIterator,
                         user_data.value,
                     )
                 }
@@ -52,27 +41,20 @@ unsafe fn bit_iterator_callback_to_fn(
 
 unsafe fn register_iterator_callback_to_fn(
     user_data: *mut c_void,
-    callback: Option<unsafe extern "C" fn(Result, *const u16, u16, *mut c_void)>,
+    callback: Option<
+        unsafe extern "C" fn(Result, *mut crate::iterator::RegisterIterator, *mut c_void),
+    >,
 ) -> impl FnOnce(std::result::Result<RegisterIterator, rodbus::error::Error>) -> () {
     let user_data = UserData::new(user_data);
     move |result| {
         if let Some(cb) = callback {
             match result {
-                Err(err) => cb(err.into(), null(), 0, user_data.value),
+                Err(err) => cb(err.into(), null_mut(), user_data.value),
                 Ok(values) => {
-                    let mut buffer =
-                        [0u16; rodbus::constants::limits::MAX_READ_REGISTERS_COUNT as usize];
-                    let mut count: u16 = 0;
-                    for x in values {
-                        if let Some(dest) = buffer.get_mut(count as usize) {
-                            *dest = x.value;
-                        }
-                        count += 1;
-                    }
+                    let mut iterator = crate::iterator::RegisterIterator::new(values);
                     cb(
                         Result::status(Status::Ok),
-                        buffer.as_ptr(),
-                        count,
+                        &mut iterator as *mut crate::iterator::RegisterIterator,
                         user_data.value,
                     )
                 }
@@ -107,7 +89,7 @@ pub unsafe extern "C" fn read_coils_cb(
     session: *mut Session,
     start: u16,
     count: u16,
-    callback: Option<unsafe extern "C" fn(Result, *const bool, u16, *mut c_void)>,
+    callback: Option<unsafe extern "C" fn(Result, *mut crate::iterator::BitIterator, *mut c_void)>,
     user_data: *mut c_void,
 ) {
     let (runtime, mut session) = get_callback_session(session);
@@ -136,7 +118,7 @@ pub unsafe extern "C" fn read_discrete_inputs_cb(
     session: *mut Session,
     start: u16,
     count: u16,
-    callback: Option<unsafe extern "C" fn(Result, *const bool, u16, *mut c_void)>,
+    callback: Option<unsafe extern "C" fn(Result, *mut crate::iterator::BitIterator, *mut c_void)>,
     user_data: *mut c_void,
 ) {
     let (runtime, mut session) = get_callback_session(session);
@@ -164,7 +146,9 @@ pub unsafe extern "C" fn read_holding_registers_cb(
     session: *mut Session,
     start: u16,
     count: u16,
-    callback: Option<unsafe extern "C" fn(Result, *const u16, u16, *mut c_void)>,
+    callback: Option<
+        unsafe extern "C" fn(Result, *mut crate::iterator::RegisterIterator, *mut c_void),
+    >,
     user_data: *mut c_void,
 ) {
     let (runtime, mut session) = get_callback_session(session);
@@ -192,7 +176,9 @@ pub unsafe extern "C" fn read_input_registers_cb(
     session: *mut Session,
     start: u16,
     count: u16,
-    callback: Option<unsafe extern "C" fn(Result, *const u16, u16, *mut c_void)>,
+    callback: Option<
+        unsafe extern "C" fn(Result, *mut crate::iterator::RegisterIterator, *mut c_void),
+    >,
     user_data: *mut c_void,
 ) {
     let (runtime, mut session) = get_callback_session(session);
