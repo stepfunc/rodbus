@@ -18,10 +18,9 @@ void coils_callback(Result result, BitIterator* iterator, void *ctx) {
   switch (result.status) {
   case (STATUS_OK): {
     printf("success!\n");
-    bool value;
-    uint16_t index;
-    while(get_next_bit(iterator, &value, &index)) {
-        printf("value: %d index: %d\n", value, index);
+    Bit bit;
+    while(get_next_bit(iterator, &bit)) {
+        printf("value: %d index: %d\n", bit.value, bit.index);
     }
     break;
   }

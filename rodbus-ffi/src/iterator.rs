@@ -12,6 +12,18 @@ pub struct RegisterIterator<'a> {
     inner: rodbus::types::RegisterIterator<'a>,
 }
 
+#[repr(C)]
+pub struct Register {
+    pub value: u16,
+    pub index: u16,
+}
+
+#[repr(C)]
+pub struct Bit {
+    pub value: bool,
+    pub index: u16,
+}
+
 impl<'a> RegisterIterator<'a> {
     pub(crate) fn new(inner: rodbus::types::RegisterIterator<'a>) -> Self {
         Self { inner }
@@ -27,8 +39,7 @@ impl<'a> RegisterIterator<'a> {
 #[no_mangle]
 pub unsafe extern "C" fn get_next_bit(
     iterator: *mut BitIterator,
-    value: *mut bool,
-    index: *mut u16,
+    value: *mut Bit,
 ) -> bool {
     let x = match iterator.as_mut() {
         Some(x) => x,
@@ -41,11 +52,8 @@ pub unsafe extern "C" fn get_next_bit(
     };
 
     if let Some(x) = value.as_mut() {
-        *x = next.value;
-    }
-
-    if let Some(x) = index.as_mut() {
-        *x = next.index;
+        x.value = next.value;
+        x.index = next.index;
     }
 
     true
@@ -60,8 +68,7 @@ pub unsafe extern "C" fn get_next_bit(
 #[no_mangle]
 pub unsafe extern "C" fn get_next_register(
     iterator: *mut RegisterIterator,
-    value: *mut u16,
-    index: *mut u16,
+    value: *mut Register,
 ) -> bool {
     let x = match iterator.as_mut() {
         Some(x) => x,
@@ -74,11 +81,8 @@ pub unsafe extern "C" fn get_next_register(
     };
 
     if let Some(x) = value.as_mut() {
-        *x = next.value;
-    }
-
-    if let Some(x) = index.as_mut() {
-        *x = next.index;
+        x.value = next.value;
+        x.index = next.index;
     }
 
     true
