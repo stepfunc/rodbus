@@ -4,4 +4,6 @@ members = [
   "rodbus",
   "rodbus-client",
   "rodbus-ffi",
+  "rodbus-ffi-new",
+  "schema"
 ]

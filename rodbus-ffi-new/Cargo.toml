@@ -1,0 +1,24 @@
+[package]
+name = "rodbus-ffi-new"
+version = "0.1.1"
+authors = ["Adam Crain <adam@stepfunc.io>", "Émile Grégoire <emile@stepfunc.io>"]
+edition = "2018"
+license = "GPL-3.0-only"
+description = "C bindings for Rodbus"
+keywords = ["ffi", "c", "modbus", "ics", "industrial", "plc", "security"]
+categories = ["network-programming"]
+repository = "https://www.github.com/automatak/rodbus"
+readme = "../README.md"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+rodbus = { path = "../rodbus" }
+tokio = { version = "^0.2.11", features = ["rt-threaded"]}
+
+[build-dependencies]
+rodbus-ffi-schema = { path = "../schema" }
+rust-oo-bindgen = { git = "https://git@github.com/grid-io/oo_bindgen.git", branch = "feature/no-submodules" }
+
+
