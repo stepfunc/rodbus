@@ -1,7 +1,8 @@
-
 pub use tokio::runtime::Runtime;
 
-pub(crate) unsafe fn runtime_new(config: *const crate::ffi::RuntimeConfig) -> *mut tokio::runtime::Runtime {
+pub(crate) unsafe fn runtime_new(
+    config: *const crate::ffi::RuntimeConfig,
+) -> *mut tokio::runtime::Runtime {
     let mut builder = tokio::runtime::Builder::new();
 
     builder.enable_all().threaded_scheduler();

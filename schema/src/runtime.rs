@@ -1,9 +1,8 @@
-use oo_bindgen::{BindingError, LibraryBuilder};
-use oo_bindgen::native_function::{Type, ReturnType};
 use oo_bindgen::class::ClassHandle;
+use oo_bindgen::native_function::{ReturnType, Type};
+use oo_bindgen::{BindingError, LibraryBuilder};
 
 pub fn build_runtime_class(lib: &mut LibraryBuilder) -> Result<ClassHandle, BindingError> {
-
     let runtime_class = lib.declare_class("Runtime")?;
 
     let config_struct = lib.declare_native_struct("RuntimeConfig")?;

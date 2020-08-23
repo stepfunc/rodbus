@@ -37,10 +37,7 @@ impl<'a> RegisterIterator<'a> {
 /// @param pointer to the value to write (output param)
 /// @return true if the iterator is non-null and it contained another value
 #[no_mangle]
-pub unsafe extern "C" fn get_next_bit(
-    iterator: *mut BitIterator,
-    value: *mut Bit,
-) -> bool {
+pub unsafe extern "C" fn get_next_bit(iterator: *mut BitIterator, value: *mut Bit) -> bool {
     let x = match iterator.as_mut() {
         Some(x) => x,
         None => return false,

@@ -1,11 +1,10 @@
 pub use rodbus::client::channel::Channel;
 
-use std::ptr::null_mut;
-use std::os::raw::c_char;
-use std::net::SocketAddr;
 use std::ffi::CStr;
+use std::net::SocketAddr;
+use std::os::raw::c_char;
+use std::ptr::null_mut;
 use std::str::FromStr;
-
 
 unsafe fn parse_socket_address(address: *const std::os::raw::c_char) -> Option<SocketAddr> {
     match CStr::from_ptr(address).to_str() {
@@ -23,7 +22,11 @@ unsafe fn parse_socket_address(address: *const std::os::raw::c_char) -> Option<S
     }
 }
 
-pub(crate) unsafe fn create_tcp_client(runtime: *mut crate::Runtime, address: *const c_char, max_queued_requests: u16) -> *mut crate::Channel {
+pub(crate) unsafe fn create_tcp_client(
+    runtime: *mut crate::Runtime,
+    address: *const c_char,
+    max_queued_requests: u16,
+) -> *mut crate::Channel {
     let rt = runtime.as_mut().unwrap();
 
     // if we can't turn the c-string into SocketAddr, return null
