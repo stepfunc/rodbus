@@ -23,7 +23,7 @@ pub(crate) fn define_logging(lib: &mut LibraryBuilder) -> Result<(), BindingErro
     let log_handler_interface = lib
         .define_interface("LogHandler", "Logging interface")?
         .callback("on_message", "Called when a message should be logged")?
-        .param("level", Type::Enum(level), "Level of the message")?
+        .param("level", Type::Enum(level.clone()), "Level of the message")?
         .param("message", Type::String, "Formatted log message")?
         .arg("arg")?
         .return_type(ReturnType::void())?
@@ -46,11 +46,25 @@ pub(crate) fn define_logging(lib: &mut LibraryBuilder) -> Result<(), BindingErro
         .doc("set the callback that will handle log messages")?
         .build()?;
 
+    let set_max_level_fn = lib
+        .declare_native_function("set_max_log_level")?
+        .param(
+            "level",
+            Type::Enum(level),
+            "maximum level to be logged"
+        )?
+        .return_type(
+            ReturnType::void()
+        )?
+        .doc("Set the maximum level that will be logged")?
+        .build()?;
+
     let logging_class = lib.declare_class("Logging")?;
 
     let _ = lib
         .define_class(&logging_class)?
         .static_method("SetHandler", &set_logger_fn)?
+        .static_method("SetMaxLogLevel", &set_max_level_fn)?
         .doc("Helper functions for logging")?
         .build()?;
 

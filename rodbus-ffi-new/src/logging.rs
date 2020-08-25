@@ -8,6 +8,10 @@ struct LoggerAdapter {
     handler: crate::ffi::LogHandler,
 }
 
+pub(crate) fn set_max_log_level(level: crate::ffi::LogLevel) {
+    log::set_max_level(level.into())
+}
+
 pub(crate) unsafe fn set_log_handler(handler: crate::ffi::LogHandler) -> bool {
     log::set_boxed_logger(Box::new(LoggerAdapter { handler })).is_ok()
 }
@@ -40,6 +44,18 @@ impl Drop for LoggerAdapter {
     fn drop(&mut self) {
         if let Some(cb) = self.handler.on_destroy {
             (cb)(self.handler.arg)
+        }
+    }
+}
+
+impl std::convert::From<crate::ffi::LogLevel> for log::LevelFilter {
+    fn from(x: crate::ffi::LogLevel) -> Self {
+        match x {
+            crate::ffi::LogLevel::Error => log::LevelFilter::Error,
+            crate::ffi::LogLevel::Warn => log::LevelFilter::Warn,
+            crate::ffi::LogLevel::Info => log::LevelFilter::Info,
+            crate::ffi::LogLevel::Debug => log::LevelFilter::Debug,
+            crate::ffi::LogLevel::Trace => log::LevelFilter::Trace,
         }
     }
 }
