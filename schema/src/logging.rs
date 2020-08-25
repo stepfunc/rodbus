@@ -48,14 +48,8 @@ pub(crate) fn define_logging(lib: &mut LibraryBuilder) -> Result<(), BindingErro
 
     let set_max_level_fn = lib
         .declare_native_function("set_max_log_level")?
-        .param(
-            "level",
-            Type::Enum(level),
-            "maximum level to be logged"
-        )?
-        .return_type(
-            ReturnType::void()
-        )?
+        .param("level", Type::Enum(level), "maximum level to be logged")?
+        .return_type(ReturnType::void())?
         .doc("Set the maximum level that will be logged")?
         .build()?;
 

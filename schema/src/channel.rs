@@ -46,8 +46,9 @@ pub fn build_channel_class(
 
     let status = crate::enums::define_status(lib)?;
     let exception = crate::enums::define_exception(lib)?;
+    let error_info = build_error_info_struct(status, exception, lib)?;
 
-    let read_coils_result = build_callback_struct("Bit", status, exception, Type::Bool, lib)?;
+    let read_coils_result = build_callback_struct("Bit", error_info, Type::Bool, lib)?;
 
     let read_coils_cb = lib
         .define_one_time_callback("ReadCoilsCallback", "Callback for reading coils")?
@@ -89,19 +90,16 @@ pub fn build_channel_class(
     Ok(channel)
 }
 
-fn build_callback_struct(
-    name: &str,
+fn build_error_info_struct(
     status: Handle<NativeEnum>,
     exception: Handle<NativeEnum>,
-    value_type: Type,
     lib: &mut LibraryBuilder,
 ) -> Result<NativeStructHandle, BindingError> {
-    let iter = build_point_iterator(name, value_type, lib)?;
-    let callback_struct = lib.declare_native_struct(format!("{}Result", name).as_str())?;
-    let callback_struct = lib
-        .define_native_struct(&callback_struct)?
+    let info = lib.declare_native_struct("ErrorInfo")?;
+    let info = lib
+        .define_native_struct(&info)?
         .add(
-            "status",
+            "summary",
             Type::Enum(status),
             "top level status code for the operation",
         )?
@@ -111,9 +109,31 @@ fn build_callback_struct(
             "exception code returned by the server when status == Exception",
         )?
         .add(
+            "raw_exception",
+            Type::Uint8,
+            "raw exception code returned by the server",
+        )?
+        .doc("Summarizes the success or failure of an operation")?
+        .build()?;
+
+    Ok(info)
+}
+
+fn build_callback_struct(
+    name: &str,
+    error_info: NativeStructHandle,
+    value_type: Type,
+    lib: &mut LibraryBuilder,
+) -> Result<NativeStructHandle, BindingError> {
+    let iter = build_point_iterator(name, value_type, lib)?;
+    let callback_struct = lib.declare_native_struct(format!("{}Result", name).as_str())?;
+    let callback_struct = lib
+        .define_native_struct(&callback_struct)?
+        .add("result", Type::Struct(error_info), "error information")?
+        .add(
             "iterator",
             Type::Iterator(iter),
-            "iterator valid when status == Ok",
+            "iterator valid when result.summary == Ok",
         )?
         .doc("Result type returned when asynchronous operation completes or fails")?
         .build()?;

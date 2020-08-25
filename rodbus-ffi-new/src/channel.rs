@@ -95,14 +95,18 @@ unsafe fn callback_to_fn(
         if let Some(cb) = callback.on_complete {
             match result {
                 Err(err) => {
-                    cb(err.into(), callback.ctx);
+                    let result = crate::ffi::BitResult {
+                        result: err.into(),
+                        iterator: null_mut(),
+                    };
+
+                    cb(result, callback.ctx);
                 }
                 Ok(values) => {
                     let mut iter = crate::BitIterator::new(values);
 
                     let result = crate::ffi::BitResult {
-                        status: crate::ffi::Status::Ok,
-                        exception: crate::ffi::Exception::IllegalFunction, // doesn't matter what this is
+                        result: crate::ffi::ErrorInfo::success(),
                         iterator: &mut iter as *mut crate::BitIterator,
                     };
 
@@ -113,21 +117,23 @@ unsafe fn callback_to_fn(
     }
 }
 
-impl From<rodbus::error::Error> for crate::ffi::BitResult<'static> {
-    fn from(err: rodbus::error::Error) -> Self {
-        fn from_status(status: crate::ffi::Status) -> crate::ffi::BitResult<'static> {
-            crate::ffi::BitResult {
-                status,
-                exception: crate::ffi::Exception::IllegalFunction, // doesn't matter what it is
-                iterator: null_mut(),
-            }
+impl crate::ffi::ErrorInfo {
+    pub(crate) fn success() -> Self {
+        Self {
+            summary: crate::ffi::Status::Ok,
+            exception: crate::ffi::Exception::IllegalFunction, // doesn't matter what it is
+            raw_exception: 0,
         }
+    }
+}
 
-        fn from_exception(exception: crate::ffi::Exception) -> crate::ffi::BitResult<'static> {
-            crate::ffi::BitResult {
-                status: crate::ffi::Status::Exception,
-                exception,
-                iterator: null_mut(),
+impl From<rodbus::error::Error> for crate::ffi::ErrorInfo {
+    fn from(err: rodbus::error::Error) -> Self {
+        fn from_status(status: crate::ffi::Status) -> crate::ffi::ErrorInfo {
+            crate::ffi::ErrorInfo {
+                summary: status,
+                exception: crate::ffi::Exception::IllegalFunction, // doesn't matter what it is
+                raw_exception: 0,
             }
         }
 
@@ -140,46 +146,60 @@ impl From<rodbus::error::Error> for crate::ffi::BitResult<'static> {
                 from_status(crate::ffi::Status::ResponseTimeout)
             }
             rodbus::error::Error::BadRequest(_) => from_status(crate::ffi::Status::BadRequest),
-            rodbus::error::Error::Exception(ex) => from_exception(ex.into()),
+            rodbus::error::Error::Exception(ex) => ex.into(),
             rodbus::error::Error::Io(_) => from_status(crate::ffi::Status::IOError),
             rodbus::error::Error::BadResponse(_) => from_status(crate::ffi::Status::BadResponse),
         }
     }
 }
 
-impl<'a> From<rodbus::error::details::ExceptionCode> for crate::ffi::Exception {
+impl<'a> From<rodbus::error::details::ExceptionCode> for crate::ffi::ErrorInfo {
     fn from(x: rodbus::error::details::ExceptionCode) -> Self {
+        fn from_exception(
+            exception: crate::ffi::Exception,
+            raw_exception: u8,
+        ) -> crate::ffi::ErrorInfo {
+            crate::ffi::ErrorInfo {
+                summary: crate::ffi::Status::Exception,
+                exception,
+                raw_exception,
+            }
+        }
+
         match x {
             rodbus::error::details::ExceptionCode::Acknowledge => {
-                crate::ffi::Exception::Acknowledge
+                from_exception(crate::ffi::Exception::Acknowledge, x.into())
             }
             rodbus::error::details::ExceptionCode::GatewayPathUnavailable => {
-                crate::ffi::Exception::GatewayPathUnavailable
+                from_exception(crate::ffi::Exception::GatewayPathUnavailable, x.into())
             }
             rodbus::error::details::ExceptionCode::GatewayTargetDeviceFailedToRespond => {
-                crate::ffi::Exception::GatewayTargetDeviceFailedToRespond
+                from_exception(
+                    crate::ffi::Exception::GatewayTargetDeviceFailedToRespond,
+                    x.into(),
+                )
             }
             rodbus::error::details::ExceptionCode::IllegalDataAddress => {
-                crate::ffi::Exception::IllegalDataAddress
+                from_exception(crate::ffi::Exception::IllegalDataAddress, x.into())
             }
             rodbus::error::details::ExceptionCode::IllegalDataValue => {
-                crate::ffi::Exception::IllegalDataValue
+                from_exception(crate::ffi::Exception::IllegalDataValue, x.into())
             }
             rodbus::error::details::ExceptionCode::IllegalFunction => {
-                crate::ffi::Exception::IllegalFunction
+                from_exception(crate::ffi::Exception::IllegalFunction, x.into())
             }
             rodbus::error::details::ExceptionCode::MemoryParityError => {
-                crate::ffi::Exception::MemoryParityError
+                from_exception(crate::ffi::Exception::MemoryParityError, x.into())
             }
             rodbus::error::details::ExceptionCode::ServerDeviceBusy => {
-                crate::ffi::Exception::ServerDeviceBusy
+                from_exception(crate::ffi::Exception::ServerDeviceBusy, x.into())
             }
             rodbus::error::details::ExceptionCode::ServerDeviceFailure => {
-                crate::ffi::Exception::ServerDeviceFailure
+                from_exception(crate::ffi::Exception::ServerDeviceFailure, x.into())
             }
-            rodbus::error::details::ExceptionCode::Unknown(_) => {
-                crate::ffi::Exception::ServerDeviceBusy
-            } // TODO
+            rodbus::error::details::ExceptionCode::Unknown(x) => {
+                from_exception(crate::ffi::Exception::Unknown, x)
+            }
         }
     }
 }

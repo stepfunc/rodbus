@@ -14,6 +14,7 @@ pub(crate) fn define_exception(
         .variant("MemoryParityError", 0x08, "Specialized use in conjunction with function codes 20 and 21 and reference type 6, to indicate that the extended file area failed to pass a consistency check. The server attempted to read a record file, but detected a parity error in the memory")?
         .variant("GatewayPathUnavailable", 0x0A, "Specialized use in conjunction with gateways, indicates that the gateway was unable to allocate an internal communication path from the input port to the output port for processing the request. Usually means that the gateway is mis-configured or overloaded")?
         .variant("GatewayTargetDeviceFailedToRespond", 0x0B, "Specialized use in conjunction with gateways, indicates that no response was obtained from the target device. Usually means that the device is not present on the network")?
+        .variant("Unknown", 0xFF, "The status code is not defined in the Modbus specification, refer to the raw exception code to see what the server sent")?
         .doc("Exception values from the Modbus specification")?
         .build()
 }
