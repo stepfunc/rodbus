@@ -17,3 +17,55 @@ pub(crate) fn define_exception(
         .doc("Exception values from the Modbus specification")?
         .build()
 }
+
+pub(crate) fn define_status(lib: &mut LibraryBuilder) -> Result<Handle<NativeEnum>, BindingError> {
+    lib.define_native_enum("Status")?
+        .variant(
+            "Ok",
+            0,
+            "The operation was successful and any return value may be used",
+        )?
+        .variant(
+            "Shutdown",
+            1,
+            "The channel was shutdown before the operation could complete",
+        )?
+        .variant(
+            "NoConnection",
+            2,
+            "No connection could be made to the server",
+        )?
+        .variant(
+            "ResponseTimeout",
+            3,
+            "No valid response was received before the timeout",
+        )?
+        .variant("BadRequest", 4, "The request was invalid")?
+        .variant(
+            "BadResponse",
+            5,
+            "The response from the server was received but was improperly formatted",
+        )?
+        .variant(
+            "IOError",
+            6,
+            "An I/O error occurred on the underlying stream while performing the request",
+        )?
+        .variant(
+            "BadFraming",
+            7,
+            "A framing error was detected while performing the request",
+        )?
+        .variant(
+            "Exception",
+            8,
+            "The server returned an exception code (see separate exception value)",
+        )?
+        .variant(
+            "InternalError",
+            9,
+            "An unspecified internal error occurred while performing the request",
+        )?
+        .doc("Status returned during synchronous and asynchronous API calls")?
+        .build()
+}

@@ -20,11 +20,11 @@ fn define_log_level(lib: &mut LibraryBuilder) -> Result<Handle<NativeEnum>, Bind
 pub(crate) fn define_logging(lib: &mut LibraryBuilder) -> Result<(), BindingError> {
     let level = define_log_level(lib)?;
 
-    let log_callback_interface = lib
+    let log_handler_interface = lib
         .define_interface("LogHandler", "Logging interface")?
         .callback("on_message", "Called when a message should be logged")?
         .param("level", Type::Enum(level), "Level of the message")?
-        .param("message", Type::String, "Formatted logmessage")?
+        .param("message", Type::String, "Formatted log message")?
         .arg("arg")?
         .return_type(ReturnType::void())?
         .build()?
@@ -33,11 +33,11 @@ pub(crate) fn define_logging(lib: &mut LibraryBuilder) -> Result<(), BindingErro
         .build()?;
 
     let set_logger_fn = lib
-        .declare_native_function("set_log_callback")?
+        .declare_native_function("set_log_handler")?
         .param(
             "callback",
-            Type::Interface(log_callback_interface),
-            "Callback handler that will receive all log messages",
+            Type::Interface(log_handler_interface),
+            "Handler that will receive all log messages",
         )?
         .return_type(ReturnType::Type(
             Type::Bool,

@@ -8,7 +8,7 @@ struct LoggerAdapter {
     handler: crate::ffi::LogHandler,
 }
 
-pub(crate) unsafe fn set_log_callback(handler: crate::ffi::LogHandler) -> bool {
+pub(crate) unsafe fn set_log_handler(handler: crate::ffi::LogHandler) -> bool {
     log::set_boxed_logger(Box::new(LoggerAdapter { handler })).is_ok()
 }
 

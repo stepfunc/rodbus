@@ -11,7 +11,6 @@ pub fn build() -> Result<Library, BindingError> {
 
     logging::define_logging(&mut lib)?;
 
-    let _exception = enums::define_exception(&mut lib)?;
     let runtime_class = runtime::build_runtime_class(&mut lib)?;
 
     let _channel_class = channel::build_channel_class(&mut lib, runtime_class.clone())?;

@@ -1,5 +1,8 @@
 use oo_bindgen::class::{Class, ClassHandle};
+use oo_bindgen::iterator::IteratorHandle;
+use oo_bindgen::native_enum::NativeEnum;
 use oo_bindgen::native_function::{ReturnType, Type};
+use oo_bindgen::native_struct::NativeStructHandle;
 use oo_bindgen::{BindingError, Handle, LibraryBuilder};
 
 pub fn build_channel_class(
@@ -29,9 +32,9 @@ pub fn build_channel_class(
         .doc("create a new tcp channel instance")?
         .build()?;
 
-    let destroy_tcp_client_fn = lib.declare_native_function("destroy_channel")?;
+    let destroy_channel_fn = lib.declare_native_function("destroy_channel")?;
 
-    let destroy_tcp_client_fn = destroy_tcp_client_fn
+    let destroy_channel_fn = destroy_channel_fn
         .param(
             "channel",
             Type::ClassRef(channel.clone()),
@@ -41,12 +44,108 @@ pub fn build_channel_class(
         .doc("destroy a channel instance")?
         .build()?;
 
+    let status = crate::enums::define_status(lib)?;
+    let exception = crate::enums::define_exception(lib)?;
+
+    let read_coils_result = build_callback_struct("Bit", status, exception, Type::Bool, lib)?;
+
+    let read_coils_cb = lib
+        .define_one_time_callback("ReadCoilsCallback", "Callback for reading coils")?
+        .callback(
+            "on_complete",
+            "Called when the operation is complete or fails",
+        )?
+        .param("result", Type::Struct(read_coils_result), "result")?
+        .arg("ctx")?
+        .return_type(ReturnType::void())?
+        .build()?
+        .arg("ctx")?
+        .build()?;
+
+    let read_coils_fn = lib
+        .declare_native_function("channel_read_coils_async")?
+        .param(
+            "channel",
+            Type::ClassRef(channel.clone()),
+            "channel on which to perform the read",
+        )?
+        .param(
+            "callback",
+            Type::OneTimeCallback(read_coils_cb),
+            "callback invoked on completion",
+        )?
+        .return_type(ReturnType::void())?
+        .doc("start an asynchronous request to read coils")?
+        .build()?;
+
     let channel = lib
         .define_class(&channel)?
         .static_method("create_tcp_client", &create_tcp_client_fn)?
-        .destructor(&destroy_tcp_client_fn)?
+        .async_method("read_coils", &read_coils_fn)?
+        .destructor(&destroy_channel_fn)?
         .doc("Abstract representation of a channel")?
         .build()?;
 
     Ok(channel)
+}
+
+fn build_callback_struct(
+    name: &str,
+    status: Handle<NativeEnum>,
+    exception: Handle<NativeEnum>,
+    value_type: Type,
+    lib: &mut LibraryBuilder,
+) -> Result<NativeStructHandle, BindingError> {
+    let iter = build_point_iterator(name, value_type, lib)?;
+    let callback_struct = lib.declare_native_struct(format!("{}Result", name).as_str())?;
+    let callback_struct = lib
+        .define_native_struct(&callback_struct)?
+        .add(
+            "status",
+            Type::Enum(status),
+            "top level status code for the operation",
+        )?
+        .add(
+            "exception",
+            Type::Enum(exception),
+            "exception code returned by the server when status == Exception",
+        )?
+        .add(
+            "iterator",
+            Type::Iterator(iter),
+            "iterator valid when status == Ok",
+        )?
+        .doc("Result type returned when asynchronous operation completes or fails")?
+        .build()?;
+
+    Ok(callback_struct)
+}
+
+fn build_point_iterator(
+    name: &str,
+    value_type: Type,
+    lib: &mut LibraryBuilder,
+) -> Result<IteratorHandle, BindingError> {
+    let item_struct = lib.declare_native_struct(name)?;
+    let item_struct = lib
+        .define_native_struct(&item_struct)?
+        .add("index", Type::Uint16, "index of point")?
+        .add("value", value_type, "value of point")?
+        .doc(format!("index/value tuple for iterating over {} type", name).as_str())?
+        .build()?;
+
+    let iterator = lib.declare_class(&format!("{}Iterator", name))?;
+    let iterator_next_fn = lib
+        .declare_native_function(&format!("next_{}", name.to_lowercase()))?
+        .param("it", Type::ClassRef(iterator), "iterator")?
+        .return_type(ReturnType::new(
+            Type::StructRef(item_struct.declaration()),
+            "next value of the iterator or NULL if the iterator has reached the end",
+        ))?
+        .doc("advance the iterator")?
+        .build()?;
+
+    let item_iterator = lib.define_iterator_with_lifetime(&iterator_next_fn, &item_struct)?;
+
+    Ok(item_iterator)
 }
