@@ -64,6 +64,7 @@ pub(crate) unsafe fn destroy_channel(channel: *mut crate::Channel) {
 pub(crate) unsafe fn channel_read_coils_async(
     channel: *mut crate::Channel,
     range: crate::ffi::AddressRange,
+    param: crate::ffi::RequestParam,
     callback: crate::ffi::ReadCoilsCallback,
 ) {
     let channel = match channel.as_ref() {
@@ -84,11 +85,10 @@ pub(crate) unsafe fn channel_read_coils_async(
         Ok(range) => range,
     };
 
-    let mut session = CallbackSession::new(
-        channel
-            .inner
-            .create_session(UnitId::new(1), Duration::from_secs(1)),
-    );
+    let mut session = CallbackSession::new(channel.inner.create_session(
+        UnitId::new(param.unit_id),
+        Duration::from_millis(param.timeout_ms as u64),
+    ));
 
     channel
         .runtime
@@ -105,7 +105,7 @@ unsafe fn callback_to_fn(
         if let Some(cb) = callback.on_complete {
             match result {
                 Err(err) => {
-                    let result = crate::ffi::BitResult {
+                    let result = crate::ffi::BitReadResult {
                         result: err.into(),
                         iterator: null_mut(),
                     };
@@ -115,7 +115,7 @@ unsafe fn callback_to_fn(
                 Ok(values) => {
                     let mut iter = crate::BitIterator::new(values);
 
-                    let result = crate::ffi::BitResult {
+                    let result = crate::ffi::BitReadResult {
                         result: crate::ffi::ErrorInfo::success(),
                         iterator: &mut iter as *mut crate::BitIterator,
                     };

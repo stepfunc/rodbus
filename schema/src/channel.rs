@@ -45,8 +45,7 @@ pub(crate) fn build_channel_class(
         .doc("destroy a channel instance")?
         .build()?;
 
-    let read_coils_result =
-        build_callback_struct("Bit", common.error_info.clone(), Type::Bool, lib)?;
+    let bit_read_result = build_callback_struct("Bit", common.error_info.clone(), Type::Bool, lib)?;
 
     let read_coils_cb = lib
         .define_one_time_callback("ReadCoilsCallback", "Callback for reading coils")?
@@ -54,7 +53,7 @@ pub(crate) fn build_channel_class(
             "on_complete",
             "Called when the operation is complete or fails",
         )?
-        .param("result", Type::Struct(read_coils_result), "result")?
+        .param("result", Type::Struct(bit_read_result), "result")?
         .arg("ctx")?
         .return_type(ReturnType::void())?
         .build()?
@@ -72,6 +71,11 @@ pub(crate) fn build_channel_class(
             "range",
             Type::Struct(common.address_range.clone()),
             "range of addresses to read",
+        )?
+        .param(
+            "param",
+            Type::Struct(common.request_param.clone()),
+            "parameters for the request",
         )?
         .param(
             "callback",
@@ -100,7 +104,7 @@ fn build_callback_struct(
     lib: &mut LibraryBuilder,
 ) -> Result<NativeStructHandle, BindingError> {
     let iter = build_point_iterator(name, value_type, lib)?;
-    let callback_struct = lib.declare_native_struct(format!("{}Result", name).as_str())?;
+    let callback_struct = lib.declare_native_struct(format!("{}ReadResult", name).as_str())?;
     let callback_struct = lib
         .define_native_struct(&callback_struct)?
         .add("result", Type::Struct(error_info), "error information")?
