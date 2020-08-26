@@ -63,6 +63,7 @@ pub(crate) unsafe fn destroy_channel(channel: *mut crate::Channel) {
 
 pub(crate) unsafe fn channel_read_coils_async(
     channel: *mut crate::Channel,
+    range: crate::ffi::AddressRange,
     callback: crate::ffi::ReadCoilsCallback,
 ) {
     let channel = match channel.as_ref() {
@@ -73,16 +74,25 @@ pub(crate) unsafe fn channel_read_coils_async(
         }
     };
 
+    let callback = callback_to_fn(callback);
+
+    let range = match AddressRange::try_from(range.start, range.count) {
+        Err(err) => {
+            callback(Err(err.into()));
+            return;
+        }
+        Ok(range) => range,
+    };
+
     let mut session = CallbackSession::new(
         channel
             .inner
             .create_session(UnitId::new(1), Duration::from_secs(1)),
     );
 
-    channel.runtime.block_on(session.read_coils(
-        AddressRange::try_from(1, 1).unwrap(),
-        callback_to_fn(callback),
-    ))
+    channel
+        .runtime
+        .block_on(session.read_coils(range, callback));
 }
 
 unsafe impl Send for crate::ffi::ReadCoilsCallback {}
@@ -132,7 +142,7 @@ impl From<rodbus::error::Error> for crate::ffi::ErrorInfo {
         fn from_status(status: crate::ffi::Status) -> crate::ffi::ErrorInfo {
             crate::ffi::ErrorInfo {
                 summary: status,
-                exception: crate::ffi::Exception::IllegalFunction, // doesn't matter what it is
+                exception: crate::ffi::Exception::Unknown, // doesn't matter what it is
                 raw_exception: 0,
             }
         }

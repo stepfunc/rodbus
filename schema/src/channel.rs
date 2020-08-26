@@ -1,13 +1,14 @@
-use oo_bindgen::class::{Class, ClassHandle};
+use oo_bindgen::class::ClassHandle;
 use oo_bindgen::iterator::IteratorHandle;
-use oo_bindgen::native_enum::NativeEnum;
 use oo_bindgen::native_function::{ReturnType, Type};
 use oo_bindgen::native_struct::NativeStructHandle;
-use oo_bindgen::{BindingError, Handle, LibraryBuilder};
+use oo_bindgen::{BindingError, LibraryBuilder};
 
-pub fn build_channel_class(
+use crate::common::CommonDefinitions;
+
+pub(crate) fn build_channel_class(
     lib: &mut LibraryBuilder,
-    runtime: Handle<Class>,
+    common: &CommonDefinitions,
 ) -> Result<ClassHandle, BindingError> {
     let channel = lib.declare_class("Channel")?;
 
@@ -16,7 +17,7 @@ pub fn build_channel_class(
     let create_tcp_client_fn = create_tcp_client_fn
         .param(
             "runtime",
-            Type::ClassRef(runtime.declaration.clone()),
+            Type::ClassRef(common.runtime_handle.declaration.clone()),
             "runtime on which to create the channel",
         )?
         .param("address", Type::String, "IP address of remote host")?
@@ -44,11 +45,8 @@ pub fn build_channel_class(
         .doc("destroy a channel instance")?
         .build()?;
 
-    let status = crate::enums::define_status(lib)?;
-    let exception = crate::enums::define_exception(lib)?;
-    let error_info = build_error_info_struct(status, exception, lib)?;
-
-    let read_coils_result = build_callback_struct("Bit", error_info, Type::Bool, lib)?;
+    let read_coils_result =
+        build_callback_struct("Bit", common.error_info.clone(), Type::Bool, lib)?;
 
     let read_coils_cb = lib
         .define_one_time_callback("ReadCoilsCallback", "Callback for reading coils")?
@@ -71,6 +69,11 @@ pub fn build_channel_class(
             "channel on which to perform the read",
         )?
         .param(
+            "range",
+            Type::Struct(common.address_range.clone()),
+            "range of addresses to read",
+        )?
+        .param(
             "callback",
             Type::OneTimeCallback(read_coils_cb),
             "callback invoked on completion",
@@ -88,35 +91,6 @@ pub fn build_channel_class(
         .build()?;
 
     Ok(channel)
-}
-
-fn build_error_info_struct(
-    status: Handle<NativeEnum>,
-    exception: Handle<NativeEnum>,
-    lib: &mut LibraryBuilder,
-) -> Result<NativeStructHandle, BindingError> {
-    let info = lib.declare_native_struct("ErrorInfo")?;
-    let info = lib
-        .define_native_struct(&info)?
-        .add(
-            "summary",
-            Type::Enum(status),
-            "top level status code for the operation",
-        )?
-        .add(
-            "exception",
-            Type::Enum(exception),
-            "exception code returned by the server when status == Exception",
-        )?
-        .add(
-            "raw_exception",
-            Type::Uint8,
-            "raw exception code returned by the server",
-        )?
-        .doc("Summarizes the success or failure of an operation")?
-        .build()?;
-
-    Ok(info)
 }
 
 fn build_callback_struct(
