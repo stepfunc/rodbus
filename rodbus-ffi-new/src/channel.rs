@@ -206,6 +206,27 @@ pub(crate) unsafe fn channel_write_single_coil_async(
         .block_on(session.write_single_coil(bit.into(), callback.to_fn_once()));
 }
 
+pub(crate) unsafe fn channel_write_single_register_async(
+    channel: *mut crate::Channel,
+    register: crate::ffi::Register,
+    param: crate::ffi::RequestParam,
+    callback: crate::ffi::ResultCallback,
+) {
+    let channel = match channel.as_ref() {
+        Some(x) => x,
+        None => {
+            // TODO - logging? do invoke the callback with an internal error?
+            return;
+        }
+    };
+
+    let mut session = param.build_session(channel);
+
+    channel
+        .runtime
+        .block_on(session.write_single_register(register.into(), callback.to_fn_once()));
+}
+
 impl crate::ffi::BitReadCallback {
     pub(crate) fn to_fn_once(
         self,
@@ -398,8 +419,14 @@ impl<'a> From<rodbus::error::details::ExceptionCode> for crate::ffi::ErrorInfo {
 }
 
 impl std::convert::From<crate::ffi::Bit> for rodbus::types::Indexed<bool> {
-    fn from(bit: crate::ffi::Bit) -> Self {
-        rodbus::types::Indexed::new(bit.index, bit.value)
+    fn from(x: crate::ffi::Bit) -> Self {
+        rodbus::types::Indexed::new(x.index, x.value)
+    }
+}
+
+impl std::convert::From<crate::ffi::Register> for rodbus::types::Indexed<u16> {
+    fn from(x: crate::ffi::Register) -> Self {
+        rodbus::types::Indexed::new(x.index, x.value)
     }
 }
 

@@ -95,8 +95,19 @@ pub(crate) fn build_channel_class(
         "write a single coil",
     )?;
 
+    let write_single_register_fn = build_async_write_single_fn(
+        "channel_write_single_register_async",
+        lib,
+        common,
+        &channel,
+        &result_only_callback.clone(),
+        &common.register,
+        "write a single register",
+    )?;
+
     let channel = lib
         .define_class(&channel)?
+        // abstract factory methods, later we'll have TLS/serial
         .static_method("create_tcp_client", &create_tcp_client_fn)?
         // read methods
         .async_method("read_coils", &read_coils_fn)?
@@ -105,6 +116,8 @@ pub(crate) fn build_channel_class(
         .async_method("read_input_registers", &read_input_registers_fn)?
         // write methods
         .async_method("write_single_coil", &write_single_coil_fn)?
+        .async_method("write_single_register", &write_single_register_fn)?
+        // destructor
         .destructor(&destroy_channel_fn)?
         .doc("Abstract representation of a channel")?
         .build()?;
