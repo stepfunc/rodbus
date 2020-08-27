@@ -65,8 +65,10 @@ pub(crate) unsafe fn channel_read_coils_async(
     channel: *mut crate::Channel,
     range: crate::ffi::AddressRange,
     param: crate::ffi::RequestParam,
-    callback: crate::ffi::ReadCoilsCallback,
+    callback: crate::ffi::BitReadCallback,
 ) {
+    let callback = callback.to_fn_once();
+
     let channel = match channel.as_ref() {
         Some(x) => x,
         None => {
@@ -74,8 +76,6 @@ pub(crate) unsafe fn channel_read_coils_async(
             return;
         }
     };
-
-    let callback = callback_to_fn(callback);
 
     let range = match AddressRange::try_from(range.start, range.count) {
         Err(err) => {
@@ -85,42 +85,207 @@ pub(crate) unsafe fn channel_read_coils_async(
         Ok(range) => range,
     };
 
-    let mut session = CallbackSession::new(channel.inner.create_session(
-        UnitId::new(param.unit_id),
-        Duration::from_millis(param.timeout_ms as u64),
-    ));
+    let mut session = param.build_session(channel);
 
     channel
         .runtime
         .block_on(session.read_coils(range, callback));
 }
 
-unsafe impl Send for crate::ffi::ReadCoilsCallback {}
-unsafe impl Sync for crate::ffi::ReadCoilsCallback {}
+pub(crate) unsafe fn channel_read_discrete_inputs_async(
+    channel: *mut crate::Channel,
+    range: crate::ffi::AddressRange,
+    param: crate::ffi::RequestParam,
+    callback: crate::ffi::BitReadCallback,
+) {
+    let callback = callback.to_fn_once();
 
-unsafe fn callback_to_fn(
-    callback: crate::ffi::ReadCoilsCallback,
-) -> impl FnOnce(std::result::Result<rodbus::types::BitIterator, rodbus::error::Error>) -> () {
-    move |result: std::result::Result<rodbus::types::BitIterator, rodbus::error::Error>| {
-        if let Some(cb) = callback.on_complete {
-            match result {
-                Err(err) => {
-                    let result = crate::ffi::BitReadResult {
-                        result: err.into(),
-                        iterator: null_mut(),
-                    };
+    let channel = match channel.as_ref() {
+        Some(x) => x,
+        None => {
+            // TODO - logging? do invoke the callback with an internal error?
+            return;
+        }
+    };
 
-                    cb(result, callback.ctx);
+    let range = match AddressRange::try_from(range.start, range.count) {
+        Err(err) => {
+            callback(Err(err.into()));
+            return;
+        }
+        Ok(range) => range,
+    };
+
+    let mut session = param.build_session(channel);
+
+    channel
+        .runtime
+        .block_on(session.read_discrete_inputs(range, callback));
+}
+
+pub(crate) unsafe fn channel_read_holding_registers_async(
+    channel: *mut crate::Channel,
+    range: crate::ffi::AddressRange,
+    param: crate::ffi::RequestParam,
+    callback: crate::ffi::RegisterReadCallback,
+) {
+    let channel = match channel.as_ref() {
+        Some(x) => x,
+        None => {
+            // TODO - logging? do invoke the callback with an internal error?
+            return;
+        }
+    };
+
+    let callback = callback.to_fn_once();
+
+    let range = match AddressRange::try_from(range.start, range.count) {
+        Err(err) => {
+            callback(Err(err.into()));
+            return;
+        }
+        Ok(range) => range,
+    };
+
+    let mut session = param.build_session(channel);
+
+    channel
+        .runtime
+        .block_on(session.read_holding_registers(range, callback));
+}
+
+pub(crate) unsafe fn channel_read_input_registers_async(
+    channel: *mut crate::Channel,
+    range: crate::ffi::AddressRange,
+    param: crate::ffi::RequestParam,
+    callback: crate::ffi::RegisterReadCallback,
+) {
+    let channel = match channel.as_ref() {
+        Some(x) => x,
+        None => {
+            // TODO - logging? do invoke the callback with an internal error?
+            return;
+        }
+    };
+
+    let callback = callback.to_fn_once();
+
+    let range = match AddressRange::try_from(range.start, range.count) {
+        Err(err) => {
+            callback(Err(err.into()));
+            return;
+        }
+        Ok(range) => range,
+    };
+
+    let mut session = param.build_session(channel);
+
+    channel
+        .runtime
+        .block_on(session.read_input_registers(range, callback));
+}
+
+pub(crate) unsafe fn channel_write_single_coil_async(
+    channel: *mut crate::Channel,
+    bit: crate::ffi::Bit,
+    param: crate::ffi::RequestParam,
+    callback: crate::ffi::ResultCallback,
+) {
+    let channel = match channel.as_ref() {
+        Some(x) => x,
+        None => {
+            // TODO - logging? do invoke the callback with an internal error?
+            return;
+        }
+    };
+
+    let mut session = param.build_session(channel);
+
+    channel
+        .runtime
+        .block_on(session.write_single_coil(bit.into(), callback.to_fn_once()));
+}
+
+impl crate::ffi::BitReadCallback {
+    pub(crate) fn to_fn_once(
+        self,
+    ) -> impl FnOnce(std::result::Result<rodbus::types::BitIterator, rodbus::error::Error>) -> ()
+    {
+        move |result: std::result::Result<rodbus::types::BitIterator, rodbus::error::Error>| {
+            if let Some(cb) = self.on_complete {
+                match result {
+                    Err(err) => {
+                        cb(err.into(), self.ctx);
+                    }
+                    Ok(values) => {
+                        let mut iter = crate::BitIterator::new(values);
+
+                        let result = crate::ffi::BitReadResult {
+                            result: crate::ffi::ErrorInfo::success(),
+                            iterator: &mut iter as *mut crate::BitIterator,
+                        };
+
+                        cb(result, self.ctx);
+                    }
                 }
-                Ok(values) => {
-                    let mut iter = crate::BitIterator::new(values);
+            }
+        }
+    }
+}
 
-                    let result = crate::ffi::BitReadResult {
-                        result: crate::ffi::ErrorInfo::success(),
-                        iterator: &mut iter as *mut crate::BitIterator,
-                    };
+impl crate::ffi::RequestParam {
+    pub(crate) fn build_session(
+        &self,
+        channel: &Channel,
+    ) -> rodbus::client::session::CallbackSession {
+        CallbackSession::new(channel.inner.create_session(
+            UnitId::new(self.unit_id),
+            Duration::from_millis(self.timeout_ms as u64),
+        ))
+    }
+}
 
-                    cb(result, callback.ctx);
+impl crate::ffi::RegisterReadCallback {
+    pub(crate) fn to_fn_once(
+        self,
+    ) -> impl FnOnce(std::result::Result<rodbus::types::RegisterIterator, rodbus::error::Error>) -> ()
+    {
+        move |result: std::result::Result<rodbus::types::RegisterIterator, rodbus::error::Error>| {
+            if let Some(cb) = self.on_complete {
+                match result {
+                    Err(err) => {
+                        cb(err.into(), self.ctx);
+                    }
+                    Ok(values) => {
+                        let mut iter = crate::RegisterIterator::new(values);
+
+                        let result = crate::ffi::RegisterReadResult {
+                            result: crate::ffi::ErrorInfo::success(),
+                            iterator: &mut iter as *mut crate::RegisterIterator,
+                        };
+
+                        cb(result, self.ctx);
+                    }
+                }
+            }
+        }
+    }
+}
+
+impl crate::ffi::ResultCallback {
+    /// we do't care what type T is b/c we're going to ignore it
+    pub(crate) fn to_fn_once<T>(
+        self,
+    ) -> impl FnOnce(std::result::Result<T, rodbus::error::Error>) -> () {
+        move |result: std::result::Result<T, rodbus::error::Error>| {
+            if let Some(cb) = self.on_complete {
+                match result {
+                    Err(err) => {
+                        cb(err.into(), self.ctx);
+                    }
+                    Ok(_) => {
+                        cb(crate::ffi::ErrorInfo::success(), self.ctx);
+                    }
                 }
             }
         }
@@ -131,8 +296,26 @@ impl crate::ffi::ErrorInfo {
     pub(crate) fn success() -> Self {
         Self {
             summary: crate::ffi::Status::Ok,
-            exception: crate::ffi::Exception::IllegalFunction, // doesn't matter what it is
+            exception: crate::ffi::Exception::Unknown,
             raw_exception: 0,
+        }
+    }
+}
+
+impl<'a> std::convert::From<rodbus::error::Error> for crate::ffi::RegisterReadResult<'a> {
+    fn from(err: rodbus::error::Error) -> Self {
+        Self {
+            result: err.into(),
+            iterator: null_mut(),
+        }
+    }
+}
+
+impl<'a> std::convert::From<rodbus::error::Error> for crate::ffi::BitReadResult<'a> {
+    fn from(err: rodbus::error::Error) -> Self {
+        Self {
+            result: err.into(),
+            iterator: null_mut(),
         }
     }
 }
@@ -213,3 +396,17 @@ impl<'a> From<rodbus::error::details::ExceptionCode> for crate::ffi::ErrorInfo {
         }
     }
 }
+
+impl std::convert::From<crate::ffi::Bit> for rodbus::types::Indexed<bool> {
+    fn from(bit: crate::ffi::Bit) -> Self {
+        rodbus::types::Indexed::new(bit.index, bit.value)
+    }
+}
+
+// required to send these C callback types to another thread
+unsafe impl Send for crate::ffi::BitReadCallback {}
+unsafe impl Sync for crate::ffi::BitReadCallback {}
+unsafe impl Send for crate::ffi::RegisterReadCallback {}
+unsafe impl Sync for crate::ffi::RegisterReadCallback {}
+unsafe impl Send for crate::ffi::ResultCallback {}
+unsafe impl Sync for crate::ffi::ResultCallback {}

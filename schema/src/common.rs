@@ -8,6 +8,8 @@ pub(crate) struct CommonDefinitions {
     pub(crate) error_info: NativeStructHandle,
     pub(crate) address_range: NativeStructHandle,
     pub(crate) request_param: NativeStructHandle,
+    pub(crate) bit: NativeStructHandle,
+    pub(crate) register: NativeStructHandle,
 }
 
 impl CommonDefinitions {
@@ -17,8 +19,28 @@ impl CommonDefinitions {
             error_info: build_error_info(lib)?,
             address_range: build_address_range(lib)?,
             request_param: build_request_param(lib)?,
+            bit: build_bit(lib)?,
+            register: build_register(lib)?,
         })
     }
+}
+
+fn build_bit(lib: &mut LibraryBuilder) -> Result<NativeStructHandle, BindingError> {
+    let bit = lib.declare_native_struct("Bit")?;
+    lib.define_native_struct(&bit)?
+        .add("index", Type::Uint16, "index of bit")?
+        .add("value", Type::Bool, "value of the bit")?
+        .doc("index/value tuple of a bit type")?
+        .build()
+}
+
+fn build_register(lib: &mut LibraryBuilder) -> Result<NativeStructHandle, BindingError> {
+    let bit = lib.declare_native_struct("Register")?;
+    lib.define_native_struct(&bit)?
+        .add("index", Type::Uint16, "index of register")?
+        .add("value", Type::Uint16, "value of the register")?
+        .doc("index/value tuple of a register type")?
+        .build()
 }
 
 fn build_address_range(lib: &mut LibraryBuilder) -> Result<NativeStructHandle, BindingError> {
