@@ -98,15 +98,15 @@ pub(crate) unsafe fn channel_read_discrete_inputs_async(
     param: crate::ffi::RequestParam,
     callback: crate::ffi::BitReadCallback,
 ) {
-    let callback = callback.to_fn_once();
-
     let channel = match channel.as_ref() {
         Some(x) => x,
         None => {
-            // TODO - logging? do invoke the callback with an internal error?
-            return;
+            // TODO - logging?
+            return callback.bad_argument();
         }
     };
+
+    let callback = callback.to_fn_once();
 
     let range = match AddressRange::try_from(range.start, range.count) {
         Err(err) => {
@@ -132,8 +132,8 @@ pub(crate) unsafe fn channel_read_holding_registers_async(
     let channel = match channel.as_ref() {
         Some(x) => x,
         None => {
-            // TODO - logging? do invoke the callback with an internal error?
-            return;
+            // TODO - logging?
+            return callback.bad_argument();
         }
     };
 
@@ -163,8 +163,8 @@ pub(crate) unsafe fn channel_read_input_registers_async(
     let channel = match channel.as_ref() {
         Some(x) => x,
         None => {
-            // TODO - logging? do invoke the callback with an internal error?
-            return;
+            // TODO - logging?
+            return callback.bad_argument();
         }
     };
 
@@ -194,8 +194,8 @@ pub(crate) unsafe fn channel_write_single_coil_async(
     let channel = match channel.as_ref() {
         Some(x) => x,
         None => {
-            // TODO - logging? do invoke the callback with an internal error?
-            return;
+            // TODO - logging?
+            return callback.bad_argument();
         }
     };
 
@@ -215,8 +215,8 @@ pub(crate) unsafe fn channel_write_single_register_async(
     let channel = match channel.as_ref() {
         Some(x) => x,
         None => {
-            // TODO - logging? do invoke the callback with an internal error?
-            return;
+            // TODO - logging?
+            return callback.bad_argument();
         }
     };
 
@@ -237,16 +237,16 @@ pub(crate) unsafe fn channel_write_multiple_coils_async(
     let channel = match channel.as_ref() {
         Some(x) => x,
         None => {
-            // TODO - logging? do invoke the callback with an internal error?
-            return;
+            // TODO - logging?
+            return callback.bad_argument();
         }
     };
 
     let items = match items.as_ref() {
         Some(x) => x,
         None => {
-            // TODO - logging? do invoke the callback with an internal error?
-            return;
+            // TODO - logging?
+            return callback.bad_argument();
         }
     };
 
@@ -255,8 +255,7 @@ pub(crate) unsafe fn channel_write_multiple_coils_async(
     let argument = match WriteMultiple::from(start, items.inner.clone()) {
         Ok(x) => x,
         Err(err) => {
-            callback(Err(err.into()));
-            return;
+            return callback(Err(err.into()));
         }
     };
 
@@ -277,16 +276,16 @@ pub(crate) unsafe fn channel_write_multiple_registers_async(
     let channel = match channel.as_ref() {
         Some(x) => x,
         None => {
-            // TODO - logging? do invoke the callback with an internal error?
-            return;
+            // TODO - logging?
+            return callback.bad_argument();
         }
     };
 
     let items = match items.as_ref() {
         Some(x) => x,
         None => {
-            // TODO - logging? do invoke the callback with an internal error?
-            return;
+            // TODO - logging?
+            return callback.bad_argument();
         }
     };
 
@@ -295,8 +294,7 @@ pub(crate) unsafe fn channel_write_multiple_registers_async(
     let argument = match WriteMultiple::from(start, items.inner.clone()) {
         Ok(x) => x,
         Err(err) => {
-            callback(Err(err.into()));
-            return;
+            return callback(Err(err.into()));
         }
     };
 
@@ -308,6 +306,17 @@ pub(crate) unsafe fn channel_write_multiple_registers_async(
 }
 
 impl crate::ffi::BitReadCallback {
+    pub(crate) fn bad_argument(self) {
+        if let Some(cb) = self.on_complete {
+            let result = crate::ffi::BitReadResult {
+                result: crate::ffi::ErrorInfo::error(crate::ffi::Status::BadArgument),
+                iterator: null_mut(),
+            };
+
+            cb(result, self.ctx);
+        }
+    }
+
     pub(crate) fn to_fn_once(
         self,
     ) -> impl FnOnce(std::result::Result<rodbus::types::BitIterator, rodbus::error::Error>) -> ()
@@ -347,6 +356,16 @@ impl crate::ffi::RequestParam {
 }
 
 impl crate::ffi::RegisterReadCallback {
+    pub(crate) fn bad_argument(self) {
+        if let Some(cb) = self.on_complete {
+            let result = crate::ffi::RegisterReadResult {
+                result: crate::ffi::ErrorInfo::error(crate::ffi::Status::BadArgument),
+                iterator: null_mut(),
+            };
+            cb(result, self.ctx);
+        }
+    }
+
     pub(crate) fn to_fn_once(
         self,
     ) -> impl FnOnce(std::result::Result<rodbus::types::RegisterIterator, rodbus::error::Error>) -> ()
@@ -374,6 +393,13 @@ impl crate::ffi::RegisterReadCallback {
 }
 
 impl crate::ffi::ResultCallback {
+    pub(crate) fn bad_argument(self) {
+        if let Some(cb) = self.on_complete {
+            let result = crate::ffi::ErrorInfo::error(crate::ffi::Status::BadArgument);
+            cb(result, self.ctx);
+        }
+    }
+
     /// we do't care what type T is b/c we're going to ignore it
     pub(crate) fn to_fn_once<T>(
         self,
@@ -394,6 +420,14 @@ impl crate::ffi::ResultCallback {
 }
 
 impl crate::ffi::ErrorInfo {
+    pub(crate) fn error(err: crate::ffi::Status) -> Self {
+        Self {
+            summary: err,
+            exception: crate::ffi::Exception::Unknown,
+            raw_exception: 0,
+        }
+    }
+
     pub(crate) fn success() -> Self {
         Self {
             summary: crate::ffi::Status::Ok,

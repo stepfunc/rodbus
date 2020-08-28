@@ -67,6 +67,11 @@ pub(crate) fn define_status(lib: &mut LibraryBuilder) -> Result<Handle<NativeEnu
             9,
             "An unspecified internal error occurred while performing the request",
         )?
+        .variant(
+            "BadArgument",
+            10,
+            "An invalid argument was supplied and the request could not be performed",
+        )?
         .doc("Status returned during synchronous and asynchronous API calls")?
         .build()
 }
