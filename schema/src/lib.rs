@@ -1,5 +1,5 @@
 use crate::common::CommonDefinitions;
-use oo_bindgen::{BindingError, Library, LibraryBuilder};
+use oo_bindgen::{BindingError, Library, LibraryBuilder, Version};
 
 mod channel;
 mod common;
@@ -8,7 +8,7 @@ mod logging;
 mod runtime;
 
 pub fn build() -> Result<Library, BindingError> {
-    let mut lib = LibraryBuilder::new("rodbus", semver::Version::new(0, 1, 0));
+    let mut lib = LibraryBuilder::new("rodbus", Version::new(0, 1, 0));
 
     // not coupled to any other parts of the API
     logging::define_logging(&mut lib)?;

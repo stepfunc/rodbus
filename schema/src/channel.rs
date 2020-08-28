@@ -269,10 +269,8 @@ fn build_bit_read_callback(
             "Called when the operation is complete or fails",
         )?
         .param("result", Type::Struct(bit_read_result), "result")?
-        .arg("ctx")?
         .return_type(ReturnType::void())?
         .build()?
-        .arg("ctx")?
         .build()?;
 
     Ok(bit_read_callback)
@@ -293,10 +291,8 @@ fn build_register_read_callback(
             "Called when the operation is complete or fails",
         )?
         .param("result", Type::Struct(read_result), "result")?
-        .arg("ctx")?
         .return_type(ReturnType::void())?
         .build()?
-        .arg("ctx")?
         .build()?;
 
     Ok(read_callback)
@@ -319,10 +315,8 @@ fn build_result_only_callback(
         Type::Struct(common.error_info.clone()),
         "result of the operation",
     )?
-    .arg("ctx")?
     .return_type(ReturnType::void())?
     .build()?
-    .arg("ctx")?
     .build()
 }
 

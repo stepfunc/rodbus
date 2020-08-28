@@ -11,5 +11,4 @@ repository = "https://www.github.com/automatak/rodbus"
 readme = "../README.md"
 
 [dependencies]
-oo-bindgen = { git = "https://git@github.com/grid-io/oo_bindgen.git", branch = "feature/no-submodules" }
-semver = "0.9"
+oo-bindgen = { git = "https://git@github.com/grid-io/oo_bindgen.git", branch = "master" }

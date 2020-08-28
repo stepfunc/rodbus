@@ -307,14 +307,12 @@ pub(crate) unsafe fn channel_write_multiple_registers_async(
 
 impl crate::ffi::BitReadCallback {
     pub(crate) fn bad_argument(self) {
-        if let Some(cb) = self.on_complete {
-            let result = crate::ffi::BitReadResult {
-                result: crate::ffi::ErrorInfo::error(crate::ffi::Status::BadArgument),
-                iterator: null_mut(),
-            };
+        let result = crate::ffi::BitReadResult {
+            result: crate::ffi::ErrorInfo::error(crate::ffi::Status::BadArgument),
+            iterator: null_mut(),
+        };
 
-            cb(result, self.ctx);
-        }
+        self.on_complete(result);
     }
 
     pub(crate) fn to_fn_once(
@@ -322,21 +320,19 @@ impl crate::ffi::BitReadCallback {
     ) -> impl FnOnce(std::result::Result<rodbus::types::BitIterator, rodbus::error::Error>) -> ()
     {
         move |result: std::result::Result<rodbus::types::BitIterator, rodbus::error::Error>| {
-            if let Some(cb) = self.on_complete {
-                match result {
-                    Err(err) => {
-                        cb(err.into(), self.ctx);
-                    }
-                    Ok(values) => {
-                        let mut iter = crate::BitIterator::new(values);
+            match result {
+                Err(err) => {
+                    self.on_complete(err.into());
+                }
+                Ok(values) => {
+                    let mut iter = crate::BitIterator::new(values);
 
-                        let result = crate::ffi::BitReadResult {
-                            result: crate::ffi::ErrorInfo::success(),
-                            iterator: &mut iter as *mut crate::BitIterator,
-                        };
+                    let result = crate::ffi::BitReadResult {
+                        result: crate::ffi::ErrorInfo::success(),
+                        iterator: &mut iter as *mut crate::BitIterator,
+                    };
 
-                        cb(result, self.ctx);
-                    }
+                    self.on_complete(result);
                 }
             }
         }
@@ -357,13 +353,11 @@ impl crate::ffi::RequestParam {
 
 impl crate::ffi::RegisterReadCallback {
     pub(crate) fn bad_argument(self) {
-        if let Some(cb) = self.on_complete {
-            let result = crate::ffi::RegisterReadResult {
-                result: crate::ffi::ErrorInfo::error(crate::ffi::Status::BadArgument),
-                iterator: null_mut(),
-            };
-            cb(result, self.ctx);
-        }
+        let result = crate::ffi::RegisterReadResult {
+            result: crate::ffi::ErrorInfo::error(crate::ffi::Status::BadArgument),
+            iterator: null_mut(),
+        };
+        self.on_complete(result);
     }
 
     pub(crate) fn to_fn_once(
@@ -371,21 +365,19 @@ impl crate::ffi::RegisterReadCallback {
     ) -> impl FnOnce(std::result::Result<rodbus::types::RegisterIterator, rodbus::error::Error>) -> ()
     {
         move |result: std::result::Result<rodbus::types::RegisterIterator, rodbus::error::Error>| {
-            if let Some(cb) = self.on_complete {
-                match result {
-                    Err(err) => {
-                        cb(err.into(), self.ctx);
-                    }
-                    Ok(values) => {
-                        let mut iter = crate::RegisterIterator::new(values);
+            match result {
+                Err(err) => {
+                    self.on_complete(err.into());
+                }
+                Ok(values) => {
+                    let mut iter = crate::RegisterIterator::new(values);
 
-                        let result = crate::ffi::RegisterReadResult {
-                            result: crate::ffi::ErrorInfo::success(),
-                            iterator: &mut iter as *mut crate::RegisterIterator,
-                        };
+                    let result = crate::ffi::RegisterReadResult {
+                        result: crate::ffi::ErrorInfo::success(),
+                        iterator: &mut iter as *mut crate::RegisterIterator,
+                    };
 
-                        cb(result, self.ctx);
-                    }
+                    self.on_complete(result);
                 }
             }
         }
@@ -394,26 +386,20 @@ impl crate::ffi::RegisterReadCallback {
 
 impl crate::ffi::ResultCallback {
     pub(crate) fn bad_argument(self) {
-        if let Some(cb) = self.on_complete {
-            let result = crate::ffi::ErrorInfo::error(crate::ffi::Status::BadArgument);
-            cb(result, self.ctx);
-        }
+        let result = crate::ffi::ErrorInfo::error(crate::ffi::Status::BadArgument);
+        self.on_complete(result);
     }
 
     /// we do't care what type T is b/c we're going to ignore it
     pub(crate) fn to_fn_once<T>(
         self,
     ) -> impl FnOnce(std::result::Result<T, rodbus::error::Error>) -> () {
-        move |result: std::result::Result<T, rodbus::error::Error>| {
-            if let Some(cb) = self.on_complete {
-                match result {
-                    Err(err) => {
-                        cb(err.into(), self.ctx);
-                    }
-                    Ok(_) => {
-                        cb(crate::ffi::ErrorInfo::success(), self.ctx);
-                    }
-                }
+        move |result: std::result::Result<T, rodbus::error::Error>| match result {
+            Err(err) => {
+                self.on_complete(err.into());
+            }
+            Ok(_) => {
+                self.on_complete(crate::ffi::ErrorInfo::success());
             }
         }
     }
@@ -543,11 +529,3 @@ impl std::convert::From<crate::ffi::Register> for rodbus::types::Indexed<u16> {
         rodbus::types::Indexed::new(x.index, x.value)
     }
 }
-
-// required to send these C callback types to another thread
-unsafe impl Send for crate::ffi::BitReadCallback {}
-unsafe impl Sync for crate::ffi::BitReadCallback {}
-unsafe impl Send for crate::ffi::RegisterReadCallback {}
-unsafe impl Sync for crate::ffi::RegisterReadCallback {}
-unsafe impl Send for crate::ffi::ResultCallback {}
-unsafe impl Sync for crate::ffi::ResultCallback {}

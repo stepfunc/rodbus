@@ -11,7 +11,7 @@ repository = "https://www.github.com/automatak/rodbus"
 readme = "../README.md"
 
 [dependencies]
-oo-bindgen = { git = "https://git@github.com/grid-io/oo_bindgen.git", branch = "feature/no-submodules" }
-c-oo-bindgen = { git = "https://git@github.com/grid-io/oo_bindgen.git", branch = "feature/no-submodules" }
-dotnet-oo-bindgen = { git = "https://git@github.com/grid-io/oo_bindgen.git", branch = "feature/no-submodules" }
+oo-bindgen = { git = "https://git@github.com/grid-io/oo_bindgen.git", branch = "master" }
+c-oo-bindgen = { git = "https://git@github.com/grid-io/oo_bindgen.git", branch = "master" }
+dotnet-oo-bindgen = { git = "https://git@github.com/grid-io/oo_bindgen.git", branch = "master" }
 rodbus-ffi-schema = { path = "../schema" }

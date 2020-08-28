@@ -20,6 +20,6 @@ tokio = { version = "^0.2.11", features = ["rt-threaded"]}
 
 [build-dependencies]
 rodbus-ffi-schema = { path = "../schema" }
-rust-oo-bindgen = { git = "https://git@github.com/grid-io/oo_bindgen.git", branch = "feature/no-submodules" }
+rust-oo-bindgen = { git = "https://git@github.com/grid-io/oo_bindgen.git", branch = "master" }
 
 

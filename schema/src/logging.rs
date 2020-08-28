@@ -25,11 +25,9 @@ pub(crate) fn define_logging(lib: &mut LibraryBuilder) -> Result<(), BindingErro
         .callback("on_message", "Called when a message should be logged")?
         .param("level", Type::Enum(level.clone()), "Level of the message")?
         .param("message", Type::String, "Formatted log message")?
-        .arg("arg")?
         .return_type(ReturnType::void())?
         .build()?
         .destroy_callback("on_destroy")?
-        .arg("arg")?
         .build()?;
 
     let set_logger_fn = lib
