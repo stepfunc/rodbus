@@ -105,6 +105,28 @@ pub(crate) fn build_channel_class(
         "write a single register",
     )?;
 
+    let list_of_bit = build_list(lib, "Bit", Type::Bool)?;
+    let write_multiple_coils_fn = build_async_write_multiple_fn(
+        "channel_write_multiple_coils_async",
+        lib,
+        common,
+        &channel,
+        &result_only_callback.clone(),
+        &list_of_bit.declaration,
+        "write multiple coils",
+    )?;
+
+    let list_of_register = build_list(lib, "Register", Type::Uint16)?;
+    let write_multiple_registers_fn = build_async_write_multiple_fn(
+        "channel_write_multiple_registers_async",
+        lib,
+        common,
+        &channel,
+        &result_only_callback.clone(),
+        &list_of_register.declaration,
+        "write multiple registers",
+    )?;
+
     let channel = lib
         .define_class(&channel)?
         // abstract factory methods, later we'll have TLS/serial
@@ -117,6 +139,8 @@ pub(crate) fn build_channel_class(
         // write methods
         .async_method("write_single_coil", &write_single_coil_fn)?
         .async_method("write_single_register", &write_single_register_fn)?
+        .async_method("write_multiple_coils", &write_multiple_coils_fn)?
+        .async_method("write_multiple_registers", &write_multiple_registers_fn)?
         // destructor
         .destructor(&destroy_channel_fn)?
         .doc("Abstract representation of a channel")?
@@ -138,12 +162,48 @@ fn build_async_write_single_fn(
         .param(
             "channel",
             Type::ClassRef(channel.clone()),
-            "channel on which to perform the read",
+            "channel on which to perform the write operation",
         )?
         .param(
             "value",
             Type::Struct(write_type.clone()),
             "Address and value to write",
+        )?
+        .param(
+            "param",
+            Type::Struct(common.request_param.clone()),
+            "parameters for the request",
+        )?
+        .param(
+            "callback",
+            Type::OneTimeCallback(callback.clone()),
+            "callback invoked on completion",
+        )?
+        .return_type(ReturnType::void())?
+        .doc(docs)?
+        .build()
+}
+
+fn build_async_write_multiple_fn(
+    name: &str,
+    lib: &mut LibraryBuilder,
+    common: &CommonDefinitions,
+    channel: &ClassDeclarationHandle,
+    callback: &OneTimeCallbackHandle,
+    list_type: &ClassDeclarationHandle,
+    docs: &str,
+) -> Result<NativeFunctionHandle, BindingError> {
+    lib.declare_native_function(name)?
+        .param(
+            "channel",
+            Type::ClassRef(channel.clone()),
+            "channel on which to perform the write operation",
+        )?
+        .param("start", Type::Uint16, "Starting address")?
+        .param(
+            "items",
+            Type::ClassRef(list_type.clone()),
+            "list of items to write",
         )?
         .param(
             "param",
@@ -309,4 +369,51 @@ fn build_iterator(
         .build()?;
 
     lib.define_iterator_with_lifetime(&iterator_next_fn, &value_type)
+}
+
+fn build_list(
+    lib: &mut LibraryBuilder,
+    name: &str,
+    value_type: Type,
+) -> Result<ClassHandle, BindingError> {
+    let list_class = lib.declare_class(&format!("{}List", name))?;
+
+    let create_fn = lib
+        .declare_native_function(&format!("{}_list_create", name.to_lowercase()))?
+        .return_type(ReturnType::new(
+            Type::ClassRef(list_class.clone()),
+            "created list",
+        ))?
+        .doc(format!("create a {} list", name).as_str())?
+        .build()?;
+
+    let destroy_fn = lib
+        .declare_native_function(&format!("{}_list_destroy", name.to_lowercase()))?
+        .param(
+            "list",
+            Type::ClassRef(list_class.clone()),
+            "list to destroy",
+        )?
+        .return_type(ReturnType::void())?
+        .doc(format!("destroy a {} list", name).as_str())?
+        .build()?;
+
+    let add_fn = lib
+        .declare_native_function(&format!("{}_list_add", name.to_lowercase()))?
+        .param(
+            "list",
+            Type::ClassRef(list_class.clone()),
+            "list to which to add the item",
+        )?
+        .param("item", value_type.clone(), "item to add to the list")?
+        .return_type(ReturnType::void())?
+        .doc("Add an item to the list")?
+        .build()?;
+
+    lib.define_class(&list_class)?
+        .constructor(&create_fn)?
+        .destructor(&destroy_fn)?
+        .method("add", &add_fn)?
+        .doc(format!("List of items of type {}", name).as_str())?
+        .build()
 }

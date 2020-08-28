@@ -1,5 +1,5 @@
 use rodbus::client::session::CallbackSession;
-use rodbus::types::{AddressRange, UnitId};
+use rodbus::types::{AddressRange, UnitId, WriteMultiple};
 use std::ffi::CStr;
 use std::net::SocketAddr;
 use std::os::raw::c_char;
@@ -225,6 +225,86 @@ pub(crate) unsafe fn channel_write_single_register_async(
     channel
         .runtime
         .block_on(session.write_single_register(register.into(), callback.to_fn_once()));
+}
+
+pub(crate) unsafe fn channel_write_multiple_coils_async(
+    channel: *mut crate::Channel,
+    start: u16,
+    items: *mut crate::BitList,
+    param: crate::ffi::RequestParam,
+    callback: crate::ffi::ResultCallback,
+) {
+    let channel = match channel.as_ref() {
+        Some(x) => x,
+        None => {
+            // TODO - logging? do invoke the callback with an internal error?
+            return;
+        }
+    };
+
+    let items = match items.as_ref() {
+        Some(x) => x,
+        None => {
+            // TODO - logging? do invoke the callback with an internal error?
+            return;
+        }
+    };
+
+    let callback = callback.to_fn_once();
+
+    let argument = match WriteMultiple::from(start, items.inner.clone()) {
+        Ok(x) => x,
+        Err(err) => {
+            callback(Err(err.into()));
+            return;
+        }
+    };
+
+    let mut session = param.build_session(channel);
+
+    channel
+        .runtime
+        .block_on(session.write_multiple_coils(argument, callback));
+}
+
+pub(crate) unsafe fn channel_write_multiple_registers_async(
+    channel: *mut crate::Channel,
+    start: u16,
+    items: *mut crate::RegisterList,
+    param: crate::ffi::RequestParam,
+    callback: crate::ffi::ResultCallback,
+) {
+    let channel = match channel.as_ref() {
+        Some(x) => x,
+        None => {
+            // TODO - logging? do invoke the callback with an internal error?
+            return;
+        }
+    };
+
+    let items = match items.as_ref() {
+        Some(x) => x,
+        None => {
+            // TODO - logging? do invoke the callback with an internal error?
+            return;
+        }
+    };
+
+    let callback = callback.to_fn_once();
+
+    let argument = match WriteMultiple::from(start, items.inner.clone()) {
+        Ok(x) => x,
+        Err(err) => {
+            callback(Err(err.into()));
+            return;
+        }
+    };
+
+    let mut session = param.build_session(channel);
+
+    channel
+        .runtime
+        .block_on(session.write_multiple_registers(argument, callback));
 }
 
 impl crate::ffi::BitReadCallback {
