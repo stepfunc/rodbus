@@ -3,7 +3,9 @@ pub struct BitList {
 }
 
 pub(crate) unsafe fn bit_list_create(size_hint: u32) -> *mut crate::BitList {
-    Box::into_raw(Box::new(BitList { inner: Vec::with_capacity(size_hint as usize) }))
+    Box::into_raw(Box::new(BitList {
+        inner: Vec::with_capacity(size_hint as usize),
+    }))
 }
 
 pub(crate) unsafe fn bit_list_destroy(list: *mut crate::BitList) {
@@ -23,7 +25,9 @@ pub struct RegisterList {
 }
 
 pub(crate) unsafe fn register_list_create(size_hint: u32) -> *mut crate::RegisterList {
-    Box::into_raw(Box::new(RegisterList { inner: Vec::with_capacity(size_hint as usize) }))
+    Box::into_raw(Box::new(RegisterList {
+        inner: Vec::with_capacity(size_hint as usize),
+    }))
 }
 
 pub(crate) unsafe fn register_list_destroy(list: *mut crate::RegisterList) {

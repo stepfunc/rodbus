@@ -53,7 +53,10 @@ impl Args {
 #[tokio::main(basic_scheduler)]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // print log messages to the console
-    SimpleLogger::new().with_level(log::LevelFilter::Info).init().unwrap();
+    SimpleLogger::new()
+        .with_level(log::LevelFilter::Info)
+        .init()
+        .unwrap();
 
     if let Err(ref e) = run().await {
         println!("error: {}", e);

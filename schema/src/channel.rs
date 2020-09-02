@@ -410,15 +410,11 @@ fn build_list(
         .doc("Add an item to the list")?
         .build()?;
 
-    lib.define_collection(
-        &create_fn,
-        &destroy_fn,
-        &add_fn
-    )
-        /*
-        .doc(format!("List of items of type {}", name).as_str())?
+    lib.define_collection(&create_fn, &destroy_fn, &add_fn)
+    /*
+    .doc(format!("List of items of type {}", name).as_str())?
 
 
-        .build()
-         */
+    .build()
+     */
 }
