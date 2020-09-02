@@ -6,6 +6,7 @@ use oo_bindgen::{BindingError, LibraryBuilder};
 
 use crate::common::CommonDefinitions;
 use oo_bindgen::callback::OneTimeCallbackHandle;
+use oo_bindgen::collection::CollectionHandle;
 
 pub(crate) fn build_channel_class(
     lib: &mut LibraryBuilder,
@@ -111,8 +112,8 @@ pub(crate) fn build_channel_class(
         lib,
         common,
         &channel,
-        &result_only_callback.clone(),
-        &list_of_bit.declaration,
+        &result_only_callback,
+        &list_of_bit,
         "write multiple coils",
     )?;
 
@@ -123,7 +124,7 @@ pub(crate) fn build_channel_class(
         common,
         &channel,
         &result_only_callback.clone(),
-        &list_of_register.declaration,
+        &list_of_register,
         "write multiple registers",
     )?;
 
@@ -190,7 +191,7 @@ fn build_async_write_multiple_fn(
     common: &CommonDefinitions,
     channel: &ClassDeclarationHandle,
     callback: &OneTimeCallbackHandle,
-    list_type: &ClassDeclarationHandle,
+    list_type: &CollectionHandle,
     docs: &str,
 ) -> Result<NativeFunctionHandle, BindingError> {
     lib.declare_native_function(name)?
@@ -202,7 +203,7 @@ fn build_async_write_multiple_fn(
         .param("start", Type::Uint16, "Starting address")?
         .param(
             "items",
-            Type::ClassRef(list_type.clone()),
+            Type::Collection(list_type.clone()),
             "list of items to write",
         )?
         .param(
@@ -369,11 +370,16 @@ fn build_list(
     lib: &mut LibraryBuilder,
     name: &str,
     value_type: Type,
-) -> Result<ClassHandle, BindingError> {
+) -> Result<CollectionHandle, BindingError> {
     let list_class = lib.declare_class(&format!("{}List", name))?;
 
     let create_fn = lib
         .declare_native_function(&format!("{}_list_create", name.to_lowercase()))?
+        .param(
+            "size_hint",
+            Type::Uint32,
+            "Starting size of the list. Can be used to avoid multiple allocations if you already know how many items you're going to add.",
+        )?
         .return_type(ReturnType::new(
             Type::ClassRef(list_class.clone()),
             "created list",
@@ -404,10 +410,15 @@ fn build_list(
         .doc("Add an item to the list")?
         .build()?;
 
-    lib.define_class(&list_class)?
-        .constructor(&create_fn)?
-        .destructor(&destroy_fn)?
-        .method("add", &add_fn)?
+    lib.define_collection(
+        &create_fn,
+        &destroy_fn,
+        &add_fn
+    )
+        /*
         .doc(format!("List of items of type {}", name).as_str())?
+
+
         .build()
+         */
 }

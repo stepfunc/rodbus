@@ -8,6 +8,7 @@ use clap::{App, Arg, ArgMatches, SubCommand};
 
 use rodbus::error::details::{InvalidRange, InvalidRequest};
 use rodbus::prelude::*;
+use simple_logger::SimpleLogger;
 
 #[derive(Debug)]
 enum Error {
@@ -52,7 +53,7 @@ impl Args {
 #[tokio::main(basic_scheduler)]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // print log messages to the console
-    simple_logger::init_with_level(log::Level::Info).unwrap();
+    SimpleLogger::new().with_level(log::LevelFilter::Info).init().unwrap();
 
     if let Err(ref e) = run().await {
         println!("error: {}", e);
