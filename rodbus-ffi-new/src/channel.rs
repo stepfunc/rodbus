@@ -65,20 +65,20 @@ pub(crate) unsafe fn channel_read_coils_async(
     param: crate::ffi::RequestParam,
     callback: crate::ffi::BitReadCallback,
 ) {
-    let callback = callback.to_fn_once();
-
     let channel = match channel.as_ref() {
         Some(x) => x,
         None => {
-            // TODO - logging? do invoke the callback with an internal error?
-            return;
+            log::error!("channel may not be NULL");
+            return callback.bad_argument();
         }
     };
 
+    let callback = callback.to_fn_once();
+
     let range = match AddressRange::try_from(range.start, range.count) {
         Err(err) => {
-            callback(Err(err.into()));
-            return;
+            log::error!("Invalid address range: {}", err);
+            return callback(Err(err.into()));
         }
         Ok(range) => range,
     };
@@ -99,7 +99,7 @@ pub(crate) unsafe fn channel_read_discrete_inputs_async(
     let channel = match channel.as_ref() {
         Some(x) => x,
         None => {
-            // TODO - logging?
+            log::error!("channel may not be NULL");
             return callback.bad_argument();
         }
     };
@@ -108,8 +108,8 @@ pub(crate) unsafe fn channel_read_discrete_inputs_async(
 
     let range = match AddressRange::try_from(range.start, range.count) {
         Err(err) => {
-            callback(Err(err.into()));
-            return;
+            log::error!("Invalid address range: {}", err);
+            return callback(Err(err.into()));
         }
         Ok(range) => range,
     };
@@ -130,7 +130,7 @@ pub(crate) unsafe fn channel_read_holding_registers_async(
     let channel = match channel.as_ref() {
         Some(x) => x,
         None => {
-            // TODO - logging?
+            log::error!("channel may not be NULL");
             return callback.bad_argument();
         }
     };
@@ -139,8 +139,8 @@ pub(crate) unsafe fn channel_read_holding_registers_async(
 
     let range = match AddressRange::try_from(range.start, range.count) {
         Err(err) => {
-            callback(Err(err.into()));
-            return;
+            log::error!("Invalid address range: {}", err);
+            return callback(Err(err.into()));
         }
         Ok(range) => range,
     };
@@ -161,7 +161,7 @@ pub(crate) unsafe fn channel_read_input_registers_async(
     let channel = match channel.as_ref() {
         Some(x) => x,
         None => {
-            // TODO - logging?
+            log::error!("channel may not be NULL");
             return callback.bad_argument();
         }
     };
@@ -170,8 +170,8 @@ pub(crate) unsafe fn channel_read_input_registers_async(
 
     let range = match AddressRange::try_from(range.start, range.count) {
         Err(err) => {
-            callback(Err(err.into()));
-            return;
+            log::error!("Invalid address range: {}", err);
+            return callback(Err(err.into()));
         }
         Ok(range) => range,
     };
@@ -192,7 +192,7 @@ pub(crate) unsafe fn channel_write_single_coil_async(
     let channel = match channel.as_ref() {
         Some(x) => x,
         None => {
-            // TODO - logging?
+            log::error!("channel may not be NULL");
             return callback.bad_argument();
         }
     };
@@ -213,7 +213,7 @@ pub(crate) unsafe fn channel_write_single_register_async(
     let channel = match channel.as_ref() {
         Some(x) => x,
         None => {
-            // TODO - logging?
+            log::error!("channel may not be NULL");
             return callback.bad_argument();
         }
     };
@@ -235,7 +235,7 @@ pub(crate) unsafe fn channel_write_multiple_coils_async(
     let channel = match channel.as_ref() {
         Some(x) => x,
         None => {
-            // TODO - logging?
+            log::error!("channel may not be NULL");
             return callback.bad_argument();
         }
     };
@@ -243,7 +243,7 @@ pub(crate) unsafe fn channel_write_multiple_coils_async(
     let items = match items.as_ref() {
         Some(x) => x,
         None => {
-            // TODO - logging?
+            log::error!("list may not be NULL");
             return callback.bad_argument();
         }
     };
@@ -253,6 +253,7 @@ pub(crate) unsafe fn channel_write_multiple_coils_async(
     let argument = match WriteMultiple::from(start, items.inner.clone()) {
         Ok(x) => x,
         Err(err) => {
+            log::error!("bad range: {}", err);
             return callback(Err(err.into()));
         }
     };
@@ -274,7 +275,7 @@ pub(crate) unsafe fn channel_write_multiple_registers_async(
     let channel = match channel.as_ref() {
         Some(x) => x,
         None => {
-            // TODO - logging?
+            log::error!("channel may not be NULL");
             return callback.bad_argument();
         }
     };
@@ -282,7 +283,7 @@ pub(crate) unsafe fn channel_write_multiple_registers_async(
     let items = match items.as_ref() {
         Some(x) => x,
         None => {
-            // TODO - logging?
+            log::error!("list may not be NULL");
             return callback.bad_argument();
         }
     };
@@ -292,6 +293,7 @@ pub(crate) unsafe fn channel_write_multiple_registers_async(
     let argument = match WriteMultiple::from(start, items.inner.clone()) {
         Ok(x) => x,
         Err(err) => {
+            log::error!("bad range: {}", err);
             return callback(Err(err.into()));
         }
     };
