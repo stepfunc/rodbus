@@ -3,13 +3,13 @@ use crate::common::CommonDefinitions;
 use oo_bindgen::callback::InterfaceHandle;
 use oo_bindgen::class::ClassHandle;
 use oo_bindgen::native_function::{ReturnType, Type};
+use oo_bindgen::native_struct::NativeStructHandle;
 use oo_bindgen::{BindingError, LibraryBuilder};
 
 pub(crate) fn build(
     lib: &mut LibraryBuilder,
     common: &CommonDefinitions,
 ) -> Result<(), BindingError> {
-    let _write_handler = build_write_handler_interface(lib, common)?;
     let _handler_map = build_handler_map(lib, common)?;
     Ok(())
 }
@@ -18,6 +18,8 @@ pub(crate) fn build_handler_map(
     lib: &mut LibraryBuilder,
     common: &CommonDefinitions,
 ) -> Result<ClassHandle, BindingError> {
+    let write_handler = build_write_handler_interface(lib, common)?;
+
     let device_map = lib.declare_class("DeviceMap")?;
 
     let create_map = lib
@@ -45,10 +47,64 @@ pub(crate) fn build_handler_map(
         .doc("Destroy a previously created device map")?
         .build()?;
 
+    let sizes = build_sizes_struct(lib)?;
+
+    let map_add_endpoint = lib
+        .declare_native_function("map_add_endpoint")?
+        .param(
+            "map",
+            Type::ClassRef(device_map.clone()),
+            "map to which the endpoint will be added",
+        )?
+        .param("unit_id", Type::Uint8, "Unit id of the endpoint")?
+        .param(
+            "sizes",
+            Type::Struct(sizes),
+            "number of points of each type",
+        )?
+        .param(
+            "handler",
+            Type::Interface(write_handler),
+            "callback interface for handling write operations for this device",
+        )?
+        .return_type(ReturnType::Type(
+            Type::Bool,
+            "false if the unit id is already bound, true otherwise".into(),
+        ))?
+        .doc("add an endpoint to the map")?
+        .build()?;
+
     lib.define_class(&device_map)?
         .constructor(&create_map)?
         .destructor(&destroy_map)?
+        .method("add_endpoint", &map_add_endpoint)?
         .doc("Maps endpoint handlers to Modbus address")?
+        .build()
+}
+
+pub(crate) fn build_sizes_struct(
+    lib: &mut LibraryBuilder,
+) -> Result<NativeStructHandle, BindingError> {
+    let sizes = lib.declare_native_struct("Sizes")?;
+
+    lib.define_native_struct(&sizes)?
+        .add("num_coils", Type::Uint16, "number of coils")?
+        .add(
+            "num_discrete_inputs",
+            Type::Uint16,
+            "number of discrete inputs",
+        )?
+        .add(
+            "num_holding_registers",
+            Type::Uint16,
+            "number of holding registers",
+        )?
+        .add(
+            "num_input_registers",
+            Type::Uint16,
+            "number of input registers",
+        )?
+        .doc("Number of points of each type")?
         .build()
 }
 
