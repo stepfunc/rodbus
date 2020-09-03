@@ -1,4 +1,4 @@
-use oo_bindgen::class::{ClassDeclarationHandle, ClassHandle};
+use oo_bindgen::class::ClassDeclarationHandle;
 use oo_bindgen::iterator::IteratorHandle;
 use oo_bindgen::native_function::{NativeFunctionHandle, ReturnType, Type};
 use oo_bindgen::native_struct::NativeStructHandle;
@@ -8,10 +8,10 @@ use crate::common::CommonDefinitions;
 use oo_bindgen::callback::OneTimeCallbackHandle;
 use oo_bindgen::collection::CollectionHandle;
 
-pub(crate) fn build_channel_class(
+pub(crate) fn build(
     lib: &mut LibraryBuilder,
     common: &CommonDefinitions,
-) -> Result<ClassHandle, BindingError> {
+) -> Result<(), BindingError> {
     let channel = lib.declare_class("Channel")?;
 
     let create_tcp_client_fn = lib.declare_native_function("create_tcp_client")?;
@@ -128,8 +128,7 @@ pub(crate) fn build_channel_class(
         "write multiple registers",
     )?;
 
-    let channel = lib
-        .define_class(&channel)?
+    lib.define_class(&channel)?
         // abstract factory methods, later we'll have TLS/serial
         .static_method("create_tcp_client", &create_tcp_client_fn)?
         // read methods
@@ -147,7 +146,7 @@ pub(crate) fn build_channel_class(
         .doc("Abstract representation of a channel")?
         .build()?;
 
-    Ok(channel)
+    Ok(())
 }
 
 fn build_async_write_single_fn(
@@ -259,7 +258,8 @@ fn build_bit_read_callback(
     lib: &mut LibraryBuilder,
     common: &CommonDefinitions,
 ) -> Result<OneTimeCallbackHandle, BindingError> {
-    let bit_read_result = build_callback_struct(lib, &common.bit, &common.error_info)?;
+    let bit_read_result =
+        build_callback_struct(lib, &common.bit, &common.bit_iterator, &common.error_info)?;
     let bit_read_callback = lib
         .define_one_time_callback(
             "BitReadCallback",
@@ -281,7 +281,12 @@ fn build_register_read_callback(
     lib: &mut LibraryBuilder,
     common: &CommonDefinitions,
 ) -> Result<OneTimeCallbackHandle, BindingError> {
-    let read_result = build_callback_struct(lib, &common.register, &common.error_info)?;
+    let read_result = build_callback_struct(
+        lib,
+        &common.register,
+        &common.register_iterator,
+        &common.error_info,
+    )?;
     let read_callback = lib
         .define_one_time_callback(
             "RegisterReadCallback",
@@ -324,9 +329,9 @@ fn build_result_only_callback(
 fn build_callback_struct(
     lib: &mut LibraryBuilder,
     item_type: &NativeStructHandle,
+    iterator_type: &IteratorHandle,
     error_info: &NativeStructHandle,
 ) -> Result<NativeStructHandle, BindingError> {
-    let iter = build_iterator(lib, item_type)?;
     let callback_struct =
         lib.declare_native_struct(format!("{}ReadResult", item_type.declaration.name).as_str())?;
     let callback_struct = lib
@@ -338,32 +343,13 @@ fn build_callback_struct(
         )?
         .add(
             "iterator",
-            Type::Iterator(iter),
+            Type::Iterator(iterator_type.clone()),
             "iterator valid when result.summary == Ok",
         )?
         .doc("Result type returned when asynchronous operation completes or fails")?
         .build()?;
 
     Ok(callback_struct)
-}
-
-fn build_iterator(
-    lib: &mut LibraryBuilder,
-    value_type: &NativeStructHandle,
-) -> Result<IteratorHandle, BindingError> {
-    let base_name = value_type.declaration.name.clone();
-    let iterator = lib.declare_class(&format!("{}Iterator", base_name))?;
-    let iterator_next_fn = lib
-        .declare_native_function(&format!("next_{}", base_name.to_lowercase()))?
-        .param("it", Type::ClassRef(iterator), "iterator")?
-        .return_type(ReturnType::new(
-            Type::StructRef(value_type.declaration()),
-            "next value of the iterator or NULL if the iterator has reached the end",
-        ))?
-        .doc("advance the iterator")?
-        .build()?;
-
-    lib.define_iterator_with_lifetime(&iterator_next_fn, &value_type)
 }
 
 fn build_list(

@@ -22,11 +22,13 @@ pub(crate) fn define_logging(lib: &mut LibraryBuilder) -> Result<(), BindingErro
 
     let log_handler_interface = lib
         .define_interface("LogHandler", "Logging interface")?
+        // --- the on_message callback ---
         .callback("on_message", "Called when a message should be logged")?
         .param("level", Type::Enum(level.clone()), "Level of the message")?
         .param("message", Type::String, "Formatted log message")?
         .return_type(ReturnType::void())?
         .build()?
+        // ---
         .destroy_callback("on_destroy")?
         .build()?;
 

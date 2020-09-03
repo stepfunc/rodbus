@@ -14,4 +14,5 @@ readme = "../README.md"
 oo-bindgen = { git = "https://git@github.com/grid-io/oo_bindgen.git", branch = "master" }
 c-oo-bindgen = { git = "https://git@github.com/grid-io/oo_bindgen.git", branch = "master" }
 dotnet-oo-bindgen = { git = "https://git@github.com/grid-io/oo_bindgen.git", branch = "master" }
+java-oo-bindgen = { git = "https://git@github.com/grid-io/oo_bindgen.git", branch = "master" }
 rodbus-ffi-schema = { path = "../schema" }

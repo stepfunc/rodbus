@@ -1,5 +1,6 @@
 use oo_bindgen::class::ClassHandle;
-use oo_bindgen::native_function::Type;
+use oo_bindgen::iterator::IteratorHandle;
+use oo_bindgen::native_function::{ReturnType, Type};
 use oo_bindgen::native_struct::NativeStructHandle;
 use oo_bindgen::{BindingError, LibraryBuilder};
 
@@ -10,17 +11,24 @@ pub(crate) struct CommonDefinitions {
     pub(crate) request_param: NativeStructHandle,
     pub(crate) bit: NativeStructHandle,
     pub(crate) register: NativeStructHandle,
+    pub(crate) bit_iterator: IteratorHandle,
+    pub(crate) register_iterator: IteratorHandle,
 }
 
 impl CommonDefinitions {
     pub(crate) fn build(lib: &mut LibraryBuilder) -> Result<CommonDefinitions, BindingError> {
+        let bit = build_bit(lib)?;
+        let register = build_register(lib)?;
+
         Ok(Self {
             runtime_handle: crate::runtime::build_runtime_class(lib)?,
             error_info: build_error_info(lib)?,
             address_range: build_address_range(lib)?,
             request_param: build_request_param(lib)?,
-            bit: build_bit(lib)?,
-            register: build_register(lib)?,
+            bit: bit.clone(),
+            register: register.clone(),
+            bit_iterator: build_iterator(lib, &bit)?,
+            register_iterator: build_iterator(lib, &register)?,
         })
     }
 }
@@ -97,4 +105,23 @@ fn build_error_info(lib: &mut LibraryBuilder) -> Result<NativeStructHandle, Bind
         .build()?;
 
     Ok(info)
+}
+
+fn build_iterator(
+    lib: &mut LibraryBuilder,
+    value_type: &NativeStructHandle,
+) -> Result<IteratorHandle, BindingError> {
+    let base_name = value_type.declaration.name.clone();
+    let iterator = lib.declare_class(&format!("{}Iterator", base_name))?;
+    let iterator_next_fn = lib
+        .declare_native_function(&format!("next_{}", base_name.to_lowercase()))?
+        .param("it", Type::ClassRef(iterator), "iterator")?
+        .return_type(ReturnType::new(
+            Type::StructRef(value_type.declaration()),
+            "next value of the iterator or NULL if the iterator has reached the end",
+        ))?
+        .doc("advance the iterator")?
+        .build()?;
+
+    lib.define_iterator_with_lifetime(&iterator_next_fn, &value_type)
 }
