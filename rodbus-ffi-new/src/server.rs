@@ -1,13 +1,28 @@
 use rodbus::error::details::ExceptionCode;
 use rodbus::server::handler::ServerHandler;
+use rodbus::shutdown::TaskHandle;
 use rodbus::types::{
     Indexed, ReadBitsRange, ReadRegistersRange, UnitId, WriteCoils, WriteRegisters,
 };
 use std::collections::HashMap;
 use std::ptr::null_mut;
+use tokio::net::TcpListener;
 
 pub struct DeviceMap {
     inner: HashMap<u8, (crate::ffi::Sizes, crate::ffi::WriteHandler)>,
+}
+
+impl DeviceMap {
+    fn drain_and_convert(&mut self) -> rodbus::server::handler::ServerHandlerMap<EndpointHandler> {
+        let mut handlers = rodbus::server::handler::ServerHandlerMap::new();
+        for (key, value) in self.inner.drain() {
+            handlers.add(
+                UnitId::new(key),
+                EndpointHandler::new(value.1, value.0).wrap(),
+            );
+        }
+        handlers
+    }
 }
 
 struct EndpointHandler {
@@ -120,15 +135,21 @@ impl ServerHandler for EndpointHandler {
 }
 
 pub struct ServerHandle {
-    runtime: tokio::runtime::Handle,
-    server: rodbus::shutdown::TaskHandle,
+    _runtime: tokio::runtime::Handle,
+    _server: rodbus::shutdown::TaskHandle,
 }
 
-pub(crate) unsafe fn create_device_map(_runtime: *mut crate::Runtime) -> *mut DeviceMap {
-    null_mut()
+pub(crate) unsafe fn create_device_map() -> *mut DeviceMap {
+    Box::into_raw(Box::new(DeviceMap {
+        inner: HashMap::new(),
+    }))
 }
 
-pub(crate) unsafe fn destroy_device_map(_map: *mut DeviceMap) {}
+pub(crate) unsafe fn destroy_device_map(map: *mut DeviceMap) {
+    if !map.is_null() {
+        Box::from_raw(map);
+    }
+}
 
 pub(crate) unsafe fn map_add_endpoint(
     map: *mut DeviceMap,
@@ -155,7 +176,7 @@ pub(crate) unsafe fn create_tcp_server(
     address: *const std::os::raw::c_char,
     endpoints: *mut crate::DeviceMap,
 ) -> *mut crate::ServerHandle {
-    let runtime = match runtime.as_ref() {
+    let runtime = match runtime.as_mut() {
         Some(x) => x,
         None => {
             log::error!("runtime may not be NULL");
@@ -176,15 +197,30 @@ pub(crate) unsafe fn create_tcp_server(
         }
     };
 
-    let mut handlers = rodbus::server::handler::ServerHandlerMap::new();
-    for (key, value) in endpoints.inner.drain() {
-        handlers.add(
-            UnitId::new(key),
-            EndpointHandler::new(value.1, value.0).wrap(),
-        );
-    }
+    // at this point, we know that all the arguments are good, so we can go ahead and try to bind a listener
+    let listener = match runtime.block_on(TcpListener::bind(address)) {
+        Ok(x) => x,
+        Err(err) => {
+            log::error!("error binding listener: {}", err);
+            return null_mut();
+        }
+    };
 
-    null_mut()
+    let (tx, rx) = tokio::sync::mpsc::channel(1);
+    let task =
+        rodbus::server::create_tcp_server_task(rx, 100, listener, endpoints.drain_and_convert());
+    let join_handle = runtime.spawn(task);
+
+    let server_handle = ServerHandle {
+        _server: TaskHandle::new(tx, join_handle),
+        _runtime: runtime.handle().clone(),
+    };
+
+    Box::into_raw(Box::new(server_handle))
 }
 
-pub(crate) unsafe fn destroy_server(_server: *mut crate::ServerHandle) {}
+pub(crate) unsafe fn destroy_server(server: *mut crate::ServerHandle) {
+    if !server.is_null() {
+        Box::from_raw(server);
+    }
+}

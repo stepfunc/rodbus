@@ -70,11 +70,6 @@ pub(crate) fn build_handler_map(
 
     let create_map = lib
         .declare_native_function("create_device_map")?
-        .param(
-            "runtime",
-            Type::ClassRef(common.runtime_handle.declaration.clone()),
-            "Runtime on which the device will be bound to a server",
-        )?
         .return_type(ReturnType::Type(
             Type::ClassRef(device_map.clone()),
             "Device map instance".into(),
