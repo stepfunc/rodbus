@@ -1,29 +1,10 @@
 use rodbus::types::{AddressRange, WriteMultiple};
-use std::ffi::CStr;
-use std::net::SocketAddr;
 use std::os::raw::c_char;
 use std::ptr::null_mut;
-use std::str::FromStr;
 
 pub struct Channel {
     pub(crate) inner: rodbus::client::channel::Channel,
     pub(crate) runtime: tokio::runtime::Handle,
-}
-
-unsafe fn parse_socket_address(address: *const std::os::raw::c_char) -> Option<SocketAddr> {
-    match CStr::from_ptr(address).to_str() {
-        Err(err) => {
-            log::error!("address not UTF8: {}", err);
-            None
-        }
-        Ok(s) => match SocketAddr::from_str(s) {
-            Err(err) => {
-                log::error!("error parsing socket address: {}", err);
-                None
-            }
-            Ok(addr) => Some(addr),
-        },
-    }
 }
 
 pub(crate) unsafe fn create_tcp_client(
@@ -34,7 +15,7 @@ pub(crate) unsafe fn create_tcp_client(
     let rt = runtime.as_mut().unwrap();
 
     // if we can't turn the c-string into SocketAddr, return null
-    let addr = match parse_socket_address(address) {
+    let addr = match crate::helpers::parse::parse_socket_address(address) {
         Some(addr) => addr,
         None => return null_mut(),
     };

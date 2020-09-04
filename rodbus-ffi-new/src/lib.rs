@@ -5,11 +5,13 @@ mod logging;
 mod runtime;
 mod server;
 
-mod helpers {
+pub(crate) mod helpers {
     // From<T> implementations for FFI types
     mod conversions;
     // Additional impl for FFI types
     mod ext;
+    // parsing C strings into types
+    pub(crate) mod parse;
 }
 
 pub(crate) use channel::*;

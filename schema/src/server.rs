@@ -10,8 +10,54 @@ pub(crate) fn build(
     lib: &mut LibraryBuilder,
     common: &CommonDefinitions,
 ) -> Result<(), BindingError> {
-    let _handler_map = build_handler_map(lib, common)?;
+    let _server = build_server(lib, common)?;
     Ok(())
+}
+
+pub(crate) fn build_server(
+    lib: &mut LibraryBuilder,
+    common: &CommonDefinitions,
+) -> Result<ClassHandle, BindingError> {
+    let handler_map = build_handler_map(lib, common)?;
+
+    let server_handle = lib.declare_class("ServerHandle")?;
+
+    let create_fn = lib
+        .declare_native_function("create_tcp_server")?
+        .param(
+            "runtime",
+            Type::ClassRef(common.runtime_handle.declaration.clone()),
+            "runtime on which to spawn the server",
+        )?
+        .param("address", Type::String, "IPv4 or IPv6 host/port string")?
+        .param(
+            "endpoints",
+            Type::ClassRef(handler_map.declaration.clone()),
+            "map of endpoints, destroyed upon passing to this function",
+        )?
+        .return_type(ReturnType::Type(
+            Type::ClassRef(server_handle.clone()),
+            "handle to the server".into(),
+        ))?
+        .doc("Launch a TCP server to handle")?
+        .build()?;
+
+    let destroy_fn = lib
+        .declare_native_function("destroy_server")?
+        .param(
+            "server",
+            Type::ClassRef(server_handle.clone()),
+            "handle of the server to destroy",
+        )?
+        .return_type(ReturnType::void())?
+        .doc("destroy a running server via its handle")?
+        .build()?;
+
+    lib.define_class(&server_handle)?
+        .constructor(&create_fn)?
+        .destructor(&destroy_fn)?
+        .doc("Server handle, the server remains alive until this reference is destroyed")?
+        .build()
 }
 
 pub(crate) fn build_handler_map(
