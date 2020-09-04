@@ -33,7 +33,7 @@ pub(crate) fn build_server(
         .param(
             "endpoints",
             Type::ClassRef(handler_map.declaration.clone()),
-            "map of endpoints, destroyed upon passing to this function",
+            "map of endpoints which is emptied upon passing to this function",
         )?
         .return_type(ReturnType::Type(
             Type::ClassRef(server_handle.clone()),
