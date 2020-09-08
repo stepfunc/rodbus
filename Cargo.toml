@@ -1,9 +1,9 @@
 [workspace]
 
 members = [
-  "bindings",
   "rodbus",
   "rodbus-client",
-  "rodbus-ffi",
-  "schema"
+  "ffi/bindings",
+  "ffi/rodbus-ffi",
+  "ffi/schema"
 ]

@@ -14,7 +14,7 @@ readme = "../README.md"
 crate-type = ["cdylib"]
 
 [dependencies]
-rodbus = { path = "../rodbus" }
+rodbus = { path = "../../rodbus" }
 log = "0.4"
 tokio = { version = "^0.2.11", features = ["rt-threaded"]}
 
