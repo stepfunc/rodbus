@@ -1,10 +1,10 @@
 [package]
-name = "rodbus-ffi-new"
+name = "rodbus-ffi"
 version = "0.1.1"
 authors = ["Adam Crain <adam@stepfunc.io>", "Émile Grégoire <emile@stepfunc.io>"]
 edition = "2018"
 license = "GPL-3.0-only"
-description = "C bindings for Rodbus"
+description = "FFI for Rodbus"
 keywords = ["ffi", "c", "modbus", "ics", "industrial", "plc", "security"]
 categories = ["network-programming"]
 repository = "https://www.github.com/automatak/rodbus"
