@@ -4,10 +4,14 @@
 [![docs.rs](https://docs.rs/rodbus/badge.svg)](https://docs.rs/rodbus)
 ![MSRV](https://img.shields.io/badge/rustc-1.39+-blue.svg) [![Build status](https://github.com/automatak/rodbus/workflows/CI/badge.svg)](https://github.com/automatak/rodbus/actions)
 [![Codecov](https://codecov.io/gh/automatak/rodbus/graph/badge.svg)](https://codecov.io/gh/automatak/rodbus)
-![License](https://img.shields.io/github/license/automatak/rodbus)
 
 [Rust](https://www.rust-lang.org/) async/await implementation of the [Modbus](http://www.modbus.org/) protocol using
-[Tokio](https://tokio.rs/) with seamless C/C++ interoperability.
+[Tokio](https://tokio.rs/) with idiomatic bindings for C/C++, Java, and .NET Core.
+
+# license 
+
+Refer to `License.txt` for the terms of the non-commercial license.  This software is "source available", but is not
+"open source". You must purchase a commercial license to use this software for profit.
 
 ## Library
 
