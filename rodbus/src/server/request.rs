@@ -6,7 +6,6 @@ use crate::error::details::ExceptionCode;
 use crate::error::Error;
 use crate::server::handler::ServerHandler;
 use crate::server::response::{ErrorResponse, Response};
-use crate::server::validator::Validator;
 use crate::tcp::frame::MBAPFormatter;
 use crate::types::*;
 
@@ -38,7 +37,7 @@ impl<'a> Request<'a> {
     pub(crate) fn get_reply<'b, T>(
         self,
         header: FrameHeader,
-        handler: &mut Validator<T>,
+        handler: &mut T,
         writer: &'b mut MBAPFormatter,
     ) -> Result<&'b [u8], Error>
     where
@@ -61,27 +60,55 @@ impl<'a> Request<'a> {
 
         let function = self.get_function();
         match self {
-            Request::ReadCoils(range) => {
-                serialize(function, header, writer, handler.read_coils(range))
+            Request::ReadCoils(_range) => {
+                writer.format(
+                    header,
+                    &ErrorResponse::new(function, ExceptionCode::IllegalFunction),
+                )
+                //serialize(function, header, writer, handler.read_coils(range))
             }
-            Request::ReadDiscreteInputs(range) => serialize(
-                function,
-                header,
-                writer,
-                handler.read_discrete_inputs(range),
-            ),
-            Request::ReadHoldingRegisters(range) => serialize(
-                function,
-                header,
-                writer,
-                handler.read_holding_registers(range),
-            ),
-            Request::ReadInputRegisters(range) => serialize(
-                function,
-                header,
-                writer,
-                handler.read_input_registers(range),
-            ),
+            Request::ReadDiscreteInputs(_range) => {
+                writer.format(
+                    header,
+                    &ErrorResponse::new(function, ExceptionCode::IllegalFunction),
+                )
+                /*
+                serialize(
+                    function,
+                    header,
+                    writer,
+                    handler.read_discrete_inputs(range),
+                )
+                */
+            }
+            Request::ReadHoldingRegisters(_range) => {
+                writer.format(
+                    header,
+                    &ErrorResponse::new(function, ExceptionCode::IllegalFunction),
+                )
+                /*
+                serialize(
+                    function,
+                    header,
+                    writer,
+                    handler.read_holding_registers(range),
+                )
+                */
+            }
+            Request::ReadInputRegisters(_range) => {
+                writer.format(
+                    header,
+                    &ErrorResponse::new(function, ExceptionCode::IllegalFunction),
+                )
+                /*
+                serialize(
+                    function,
+                    header,
+                    writer,
+                    handler.read_input_registers(range),
+                )
+                */
+            }
             Request::WriteSingleCoil(request) => serialize(
                 function,
                 header,

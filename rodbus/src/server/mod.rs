@@ -9,7 +9,6 @@ pub mod handler;
 pub(crate) mod request;
 pub(crate) mod response;
 pub(crate) mod task;
-pub(crate) mod validator;
 
 /// Spawns a TCP server task onto the runtime. This method can only
 /// be called from within the runtime context. Use [`create_tcp_server_task`]

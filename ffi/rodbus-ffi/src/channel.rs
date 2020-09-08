@@ -54,7 +54,7 @@ pub(crate) unsafe fn channel_read_coils_async(
         }
     };
 
-    let callback = callback.to_fn_once();
+    let callback = callback.convert_to_fn_once();
 
     let range = match AddressRange::try_from(range.start, range.count) {
         Err(err) => {
@@ -85,7 +85,7 @@ pub(crate) unsafe fn channel_read_discrete_inputs_async(
         }
     };
 
-    let callback = callback.to_fn_once();
+    let callback = callback.convert_to_fn_once();
 
     let range = match AddressRange::try_from(range.start, range.count) {
         Err(err) => {
@@ -116,7 +116,7 @@ pub(crate) unsafe fn channel_read_holding_registers_async(
         }
     };
 
-    let callback = callback.to_fn_once();
+    let callback = callback.convert_to_fn_once();
 
     let range = match AddressRange::try_from(range.start, range.count) {
         Err(err) => {
@@ -147,7 +147,7 @@ pub(crate) unsafe fn channel_read_input_registers_async(
         }
     };
 
-    let callback = callback.to_fn_once();
+    let callback = callback.convert_to_fn_once();
 
     let range = match AddressRange::try_from(range.start, range.count) {
         Err(err) => {
@@ -182,7 +182,7 @@ pub(crate) unsafe fn channel_write_single_coil_async(
 
     channel
         .runtime
-        .block_on(session.write_single_coil(bit.into(), callback.to_fn_once()));
+        .block_on(session.write_single_coil(bit.into(), callback.convert_to_fn_once()));
 }
 
 pub(crate) unsafe fn channel_write_single_register_async(
@@ -203,7 +203,7 @@ pub(crate) unsafe fn channel_write_single_register_async(
 
     channel
         .runtime
-        .block_on(session.write_single_register(register.into(), callback.to_fn_once()));
+        .block_on(session.write_single_register(register.into(), callback.convert_to_fn_once()));
 }
 
 pub(crate) unsafe fn channel_write_multiple_coils_async(
@@ -229,7 +229,7 @@ pub(crate) unsafe fn channel_write_multiple_coils_async(
         }
     };
 
-    let callback = callback.to_fn_once();
+    let callback = callback.convert_to_fn_once();
 
     let argument = match WriteMultiple::from(start, items.inner.clone()) {
         Ok(x) => x,
@@ -269,7 +269,7 @@ pub(crate) unsafe fn channel_write_multiple_registers_async(
         }
     };
 
-    let callback = callback.to_fn_once();
+    let callback = callback.convert_to_fn_once();
 
     let argument = match WriteMultiple::from(start, items.inner.clone()) {
         Ok(x) => x,

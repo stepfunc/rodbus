@@ -91,7 +91,7 @@ pub(crate) fn build(
         lib,
         common,
         &channel,
-        &result_only_callback.clone(),
+        &result_only_callback,
         &common.bit,
         "write a single coil",
     )?;
@@ -101,7 +101,7 @@ pub(crate) fn build(
         lib,
         common,
         &channel,
-        &result_only_callback.clone(),
+        &result_only_callback,
         &common.register,
         "write a single register",
     )?;
@@ -123,7 +123,7 @@ pub(crate) fn build(
         lib,
         common,
         &channel,
-        &result_only_callback.clone(),
+        &result_only_callback,
         &list_of_register,
         "write multiple registers",
     )?;
@@ -388,19 +388,13 @@ fn build_list(
         .declare_native_function(&format!("{}_list_add", name.to_lowercase()))?
         .param(
             "list",
-            Type::ClassRef(list_class.clone()),
+            Type::ClassRef(list_class),
             "list to which to add the item",
         )?
-        .param("item", value_type.clone(), "item to add to the list")?
+        .param("item", value_type, "item to add to the list")?
         .return_type(ReturnType::void())?
         .doc("Add an item to the list")?
         .build()?;
 
     lib.define_collection(&create_fn, &destroy_fn, &add_fn)
-    /*
-    .doc(format!("List of items of type {}", name).as_str())?
-
-
-    .build()
-     */
 }

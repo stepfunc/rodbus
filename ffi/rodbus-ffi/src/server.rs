@@ -1,9 +1,7 @@
 use rodbus::error::details::ExceptionCode;
 use rodbus::server::handler::ServerHandler;
 use rodbus::shutdown::TaskHandle;
-use rodbus::types::{
-    Indexed, ReadBitsRange, ReadRegistersRange, UnitId, WriteCoils, WriteRegisters,
-};
+use rodbus::types::{Indexed, UnitId, WriteCoils, WriteRegisters};
 use std::collections::HashMap;
 use std::ptr::null_mut;
 use tokio::net::TcpListener;
@@ -27,44 +25,25 @@ impl DeviceMap {
 
 struct EndpointHandler {
     write_handler: crate::ffi::WriteHandler,
-    coils: Box<[bool]>,
-    discrete_inputs: Box<[bool]>,
-    holding_registers: Box<[u16]>,
-    input_registers: Box<[u16]>,
+    _coils: Box<[bool]>,
+    _discrete_inputs: Box<[bool]>,
+    _holding_registers: Box<[u16]>,
+    _input_registers: Box<[u16]>,
 }
 
 impl EndpointHandler {
     fn new(write_handler: crate::ffi::WriteHandler, sizes: crate::ffi::Sizes) -> Self {
         Self {
             write_handler,
-            coils: vec![false; sizes.num_coils as usize].into_boxed_slice(),
-            discrete_inputs: vec![false; sizes.num_discrete_inputs as usize].into_boxed_slice(),
-            holding_registers: vec![0; sizes.num_holding_registers as usize].into_boxed_slice(),
-            input_registers: vec![0; sizes.num_input_registers as usize].into_boxed_slice(),
+            _coils: vec![false; sizes.num_coils as usize].into_boxed_slice(),
+            _discrete_inputs: vec![false; sizes.num_discrete_inputs as usize].into_boxed_slice(),
+            _holding_registers: vec![0; sizes.num_holding_registers as usize].into_boxed_slice(),
+            _input_registers: vec![0; sizes.num_input_registers as usize].into_boxed_slice(),
         }
     }
 }
 
 impl ServerHandler for EndpointHandler {
-    fn read_coils(&mut self, range: ReadBitsRange) -> Result<&[bool], ExceptionCode> {
-        Self::get_range_of(self.coils.as_ref(), range.get())
-    }
-
-    fn read_discrete_inputs(&mut self, range: ReadBitsRange) -> Result<&[bool], ExceptionCode> {
-        Self::get_range_of(self.discrete_inputs.as_ref(), range.get())
-    }
-
-    fn read_holding_registers(
-        &mut self,
-        range: ReadRegistersRange,
-    ) -> Result<&[u16], ExceptionCode> {
-        Self::get_range_of(self.holding_registers.as_ref(), range.get())
-    }
-
-    fn read_input_registers(&mut self, range: ReadRegistersRange) -> Result<&[u16], ExceptionCode> {
-        Self::get_range_of(self.input_registers.as_ref(), range.get())
-    }
-
     fn write_single_coil(&mut self, value: Indexed<bool>) -> Result<(), ExceptionCode> {
         match self
             .write_handler

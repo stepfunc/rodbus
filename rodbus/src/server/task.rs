@@ -8,7 +8,6 @@ use crate::error::*;
 use crate::server::handler::{ServerHandler, ServerHandlerMap};
 use crate::server::request::Request;
 use crate::server::response::ErrorResponse;
-use crate::server::validator::Validator;
 use crate::tcp::frame::{MBAPFormatter, MBAPParser};
 
 pub(crate) struct SessionTask<T, U>
@@ -116,8 +115,7 @@ where
         // get the reply data (or exception reply)
         let reply_frame: &[u8] = {
             let mut lock = handler.lock().await;
-            let mut validator = Validator::wrap(lock.as_mut());
-            request.get_reply(frame.header, &mut validator, &mut self.writer)?
+            request.get_reply(frame.header, lock.as_mut(), &mut self.writer)?
         };
 
         // reply with the bytes

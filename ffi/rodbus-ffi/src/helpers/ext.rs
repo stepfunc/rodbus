@@ -13,10 +13,9 @@ impl crate::ffi::BitReadCallback {
         self.on_complete(result);
     }
 
-    pub(crate) fn to_fn_once(
+    pub(crate) fn convert_to_fn_once(
         self,
-    ) -> impl FnOnce(std::result::Result<rodbus::types::BitIterator, rodbus::error::Error>) -> ()
-    {
+    ) -> impl FnOnce(std::result::Result<rodbus::types::BitIterator, rodbus::error::Error>) {
         move |result: std::result::Result<rodbus::types::BitIterator, rodbus::error::Error>| {
             match result {
                 Err(err) => {
@@ -58,9 +57,9 @@ impl crate::ffi::RegisterReadCallback {
         self.on_complete(result);
     }
 
-    pub(crate) fn to_fn_once(
+    pub(crate) fn convert_to_fn_once(
         self,
-    ) -> impl FnOnce(std::result::Result<rodbus::types::RegisterIterator, rodbus::error::Error>) -> ()
+    ) -> impl FnOnce(std::result::Result<rodbus::types::RegisterIterator, rodbus::error::Error>)
     {
         move |result: std::result::Result<rodbus::types::RegisterIterator, rodbus::error::Error>| {
             match result {
@@ -90,9 +89,9 @@ impl crate::ffi::ResultCallback {
     }
 
     /// we do't care what type T is b/c we're going to ignore it
-    pub(crate) fn to_fn_once<T>(
+    pub(crate) fn convert_to_fn_once<T>(
         self,
-    ) -> impl FnOnce(std::result::Result<T, rodbus::error::Error>) -> () {
+    ) -> impl FnOnce(std::result::Result<T, rodbus::error::Error>) {
         move |result: std::result::Result<T, rodbus::error::Error>| match result {
             Err(err) => {
                 self.on_complete(err.into());
