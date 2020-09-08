@@ -4,7 +4,6 @@ members = [
   "bindings",
   "rodbus",
   "rodbus-client",
-  "rodbus-ffi",
   "rodbus-ffi-new",
   "schema"
 ]
