@@ -43,7 +43,7 @@ impl<'a> Request<'a> {
     where
         T: ServerHandler,
     {
-        fn serialize<T>(
+        fn serialize_result<T>(
             function: FunctionCode,
             header: FrameHeader,
             writer: &mut MBAPFormatter,
@@ -109,25 +109,25 @@ impl<'a> Request<'a> {
                 )
                 */
             }
-            Request::WriteSingleCoil(request) => serialize(
+            Request::WriteSingleCoil(request) => serialize_result(
                 function,
                 header,
                 writer,
                 handler.write_single_coil(request).map(|_| request),
             ),
-            Request::WriteSingleRegister(request) => serialize(
+            Request::WriteSingleRegister(request) => serialize_result(
                 function,
                 header,
                 writer,
                 handler.write_single_register(request).map(|_| request),
             ),
-            Request::WriteMultipleCoils(items) => serialize(
+            Request::WriteMultipleCoils(items) => serialize_result(
                 function,
                 header,
                 writer,
                 handler.write_multiple_coils(items).map(|_| items.range),
             ),
-            Request::WriteMultipleRegisters(items) => serialize(
+            Request::WriteMultipleRegisters(items) => serialize_result(
                 function,
                 header,
                 writer,

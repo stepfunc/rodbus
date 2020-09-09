@@ -29,19 +29,19 @@ impl Handler {
 }
 
 impl ServerHandler for Handler {
-    fn read_coil(&mut self, _address: u16) -> Result<bool, ExceptionCode> {
+    fn read_coil(&self, _address: u16) -> Result<bool, ExceptionCode> {
         Ok(true)
     }
 
-    fn read_discrete_input(&mut self, _address: u16) -> Result<bool, ExceptionCode> {
+    fn read_discrete_input(&self, _address: u16) -> Result<bool, ExceptionCode> {
         Ok(true)
     }
 
-    fn read_holding_register(&mut self, _address: u16) -> Result<u16, ExceptionCode> {
+    fn read_holding_register(&self, _address: u16) -> Result<u16, ExceptionCode> {
         Ok(0xDEAD)
     }
 
-    fn read_input_register(&mut self, _address: u16) -> Result<u16, ExceptionCode> {
+    fn read_input_register(&self, _address: u16) -> Result<u16, ExceptionCode> {
         Ok(0xBEEF)
     }
 

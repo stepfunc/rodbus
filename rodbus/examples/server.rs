@@ -34,19 +34,19 @@ impl SimpleHandler {
 }
 
 impl ServerHandler for SimpleHandler {
-    fn read_coil(&mut self, address: u16) -> Result<bool, details::ExceptionCode> {
+    fn read_coil(&self, address: u16) -> Result<bool, details::ExceptionCode> {
         Self::convert(self.coils.get(address as usize))
     }
 
-    fn read_discrete_input(&mut self, address: u16) -> Result<bool, details::ExceptionCode> {
+    fn read_discrete_input(&self, address: u16) -> Result<bool, details::ExceptionCode> {
         Self::convert(self.discrete_inputs.get(address as usize))
     }
 
-    fn read_holding_register(&mut self, address: u16) -> Result<u16, details::ExceptionCode> {
+    fn read_holding_register(&self, address: u16) -> Result<u16, details::ExceptionCode> {
         Self::convert(self.holding_registers.get(address as usize))
     }
 
-    fn read_input_register(&mut self, address: u16) -> Result<u16, details::ExceptionCode> {
+    fn read_input_register(&self, address: u16) -> Result<u16, details::ExceptionCode> {
         Self::convert(self.input_registers.get(address as usize))
     }
 

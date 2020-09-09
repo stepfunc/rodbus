@@ -12,7 +12,7 @@ struct Handler {
     coils: [bool; 100],
 }
 impl ServerHandler for Handler {
-    fn read_coil(&mut self, address: u16) -> Result<bool, ExceptionCode> {
+    fn read_coil(&self, address: u16) -> Result<bool, ExceptionCode> {
         match self.coils.get(address as usize) {
             Some(x) => Ok(*x),
             None => Err(ExceptionCode::IllegalDataAddress),

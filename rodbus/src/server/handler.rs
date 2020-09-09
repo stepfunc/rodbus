@@ -28,22 +28,22 @@ pub trait ServerHandler: Send + 'static {
     }
 
     /// Read single coil or return an ExceptionCode
-    fn read_coil(&mut self, _address: u16) -> Result<bool, ExceptionCode> {
+    fn read_coil(&self, _address: u16) -> Result<bool, ExceptionCode> {
         Err(ExceptionCode::IllegalFunction)
     }
 
     /// Read single discrete input or return an ExceptionCode
-    fn read_discrete_input(&mut self, _address: u16) -> Result<bool, ExceptionCode> {
+    fn read_discrete_input(&self, _address: u16) -> Result<bool, ExceptionCode> {
         Err(ExceptionCode::IllegalFunction)
     }
 
     /// Read single holding register or return an ExceptionCode
-    fn read_holding_register(&mut self, _address: u16) -> Result<u16, ExceptionCode> {
+    fn read_holding_register(&self, _address: u16) -> Result<u16, ExceptionCode> {
         Err(ExceptionCode::IllegalFunction)
     }
 
     /// Read single input register or return an ExceptionCode
-    fn read_input_register(&mut self, _address: u16) -> Result<u16, ExceptionCode> {
+    fn read_input_register(&self, _address: u16) -> Result<u16, ExceptionCode> {
         Err(ExceptionCode::IllegalFunction)
     }
 
