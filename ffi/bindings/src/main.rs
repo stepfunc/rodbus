@@ -15,7 +15,7 @@ fn generate_c_bindings(lib: &Library) {
 
     let config = CBindgenConfig {
         output_dir: PathBuf::from("C:\\Users\\Adam\\Documents\\code\\rodbus\\generated\\c"),
-        ffi_name: "rodbus_ffi_new".to_string(),
+        ffi_name: "rodbus_ffi".to_string(),
         platforms,
         generate_doc: false,
     };
@@ -32,7 +32,7 @@ fn generate_csharp_bindings(lib: &Library) {
 
     let config = DotnetBindgenConfig {
         output_dir: PathBuf::from("C:\\Users\\Adam\\Documents\\code\\rodbus\\generated\\dotnet"),
-        ffi_name: "rodbus_ffi_new".to_string(),
+        ffi_name: "rodbus_ffi".to_string(),
         platforms,
     };
 
@@ -48,7 +48,7 @@ fn generate_java_bindings(lib: &Library) {
 
     let config = JavaBindgenConfig {
         output_dir: PathBuf::from("C:\\Users\\Adam\\Documents\\code\\rodbus\\generated\\java"),
-        ffi_name: "rodbus_ffi_new".to_string(),
+        ffi_name: "rodbus_ffi".to_string(),
         group_id: "io.stepfunc".to_string(),
         platforms,
     };
