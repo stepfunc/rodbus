@@ -145,7 +145,7 @@ impl FrameFormatter for MBAPFormatter {
     }
 
     fn get_option_impl(&self, size: usize) -> Option<&[u8]> {
-        return self.buffer.get(..size);
+        self.buffer.get(..size)
     }
 }
 
