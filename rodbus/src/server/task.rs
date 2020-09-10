@@ -41,12 +41,12 @@ where
         }
     }
 
-    async fn reply_with_exception(
+    async fn reply_with_error(
         &mut self,
         header: FrameHeader,
-        response: ErrorResponse,
+        err: ErrorResponse,
     ) -> Result<(), Error> {
-        let bytes = self.writer.format(header, &response)?;
+        let bytes = self.writer.error(header, err)?;
         self.io.write_all(bytes).await?;
         Ok(())
     }
@@ -93,7 +93,7 @@ where
                 None => {
                     log::warn!("received unknown function code: {}", value);
                     return self
-                        .reply_with_exception(frame.header, ErrorResponse::unknown_function(value))
+                        .reply_with_error(frame.header, ErrorResponse::unknown_function(value))
                         .await;
                 }
             },
@@ -103,9 +103,10 @@ where
             Ok(x) => x,
             Err(err) => {
                 log::warn!("error parsing {:?} request: {}", function, err);
-                let reply = self.writer.format(
+                let reply = self.writer.exception(
                     frame.header,
-                    &ErrorResponse::new(function, ExceptionCode::IllegalDataValue),
+                    function,
+                    ExceptionCode::IllegalDataValue,
                 )?;
                 self.io.write_all(reply).await?;
                 return Ok(());

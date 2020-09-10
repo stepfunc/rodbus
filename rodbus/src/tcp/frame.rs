@@ -117,7 +117,7 @@ impl FrameParser for MBAPParser {
 }
 
 impl FrameFormatter for MBAPFormatter {
-    fn format(&mut self, header: FrameHeader, msg: &dyn Serialize) -> Result<&[u8], Error> {
+    fn format_impl(&mut self, header: FrameHeader, msg: &dyn Serialize) -> Result<usize, Error> {
         let mut cursor = WriteCursor::new(self.buffer.as_mut());
         cursor.write_u16_be(header.tx_id.to_u16())?;
         cursor.write_u16_be(0)?;
@@ -141,7 +141,11 @@ impl FrameFormatter for MBAPFormatter {
 
         let total_length = constants::HEADER_LENGTH + adu_length;
 
-        Ok(&self.buffer[..total_length])
+        Ok(total_length)
+    }
+
+    fn get_option_impl(&self, size: usize) -> Option<&[u8]> {
+        return self.buffer.get(..size);
     }
 }
 
@@ -197,7 +201,8 @@ mod tests {
         let mut formatter = MBAPFormatter::new();
         let msg = MockMessage { a: 0x03, b: 0x04 };
         let header = FrameHeader::new(UnitId::new(42), TxId::new(7));
-        let output = formatter.format(header, &msg).unwrap();
+        let size = formatter.format_impl(header, &msg).unwrap();
+        let output = formatter.get_option_impl(size).unwrap();
 
         assert_eq!(output, SIMPLE_FRAME)
     }

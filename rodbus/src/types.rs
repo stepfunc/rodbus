@@ -260,6 +260,10 @@ impl AddressRange {
         start..end
     }
 
+    pub(crate) fn iter(&self) -> impl Iterator<Item = u16> {
+        AddressIterator::new(self.start, self.count)
+    }
+
     pub(crate) fn of_read_bits(self) -> Result<ReadBitsRange, InvalidRange> {
         Ok(ReadBitsRange {
             inner: self.limited_count(crate::constants::limits::MAX_READ_COILS_COUNT)?,
@@ -277,6 +281,33 @@ impl AddressRange {
             return Err(InvalidRange::CountTooLargeForType(self.count, limit));
         }
         Ok(self)
+    }
+}
+
+pub(crate) struct AddressIterator {
+    pub(crate) current: u16,
+    pub(crate) remain: u16,
+}
+
+impl AddressIterator {
+    pub(crate) fn new(current: u16, remain: u16) -> Self {
+        Self { current, remain }
+    }
+}
+
+impl Iterator for AddressIterator {
+    type Item = u16;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.remain.checked_sub(1) {
+            Some(x) => {
+                let ret = self.current;
+                self.current += 1;
+                self.remain = x;
+                Some(ret)
+            }
+            None => None,
+        }
     }
 }
 

@@ -1,8 +1,11 @@
 use tokio::io::AsyncRead;
 
 use crate::common::buffer::ReadBuffer;
+use crate::common::function::FunctionCode;
 use crate::common::traits::Serialize;
+use crate::error::details::{ExceptionCode, InternalError};
 use crate::error::Error;
+use crate::server::response::{ErrorResponse, Response};
 use crate::types::UnitId;
 
 pub(crate) mod constants {
@@ -101,7 +104,58 @@ pub(crate) trait FrameParser {
 }
 
 pub(crate) trait FrameFormatter {
-    fn format(&mut self, header: FrameHeader, msg: &dyn Serialize) -> Result<&[u8], Error>;
+    // internal only
+    fn format_impl(&mut self, header: FrameHeader, msg: &dyn Serialize) -> Result<usize, Error>;
+    fn get_option_impl(&self, size: usize) -> Option<&[u8]>;
+    fn get_impl(&self, len: usize) -> Result<&[u8], Error> {
+        match self.get_option_impl(len) {
+            Some(x) => Ok(x),
+            None => Err(InternalError::BadSeekOperation.into()), // TODO - proper error?
+        }
+    }
+
+    // try to serialize a successful response, and if it fails with an exception code, write the exception instead
+    fn format<T>(
+        &mut self,
+        header: FrameHeader,
+        function: FunctionCode,
+        msg: &T,
+    ) -> Result<&[u8], Error>
+    where
+        T: Serialize,
+    {
+        let response = Response::new(function, msg);
+        match self.format_impl(header, &response) {
+            Ok(count) => self.get_impl(count),
+            Err(err) => match err {
+                Error::Exception(ex) => self.exception(header, function, ex),
+                _ => Err(err),
+            },
+        }
+    }
+
+    // make a single effort to serialize an exception response
+    fn exception(
+        &mut self,
+        header: FrameHeader,
+        function: FunctionCode,
+        ex: ExceptionCode,
+    ) -> Result<&[u8], Error> {
+        self.error(header, ErrorResponse::new(function, ex))
+    }
+
+    // make a single effort to serialize an exception response
+    fn error(&mut self, header: FrameHeader, response: ErrorResponse) -> Result<&[u8], Error> {
+        let len = self.format_impl(header, &response)?;
+        self.get_impl(len)
+    }
+
+    // make a single effort to serialize an exception response
+    fn unknown_function(&mut self, header: FrameHeader, unknown: u8) -> Result<&[u8], Error> {
+        let response = ErrorResponse::unknown_function(unknown);
+        let len = self.format_impl(header, &response)?;
+        self.get_impl(len)
+    }
 }
 
 pub(crate) struct FramedReader<T>

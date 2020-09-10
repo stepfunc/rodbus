@@ -79,9 +79,11 @@ impl ClientLoop {
         T: AsyncRead + AsyncWrite + Unpin,
     {
         let tx_id = self.tx_id.next();
-        let bytes = self
-            .formatter
-            .format(FrameHeader::new(request.id, tx_id), &request.details)?;
+        let bytes = self.formatter.format(
+            FrameHeader::new(request.id, tx_id),
+            request.details.function(),
+            &request.details,
+        )?;
 
         io.write_all(bytes).await?;
 
@@ -143,7 +145,6 @@ mod tests {
     use crate::common::function::FunctionCode;
     use crate::common::traits::Serialize;
     use crate::error::details::FrameParseError;
-    use crate::server::response::Response;
     use crate::types::{AddressRange, Indexed, UnitId};
 
     struct ClientFixture {
@@ -178,13 +179,13 @@ mod tests {
         }
     }
 
-    fn get_framed_adu<T>(f: FunctionCode, payload: &T) -> Vec<u8>
+    fn get_framed_adu<T>(function: FunctionCode, payload: &T) -> Vec<u8>
     where
         T: Serialize + Sized,
     {
         let mut fmt = MBAPFormatter::new();
         let header = FrameHeader::new(UnitId::new(1), TxId::new(0));
-        let bytes = fmt.format(header, &Response::new(f, payload)).unwrap();
+        let bytes = fmt.format(header, function, payload).unwrap();
         Vec::from(bytes)
     }
 

@@ -29,20 +29,32 @@ impl Handler {
 }
 
 impl ServerHandler for Handler {
-    fn read_coil(&self, _address: u16) -> Result<bool, ExceptionCode> {
-        Ok(true)
+    fn read_coil(&self, address: u16) -> Result<bool, ExceptionCode> {
+        match self.coils.get(address as usize) {
+            Some(x) => Ok(*x),
+            None => Err(ExceptionCode::IllegalDataAddress),
+        }
     }
 
-    fn read_discrete_input(&self, _address: u16) -> Result<bool, ExceptionCode> {
-        Ok(true)
+    fn read_discrete_input(&self, address: u16) -> Result<bool, ExceptionCode> {
+        match self.discrete_inputs.get(address as usize) {
+            Some(x) => Ok(*x),
+            None => Err(ExceptionCode::IllegalDataAddress),
+        }
     }
 
-    fn read_holding_register(&self, _address: u16) -> Result<u16, ExceptionCode> {
-        Ok(0xDEAD)
+    fn read_holding_register(&self, address: u16) -> Result<u16, ExceptionCode> {
+        match self.holding_registers.get(address as usize) {
+            Some(x) => Ok(*x),
+            None => Err(ExceptionCode::IllegalDataAddress),
+        }
     }
 
-    fn read_input_register(&self, _address: u16) -> Result<u16, ExceptionCode> {
-        Ok(0xBEEF)
+    fn read_input_register(&self, address: u16) -> Result<u16, ExceptionCode> {
+        match self.input_registers.get(address as usize) {
+            Some(x) => Ok(*x),
+            None => Err(ExceptionCode::IllegalDataAddress),
+        }
     }
 
     fn write_single_coil(&mut self, value: Indexed<bool>) -> Result<(), details::ExceptionCode> {
@@ -148,6 +160,7 @@ async fn test_requests_and_responses() {
             .unwrap(),
         Indexed::new(1, 0xABCD)
     );
+
     assert_eq!(
         session
             .read_holding_registers(AddressRange::try_from(0, 2).unwrap())

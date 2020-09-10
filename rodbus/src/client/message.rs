@@ -121,7 +121,6 @@ impl RequestDetails {
 
 impl Serialize for RequestDetails {
     fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), Error> {
-        cursor.write_u8(self.function().get_value())?;
         match self {
             RequestDetails::ReadCoils(x) => x.serialize(cursor),
             RequestDetails::ReadDiscreteInputs(x) => x.serialize(cursor),
