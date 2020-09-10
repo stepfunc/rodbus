@@ -28,7 +28,7 @@ impl Handler {
     }
 }
 
-impl ServerHandler for Handler {
+impl RequestHandler for Handler {
     fn read_coil(&self, address: u16) -> Result<bool, ExceptionCode> {
         match self.coils.get(address as usize) {
             Some(x) => Ok(*x),

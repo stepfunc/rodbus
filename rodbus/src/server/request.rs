@@ -4,7 +4,7 @@ use crate::common::function::FunctionCode;
 use crate::common::traits::{Parse, Serialize};
 use crate::error::details::ExceptionCode;
 use crate::error::Error;
-use crate::server::handler::ServerHandler;
+use crate::server::handler::RequestHandler;
 use crate::server::response::{BitWriter, RegisterWriter};
 use crate::tcp::frame::MBAPFormatter;
 use crate::types::*;
@@ -41,7 +41,7 @@ impl<'a> Request<'a> {
         writer: &'b mut MBAPFormatter,
     ) -> Result<&'b [u8], Error>
     where
-        T: ServerHandler,
+        T: RequestHandler,
     {
         fn serialize_result<T>(
             function: FunctionCode,

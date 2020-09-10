@@ -33,7 +33,7 @@ impl SimpleHandler {
     }
 }
 
-impl ServerHandler for SimpleHandler {
+impl RequestHandler for SimpleHandler {
     fn read_coil(&self, address: u16) -> Result<bool, details::ExceptionCode> {
         Self::convert(self.coils.get(address as usize))
     }

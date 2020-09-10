@@ -17,7 +17,7 @@ use crate::types::*;
 ///
 /// [`ExceptionCode::IllegalDataAddress`]: ../../error/details/enum.ExceptionCode.html#variant.IllegalDataAddress
 /// [`ExceptionCode::ServerDeviceFailure`]: ../../error/details/enum.ExceptionCode.html#variant.ServerDeviceFailure
-pub trait ServerHandler: Send + 'static {
+pub trait RequestHandler: Send + 'static {
     /// Moves a server handler implementation into a `Arc<Mutex<Box<ServerHandler>>>`
     /// suitable for passing to the server
     fn wrap(self) -> Arc<Mutex<Box<Self>>>
@@ -86,7 +86,7 @@ type ServerHandlerType<T> = Arc<Mutex<Box<T>>>;
 /// [`ServerHandler`]: trait.ServerHandler.html
 /// [`UnitId`]: ../../types/struct.UnitId.html
 #[derive(Default)]
-pub struct ServerHandlerMap<T: ServerHandler> {
+pub struct ServerHandlerMap<T: RequestHandler> {
     handlers: BTreeMap<UnitId, ServerHandlerType<T>>,
 }
 
@@ -94,7 +94,7 @@ pub struct ServerHandlerMap<T: ServerHandler> {
 // due to the generic typing....
 impl<T> Clone for ServerHandlerMap<T>
 where
-    T: ServerHandler,
+    T: RequestHandler,
 {
     fn clone(&self) -> Self {
         ServerHandlerMap {
@@ -105,7 +105,7 @@ where
 
 impl<T> ServerHandlerMap<T>
 where
-    T: ServerHandler,
+    T: RequestHandler,
 {
     /// Create an empty map
     pub fn new() -> Self {
@@ -141,7 +141,7 @@ mod tests {
     use super::*;
 
     struct DefaultHandler;
-    impl ServerHandler for DefaultHandler {}
+    impl RequestHandler for DefaultHandler {}
 
     #[test]
     fn default_handler_returns_illegal_function() {

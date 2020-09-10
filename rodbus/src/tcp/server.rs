@@ -5,7 +5,7 @@ use std::net::SocketAddr;
 use tokio::net::TcpListener;
 use tokio::sync::Mutex;
 
-use crate::server::handler::{ServerHandler, ServerHandlerMap};
+use crate::server::handler::{RequestHandler, ServerHandlerMap};
 
 struct SessionTracker {
     max: usize,
@@ -54,7 +54,7 @@ impl SessionTracker {
     }
 }
 
-pub(crate) struct ServerTask<T: ServerHandler> {
+pub(crate) struct ServerTask<T: RequestHandler> {
     listener: TcpListener,
     handlers: ServerHandlerMap<T>,
     tracker: SessionTrackerWrapper,
@@ -62,7 +62,7 @@ pub(crate) struct ServerTask<T: ServerHandler> {
 
 impl<T> ServerTask<T>
 where
-    T: ServerHandler,
+    T: RequestHandler,
 {
     pub(crate) fn new(
         max_sessions: usize,

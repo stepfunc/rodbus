@@ -66,7 +66,7 @@
 //!                for x in values {
 //!                    println!("index: {} value: {}", x.index, x.value)
 //!                }
-//!            },
+//!            }
 //!            Err(err) => println!("Error: {:?}", err)
 //!        }
 //!
@@ -96,7 +96,7 @@
 //!    }
 //! }
 //!
-//! impl ServerHandler for CoilsOnlyHandler {
+//! impl RequestHandler for CoilsOnlyHandler {
 //!    fn read_coil(&self, address: u16) -> Result<bool, details::ExceptionCode> {
 //!        Self::convert(self.coils.get(0))
 //!    }

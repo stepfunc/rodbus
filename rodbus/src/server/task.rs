@@ -5,14 +5,14 @@ use crate::common::frame::{Frame, FrameFormatter, FrameHeader, FramedReader};
 use crate::common::function::FunctionCode;
 use crate::error::details::ExceptionCode;
 use crate::error::*;
-use crate::server::handler::{ServerHandler, ServerHandlerMap};
+use crate::server::handler::{RequestHandler, ServerHandlerMap};
 use crate::server::request::Request;
 use crate::server::response::ErrorResponse;
 use crate::tcp::frame::{MBAPFormatter, MBAPParser};
 
 pub(crate) struct SessionTask<T, U>
 where
-    T: ServerHandler,
+    T: RequestHandler,
     U: AsyncRead + AsyncWrite + Unpin,
 {
     io: U,
@@ -24,7 +24,7 @@ where
 
 impl<T, U> SessionTask<T, U>
 where
-    T: ServerHandler,
+    T: RequestHandler,
     U: AsyncRead + AsyncWrite + Unpin,
 {
     pub(crate) fn new(

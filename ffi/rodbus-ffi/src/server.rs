@@ -1,5 +1,5 @@
 use rodbus::error::details::ExceptionCode;
-use rodbus::server::handler::ServerHandler;
+use rodbus::server::handler::RequestHandler;
 use rodbus::shutdown::TaskHandle;
 use rodbus::types::{Indexed, UnitId, WriteCoils, WriteRegisters};
 use std::collections::HashMap;
@@ -29,7 +29,7 @@ impl DeviceMap {
     }
 }
 
-impl ServerHandler for RequestHandlerWrapper {
+impl RequestHandler for RequestHandlerWrapper {
     fn write_single_coil(&mut self, value: Indexed<bool>) -> Result<(), ExceptionCode> {
         match self.inner.write_single_coil(value.value, value.index) {
             Some(success) => {
