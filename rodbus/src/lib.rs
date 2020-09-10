@@ -97,8 +97,8 @@
 //! }
 //!
 //! impl ServerHandler for CoilsOnlyHandler {
-//!    fn read_coils(&mut self, range: ReadBitsRange) -> Result<&[bool], details::ExceptionCode> {
-//!        Self::get_range_of(self.coils.as_ref(), range.get())
+//!    fn read_coil(&self, address: u16) -> Result<bool, details::ExceptionCode> {
+//!        Self::convert(self.coils.get(0))
 //!    }
 //! }
 //!
