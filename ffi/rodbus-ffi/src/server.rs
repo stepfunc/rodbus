@@ -30,6 +30,34 @@ impl DeviceMap {
 }
 
 impl RequestHandler for RequestHandlerWrapper {
+    fn read_coil(&self, address: u16) -> Result<bool, ExceptionCode> {
+        match self.inner.read_coil(address) {
+            None => Err(ExceptionCode::IllegalFunction),
+            Some(x) => x.convert(),
+        }
+    }
+
+    fn read_discrete_input(&self, address: u16) -> Result<bool, ExceptionCode> {
+        match self.inner.read_discrete_input(address) {
+            None => Err(ExceptionCode::IllegalFunction),
+            Some(x) => x.convert(),
+        }
+    }
+
+    fn read_holding_register(&self, address: u16) -> Result<u16, ExceptionCode> {
+        match self.inner.read_holding_register(address) {
+            None => Err(ExceptionCode::IllegalFunction),
+            Some(x) => x.convert(),
+        }
+    }
+
+    fn read_input_register(&self, address: u16) -> Result<u16, ExceptionCode> {
+        match self.inner.read_input_register(address) {
+            None => Err(ExceptionCode::IllegalFunction),
+            Some(x) => x.convert(),
+        }
+    }
+
     fn write_single_coil(&mut self, value: Indexed<bool>) -> Result<(), ExceptionCode> {
         match self.inner.write_single_coil(value.value, value.index) {
             Some(success) => {

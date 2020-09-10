@@ -1,5 +1,6 @@
 use oo_bindgen::class::ClassHandle;
 use oo_bindgen::iterator::IteratorHandle;
+use oo_bindgen::native_enum::NativeEnumHandle;
 use oo_bindgen::native_function::{ReturnType, Type};
 use oo_bindgen::native_struct::NativeStructHandle;
 use oo_bindgen::{BindingError, LibraryBuilder};
@@ -13,22 +14,25 @@ pub(crate) struct CommonDefinitions {
     pub(crate) register: NativeStructHandle,
     pub(crate) bit_iterator: IteratorHandle,
     pub(crate) register_iterator: IteratorHandle,
+    pub(crate) exception: NativeEnumHandle,
 }
 
 impl CommonDefinitions {
     pub(crate) fn build(lib: &mut LibraryBuilder) -> Result<CommonDefinitions, BindingError> {
         let bit = build_bit(lib)?;
         let register = build_register(lib)?;
+        let exception = crate::enums::define_exception(lib)?;
 
         Ok(Self {
             runtime_handle: crate::runtime::build_runtime_class(lib)?,
-            error_info: build_error_info(lib)?,
+            error_info: build_error_info(lib, &exception)?,
             address_range: build_address_range(lib)?,
             request_param: build_request_param(lib)?,
             bit: bit.clone(),
             register: register.clone(),
             bit_iterator: build_iterator(lib, &bit)?,
             register_iterator: build_iterator(lib, &register)?,
+            exception,
         })
     }
 }
@@ -79,9 +83,11 @@ fn build_request_param(lib: &mut LibraryBuilder) -> Result<NativeStructHandle, B
     Ok(param)
 }
 
-fn build_error_info(lib: &mut LibraryBuilder) -> Result<NativeStructHandle, BindingError> {
+fn build_error_info(
+    lib: &mut LibraryBuilder,
+    exception: &NativeEnumHandle,
+) -> Result<NativeStructHandle, BindingError> {
     let status = crate::enums::define_status(lib)?;
-    let exception = crate::enums::define_exception(lib)?;
 
     let info = lib.declare_native_struct("ErrorInfo")?;
     let info = lib
@@ -93,7 +99,7 @@ fn build_error_info(lib: &mut LibraryBuilder) -> Result<NativeStructHandle, Bind
         )?
         .add(
             "exception",
-            Type::Enum(exception),
+            Type::Enum(exception.clone()),
             "exception code returned by the server when status == Exception",
         )?
         .add(

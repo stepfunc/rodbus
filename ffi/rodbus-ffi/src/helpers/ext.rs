@@ -1,4 +1,6 @@
+use crate::helpers::conversions::convert_ffi_exception;
 use rodbus::client::session::CallbackSession;
+use rodbus::error::details::ExceptionCode;
 use rodbus::types::UnitId;
 use std::ptr::null_mut;
 use tokio::time::Duration;
@@ -117,6 +119,26 @@ impl crate::ffi::ErrorInfo {
             summary: crate::ffi::Status::Ok,
             exception: crate::ffi::Exception::Unknown,
             raw_exception: 0,
+        }
+    }
+}
+
+impl crate::ffi::BitRead {
+    pub(crate) fn convert(self) -> Result<bool, ExceptionCode> {
+        if self.success {
+            Ok(self.value)
+        } else {
+            Err(convert_ffi_exception(self.exception))
+        }
+    }
+}
+
+impl crate::ffi::RegisterRead {
+    pub(crate) fn convert(self) -> Result<u16, ExceptionCode> {
+        if self.success {
+            Ok(self.value)
+        } else {
+            Err(convert_ffi_exception(self.exception))
         }
     }
 }
