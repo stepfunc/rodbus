@@ -7,48 +7,31 @@ use std::ptr::null_mut;
 use tokio::net::TcpListener;
 
 pub struct DeviceMap {
-    inner: HashMap<u8, (crate::ffi::Sizes, crate::ffi::WriteHandler)>,
+    inner: HashMap<u8, crate::ffi::RequestHandler>,
+}
+
+struct RequestHandlerWrapper {
+    inner: crate::ffi::RequestHandler,
 }
 
 impl DeviceMap {
-    fn drain_and_convert(&mut self) -> rodbus::server::handler::ServerHandlerMap<EndpointHandler> {
+    fn drain_and_convert(
+        &mut self,
+    ) -> rodbus::server::handler::ServerHandlerMap<RequestHandlerWrapper> {
         let mut handlers = rodbus::server::handler::ServerHandlerMap::new();
         for (key, value) in self.inner.drain() {
             handlers.add(
                 UnitId::new(key),
-                EndpointHandler::new(value.1, value.0).wrap(),
+                RequestHandlerWrapper { inner: value }.wrap(),
             );
         }
         handlers
     }
 }
 
-struct EndpointHandler {
-    write_handler: crate::ffi::WriteHandler,
-    _coils: Box<[bool]>,
-    _discrete_inputs: Box<[bool]>,
-    _holding_registers: Box<[u16]>,
-    _input_registers: Box<[u16]>,
-}
-
-impl EndpointHandler {
-    fn new(write_handler: crate::ffi::WriteHandler, sizes: crate::ffi::Sizes) -> Self {
-        Self {
-            write_handler,
-            _coils: vec![false; sizes.num_coils as usize].into_boxed_slice(),
-            _discrete_inputs: vec![false; sizes.num_discrete_inputs as usize].into_boxed_slice(),
-            _holding_registers: vec![0; sizes.num_holding_registers as usize].into_boxed_slice(),
-            _input_registers: vec![0; sizes.num_input_registers as usize].into_boxed_slice(),
-        }
-    }
-}
-
-impl ServerHandler for EndpointHandler {
+impl ServerHandler for RequestHandlerWrapper {
     fn write_single_coil(&mut self, value: Indexed<bool>) -> Result<(), ExceptionCode> {
-        match self
-            .write_handler
-            .write_single_coil(value.value, value.index)
-        {
+        match self.inner.write_single_coil(value.value, value.index) {
             Some(success) => {
                 if success {
                     Ok(())
@@ -61,10 +44,7 @@ impl ServerHandler for EndpointHandler {
     }
 
     fn write_single_register(&mut self, value: Indexed<u16>) -> Result<(), ExceptionCode> {
-        match self
-            .write_handler
-            .write_single_register(value.value, value.index)
-        {
+        match self.inner.write_single_register(value.value, value.index) {
             Some(success) => {
                 if success {
                     Ok(())
@@ -80,7 +60,7 @@ impl ServerHandler for EndpointHandler {
         let mut iterator = crate::BitIterator::new(values.iterator);
 
         match self
-            .write_handler
+            .inner
             .write_multiple_coils(values.range.start, &mut iterator as *mut _)
         {
             Some(success) => {
@@ -98,7 +78,7 @@ impl ServerHandler for EndpointHandler {
         let mut iterator = crate::RegisterIterator::new(values.iterator);
 
         match self
-            .write_handler
+            .inner
             .write_multiple_registers(values.range.start, &mut iterator as *mut _)
         {
             Some(success) => {
@@ -133,8 +113,7 @@ pub(crate) unsafe fn destroy_device_map(map: *mut DeviceMap) {
 pub(crate) unsafe fn map_add_endpoint(
     map: *mut DeviceMap,
     unit_id: u8,
-    sizes: crate::ffi::Sizes,
-    write_handler: crate::ffi::WriteHandler,
+    handler: crate::ffi::RequestHandler,
 ) -> bool {
     let map = match map.as_mut() {
         Some(x) => x,
@@ -145,7 +124,7 @@ pub(crate) unsafe fn map_add_endpoint(
         return false;
     }
 
-    map.inner.insert(unit_id, (sizes, write_handler));
+    map.inner.insert(unit_id, handler);
 
     true
 }
