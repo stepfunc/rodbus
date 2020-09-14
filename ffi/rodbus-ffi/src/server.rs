@@ -11,7 +11,27 @@ pub struct DeviceMap {
 }
 
 struct RequestHandlerWrapper {
+    database: Database,
     inner: crate::ffi::RequestHandler,
+}
+
+#[derive(Clone)]
+struct Database {
+    coils: HashMap<u16, bool>,
+    discrete_input: HashMap<u16, bool>,
+    holding_registers: HashMap<u16, u16>,
+    input_registers: HashMap<u16, u16>,
+}
+
+impl Database {
+    fn new() -> Self {
+        Self {
+            coils: HashMap::new(),
+            discrete_input: HashMap::new(),
+            holding_registers: HashMap::new(),
+            input_registers: HashMap::new(),
+        }
+    }
 }
 
 impl DeviceMap {
@@ -22,7 +42,11 @@ impl DeviceMap {
         for (key, value) in self.inner.drain() {
             handlers.add(
                 UnitId::new(key),
-                RequestHandlerWrapper { inner: value }.wrap(),
+                RequestHandlerWrapper {
+                    database: Database::new(),
+                    inner: value,
+                }
+                .wrap(),
             );
         }
         handlers
@@ -31,37 +55,37 @@ impl DeviceMap {
 
 impl RequestHandler for RequestHandlerWrapper {
     fn read_coil(&self, address: u16) -> Result<bool, ExceptionCode> {
-        match self.inner.read_coil(address) {
-            None => Err(ExceptionCode::IllegalFunction),
-            Some(x) => x.convert(),
+        match self.database.coils.get(&address) {
+            Some(x) => Ok(*x),
+            None => Err(ExceptionCode::IllegalDataAddress),
         }
     }
 
     fn read_discrete_input(&self, address: u16) -> Result<bool, ExceptionCode> {
-        match self.inner.read_discrete_input(address) {
-            None => Err(ExceptionCode::IllegalFunction),
-            Some(x) => x.convert(),
+        match self.database.discrete_input.get(&address) {
+            Some(x) => Ok(*x),
+            None => Err(ExceptionCode::IllegalDataAddress),
         }
     }
 
     fn read_holding_register(&self, address: u16) -> Result<u16, ExceptionCode> {
-        match self.inner.read_holding_register(address) {
-            None => Err(ExceptionCode::IllegalFunction),
-            Some(x) => x.convert(),
+        match self.database.holding_registers.get(&address) {
+            Some(x) => Ok(*x),
+            None => Err(ExceptionCode::IllegalDataAddress),
         }
     }
 
     fn read_input_register(&self, address: u16) -> Result<u16, ExceptionCode> {
-        match self.inner.read_input_register(address) {
-            None => Err(ExceptionCode::IllegalFunction),
-            Some(x) => x.convert(),
+        match self.database.input_registers.get(&address) {
+            Some(x) => Ok(*x),
+            None => Err(ExceptionCode::IllegalDataAddress),
         }
     }
 
     fn write_single_coil(&mut self, value: Indexed<bool>) -> Result<(), ExceptionCode> {
         match self.inner.write_single_coil(value.value, value.index) {
-            Some(success) => {
-                if success {
+            Some(x) => {
+                if x.success {
                     Ok(())
                 } else {
                     Err(ExceptionCode::IllegalDataAddress)
@@ -73,13 +97,7 @@ impl RequestHandler for RequestHandlerWrapper {
 
     fn write_single_register(&mut self, value: Indexed<u16>) -> Result<(), ExceptionCode> {
         match self.inner.write_single_register(value.value, value.index) {
-            Some(success) => {
-                if success {
-                    Ok(())
-                } else {
-                    Err(ExceptionCode::IllegalDataAddress)
-                }
-            }
+            Some(x) => x.convert_to_result(),
             None => Err(ExceptionCode::IllegalFunction),
         }
     }
@@ -91,13 +109,7 @@ impl RequestHandler for RequestHandlerWrapper {
             .inner
             .write_multiple_coils(values.range.start, &mut iterator as *mut _)
         {
-            Some(success) => {
-                if success {
-                    Ok(())
-                } else {
-                    Err(ExceptionCode::IllegalDataAddress)
-                }
-            }
+            Some(x) => x.convert_to_result(),
             None => Err(ExceptionCode::IllegalFunction),
         }
     }
@@ -109,13 +121,7 @@ impl RequestHandler for RequestHandlerWrapper {
             .inner
             .write_multiple_registers(values.range.start, &mut iterator as *mut _)
         {
-            Some(success) => {
-                if success {
-                    Ok(())
-                } else {
-                    Err(ExceptionCode::IllegalDataAddress)
-                }
-            }
+            Some(x) => x.convert_to_result(),
             None => Err(ExceptionCode::IllegalFunction),
         }
     }

@@ -1,6 +1,4 @@
-use crate::helpers::conversions::convert_ffi_exception;
 use rodbus::client::session::CallbackSession;
-use rodbus::error::details::ExceptionCode;
 use rodbus::types::UnitId;
 use std::ptr::null_mut;
 use tokio::time::Duration;
@@ -123,22 +121,44 @@ impl crate::ffi::ErrorInfo {
     }
 }
 
-impl crate::ffi::BitRead {
-    pub(crate) fn convert(self) -> Result<bool, ExceptionCode> {
+impl crate::ffi::WriteResult {
+    pub(crate) fn convert_to_result(self) -> Result<(), rodbus::error::details::ExceptionCode> {
         if self.success {
-            Ok(self.value)
-        } else {
-            Err(convert_ffi_exception(self.exception))
+            return Ok(());
         }
-    }
-}
+        let ex = match self.exception {
+            crate::ffi::Exception::Acknowledge => {
+                rodbus::error::details::ExceptionCode::Acknowledge
+            }
+            crate::ffi::Exception::GatewayPathUnavailable => {
+                rodbus::error::details::ExceptionCode::GatewayPathUnavailable
+            }
+            crate::ffi::Exception::GatewayTargetDeviceFailedToRespond => {
+                rodbus::error::details::ExceptionCode::GatewayTargetDeviceFailedToRespond
+            }
+            crate::ffi::Exception::IllegalDataAddress => {
+                rodbus::error::details::ExceptionCode::IllegalDataAddress
+            }
+            crate::ffi::Exception::IllegalDataValue => {
+                rodbus::error::details::ExceptionCode::IllegalDataValue
+            }
+            crate::ffi::Exception::IllegalFunction => {
+                rodbus::error::details::ExceptionCode::IllegalFunction
+            }
+            crate::ffi::Exception::MemoryParityError => {
+                rodbus::error::details::ExceptionCode::MemoryParityError
+            }
+            crate::ffi::Exception::ServerDeviceBusy => {
+                rodbus::error::details::ExceptionCode::ServerDeviceBusy
+            }
+            crate::ffi::Exception::ServerDeviceFailure => {
+                rodbus::error::details::ExceptionCode::ServerDeviceFailure
+            }
+            crate::ffi::Exception::Unknown => {
+                rodbus::error::details::ExceptionCode::Unknown(self.raw_exception)
+            }
+        };
 
-impl crate::ffi::RegisterRead {
-    pub(crate) fn convert(self) -> Result<u16, ExceptionCode> {
-        if self.success {
-            Ok(self.value)
-        } else {
-            Err(convert_ffi_exception(self.exception))
-        }
+        Err(ex)
     }
 }

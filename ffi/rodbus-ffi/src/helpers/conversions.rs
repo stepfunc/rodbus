@@ -106,36 +106,3 @@ impl std::convert::From<crate::ffi::Register> for rodbus::types::Indexed<u16> {
         rodbus::types::Indexed::new(x.index, x.value)
     }
 }
-
-pub(crate) fn convert_ffi_exception(
-    ex: crate::ffi::Exception,
-) -> rodbus::error::details::ExceptionCode {
-    match ex {
-        crate::ffi::Exception::Acknowledge => rodbus::error::details::ExceptionCode::Acknowledge,
-        crate::ffi::Exception::GatewayPathUnavailable => {
-            rodbus::error::details::ExceptionCode::GatewayPathUnavailable
-        }
-        crate::ffi::Exception::GatewayTargetDeviceFailedToRespond => {
-            rodbus::error::details::ExceptionCode::GatewayTargetDeviceFailedToRespond
-        }
-        crate::ffi::Exception::IllegalDataAddress => {
-            rodbus::error::details::ExceptionCode::IllegalDataAddress
-        }
-        crate::ffi::Exception::IllegalDataValue => {
-            rodbus::error::details::ExceptionCode::IllegalDataValue
-        }
-        crate::ffi::Exception::IllegalFunction => {
-            rodbus::error::details::ExceptionCode::IllegalFunction
-        }
-        crate::ffi::Exception::MemoryParityError => {
-            rodbus::error::details::ExceptionCode::MemoryParityError
-        }
-        crate::ffi::Exception::ServerDeviceBusy => {
-            rodbus::error::details::ExceptionCode::ServerDeviceBusy
-        }
-        crate::ffi::Exception::ServerDeviceFailure => {
-            rodbus::error::details::ExceptionCode::ServerDeviceFailure
-        }
-        crate::ffi::Exception::Unknown => rodbus::error::details::ExceptionCode::Unknown(0xFF), // TODO?
-    }
-}

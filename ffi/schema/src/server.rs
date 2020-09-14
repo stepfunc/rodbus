@@ -119,80 +119,19 @@ pub(crate) fn build_request_handler_interface(
     lib: &mut LibraryBuilder,
     common: &CommonDefinitions,
 ) -> Result<InterfaceHandle, BindingError> {
-    //
-    let register_read = lib.declare_native_struct("RegisterRead")?;
-    let register_read = lib
-        .define_native_struct(&register_read)?
-        .add(
-            "success",
-            Type::Bool,
-            "true, if the value exists, other false and use the exception instead",
-        )?
-        .add("value", Type::Uint16, "value of the register")?
-        .add(
-            "exception",
-            Type::Enum(common.exception.clone()),
-            "exception code",
-        )?
-        .doc("structure defining the results of a register read operation")?
-        .build()?;
-
-    let bit_read = lib.declare_native_struct("BitRead")?;
-    let bit_read = lib
-        .define_native_struct(&bit_read)?
-        .add(
-            "success",
-            Type::Bool,
-            "true, if the value exists, other false and use the exception instead",
-        )?
-        .add("value", Type::Bool, "value of the bit")?
-        .add(
-            "exception",
-            Type::Enum(common.exception.clone()),
-            "exception code",
-        )?
-        .doc("structure defining the results of a bit read operation")?
+    let write_result = lib.declare_native_struct("WriteResult")?;
+    let write_result = lib
+        .define_native_struct(&write_result)?
+        .add("success", Type::Bool, "true if the operation was successful, false otherwise. Error details found in the exception field.")?
+        .add("exception", Type::Enum(common.exception.clone()), "exception enumeration. If undefined, look at the raw value")?
+        .add("raw_exception", Type::Uint8, "Raw exception value when 'exception' field is Undefined")?
+        .doc("Result struct describing if an operation was successful or not. Exception codes are returned to the client")?
         .build()?;
 
     lib.define_interface(
         "RequestHandler",
         "Interface used to handle read and write requests received from the client",
     )?
-    // read coil
-    .callback("read_coil", "try to read a single coil")?
-    .param("index", Type::Uint16, "Index of the value to read")?
-    .return_type(ReturnType::Type(
-        Type::Struct(bit_read.clone()),
-        "struct indicating success or failure".into(),
-    ))?
-    .build()?
-    // read discrete input
-    .callback("read_discrete_input", "try to read a single discrete input")?
-    .param("index", Type::Uint16, "Index of the value to read")?
-    .return_type(ReturnType::Type(
-        Type::Struct(bit_read.clone()),
-        "struct indicating success or failure".into(),
-    ))?
-    .build()?
-    // read holding register
-    .callback(
-        "read_holding_register",
-        "try to read a single holding register",
-    )?
-    .param("index", Type::Uint16, "Index of the value to read")?
-    .return_type(ReturnType::Type(
-        Type::Struct(register_read.clone()),
-        "struct indicating success or failure".into(),
-    ))?
-    .build()?
-    // read input register
-    .callback("read_input_register", "try to read a single input register")?
-    .param("index", Type::Uint16, "Index of the value to read")?
-    .return_type(ReturnType::Type(
-        Type::Struct(register_read.clone()),
-        "struct indicating success or failure".into(),
-    ))?
-    .build()?
     // --- write single coil ---
     .callback(
         "write_single_coil",
@@ -201,8 +140,8 @@ pub(crate) fn build_request_handler_interface(
     .param("value", Type::Bool, "Value of the coil to write")?
     .param("index", Type::Uint16, "Index of the coil")?
     .return_type(ReturnType::Type(
-        Type::Bool,
-        "true if the value exists and was written, false otherwise".into(),
+        Type::Struct(write_result.clone()),
+        "struct describing the result of the operation".into(),
     ))?
     .build()?
     // --- write single register ---
@@ -213,8 +152,8 @@ pub(crate) fn build_request_handler_interface(
     .param("value", Type::Uint16, "Value of the register to write")?
     .param("index", Type::Uint16, "Index of the register")?
     .return_type(ReturnType::Type(
-        Type::Bool,
-        "true if the value exists and was written, false otherwise".into(),
+        Type::Struct(write_result.clone()),
+        "struct describing the result of the operation".into(),
     ))?
     .build()?
     // --- write multiple coils ---
@@ -229,8 +168,8 @@ pub(crate) fn build_request_handler_interface(
         "iterator over coil values",
     )?
     .return_type(ReturnType::Type(
-        Type::Bool,
-        "true if the values exist and were written, false otherwise".into(),
+        Type::Struct(write_result.clone()),
+        "struct describing the result of the operation".into(),
     ))?
     .build()?
     // --- write multiple registers ---
@@ -245,8 +184,8 @@ pub(crate) fn build_request_handler_interface(
         "iterator over register values",
     )?
     .return_type(ReturnType::Type(
-        Type::Bool,
-        "true if the values exist and were written, false otherwise".into(),
+        Type::Struct(write_result),
+        "struct describing the result of the operation".into(),
     ))?
     .build()?
     // -------------------------------
