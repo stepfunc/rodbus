@@ -91,6 +91,32 @@ pub(crate) fn build_add_fn(
         .build()
 }
 
+pub(crate) fn build_delete_fn(
+    lib: &mut LibraryBuilder,
+    db: &ClassDeclarationHandle,
+    snake_name: &str,
+) -> Result<NativeFunctionHandle, BindingError> {
+    let spaced_name = snake_name.replace("_", " ");
+
+    lib.declare_native_function(&format!("database_delete_{}", snake_name))?
+        .param(
+            "database",
+            Type::ClassRef(db.clone()),
+            "database to manipulate",
+        )?
+        .param(
+            "index",
+            Type::Uint16,
+            format!("address of the {}", spaced_name).as_str(),
+        )?
+        .return_type(ReturnType::Type(
+            Type::Bool,
+            "true if the address existed and was removed, false otherwise".into(),
+        ))?
+        .doc(format!("remove a {} address from the database", spaced_name).as_str())?
+        .build()
+}
+
 pub(crate) fn build_update_fn(
     lib: &mut LibraryBuilder,
     db: &ClassDeclarationHandle,
@@ -143,6 +169,11 @@ pub(crate) fn build_database_class(lib: &mut LibraryBuilder) -> Result<ClassHand
         build_update_fn(lib, &database, "holding_register", Type::Uint16)?;
     let update_input_register_fn = build_update_fn(lib, &database, "input_register", Type::Uint16)?;
 
+    let delete_coil_fn = build_delete_fn(lib, &database, "coil")?;
+    let delete_discrete_input_fn = build_delete_fn(lib, &database, "discrete_input")?;
+    let delete_holding_register_fn = build_delete_fn(lib, &database, "holding_register")?;
+    let delete_input_register_fn = build_delete_fn(lib, &database, "input_register")?;
+
     lib.define_class(&database)?
         // add methods
         .method("add_coil", &add_coil_fn)?
@@ -154,6 +185,12 @@ pub(crate) fn build_database_class(lib: &mut LibraryBuilder) -> Result<ClassHand
         .method("update_discrete_input", &update_discrete_input_fn)?
         .method("update_holding_register", &update_holding_register_fn)?
         .method("update_input_register", &update_input_register_fn)?
+        // delete methods
+        .method("delete_coil", &delete_coil_fn)?
+        .method("delete_discrete_input", &delete_discrete_input_fn)?
+        .method("delete_holding_register", &delete_holding_register_fn)?
+        .method("delete_input_register", &delete_input_register_fn)?
+        // docs
         .doc("Class used to add, remove, and update values")?
         .build()
 }

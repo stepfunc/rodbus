@@ -121,3 +121,31 @@ pub unsafe fn database_update_input_register(
         Some(database) => update_entry(&mut database.input_registers, index, value),
     }
 }
+
+pub unsafe fn database_delete_coil(database: *mut crate::Database, index: u16) -> bool {
+    match database.as_mut() {
+        None => false,
+        Some(database) => database.coils.remove(&index).is_some(),
+    }
+}
+
+pub unsafe fn database_delete_discrete_input(database: *mut crate::Database, index: u16) -> bool {
+    match database.as_mut() {
+        None => false,
+        Some(database) => database.discrete_input.remove(&index).is_some(),
+    }
+}
+
+pub unsafe fn database_delete_holding_register(database: *mut crate::Database, index: u16) -> bool {
+    match database.as_mut() {
+        None => false,
+        Some(database) => database.holding_registers.remove(&index).is_some(),
+    }
+}
+
+pub unsafe fn database_delete_input_register(database: *mut crate::Database, index: u16) -> bool {
+    match database.as_mut() {
+        None => false,
+        Some(database) => database.input_registers.remove(&index).is_some(),
+    }
+}
