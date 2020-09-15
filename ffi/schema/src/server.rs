@@ -1,8 +1,8 @@
 use crate::common::CommonDefinitions;
 
 use oo_bindgen::callback::InterfaceHandle;
-use oo_bindgen::class::ClassHandle;
-use oo_bindgen::native_function::{ReturnType, Type};
+use oo_bindgen::class::{ClassDeclarationHandle, ClassHandle};
+use oo_bindgen::native_function::{NativeFunctionHandle, ReturnType, Type};
 use oo_bindgen::{BindingError, LibraryBuilder};
 
 pub(crate) fn build(
@@ -59,82 +59,101 @@ pub(crate) fn build_server(
         .build()
 }
 
+pub(crate) fn build_add_fn(
+    lib: &mut LibraryBuilder,
+    db: &ClassDeclarationHandle,
+    snake_name: &str,
+    value_type: Type,
+) -> Result<NativeFunctionHandle, BindingError> {
+    let spaced_name = snake_name.replace("_", " ");
+
+    lib.declare_native_function(&format!("database_add_{}", snake_name))?
+        .param(
+            "database",
+            Type::ClassRef(db.clone()),
+            "database to manipulate",
+        )?
+        .param(
+            "index",
+            Type::Uint16,
+            format!("address of the {}", spaced_name).as_str(),
+        )?
+        .param(
+            "value",
+            value_type,
+            format!("initial value of the {}", spaced_name).as_str(),
+        )?
+        .return_type(ReturnType::Type(
+            Type::Bool,
+            "true if the value is new, false otherwise".into(),
+        ))?
+        .doc(format!("add a new {} to the database", spaced_name).as_str())?
+        .build()
+}
+
+pub(crate) fn build_update_fn(
+    lib: &mut LibraryBuilder,
+    db: &ClassDeclarationHandle,
+    snake_name: &str,
+    value_type: Type,
+) -> Result<NativeFunctionHandle, BindingError> {
+    let spaced_name = snake_name.replace("_", " ");
+
+    lib.declare_native_function(&format!("database_update_{}", snake_name))?
+        .param(
+            "database",
+            Type::ClassRef(db.clone()),
+            "database to manipulate",
+        )?
+        .param(
+            "index",
+            Type::Uint16,
+            format!("address of the {}", spaced_name).as_str(),
+        )?
+        .param(
+            "value",
+            value_type,
+            format!("new value of the {}", spaced_name).as_str(),
+        )?
+        .return_type(ReturnType::Type(
+            Type::Bool,
+            "true if the address is defined, false otherwise".into(),
+        ))?
+        .doc(
+            format!(
+                "update the current value of a {} in the database",
+                spaced_name
+            )
+            .as_str(),
+        )?
+        .build()
+}
+
 pub(crate) fn build_database_class(lib: &mut LibraryBuilder) -> Result<ClassHandle, BindingError> {
     let database = lib.declare_class("Database")?;
 
-    let add_coil_fn = lib
-        .declare_native_function("database_add_coil")?
-        .param(
-            "database",
-            Type::ClassRef(database.clone()),
-            "database to manipulate",
-        )?
-        .param("index", Type::Uint16, "address of the coil")?
-        .param("value", Type::Bool, "initial value of the coil")?
-        .return_type(ReturnType::Type(
-            Type::Bool,
-            "true if the value is new, false otherwise".into(),
-        ))?
-        .doc("add a new coil to the database")?
-        .build()?;
+    let add_coil_fn = build_add_fn(lib, &database, "coil", Type::Bool)?;
+    let add_discrete_input_fn = build_add_fn(lib, &database, "discrete_input", Type::Bool)?;
+    let add_holding_register_fn = build_add_fn(lib, &database, "holding_register", Type::Uint16)?;
+    let add_input_register_fn = build_add_fn(lib, &database, "input_register", Type::Uint16)?;
 
-    let add_discrete_input_fn = lib
-        .declare_native_function("database_add_discrete_input")?
-        .param(
-            "database",
-            Type::ClassRef(database.clone()),
-            "database to manipulate",
-        )?
-        .param("index", Type::Uint16, "address of the point")?
-        .param("value", Type::Bool, "initial value of the point")?
-        .return_type(ReturnType::Type(
-            Type::Bool,
-            "true if the value is new, false otherwise".into(),
-        ))?
-        .doc("add a new discrete input to the database")?
-        .build()?;
-
-    let add_holding_register_fn = lib
-        .declare_native_function("database_add_holding_register")?
-        .param(
-            "database",
-            Type::ClassRef(database.clone()),
-            "database to manipulate",
-        )?
-        .param("index", Type::Uint16, "address of the holding register")?
-        .param(
-            "value",
-            Type::Uint16,
-            "initial value of the holding register",
-        )?
-        .return_type(ReturnType::Type(
-            Type::Bool,
-            "true if the value is new, false otherwise".into(),
-        ))?
-        .doc("add a new holding register to the database")?
-        .build()?;
-
-    let add_input_register_fn = lib
-        .declare_native_function("database_add_input_register")?
-        .param(
-            "database",
-            Type::ClassRef(database.clone()),
-            "database to manipulate",
-        )?
-        .param("index", Type::Uint16, "address of the input register")?
-        .param("value", Type::Uint16, "initial value of the input register")?
-        .return_type(ReturnType::Type(
-            Type::Bool,
-            "true if the value is new, false otherwise".into(),
-        ))?
-        .doc("add a new input register to the database")?
-        .build()?;
+    let update_coil_fn = build_update_fn(lib, &database, "coil", Type::Bool)?;
+    let update_discrete_input_fn = build_update_fn(lib, &database, "discrete_input", Type::Bool)?;
+    let update_holding_register_fn =
+        build_update_fn(lib, &database, "holding_register", Type::Uint16)?;
+    let update_input_register_fn = build_update_fn(lib, &database, "input_register", Type::Uint16)?;
 
     lib.define_class(&database)?
+        // add methods
         .method("add_coil", &add_coil_fn)?
         .method("add_discrete_input", &add_discrete_input_fn)?
         .method("add_holding_register", &add_holding_register_fn)?
         .method("add_input_register", &add_input_register_fn)?
+        // update methods
+        .method("update_coil", &update_coil_fn)?
+        .method("update_discrete_input", &update_discrete_input_fn)?
+        .method("update_holding_register", &update_holding_register_fn)?
+        .method("update_input_register", &update_input_register_fn)?
         .doc("Class used to add, remove, and update values")?
         .build()
 }
