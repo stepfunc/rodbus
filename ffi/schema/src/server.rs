@@ -59,11 +59,93 @@ pub(crate) fn build_server(
         .build()
 }
 
+pub(crate) fn build_database_class(lib: &mut LibraryBuilder) -> Result<ClassHandle, BindingError> {
+    let database = lib.declare_class("Database")?;
+
+    let add_coil_fn = lib
+        .declare_native_function("database_add_coil")?
+        .param(
+            "database",
+            Type::ClassRef(database.clone()),
+            "database to manipulate",
+        )?
+        .param("index", Type::Uint16, "address of the coil")?
+        .param("value", Type::Bool, "initial value of the coil")?
+        .return_type(ReturnType::Type(
+            Type::Bool,
+            "true if the value is new, false otherwise".into(),
+        ))?
+        .doc("add a new coil to the database")?
+        .build()?;
+
+    let add_discrete_input_fn = lib
+        .declare_native_function("database_add_discrete_input")?
+        .param(
+            "database",
+            Type::ClassRef(database.clone()),
+            "database to manipulate",
+        )?
+        .param("index", Type::Uint16, "address of the point")?
+        .param("value", Type::Bool, "initial value of the point")?
+        .return_type(ReturnType::Type(
+            Type::Bool,
+            "true if the value is new, false otherwise".into(),
+        ))?
+        .doc("add a new discrete input to the database")?
+        .build()?;
+
+    let add_holding_register_fn = lib
+        .declare_native_function("database_add_holding_register")?
+        .param(
+            "database",
+            Type::ClassRef(database.clone()),
+            "database to manipulate",
+        )?
+        .param("index", Type::Uint16, "address of the holding register")?
+        .param(
+            "value",
+            Type::Uint16,
+            "initial value of the holding register",
+        )?
+        .return_type(ReturnType::Type(
+            Type::Bool,
+            "true if the value is new, false otherwise".into(),
+        ))?
+        .doc("add a new holding register to the database")?
+        .build()?;
+
+    let add_input_register_fn = lib
+        .declare_native_function("database_add_input_register")?
+        .param(
+            "database",
+            Type::ClassRef(database.clone()),
+            "database to manipulate",
+        )?
+        .param("index", Type::Uint16, "address of the input register")?
+        .param("value", Type::Uint16, "initial value of the input register")?
+        .return_type(ReturnType::Type(
+            Type::Bool,
+            "true if the value is new, false otherwise".into(),
+        ))?
+        .doc("add a new input register to the database")?
+        .build()?;
+
+    lib.define_class(&database)?
+        .method("add_coil", &add_coil_fn)?
+        .method("add_discrete_input", &add_discrete_input_fn)?
+        .method("add_holding_register", &add_holding_register_fn)?
+        .method("add_input_register", &add_input_register_fn)?
+        .doc("Class used to add, remove, and update values")?
+        .build()
+}
+
 pub(crate) fn build_handler_map(
     lib: &mut LibraryBuilder,
     common: &CommonDefinitions,
 ) -> Result<ClassHandle, BindingError> {
     let request_handler = build_request_handler_interface(lib, common)?;
+
+    let database = build_database_class(lib)?;
 
     let device_map = lib.declare_class("DeviceMap")?;
 
@@ -101,8 +183,8 @@ pub(crate) fn build_handler_map(
             "callback interface for handling read and write operations for this device",
         )?
         .return_type(ReturnType::Type(
-            Type::Bool,
-            "false if the unit id is already bound, true otherwise".into(),
+            Type::ClassRef(database.declaration.clone()),
+            "Pointer to the database instance for this endpoint, or NULL if it could not be created b/c of a duplicate unit id".into(),
         ))?
         .doc("add an endpoint to the map")?
         .build()?;

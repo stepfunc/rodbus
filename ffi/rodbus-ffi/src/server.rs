@@ -1,3 +1,4 @@
+use crate::Database;
 use rodbus::error::details::ExceptionCode;
 use rodbus::server::handler::RequestHandler;
 use rodbus::shutdown::TaskHandle;
@@ -6,32 +7,26 @@ use std::collections::HashMap;
 use std::ptr::null_mut;
 use tokio::net::TcpListener;
 
-pub struct DeviceMap {
-    inner: HashMap<u8, crate::ffi::RequestHandler>,
-}
-
 struct RequestHandlerWrapper {
     database: Database,
     inner: crate::ffi::RequestHandler,
 }
 
-#[derive(Clone)]
-struct Database {
-    coils: HashMap<u16, bool>,
-    discrete_input: HashMap<u16, bool>,
-    holding_registers: HashMap<u16, u16>,
-    input_registers: HashMap<u16, u16>,
-}
-
-impl Database {
-    fn new() -> Self {
+impl RequestHandlerWrapper {
+    pub(crate) fn new(handler: crate::ffi::RequestHandler) -> Self {
         Self {
-            coils: HashMap::new(),
-            discrete_input: HashMap::new(),
-            holding_registers: HashMap::new(),
-            input_registers: HashMap::new(),
+            database: Database::new(),
+            inner: handler,
         }
     }
+
+    pub(crate) unsafe fn get_db(&mut self) -> *mut Database {
+        &mut self.database
+    }
+}
+
+pub struct DeviceMap {
+    inner: HashMap<u8, RequestHandlerWrapper>,
 }
 
 impl DeviceMap {
@@ -40,14 +35,7 @@ impl DeviceMap {
     ) -> rodbus::server::handler::ServerHandlerMap<RequestHandlerWrapper> {
         let mut handlers = rodbus::server::handler::ServerHandlerMap::new();
         for (key, value) in self.inner.drain() {
-            handlers.add(
-                UnitId::new(key),
-                RequestHandlerWrapper {
-                    database: Database::new(),
-                    inner: value,
-                }
-                .wrap(),
-            );
+            handlers.add(UnitId::new(key), value.wrap());
         }
         handlers
     }
@@ -148,19 +136,23 @@ pub(crate) unsafe fn map_add_endpoint(
     map: *mut DeviceMap,
     unit_id: u8,
     handler: crate::ffi::RequestHandler,
-) -> bool {
+) -> *mut crate::Database {
     let map = match map.as_mut() {
         Some(x) => x,
-        None => return false,
+        None => return null_mut(),
     };
 
     if map.inner.contains_key(&unit_id) {
-        return false;
+        return null_mut();
     }
 
-    map.inner.insert(unit_id, handler);
+    map.inner
+        .insert(unit_id, RequestHandlerWrapper::new(handler));
 
-    true
+    match map.inner.get_mut(&unit_id) {
+        None => null_mut(),
+        Some(x) => x.get_db(),
+    }
 }
 
 pub(crate) unsafe fn create_tcp_server(

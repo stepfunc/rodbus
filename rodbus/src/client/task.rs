@@ -85,6 +85,8 @@ impl ClientLoop {
             &request.details,
         )?;
 
+        log::info!("-> {:?}", bytes);
+
         io.write_all(bytes).await?;
 
         let deadline = tokio::time::Instant::now() + request.timeout;
@@ -104,6 +106,8 @@ impl ClientLoop {
                     }
                 },
             };
+
+            log::info!("<- {:?}", frame.payload());
 
             if frame.header.tx_id != tx_id {
                 log::warn!(

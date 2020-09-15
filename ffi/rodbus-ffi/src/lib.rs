@@ -1,4 +1,5 @@
 mod channel;
+mod database;
 mod iterator;
 mod list;
 mod logging;
@@ -15,6 +16,7 @@ pub(crate) mod helpers {
 }
 
 pub(crate) use channel::*;
+pub(crate) use database::*;
 pub(crate) use iterator::*;
 pub(crate) use list::*;
 pub(crate) use logging::*;

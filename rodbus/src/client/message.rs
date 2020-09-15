@@ -61,9 +61,9 @@ impl Request {
                 Ok(x) => {
                     let exception = ExceptionCode::from(x);
                     if cursor.is_empty() {
-                        Error::BadResponse(ADUParseError::TrailingBytes(cursor.len()))
-                    } else {
                         Error::Exception(exception)
+                    } else {
+                        Error::BadResponse(ADUParseError::TrailingBytes(cursor.len()))
                     }
                 }
                 Err(err) => err.into(),
