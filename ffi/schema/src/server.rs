@@ -203,6 +203,21 @@ pub(crate) fn build_handler_map(
 
     let database = build_database_class(lib)?;
 
+    let db_callback = lib
+        .define_one_time_callback(
+            "DatabaseCallback",
+            "Callback used to access the internal database while it is locked",
+        )?
+        .callback("callback", "callback function")?
+        .param(
+            "database",
+            Type::ClassRef(database.declaration.clone()),
+            "database on which to perform updates",
+        )?
+        .return_type(ReturnType::void())?
+        .build()?
+        .build()?;
+
     let device_map = lib.declare_class("DeviceMap")?;
 
     let create_map = lib
@@ -238,9 +253,14 @@ pub(crate) fn build_handler_map(
             Type::Interface(request_handler),
             "callback interface for handling read and write operations for this device",
         )?
+        .param(
+            "configure",
+            Type::OneTimeCallback(db_callback),
+            "one-time callback interface configuring the initial state of the database",
+        )?
         .return_type(ReturnType::Type(
-            Type::ClassRef(database.declaration.clone()),
-            "Pointer to the database instance for this endpoint, or NULL if it could not be created b/c of a duplicate unit id".into(),
+            Type::Bool,
+            "True if the unit id doesn't already exists, false otherwise".into(),
         ))?
         .doc("add an endpoint to the map")?
         .build()?;

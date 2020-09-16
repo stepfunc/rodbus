@@ -19,10 +19,6 @@ impl RequestHandlerWrapper {
             inner: handler,
         }
     }
-
-    pub(crate) unsafe fn get_db(&mut self) -> *mut Database {
-        &mut self.database
-    }
 }
 
 pub struct DeviceMap {
@@ -136,23 +132,24 @@ pub(crate) unsafe fn map_add_endpoint(
     map: *mut DeviceMap,
     unit_id: u8,
     handler: crate::ffi::RequestHandler,
-) -> *mut crate::Database {
+    configure: crate::ffi::DatabaseCallback,
+) -> bool {
     let map = match map.as_mut() {
         Some(x) => x,
-        None => return null_mut(),
+        None => return false,
     };
 
     if map.inner.contains_key(&unit_id) {
-        return null_mut();
+        return false;
     }
 
-    map.inner
-        .insert(unit_id, RequestHandlerWrapper::new(handler));
+    let mut handler = RequestHandlerWrapper::new(handler);
 
-    match map.inner.get_mut(&unit_id) {
-        None => null_mut(),
-        Some(x) => x.get_db(),
-    }
+    configure.callback(&mut handler.database);
+
+    map.inner.insert(unit_id, handler);
+
+    true
 }
 
 pub(crate) unsafe fn create_tcp_server(
