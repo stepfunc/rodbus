@@ -9,14 +9,14 @@ use tokio::net::TcpListener;
 
 struct RequestHandlerWrapper {
     database: Database,
-    inner: crate::ffi::RequestHandler,
+    write_handler: crate::ffi::WriteHandler,
 }
 
 impl RequestHandlerWrapper {
-    pub(crate) fn new(handler: crate::ffi::RequestHandler) -> Self {
+    pub(crate) fn new(handler: crate::ffi::WriteHandler) -> Self {
         Self {
             database: Database::new(),
-            inner: handler,
+            write_handler: handler,
         }
     }
 }
@@ -67,7 +67,10 @@ impl RequestHandler for RequestHandlerWrapper {
     }
 
     fn write_single_coil(&mut self, value: Indexed<bool>) -> Result<(), ExceptionCode> {
-        match self.inner.write_single_coil(value.value, value.index) {
+        match self
+            .write_handler
+            .write_single_coil(value.value, value.index)
+        {
             Some(x) => {
                 if x.success {
                     Ok(())
@@ -80,7 +83,10 @@ impl RequestHandler for RequestHandlerWrapper {
     }
 
     fn write_single_register(&mut self, value: Indexed<u16>) -> Result<(), ExceptionCode> {
-        match self.inner.write_single_register(value.value, value.index) {
+        match self
+            .write_handler
+            .write_single_register(value.value, value.index)
+        {
             Some(x) => x.convert_to_result(),
             None => Err(ExceptionCode::IllegalFunction),
         }
@@ -90,7 +96,7 @@ impl RequestHandler for RequestHandlerWrapper {
         let mut iterator = crate::BitIterator::new(values.iterator);
 
         match self
-            .inner
+            .write_handler
             .write_multiple_coils(values.range.start, &mut iterator as *mut _)
         {
             Some(x) => x.convert_to_result(),
@@ -102,7 +108,7 @@ impl RequestHandler for RequestHandlerWrapper {
         let mut iterator = crate::RegisterIterator::new(values.iterator);
 
         match self
-            .inner
+            .write_handler
             .write_multiple_registers(values.range.start, &mut iterator as *mut _)
         {
             Some(x) => x.convert_to_result(),
@@ -133,7 +139,7 @@ pub(crate) unsafe fn destroy_device_map(map: *mut DeviceMap) {
 pub(crate) unsafe fn map_add_endpoint(
     map: *mut DeviceMap,
     unit_id: u8,
-    handler: crate::ffi::RequestHandler,
+    handler: crate::ffi::WriteHandler,
     configure: crate::ffi::DatabaseCallback,
 ) -> bool {
     let map = match map.as_mut() {

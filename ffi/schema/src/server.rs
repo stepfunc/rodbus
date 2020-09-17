@@ -227,7 +227,7 @@ pub(crate) fn build_handler_map(
     db_update_callback: &OneTimeCallbackHandle,
     common: &CommonDefinitions,
 ) -> Result<ClassHandle, BindingError> {
-    let request_handler = build_request_handler_interface(lib, common)?;
+    let write_handler = build_write_handler_interface(lib, common)?;
 
     let device_map = lib.declare_class("DeviceMap")?;
 
@@ -261,8 +261,8 @@ pub(crate) fn build_handler_map(
         .param("unit_id", Type::Uint8, "Unit id of the endpoint")?
         .param(
             "handler",
-            Type::Interface(request_handler),
-            "callback interface for handling read and write operations for this device",
+            Type::Interface(write_handler),
+            "callback interface for handling write operations for this device",
         )?
         .param(
             "configure",
@@ -284,7 +284,7 @@ pub(crate) fn build_handler_map(
         .build()
 }
 
-pub(crate) fn build_request_handler_interface(
+pub(crate) fn build_write_handler_interface(
     lib: &mut LibraryBuilder,
     common: &CommonDefinitions,
 ) -> Result<InterfaceHandle, BindingError> {
@@ -298,7 +298,7 @@ pub(crate) fn build_request_handler_interface(
         .build()?;
 
     lib.define_interface(
-        "RequestHandler",
+        "WriteHandler",
         "Interface used to handle read and write requests received from the client",
     )?
     // --- write single coil ---
