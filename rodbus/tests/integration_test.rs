@@ -7,6 +7,7 @@ use std::str::FromStr;
 use tokio::net::TcpListener;
 use tokio::runtime::Runtime;
 
+use rodbus::error::details::ExceptionCode;
 use std::time::Duration;
 
 struct Handler {
@@ -27,69 +28,76 @@ impl Handler {
     }
 }
 
-impl ServerHandler for Handler {
-    fn read_coils(&mut self, range: ReadBitsRange) -> Result<&[bool], details::ExceptionCode> {
-        Self::get_range_of(self.coils.as_ref(), range.get())
+impl RequestHandler for Handler {
+    fn read_coil(&self, address: u16) -> Result<bool, ExceptionCode> {
+        match self.coils.get(address as usize) {
+            Some(x) => Ok(*x),
+            None => Err(ExceptionCode::IllegalDataAddress),
+        }
     }
 
-    fn read_discrete_inputs(
-        &mut self,
-        range: ReadBitsRange,
-    ) -> Result<&[bool], details::ExceptionCode> {
-        Self::get_range_of(self.discrete_inputs.as_ref(), range.get())
+    fn read_discrete_input(&self, address: u16) -> Result<bool, ExceptionCode> {
+        match self.discrete_inputs.get(address as usize) {
+            Some(x) => Ok(*x),
+            None => Err(ExceptionCode::IllegalDataAddress),
+        }
     }
 
-    fn read_holding_registers(
-        &mut self,
-        range: ReadRegistersRange,
-    ) -> Result<&[u16], details::ExceptionCode> {
-        Self::get_range_of(self.holding_registers.as_ref(), range.get())
+    fn read_holding_register(&self, address: u16) -> Result<u16, ExceptionCode> {
+        match self.holding_registers.get(address as usize) {
+            Some(x) => Ok(*x),
+            None => Err(ExceptionCode::IllegalDataAddress),
+        }
     }
 
-    fn read_input_registers(
-        &mut self,
-        range: ReadRegistersRange,
-    ) -> Result<&[u16], details::ExceptionCode> {
-        Self::get_range_of(self.input_registers.as_ref(), range.get())
+    fn read_input_register(&self, address: u16) -> Result<u16, ExceptionCode> {
+        match self.input_registers.get(address as usize) {
+            Some(x) => Ok(*x),
+            None => Err(ExceptionCode::IllegalDataAddress),
+        }
     }
 
     fn write_single_coil(&mut self, value: Indexed<bool>) -> Result<(), details::ExceptionCode> {
-        let idx = value.index as usize;
-        if idx < self.coils.len() {
-            self.coils[idx] = value.value;
-            Ok(())
-        } else {
-            Err(details::ExceptionCode::IllegalDataAddress)
+        match self.coils.get_mut(value.index as usize) {
+            Some(x) => {
+                *x = value.value;
+                Ok(())
+            }
+            None => Err(details::ExceptionCode::IllegalDataAddress),
         }
     }
 
     fn write_single_register(&mut self, value: Indexed<u16>) -> Result<(), details::ExceptionCode> {
-        let idx = value.index as usize;
-        if idx < self.holding_registers.len() {
-            self.holding_registers[idx] = value.value;
-            Ok(())
-        } else {
-            Err(details::ExceptionCode::IllegalDataAddress)
+        match self.holding_registers.get_mut(value.index as usize) {
+            Some(x) => {
+                *x = value.value;
+                Ok(())
+            }
+            None => Err(details::ExceptionCode::IllegalDataAddress),
         }
     }
 
     fn write_multiple_coils(&mut self, values: WriteCoils) -> Result<(), details::ExceptionCode> {
-        Self::write_mut_range_of(
-            self.coils.as_mut(),
-            values.range,
-            values.iterator.map(|x| x.value),
-        )
+        for x in values.iterator {
+            match self.coils.get_mut(x.index as usize) {
+                Some(c) => *c = x.value,
+                None => return Err(ExceptionCode::IllegalDataAddress),
+            }
+        }
+        Ok(())
     }
 
     fn write_multiple_registers(
         &mut self,
         values: WriteRegisters,
     ) -> Result<(), details::ExceptionCode> {
-        Self::write_mut_range_of(
-            self.holding_registers.as_mut(),
-            values.range,
-            values.iterator.map(|x| x.value),
-        )
+        for x in values.iterator {
+            match self.holding_registers.get_mut(x.index as usize) {
+                Some(c) => *c = x.value,
+                None => return Err(ExceptionCode::IllegalDataAddress),
+            }
+        }
+        Ok(())
     }
 }
 
@@ -152,6 +160,7 @@ async fn test_requests_and_responses() {
             .unwrap(),
         Indexed::new(1, 0xABCD)
     );
+
     assert_eq!(
         session
             .read_holding_registers(AddressRange::try_from(0, 2).unwrap())

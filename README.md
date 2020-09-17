@@ -49,11 +49,11 @@ the benchmark achieved around 200k requests per second spread across 100 concurr
 
 ## C/C++ bindings
 
-The [rodbus-ffi](./rodbus-ffi) directory contains an idiomatic C/C++ API to the library.
+The [rodbus-ffi](ffi/rodbus-ffi) directory contains an idiomatic C/C++ API to the library.
 Requests can be sent asynchronously using callback functions or synchronously with blocking function calls.
 
 In this early release, only the client side of the library has been exposed and is only known to work on *nix platforms.
-Please read the  [C/C++ Documentation](https://docs.automatak.com/rodbus) and review the [examples](./rodbus-ffi/cmake/examples).
+Please read the  [C/C++ Documentation](https://docs.automatak.com/rodbus) and review the [examples](ffi/rodbus-ffi/cmake/examples).
 
 To generate the bindings, do the following:
 - Install `cbindgen` with `cargo install cbindgen`
@@ -64,7 +64,7 @@ To generate the bindings, do the following:
 To use the bindings, you will need to include`rodbus.h` or `rodbus.hpp` which each include `prelude.h`. 
 You will also need to link with the compiled library `rodbus_ffi.so` found in the target directory.
 
-There is also a [CMake script](./rodbus-ffi/cmake/CMakeLists.txt) that can help you automatically build and link to
+There is also a [CMake script](ffi/rodbus-ffi/cmake/CMakeLists.txt) that can help you automatically build and link to
 rodbus from a C/C++ project.
 
 ## Modbus client CLI

@@ -5,15 +5,14 @@ use crate::common::frame::{Frame, FrameFormatter, FrameHeader, FramedReader};
 use crate::common::function::FunctionCode;
 use crate::error::details::ExceptionCode;
 use crate::error::*;
-use crate::server::handler::{ServerHandler, ServerHandlerMap};
+use crate::server::handler::{RequestHandler, ServerHandlerMap};
 use crate::server::request::Request;
 use crate::server::response::ErrorResponse;
-use crate::server::validator::Validator;
 use crate::tcp::frame::{MBAPFormatter, MBAPParser};
 
 pub(crate) struct SessionTask<T, U>
 where
-    T: ServerHandler,
+    T: RequestHandler,
     U: AsyncRead + AsyncWrite + Unpin,
 {
     io: U,
@@ -25,7 +24,7 @@ where
 
 impl<T, U> SessionTask<T, U>
 where
-    T: ServerHandler,
+    T: RequestHandler,
     U: AsyncRead + AsyncWrite + Unpin,
 {
     pub(crate) fn new(
@@ -42,12 +41,12 @@ where
         }
     }
 
-    async fn reply_with_exception(
+    async fn reply_with_error(
         &mut self,
         header: FrameHeader,
-        response: ErrorResponse,
+        err: ErrorResponse,
     ) -> Result<(), Error> {
-        let bytes = self.writer.format(header, &response)?;
+        let bytes = self.writer.error(header, err)?;
         self.io.write_all(bytes).await?;
         Ok(())
     }
@@ -94,7 +93,7 @@ where
                 None => {
                     log::warn!("received unknown function code: {}", value);
                     return self
-                        .reply_with_exception(frame.header, ErrorResponse::unknown_function(value))
+                        .reply_with_error(frame.header, ErrorResponse::unknown_function(value))
                         .await;
                 }
             },
@@ -104,9 +103,10 @@ where
             Ok(x) => x,
             Err(err) => {
                 log::warn!("error parsing {:?} request: {}", function, err);
-                let reply = self.writer.format(
+                let reply = self.writer.exception(
                     frame.header,
-                    &ErrorResponse::new(function, ExceptionCode::IllegalDataValue),
+                    function,
+                    ExceptionCode::IllegalDataValue,
                 )?;
                 self.io.write_all(reply).await?;
                 return Ok(());
@@ -116,8 +116,7 @@ where
         // get the reply data (or exception reply)
         let reply_frame: &[u8] = {
             let mut lock = handler.lock().await;
-            let mut validator = Validator::wrap(lock.as_mut());
-            request.get_reply(frame.header, &mut validator, &mut self.writer)?
+            request.get_reply(frame.header, lock.as_mut(), &mut self.writer)?
         };
 
         // reply with the bytes

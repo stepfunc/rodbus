@@ -1,19 +1,25 @@
 [package]
 name = "rodbus-ffi"
 version = "0.1.1"
-authors = ["Adam Crain <jadamcrain@automatak.com>", "Émile Grégoire <emile@automatak.com>"]
+authors = ["Adam Crain <adam@stepfunc.io>", "Émile Grégoire <emile@stepfunc.io>"]
 edition = "2018"
 license = "GPL-3.0-only"
-description = "C bindings for the Rodbus crate"
+description = "FFI for Rodbus"
 keywords = ["ffi", "c", "modbus", "ics", "industrial", "plc", "security"]
 categories = ["network-programming"]
 repository = "https://www.github.com/automatak/rodbus"
 readme = "../README.md"
 
-[dependencies]
-rodbus = { version = "0.1.1", path = "../rodbus" }
-tokio = { version = "^0.2.11", features = ["rt-threaded"]}
-log = { version = "0.4", features = ["std"] }
-
 [lib]
 crate-type = ["cdylib"]
+
+[dependencies]
+rodbus = { path = "../../rodbus" }
+log = "0.4"
+tokio = { version = "^0.2.11", features = ["rt-threaded"]}
+
+[build-dependencies]
+rodbus-ffi-schema = { path = "../schema" }
+rust-oo-bindgen = { git = "https://git@github.com/grid-io/oo_bindgen.git", branch = "master" }
+
+

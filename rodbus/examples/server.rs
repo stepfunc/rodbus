@@ -4,6 +4,7 @@ use std::str::FromStr;
 use tokio::net::TcpListener;
 
 use rodbus::prelude::*;
+use simple_logger::SimpleLogger;
 
 struct SimpleHandler {
     coils: Vec<bool>,
@@ -32,30 +33,21 @@ impl SimpleHandler {
     }
 }
 
-impl ServerHandler for SimpleHandler {
-    fn read_coils(&mut self, range: ReadBitsRange) -> Result<&[bool], details::ExceptionCode> {
-        Self::get_range_of(self.coils.as_slice(), range.get())
+impl RequestHandler for SimpleHandler {
+    fn read_coil(&self, address: u16) -> Result<bool, details::ExceptionCode> {
+        Self::convert(self.coils.get(address as usize))
     }
 
-    fn read_discrete_inputs(
-        &mut self,
-        range: ReadBitsRange,
-    ) -> Result<&[bool], details::ExceptionCode> {
-        Self::get_range_of(self.discrete_inputs.as_slice(), range.get())
+    fn read_discrete_input(&self, address: u16) -> Result<bool, details::ExceptionCode> {
+        Self::convert(self.discrete_inputs.get(address as usize))
     }
 
-    fn read_holding_registers(
-        &mut self,
-        range: ReadRegistersRange,
-    ) -> Result<&[u16], details::ExceptionCode> {
-        Self::get_range_of(self.holding_registers.as_slice(), range.get())
+    fn read_holding_register(&self, address: u16) -> Result<u16, details::ExceptionCode> {
+        Self::convert(self.holding_registers.get(address as usize))
     }
 
-    fn read_input_registers(
-        &mut self,
-        range: ReadRegistersRange,
-    ) -> Result<&[u16], details::ExceptionCode> {
-        Self::get_range_of(self.input_registers.as_slice(), range.get())
+    fn read_input_register(&self, address: u16) -> Result<u16, details::ExceptionCode> {
+        Self::convert(self.input_registers.get(address as usize))
     }
 
     fn write_single_coil(&mut self, value: Indexed<bool>) -> Result<(), details::ExceptionCode> {
@@ -104,7 +96,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     // print log messages to the console
-    simple_logger::init_with_level(log::Level::Info).unwrap();
+    SimpleLogger::new()
+        .with_level(log::LevelFilter::Info)
+        .init()
+        .unwrap();
 
     let handler =
         SimpleHandler::new(vec![false; 10], vec![false; 20], vec![0; 10], vec![0; 20]).wrap();

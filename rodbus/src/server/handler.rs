@@ -17,7 +17,7 @@ use crate::types::*;
 ///
 /// [`ExceptionCode::IllegalDataAddress`]: ../../error/details/enum.ExceptionCode.html#variant.IllegalDataAddress
 /// [`ExceptionCode::ServerDeviceFailure`]: ../../error/details/enum.ExceptionCode.html#variant.ServerDeviceFailure
-pub trait ServerHandler: Send + 'static {
+pub trait RequestHandler: Send + 'static {
     /// Moves a server handler implementation into a `Arc<Mutex<Box<ServerHandler>>>`
     /// suitable for passing to the server
     fn wrap(self) -> Arc<Mutex<Box<Self>>>
@@ -27,29 +27,23 @@ pub trait ServerHandler: Send + 'static {
         Arc::new(Mutex::new(Box::new(self)))
     }
 
-    /// Read a range of coils, returning the matching slice of bool or an exception
-    fn read_coils(&mut self, _range: ReadBitsRange) -> Result<&[bool], ExceptionCode> {
+    /// Read single coil or return an ExceptionCode
+    fn read_coil(&self, _address: u16) -> Result<bool, ExceptionCode> {
         Err(ExceptionCode::IllegalFunction)
     }
 
-    /// Read a range of discrete inputs, returning the matching slice of bool or an exception
-    fn read_discrete_inputs(&mut self, _range: ReadBitsRange) -> Result<&[bool], ExceptionCode> {
+    /// Read single discrete input or return an ExceptionCode
+    fn read_discrete_input(&self, _address: u16) -> Result<bool, ExceptionCode> {
         Err(ExceptionCode::IllegalFunction)
     }
 
-    /// Read a range of holding registers, returning the matching slice of u16 or an exception
-    fn read_holding_registers(
-        &mut self,
-        _range: ReadRegistersRange,
-    ) -> Result<&[u16], ExceptionCode> {
+    /// Read single holding register or return an ExceptionCode
+    fn read_holding_register(&self, _address: u16) -> Result<u16, ExceptionCode> {
         Err(ExceptionCode::IllegalFunction)
     }
 
-    /// Read a range of input registers, returning the matching slice of u16 or an exception
-    fn read_input_registers(
-        &mut self,
-        _range: ReadRegistersRange,
-    ) -> Result<&[u16], ExceptionCode> {
+    /// Read single input register or return an ExceptionCode
+    fn read_input_register(&self, _address: u16) -> Result<u16, ExceptionCode> {
         Err(ExceptionCode::IllegalFunction)
     }
 
@@ -73,40 +67,14 @@ pub trait ServerHandler: Send + 'static {
         Err(ExceptionCode::IllegalFunction)
     }
 
-    /// Helper function to safely retrieve a sub-range of a slice or
-    /// [`ExceptionCode::IllegalDataAddress`](../../error/details/enum.ExceptionCode.html#variant.IllegalDataAddress)
-    fn get_range_of<T>(slice: &[T], range: AddressRange) -> Result<&[T], ExceptionCode> {
-        slice
-            .get(range.to_std_range())
-            .ok_or(ExceptionCode::IllegalDataAddress)
-    }
-
-    /// Helper function to safely retrieve a mutable sub-range of a slice or
-    /// [`ExceptionCode::IllegalDataAddress`](../../error/details/enum.ExceptionCode.html#variant.IllegalDataAddress)
-    fn get_mut_range_of<T>(
-        slice: &mut [T],
-        range: AddressRange,
-    ) -> Result<&mut [T], ExceptionCode> {
-        slice
-            .get_mut(range.to_std_range())
-            .ok_or(ExceptionCode::IllegalDataAddress)
-    }
-
-    /// Helper function to safely perform a multi-write operation
-    /// [`ExceptionCode::IllegalDataAddress`](../../error/details/enum.ExceptionCode.html#variant.IllegalDataAddress)
-    fn write_mut_range_of<T, I>(
-        slice: &mut [T],
-        range: AddressRange,
-        iter: I,
-    ) -> Result<(), ExceptionCode>
+    fn convert<T>(x: Option<&T>) -> Result<T, ExceptionCode>
     where
-        I: Iterator<Item = T>,
+        T: Copy,
     {
-        let range = Self::get_mut_range_of(slice, range)?;
-        for (idx, value) in iter.enumerate() {
-            range[idx] = value;
+        match x {
+            Some(x) => Ok(*x),
+            None => Err(ExceptionCode::IllegalDataAddress),
         }
-        Ok(())
     }
 }
 
@@ -118,7 +86,7 @@ type ServerHandlerType<T> = Arc<Mutex<Box<T>>>;
 /// [`ServerHandler`]: trait.ServerHandler.html
 /// [`UnitId`]: ../../types/struct.UnitId.html
 #[derive(Default)]
-pub struct ServerHandlerMap<T: ServerHandler> {
+pub struct ServerHandlerMap<T: RequestHandler> {
     handlers: BTreeMap<UnitId, ServerHandlerType<T>>,
 }
 
@@ -126,7 +94,7 @@ pub struct ServerHandlerMap<T: ServerHandler> {
 // due to the generic typing....
 impl<T> Clone for ServerHandlerMap<T>
 where
-    T: ServerHandler,
+    T: RequestHandler,
 {
     fn clone(&self) -> Self {
         ServerHandlerMap {
@@ -137,7 +105,7 @@ where
 
 impl<T> ServerHandlerMap<T>
 where
-    T: ServerHandler,
+    T: RequestHandler,
 {
     /// Create an empty map
     pub fn new() -> Self {
@@ -173,29 +141,22 @@ mod tests {
     use super::*;
 
     struct DefaultHandler;
-    impl ServerHandler for DefaultHandler {}
-
-    fn range() -> AddressRange {
-        AddressRange::try_from(0, 1).unwrap()
-    }
+    impl RequestHandler for DefaultHandler {}
 
     #[test]
     fn default_handler_returns_illegal_function() {
         let mut handler = DefaultHandler {};
+        assert_eq!(handler.read_coil(0), Err(ExceptionCode::IllegalFunction));
         assert_eq!(
-            handler.read_coils(range().of_read_bits().unwrap()),
+            handler.read_discrete_input(0),
             Err(ExceptionCode::IllegalFunction)
         );
         assert_eq!(
-            handler.read_discrete_inputs(range().of_read_bits().unwrap()),
+            handler.read_holding_register(0),
             Err(ExceptionCode::IllegalFunction)
         );
         assert_eq!(
-            handler.read_holding_registers(range().of_read_registers().unwrap()),
-            Err(ExceptionCode::IllegalFunction)
-        );
-        assert_eq!(
-            handler.read_input_registers(range().of_read_registers().unwrap()),
+            handler.read_input_register(0),
             Err(ExceptionCode::IllegalFunction)
         );
         assert_eq!(
@@ -206,21 +167,6 @@ mod tests {
             handler.write_single_register(Indexed::new(0, 0)),
             Err(ExceptionCode::IllegalFunction)
         );
-    }
-
-    #[test]
-    fn get_range_of_errors_when_input_range_not_subset_of_slice() {
-        let result =
-            DefaultHandler::get_range_of([true].as_ref(), AddressRange::try_from(1, 1).unwrap());
-        assert_eq!(result, Err(ExceptionCode::IllegalDataAddress));
-    }
-
-    #[test]
-    fn get_mut_range_of_errors_when_input_range_not_subset_of_slice() {
-        let mut bytes = [true];
-        let result =
-            DefaultHandler::get_mut_range_of(bytes.as_mut(), AddressRange::try_from(1, 1).unwrap());
-        assert_eq!(result, Err(ExceptionCode::IllegalDataAddress));
     }
 
     #[test]

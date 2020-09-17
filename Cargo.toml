@@ -3,5 +3,7 @@
 members = [
   "rodbus",
   "rodbus-client",
-  "rodbus-ffi",
+  "ffi/bindings",
+  "ffi/rodbus-ffi",
+  "ffi/schema"
 ]

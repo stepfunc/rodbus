@@ -92,6 +92,7 @@ impl ReadBuffer {
         }
 
         let count = io.read(&mut self.buffer[self.end..]).await?;
+
         if count == 0 {
             return Err(std::io::Error::from(std::io::ErrorKind::UnexpectedEof));
         }

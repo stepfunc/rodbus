@@ -61,9 +61,9 @@ impl Request {
                 Ok(x) => {
                     let exception = ExceptionCode::from(x);
                     if cursor.is_empty() {
-                        Error::BadResponse(ADUParseError::TrailingBytes(cursor.len()))
-                    } else {
                         Error::Exception(exception)
+                    } else {
+                        Error::BadResponse(ADUParseError::TrailingBytes(cursor.len()))
                     }
                 }
                 Err(err) => err.into(),
@@ -121,7 +121,6 @@ impl RequestDetails {
 
 impl Serialize for RequestDetails {
     fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), Error> {
-        cursor.write_u8(self.function().get_value())?;
         match self {
             RequestDetails::ReadCoils(x) => x.serialize(cursor),
             RequestDetails::ReadDiscreteInputs(x) => x.serialize(cursor),

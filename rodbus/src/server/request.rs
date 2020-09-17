@@ -4,9 +4,8 @@ use crate::common::function::FunctionCode;
 use crate::common::traits::{Parse, Serialize};
 use crate::error::details::ExceptionCode;
 use crate::error::Error;
-use crate::server::handler::ServerHandler;
-use crate::server::response::{ErrorResponse, Response};
-use crate::server::validator::Validator;
+use crate::server::handler::RequestHandler;
+use crate::server::response::{BitWriter, RegisterWriter};
 use crate::tcp::frame::MBAPFormatter;
 use crate::types::*;
 
@@ -38,13 +37,13 @@ impl<'a> Request<'a> {
     pub(crate) fn get_reply<'b, T>(
         self,
         header: FrameHeader,
-        handler: &mut Validator<T>,
+        handler: &mut T,
         writer: &'b mut MBAPFormatter,
     ) -> Result<&'b [u8], Error>
     where
-        T: ServerHandler,
+        T: RequestHandler,
     {
-        fn serialize<T>(
+        fn serialize_result<T>(
             function: FunctionCode,
             header: FrameHeader,
             writer: &mut MBAPFormatter,
@@ -54,53 +53,50 @@ impl<'a> Request<'a> {
             T: Serialize,
         {
             match result {
-                Ok(data) => writer.format(header, &Response::new(function, &data)),
-                Err(ex) => writer.format(header, &ErrorResponse::new(function, ex)),
+                Ok(data) => writer.format(header, function, &data),
+                Err(ex) => writer.exception(header, function, ex),
             }
         }
 
         let function = self.get_function();
         match self {
             Request::ReadCoils(range) => {
-                serialize(function, header, writer, handler.read_coils(range))
+                let bits = BitWriter::new(range, |index| handler.read_coil(index));
+                writer.format(header, function, &bits)
             }
-            Request::ReadDiscreteInputs(range) => serialize(
-                function,
-                header,
-                writer,
-                handler.read_discrete_inputs(range),
-            ),
-            Request::ReadHoldingRegisters(range) => serialize(
-                function,
-                header,
-                writer,
-                handler.read_holding_registers(range),
-            ),
-            Request::ReadInputRegisters(range) => serialize(
-                function,
-                header,
-                writer,
-                handler.read_input_registers(range),
-            ),
-            Request::WriteSingleCoil(request) => serialize(
+            Request::ReadDiscreteInputs(range) => {
+                let bits = BitWriter::new(range, |index| handler.read_discrete_input(index));
+                writer.format(header, function, &bits)
+            }
+            Request::ReadHoldingRegisters(range) => {
+                let registers =
+                    RegisterWriter::new(range, |index| handler.read_holding_register(index));
+                writer.format(header, function, &registers)
+            }
+            Request::ReadInputRegisters(range) => {
+                let registers =
+                    RegisterWriter::new(range, |index| handler.read_input_register(index));
+                writer.format(header, function, &registers)
+            }
+            Request::WriteSingleCoil(request) => serialize_result(
                 function,
                 header,
                 writer,
                 handler.write_single_coil(request).map(|_| request),
             ),
-            Request::WriteSingleRegister(request) => serialize(
+            Request::WriteSingleRegister(request) => serialize_result(
                 function,
                 header,
                 writer,
                 handler.write_single_register(request).map(|_| request),
             ),
-            Request::WriteMultipleCoils(items) => serialize(
+            Request::WriteMultipleCoils(items) => serialize_result(
                 function,
                 header,
                 writer,
                 handler.write_multiple_coils(items).map(|_| items.range),
             ),
-            Request::WriteMultipleRegisters(items) => serialize(
+            Request::WriteMultipleRegisters(items) => serialize_result(
                 function,
                 header,
                 writer,

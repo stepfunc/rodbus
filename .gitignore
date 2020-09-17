@@ -4,4 +4,4 @@
 /target
 /Cargo.lock
 /.idea
-
+/generated
