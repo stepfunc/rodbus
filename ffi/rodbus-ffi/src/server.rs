@@ -69,7 +69,7 @@ impl RequestHandler for RequestHandlerWrapper {
     fn write_single_coil(&mut self, value: Indexed<bool>) -> Result<(), ExceptionCode> {
         match self
             .write_handler
-            .write_single_coil(value.value, value.index)
+            .write_single_coil(value.value, value.index, &mut self.database)
         {
             Some(x) => {
                 if x.success {
@@ -85,7 +85,7 @@ impl RequestHandler for RequestHandlerWrapper {
     fn write_single_register(&mut self, value: Indexed<u16>) -> Result<(), ExceptionCode> {
         match self
             .write_handler
-            .write_single_register(value.value, value.index)
+            .write_single_register(value.value, value.index, &mut self.database)
         {
             Some(x) => x.convert_to_result(),
             None => Err(ExceptionCode::IllegalFunction),
@@ -95,10 +95,11 @@ impl RequestHandler for RequestHandlerWrapper {
     fn write_multiple_coils(&mut self, values: WriteCoils) -> Result<(), ExceptionCode> {
         let mut iterator = crate::BitIterator::new(values.iterator);
 
-        match self
-            .write_handler
-            .write_multiple_coils(values.range.start, &mut iterator as *mut _)
-        {
+        match self.write_handler.write_multiple_coils(
+            values.range.start,
+            &mut iterator,
+            &mut self.database,
+        ) {
             Some(x) => x.convert_to_result(),
             None => Err(ExceptionCode::IllegalFunction),
         }
@@ -107,10 +108,11 @@ impl RequestHandler for RequestHandlerWrapper {
     fn write_multiple_registers(&mut self, values: WriteRegisters) -> Result<(), ExceptionCode> {
         let mut iterator = crate::RegisterIterator::new(values.iterator);
 
-        match self
-            .write_handler
-            .write_multiple_registers(values.range.start, &mut iterator as *mut _)
-        {
+        match self.write_handler.write_multiple_registers(
+            values.range.start,
+            &mut iterator,
+            &mut self.database,
+        ) {
             Some(x) => x.convert_to_result(),
             None => Err(ExceptionCode::IllegalFunction),
         }

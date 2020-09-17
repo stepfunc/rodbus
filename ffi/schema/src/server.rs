@@ -34,7 +34,7 @@ pub(crate) fn build_server(
         .build()?
         .build()?;
 
-    let handler_map = build_handler_map(lib, &db_update_callback, common)?;
+    let handler_map = build_handler_map(lib, &database.declaration, &db_update_callback, common)?;
 
     let server_handle = lib.declare_class("ServerHandle")?;
 
@@ -224,10 +224,11 @@ pub(crate) fn build_database_class(lib: &mut LibraryBuilder) -> Result<ClassHand
 
 pub(crate) fn build_handler_map(
     lib: &mut LibraryBuilder,
+    database: &ClassDeclarationHandle,
     db_update_callback: &OneTimeCallbackHandle,
     common: &CommonDefinitions,
 ) -> Result<ClassHandle, BindingError> {
-    let write_handler = build_write_handler_interface(lib, common)?;
+    let write_handler = build_write_handler_interface(lib, database, common)?;
 
     let device_map = lib.declare_class("DeviceMap")?;
 
@@ -286,6 +287,7 @@ pub(crate) fn build_handler_map(
 
 pub(crate) fn build_write_handler_interface(
     lib: &mut LibraryBuilder,
+    database: &ClassDeclarationHandle,
     common: &CommonDefinitions,
 ) -> Result<InterfaceHandle, BindingError> {
     let write_result = lib.declare_native_struct("WriteResult")?;
@@ -308,6 +310,11 @@ pub(crate) fn build_write_handler_interface(
     )?
     .param("value", Type::Bool, "Value of the coil to write")?
     .param("index", Type::Uint16, "Index of the coil")?
+    .param(
+        "database",
+        Type::ClassRef(database.clone()),
+        "database interface for updates",
+    )?
     .return_type(ReturnType::Type(
         Type::Struct(write_result.clone()),
         "struct describing the result of the operation".into(),
@@ -320,6 +327,11 @@ pub(crate) fn build_write_handler_interface(
     )?
     .param("value", Type::Uint16, "Value of the register to write")?
     .param("index", Type::Uint16, "Index of the register")?
+    .param(
+        "database",
+        Type::ClassRef(database.clone()),
+        "database interface for updates",
+    )?
     .return_type(ReturnType::Type(
         Type::Struct(write_result.clone()),
         "struct describing the result of the operation".into(),
@@ -336,6 +348,11 @@ pub(crate) fn build_write_handler_interface(
         Type::Iterator(common.bit_iterator.clone()),
         "iterator over coil values",
     )?
+    .param(
+        "database",
+        Type::ClassRef(database.clone()),
+        "database interface for updates",
+    )?
     .return_type(ReturnType::Type(
         Type::Struct(write_result.clone()),
         "struct describing the result of the operation".into(),
@@ -351,6 +368,11 @@ pub(crate) fn build_write_handler_interface(
         "it",
         Type::Iterator(common.register_iterator.clone()),
         "iterator over register values",
+    )?
+    .param(
+        "database",
+        Type::ClassRef(database.clone()),
+        "database interface for updates",
     )?
     .return_type(ReturnType::Type(
         Type::Struct(write_result),
