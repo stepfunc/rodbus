@@ -1,6 +1,6 @@
 use crate::Database;
 use rodbus::error::details::ExceptionCode;
-use rodbus::server::handler::RequestHandler;
+use rodbus::server::handler::{RequestHandler, ServerHandlerMap};
 use rodbus::shutdown::TaskHandle;
 use rodbus::types::{Indexed, UnitId, WriteCoils, WriteRegisters};
 use std::collections::HashMap;
@@ -112,8 +112,10 @@ impl RequestHandler for RequestHandlerWrapper {
 }
 
 pub struct ServerHandle {
-    _runtime: tokio::runtime::Handle,
+    runtime: tokio::runtime::Handle,
+    // never used but we have to hang onto it otherwise the server shuts down
     _server: rodbus::shutdown::TaskHandle,
+    map: ServerHandlerMap<RequestHandlerWrapper>,
 }
 
 pub(crate) unsafe fn create_device_map() -> *mut DeviceMap {
@@ -188,13 +190,15 @@ pub(crate) unsafe fn create_tcp_server(
     };
 
     let (tx, rx) = tokio::sync::mpsc::channel(1);
-    let task =
-        rodbus::server::create_tcp_server_task(rx, 100, listener, endpoints.drain_and_convert());
+
+    let handler_map = endpoints.drain_and_convert();
+    let task = rodbus::server::create_tcp_server_task(rx, 100, listener, handler_map.clone());
     let join_handle = runtime.spawn(task);
 
     let server_handle = ServerHandle {
         _server: TaskHandle::new(tx, join_handle),
-        _runtime: runtime.handle().clone(),
+        runtime: runtime.handle().clone(),
+        map: handler_map,
     };
 
     Box::into_raw(Box::new(server_handle))
@@ -204,4 +208,29 @@ pub(crate) unsafe fn destroy_server(server: *mut crate::ServerHandle) {
     if !server.is_null() {
         Box::from_raw(server);
     }
+}
+
+pub(crate) unsafe fn server_update_database(
+    server: *mut crate::ServerHandle,
+    unit_id: u8,
+    transaction: crate::ffi::DatabaseCallback,
+) -> bool {
+    let server = match server.as_mut() {
+        None => return false,
+        Some(x) => x,
+    };
+
+    let handler = match server.map.get(UnitId::new(unit_id)) {
+        None => return false,
+        Some(x) => x,
+    };
+
+    let transaction = async {
+        let mut lock = handler.lock().await;
+        transaction.callback(&mut lock.database);
+    };
+
+    server.runtime.block_on(transaction);
+
+    true
 }

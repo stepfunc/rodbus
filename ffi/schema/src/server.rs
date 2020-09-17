@@ -1,6 +1,6 @@
 use crate::common::CommonDefinitions;
 
-use oo_bindgen::callback::InterfaceHandle;
+use oo_bindgen::callback::{InterfaceHandle, OneTimeCallbackHandle};
 use oo_bindgen::class::{ClassDeclarationHandle, ClassHandle};
 use oo_bindgen::native_function::{NativeFunctionHandle, ReturnType, Type};
 use oo_bindgen::{BindingError, LibraryBuilder};
@@ -17,7 +17,24 @@ pub(crate) fn build_server(
     lib: &mut LibraryBuilder,
     common: &CommonDefinitions,
 ) -> Result<ClassHandle, BindingError> {
-    let handler_map = build_handler_map(lib, common)?;
+    let database = build_database_class(lib)?;
+
+    let db_update_callback = lib
+        .define_one_time_callback(
+            "DatabaseCallback",
+            "Callback used to access the internal database while it is locked",
+        )?
+        .callback("callback", "callback function")?
+        .param(
+            "database",
+            Type::ClassRef(database.declaration.clone()),
+            "database on which to perform updates",
+        )?
+        .return_type(ReturnType::void())?
+        .build()?
+        .build()?;
+
+    let handler_map = build_handler_map(lib, &db_update_callback, common)?;
 
     let server_handle = lib.declare_class("ServerHandle")?;
 
@@ -52,9 +69,19 @@ pub(crate) fn build_server(
         .doc("destroy a running server via its handle")?
         .build()?;
 
+    let update_fn = lib
+        .declare_native_function("server_update_database")?
+        .param("server", Type::ClassRef(server_handle.clone()), "server on which the endpoint resides")?
+        .param("unit_id", Type::Uint8, "Unit id of the database to update")?
+        .param("transaction", Type::OneTimeCallback(db_update_callback), "callback invoked when a lock has been acquired")?
+        .return_type(ReturnType::Type(Type::Bool, "true if the unit id is present, false otherwise".into()))?
+        .doc("Update the database associated with a particular unit id. If the unit id exists, lock the database and call user code to perform the transaction")?
+        .build()?;
+
     lib.define_class(&server_handle)?
         .constructor(&create_fn)?
         .destructor(&destroy_fn)?
+        .method("update", &update_fn)?
         .doc("Server handle, the server remains alive until this reference is destroyed")?
         .build()
 }
@@ -197,26 +224,10 @@ pub(crate) fn build_database_class(lib: &mut LibraryBuilder) -> Result<ClassHand
 
 pub(crate) fn build_handler_map(
     lib: &mut LibraryBuilder,
+    db_update_callback: &OneTimeCallbackHandle,
     common: &CommonDefinitions,
 ) -> Result<ClassHandle, BindingError> {
     let request_handler = build_request_handler_interface(lib, common)?;
-
-    let database = build_database_class(lib)?;
-
-    let db_callback = lib
-        .define_one_time_callback(
-            "DatabaseCallback",
-            "Callback used to access the internal database while it is locked",
-        )?
-        .callback("callback", "callback function")?
-        .param(
-            "database",
-            Type::ClassRef(database.declaration.clone()),
-            "database on which to perform updates",
-        )?
-        .return_type(ReturnType::void())?
-        .build()?
-        .build()?;
 
     let device_map = lib.declare_class("DeviceMap")?;
 
@@ -255,7 +266,7 @@ pub(crate) fn build_handler_map(
         )?
         .param(
             "configure",
-            Type::OneTimeCallback(db_callback),
+            Type::OneTimeCallback(db_update_callback.clone()),
             "one-time callback interface configuring the initial state of the database",
         )?
         .return_type(ReturnType::Type(
