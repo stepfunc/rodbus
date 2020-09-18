@@ -7,14 +7,22 @@ namespace example
 {
     class Program
     {
+        class LogHandler : ILogHandler
+        {
+            public void OnMessage(LogLevel level, string message)
+            {
+                Console.WriteLine($"{level} - {message}");
+            }
+        }
+
 
         class WriteHandler : IWriteHandler
         {
             public WriteResult WriteMultipleCoils(ushort start, ICollection<Bit> it, Database database)
             {
-                foreach(var bit in it)
+                foreach (var bit in it)
                 {
-                    if(!database.UpdateCoil(bit.Index, bit.Value))
+                    if (!database.UpdateCoil(bit.Index, bit.Value))
                     {
                         return new WriteResult { Success = false, Exception = rodbus.Exception.IllegalDataAddress, RawException = 0 };
                     }
@@ -45,7 +53,7 @@ namespace example
                 else
                 {
                     return new WriteResult { Success = false, Exception = rodbus.Exception.IllegalDataAddress, RawException = 0 };
-                }                
+                }
             }
 
             public WriteResult WriteSingleRegister(ushort value, ushort index, Database database)
@@ -59,7 +67,7 @@ namespace example
                     return new WriteResult { Success = false, Exception = rodbus.Exception.IllegalDataAddress, RawException = 0 };
                 }
             }
-        }       
+        }
 
         class DatabaseUpdate : IDatabaseCallback
         {
@@ -77,16 +85,21 @@ namespace example
 
         static void Main(string[] args)
         {
+            Logging.SetMaxLogLevel(LogLevel.Info);
+            Logging.SetHandler(new LogHandler());
+
             using (var runtime = new Runtime(new RuntimeConfig { NumCoreThreads = 1 }))
             {
-                run(runtime);
+                Run(runtime);
             }
         }
 
-        static void run(Runtime runtime)
+        static void Run(Runtime runtime)
         {
+
             var map = new DeviceMap();
-            map.AddEndpoint(1, new WriteHandler(), new DatabaseUpdate((db) => {
+            map.AddEndpoint(1, new WriteHandler(), new DatabaseUpdate((db) =>
+            {
                 for (ushort i = 0; i < 10; ++i)
                 {
                     db.AddCoil(i, false);
@@ -100,13 +113,15 @@ namespace example
 
             ushort registerValue = 0;
             bool bitValue = false;
-            
-            while(true)
+
+            while (true)
             {
-                server.Update(1, new DatabaseUpdate((db) => {
+                server.Update(1, new DatabaseUpdate((db) =>
+                {
                     registerValue += 1;
                     bitValue = !bitValue;
-                    for(ushort i = 0; i < 10; ++i){
+                    for (ushort i = 0; i < 10; ++i)
+                    {
                         db.UpdateDiscreteInput(i, bitValue);
                         db.UpdateInputRegister(i, registerValue);
                     }
