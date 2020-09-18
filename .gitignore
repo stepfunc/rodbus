@@ -8,6 +8,7 @@
 .vscode
 .vs
 .idea
+*.iml
 
 # generated c lib
 /ffi/bindings/c/build
@@ -21,3 +22,5 @@
 # Generated Java lib
 /ffi/bindings/java/.idea
 /ffi/bindings/java/rodbus
+/ffi/bindings/java/**/target
+
