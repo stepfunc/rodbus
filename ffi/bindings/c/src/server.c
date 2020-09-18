@@ -122,7 +122,7 @@ int main() {
 	}
 	
 	runtime_t* runtime = NULL;
-	server_handle_t* server = NULL;
+	server_t* server = NULL;
 
 	runtime = runtime_new(NULL);
 	if (!runtime) {

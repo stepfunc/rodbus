@@ -15,6 +15,8 @@
 
 # generated .NET lib
 /ffi/bindings/dotnet/rodbus
+/ffi/bindings/dotnet/**/bin
+/ffi/bindings/dotnet/**/obj
 
 # Generated Java lib
 /ffi/bindings/java/.idea
