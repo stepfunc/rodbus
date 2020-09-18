@@ -1,10 +1,17 @@
 /rodbus/target
 /rodbus/Cargo.lock
-/rodbus/.idea
 /target
 /Cargo.lock
 /.idea
 
+# IDES
+.vscode
+.vs
+.idea
+
 # generated c lib
 /ffi/bindings/c/build
 /ffi/bindings/c/generated
+
+# generated .NET lib
+/ffi/bindings/dotnet/rodbus
