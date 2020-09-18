@@ -12,38 +12,54 @@ namespace example
         {
             public WriteResult WriteMultipleCoils(ushort start, ICollection<Bit> it, Database database)
             {
-                return new WriteResult { Success = false, Exception = rodbus.Exception.IllegalFunction, RawException = 0 };
+                foreach(var bit in it)
+                {
+                    if(!database.UpdateCoil(bit.Index, bit.Value))
+                    {
+                        return new WriteResult { Success = false, Exception = rodbus.Exception.IllegalDataAddress, RawException = 0 };
+                    }
+                }
+
+                return new WriteResult { Success = true, Exception = rodbus.Exception.Unknown, RawException = 0 };
             }
 
             public WriteResult WriteMultipleRegisters(ushort start, ICollection<Register> it, Database database)
             {
-                return new WriteResult { Success = false, Exception = rodbus.Exception.IllegalFunction, RawException = 0 };
+                foreach (var bit in it)
+                {
+                    if (!database.UpdateHoldingRegister(bit.Index, bit.Value))
+                    {
+                        return new WriteResult { Success = false, Exception = rodbus.Exception.IllegalDataAddress, RawException = 0 };
+                    }
+                }
+
+                return new WriteResult { Success = true, Exception = rodbus.Exception.Unknown, RawException = 0 };
             }
 
             public WriteResult WriteSingleCoil(bool value, ushort index, Database database)
             {
-                return new WriteResult { Success = false, Exception = rodbus.Exception.IllegalFunction, RawException = 0 };
+                if (database.UpdateCoil(index, value))
+                {
+                    return new WriteResult { Success = true, Exception = rodbus.Exception.Unknown, RawException = 0 };
+                }
+                else
+                {
+                    return new WriteResult { Success = false, Exception = rodbus.Exception.IllegalDataAddress, RawException = 0 };
+                }                
             }
 
             public WriteResult WriteSingleRegister(ushort value, ushort index, Database database)
             {
-                return new WriteResult { Success = false, Exception = rodbus.Exception.IllegalFunction, RawException = 0 };
-            }
-        }
-
-        class DatabaseInitialization : IDatabaseCallback
-        {
-            public void Callback(Database database)
-            {
-                for(ushort i = 0; i < 10; ++i)
+                if (database.UpdateHoldingRegister(index, value))
                 {
-                    database.AddCoil(i, false);
-                    database.AddDiscreteInput(i, false);
-                    database.AddHoldingRegister(i, 0);
-                    database.AddInputRegister(i, 0);
-                }                
+                    return new WriteResult { Success = true, Exception = rodbus.Exception.Unknown, RawException = 0 };
+                }
+                else
+                {
+                    return new WriteResult { Success = false, Exception = rodbus.Exception.IllegalDataAddress, RawException = 0 };
+                }
             }
-        }
+        }       
 
         class DatabaseUpdate : IDatabaseCallback
         {
@@ -70,7 +86,16 @@ namespace example
         static void run(Runtime runtime)
         {
             var map = new DeviceMap();
-            map.AddEndpoint(1, new WriteHandler(), new DatabaseInitialization());
+            map.AddEndpoint(1, new WriteHandler(), new DatabaseUpdate((db) => {
+                for (ushort i = 0; i < 10; ++i)
+                {
+                    db.AddCoil(i, false);
+                    db.AddDiscreteInput(i, false);
+                    db.AddHoldingRegister(i, 0);
+                    db.AddInputRegister(i, 0);
+                }
+            }));
+
             var server = Server.CreateTcpServer(runtime, "127.0.0.1:502", map);
 
             ushort registerValue = 0;
