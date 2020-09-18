@@ -36,9 +36,9 @@ pub(crate) fn build_server(
 
     let handler_map = build_handler_map(lib, &database.declaration, &db_update_callback, common)?;
 
-    let server_handle = lib.declare_class("ServerHandle")?;
+    let server = lib.declare_class("Server")?;
 
-    let create_fn = lib
+    let create_tcp_server_fn = lib
         .declare_native_function("create_tcp_server")?
         .param(
             "runtime",
@@ -52,7 +52,7 @@ pub(crate) fn build_server(
             "map of endpoints which is emptied upon passing to this function",
         )?
         .return_type(ReturnType::Type(
-            Type::ClassRef(server_handle.clone()),
+            Type::ClassRef(server.clone()),
             "handle to the server".into(),
         ))?
         .doc("Launch a TCP server to handle")?
@@ -62,7 +62,7 @@ pub(crate) fn build_server(
         .declare_native_function("destroy_server")?
         .param(
             "server",
-            Type::ClassRef(server_handle.clone()),
+            Type::ClassRef(server.clone()),
             "handle of the server to destroy",
         )?
         .return_type(ReturnType::void())?
@@ -71,18 +71,18 @@ pub(crate) fn build_server(
 
     let update_fn = lib
         .declare_native_function("server_update_database")?
-        .param("server", Type::ClassRef(server_handle.clone()), "server on which the endpoint resides")?
+        .param("server", Type::ClassRef(server.clone()), "server on which the endpoint resides")?
         .param("unit_id", Type::Uint8, "Unit id of the database to update")?
         .param("transaction", Type::OneTimeCallback(db_update_callback), "callback invoked when a lock has been acquired")?
         .return_type(ReturnType::Type(Type::Bool, "true if the unit id is present, false otherwise".into()))?
         .doc("Update the database associated with a particular unit id. If the unit id exists, lock the database and call user code to perform the transaction")?
         .build()?;
 
-    lib.define_class(&server_handle)?
-        .constructor(&create_fn)?
+    lib.define_class(&server)?
         .destructor(&destroy_fn)?
         .method("update", &update_fn)?
-        .doc("Server handle, the server remains alive until this reference is destroyed")?
+        .static_method("create_tcp_server", &create_tcp_server_fn)?
+        .doc("Handle to the running server. The server remains alive until this reference is destroyed")?
         .build()
 }
 

@@ -1,5 +1,5 @@
 [package]
-name = "rodbus-ffi-schema"
+name = "rodbus-schema"
 version = "0.1.1"
 authors = ["Adam Crain <adam@stepfunc.io>", "Émile Grégoire <emile@stepfunc.io>"]
 edition = "2018"
@@ -7,7 +7,7 @@ license = "GPL-3.0-only"
 description = "oobindgen schema for Rodbus"
 keywords = ["ffi", "c", "modbus", "ics", "industrial", "plc", "security"]
 categories = ["network-programming"]
-repository = "https://www.github.com/automatak/rodbus"
+repository = "https://www.github.com/stepfunc/rodbus"
 readme = "../README.md"
 
 [dependencies]

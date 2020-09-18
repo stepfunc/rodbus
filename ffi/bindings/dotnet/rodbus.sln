@@ -1,0 +1,36 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.30128.74
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "rodbus", "rodbus\rodbus.csproj", "{D37ECA5D-556F-46FD-B384-BFB5880B41CA}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "examples", "examples", "{837D82AF-4C61-433A-A941-EBD2F8DBD521}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "tcp-server", "examples\tcp-server\tcp-server.csproj", "{067A724B-6709-4281-9537-C8A9C05F3C2C}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{D37ECA5D-556F-46FD-B384-BFB5880B41CA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D37ECA5D-556F-46FD-B384-BFB5880B41CA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D37ECA5D-556F-46FD-B384-BFB5880B41CA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D37ECA5D-556F-46FD-B384-BFB5880B41CA}.Release|Any CPU.Build.0 = Release|Any CPU
+		{067A724B-6709-4281-9537-C8A9C05F3C2C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{067A724B-6709-4281-9537-C8A9C05F3C2C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{067A724B-6709-4281-9537-C8A9C05F3C2C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{067A724B-6709-4281-9537-C8A9C05F3C2C}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{067A724B-6709-4281-9537-C8A9C05F3C2C} = {837D82AF-4C61-433A-A941-EBD2F8DBD521}
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {010FC04F-2F42-450E-98C9-C45A514B58FC}
+	EndGlobalSection
+EndGlobal

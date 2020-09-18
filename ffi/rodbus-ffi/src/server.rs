@@ -119,7 +119,7 @@ impl RequestHandler for RequestHandlerWrapper {
     }
 }
 
-pub struct ServerHandle {
+pub struct Server {
     runtime: tokio::runtime::Handle,
     // never used but we have to hang onto it otherwise the server shuts down
     _server: rodbus::shutdown::TaskHandle,
@@ -166,7 +166,7 @@ pub(crate) unsafe fn create_tcp_server(
     runtime: *mut crate::Runtime,
     address: *const std::os::raw::c_char,
     endpoints: *mut crate::DeviceMap,
-) -> *mut crate::ServerHandle {
+) -> *mut crate::Server {
     let runtime = match runtime.as_mut() {
         Some(x) => x,
         None => {
@@ -203,7 +203,7 @@ pub(crate) unsafe fn create_tcp_server(
     let task = rodbus::server::create_tcp_server_task(rx, 100, listener, handler_map.clone());
     let join_handle = runtime.spawn(task);
 
-    let server_handle = ServerHandle {
+    let server_handle = Server {
         _server: TaskHandle::new(tx, join_handle),
         runtime: runtime.handle().clone(),
         map: handler_map,
@@ -212,14 +212,14 @@ pub(crate) unsafe fn create_tcp_server(
     Box::into_raw(Box::new(server_handle))
 }
 
-pub(crate) unsafe fn destroy_server(server: *mut crate::ServerHandle) {
+pub(crate) unsafe fn destroy_server(server: *mut crate::Server) {
     if !server.is_null() {
         Box::from_raw(server);
     }
 }
 
 pub(crate) unsafe fn server_update_database(
-    server: *mut crate::ServerHandle,
+    server: *mut crate::Server,
     unit_id: u8,
     transaction: crate::ffi::DatabaseCallback,
 ) -> bool {

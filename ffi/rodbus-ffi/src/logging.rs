@@ -1,4 +1,4 @@
-use log::{Level, Log, Metadata, Record};
+use log::{set_boxed_logger, Level, Log, Metadata, Record};
 use std::ffi::CString;
 
 struct LoggerAdapter {
@@ -10,7 +10,7 @@ pub(crate) fn set_max_log_level(level: crate::ffi::LogLevel) {
 }
 
 pub(crate) unsafe fn set_log_handler(handler: crate::ffi::LogHandler) -> bool {
-    log::set_boxed_logger(Box::new(LoggerAdapter { handler })).is_ok()
+    set_boxed_logger(Box::new(LoggerAdapter { handler })).is_ok()
 }
 
 impl Log for LoggerAdapter {
