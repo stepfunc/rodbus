@@ -4,4 +4,7 @@
 /target
 /Cargo.lock
 /.idea
-/generated
+
+# generated c lib
+/ffi/bindings/c/build
+/ffi/bindings/c/generated

@@ -1,25 +1,16 @@
 [package]
-name = "rodbus-ffi"
+name = "rodbus-bindings"
 version = "0.1.1"
 authors = ["Adam Crain <adam@stepfunc.io>", "Émile Grégoire <emile@stepfunc.io>"]
 edition = "2018"
 license = "GPL-3.0-only"
-description = "FFI for Rodbus"
+description = "oobindgen schema for Rodbus"
 keywords = ["ffi", "c", "modbus", "ics", "industrial", "plc", "security"]
 categories = ["network-programming"]
 repository = "https://www.github.com/stepfunc/rodbus"
 readme = "../README.md"
 
-[lib]
-crate-type = ["cdylib"]
-
 [dependencies]
-rodbus = { path = "../../rodbus" }
-log = { version = "0.4", features = ["std"] }
-tokio = { version = "^0.2.11", features = ["rt-threaded"]}
-
-[build-dependencies]
+ci-script = { git = "https://git@github.com/grid-io/oo_bindgen.git", branch = "master"  }
 rodbus-schema = { path = "../rodbus-schema" }
-rust-oo-bindgen = { git = "https://git@github.com/grid-io/oo_bindgen.git", branch = "master" }
-
-
+rodbus-ffi = { path = "../rodbus-ffi" }
