@@ -27,11 +27,11 @@ bool init_logging() {
 
 write_result_t on_write_single_coil(bool value, uint16_t address, database_t* db, void* ctx)
 {
-	if (database_update_coil(db, address, value)) {
-		return (write_result_t) { .success = true, .exception = Exception_Unknown, .raw_exception = 0 };
+	if (database_update_coil(db, address, value)) {		
+		return write_result_success();
 	}
 	else {
-		return (write_result_t) { .success = false, .exception = Exception_IllegalDataAddress, .raw_exception = 0 };
+		return write_result_exception(Exception_IllegalDataAddress);		
 	}	
 }
 
@@ -39,10 +39,10 @@ write_result_t on_write_single_coil(bool value, uint16_t address, database_t* db
 write_result_t on_write_single_register(uint16_t value, uint16_t address, database_t* db, void* ctx)
 {
 	if (database_update_holding_register(db, address, value)) {
-		return (write_result_t) { .success = true, .exception = Exception_Unknown, .raw_exception = 0 };
+		return write_result_success();
 	}
 	else {
-		return (write_result_t) { .success = false, .exception = Exception_IllegalDataAddress, .raw_exception = 0 };
+		return write_result_exception(Exception_IllegalDataAddress);
 	}
 }
 
@@ -53,10 +53,10 @@ write_result_t on_write_multiple_coils(uint16_t start, bit_iterator_t* it, datab
 	while (bit = next_bit(it))
 	{
 		if(!database_update_coil(db, bit->index, bit->value)) {
-			return (write_result_t) { .success = false, .exception = Exception_IllegalDataAddress, .raw_exception = 0 };
+			return write_result_exception(Exception_IllegalDataAddress);
 		}
 	}
-	return (write_result_t) { .success = true, .exception = Exception_Unknown, .raw_exception = 0 };
+	return write_result_success();
 }
 
 write_result_t on_write_multiple_registers(uint16_t start, register_iterator_t* it, database_t* db, void* ctx)
@@ -65,10 +65,10 @@ write_result_t on_write_multiple_registers(uint16_t start, register_iterator_t* 
 	while (reg = next_register(it))
 	{
 		if (!database_update_holding_register(db, reg->index, reg->value)) {
-			return (write_result_t) { .success = false, .exception = Exception_IllegalDataAddress, .raw_exception = 0 };
+			return write_result_exception(Exception_IllegalDataAddress);
 		}
 	}
-	return (write_result_t) { .success = true, .exception = Exception_Unknown, .raw_exception = 0 };
+	return write_result_success();
 }
 
 write_handler_t get_write_handler()
