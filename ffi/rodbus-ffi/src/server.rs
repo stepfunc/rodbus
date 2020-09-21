@@ -250,3 +250,19 @@ pub(crate) fn write_result_success() -> crate::ffi::WriteResult {
         raw_exception: 0,
     }
 }
+
+pub(crate) fn write_result_exception(exception: crate::ffi::Exception) -> crate::ffi::WriteResult {
+    crate::ffi::WriteResult {
+        success: false,
+        exception,
+        raw_exception: 0,
+    }
+}
+
+pub(crate) fn write_result_raw_exception(raw_exception: u8) -> crate::ffi::WriteResult {
+    crate::ffi::WriteResult {
+        success: false,
+        exception: crate::ffi::Exception::Unknown,
+        raw_exception,
+    }
+}

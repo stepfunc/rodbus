@@ -24,11 +24,11 @@ namespace example
                 {
                     if (!database.UpdateCoil(bit.Index, bit.Value))
                     {
-                        return new WriteResult { Success = false, Exception = rodbus.Exception.IllegalDataAddress, RawException = 0 };
+                        return WriteResult.CreateException(rodbus.Exception.IllegalDataAddress);
                     }
                 }
 
-                return new WriteResult { Success = true, Exception = rodbus.Exception.Unknown, RawException = 0 };
+                return WriteResult.CreateSuccess();
             }
 
             public WriteResult WriteMultipleRegisters(ushort start, ICollection<Register> it, Database database)
@@ -37,22 +37,22 @@ namespace example
                 {
                     if (!database.UpdateHoldingRegister(bit.Index, bit.Value))
                     {
-                        return new WriteResult { Success = false, Exception = rodbus.Exception.IllegalDataAddress, RawException = 0 };
+                        return WriteResult.CreateException(rodbus.Exception.IllegalDataAddress);
                     }
                 }
 
-                return new WriteResult { Success = true, Exception = rodbus.Exception.Unknown, RawException = 0 };
+                return WriteResult.CreateSuccess();
             }
 
             public WriteResult WriteSingleCoil(bool value, ushort index, Database database)
             {
                 if (database.UpdateCoil(index, value))
                 {
-                    return new WriteResult { Success = true, Exception = rodbus.Exception.Unknown, RawException = 0 };
+                    return WriteResult.CreateSuccess();
                 }
                 else
                 {
-                    return new WriteResult { Success = false, Exception = rodbus.Exception.IllegalDataAddress, RawException = 0 };
+                    return WriteResult.CreateException(rodbus.Exception.IllegalDataAddress);
                 }
             }
 
@@ -60,11 +60,11 @@ namespace example
             {
                 if (database.UpdateHoldingRegister(index, value))
                 {
-                    return new WriteResult { Success = true, Exception = rodbus.Exception.Unknown, RawException = 0 };
+                    return WriteResult.CreateSuccess();
                 }
                 else
                 {
-                    return new WriteResult { Success = false, Exception = rodbus.Exception.IllegalDataAddress, RawException = 0 };
+                    return WriteResult.CreateException(rodbus.Exception.IllegalDataAddress);
                 }
             }
         }

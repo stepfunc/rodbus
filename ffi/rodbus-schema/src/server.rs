@@ -3,6 +3,7 @@ use crate::common::CommonDefinitions;
 use oo_bindgen::callback::{InterfaceHandle, OneTimeCallbackHandle};
 use oo_bindgen::class::{ClassDeclarationHandle, ClassHandle};
 use oo_bindgen::native_function::{NativeFunctionHandle, ReturnType, Type};
+use oo_bindgen::native_struct::NativeStructHandle;
 use oo_bindgen::{BindingError, LibraryBuilder};
 
 pub(crate) fn build(
@@ -285,11 +286,10 @@ pub(crate) fn build_handler_map(
         .build()
 }
 
-pub(crate) fn build_write_handler_interface(
+pub(crate) fn build_write_result_struct(
     lib: &mut LibraryBuilder,
-    database: &ClassDeclarationHandle,
     common: &CommonDefinitions,
-) -> Result<InterfaceHandle, BindingError> {
+) -> Result<NativeStructHandle, BindingError> {
     let write_result = lib.declare_native_struct("WriteResult")?;
     let write_result = lib
         .define_native_struct(&write_result)?
@@ -326,7 +326,7 @@ pub(crate) fn build_write_handler_interface(
         .declare_native_function("write_result_raw_exception")?
         .param(
             "raw_exception",
-            Type::UInt8,
+            Type::Uint8,
             "Raw Exception code to include in the result",
         )?
         .return_type(ReturnType::Type(
@@ -335,6 +335,22 @@ pub(crate) fn build_write_handler_interface(
         ))?
         .doc("initialize a WriteResult to indicate a successful write operation")?
         .build()?;
+
+    lib.define_struct(&write_result)?
+        .static_method("create_success", &success_initializer)?
+        .static_method("create_exception", &exception_initializer)?
+        .static_method("create_raw_exception", &raw_exception_initializer)?
+        .build();
+
+    Ok(write_result)
+}
+
+pub(crate) fn build_write_handler_interface(
+    lib: &mut LibraryBuilder,
+    database: &ClassDeclarationHandle,
+    common: &CommonDefinitions,
+) -> Result<InterfaceHandle, BindingError> {
+    let write_result = build_write_result_struct(lib, common)?;
 
     lib.define_interface(
         "WriteHandler",
