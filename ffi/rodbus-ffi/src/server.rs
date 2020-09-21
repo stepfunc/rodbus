@@ -242,3 +242,11 @@ pub(crate) unsafe fn server_update_database(
 
     true
 }
+
+pub(crate) fn write_result_success() -> crate::ffi::WriteResult {
+    crate::ffi::WriteResult {
+        success: true,
+        exception: crate::ffi::Exception::Unknown,
+        raw_exception: 0,
+    }
+}
