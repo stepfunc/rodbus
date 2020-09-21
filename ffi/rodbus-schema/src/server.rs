@@ -299,6 +299,43 @@ pub(crate) fn build_write_handler_interface(
         .doc("Result struct describing if an operation was successful or not. Exception codes are returned to the client")?
         .build()?;
 
+    let success_initializer = lib
+        .declare_native_function("write_result_success")?
+        .return_type(ReturnType::Type(
+            Type::Struct(write_result.clone()),
+            "WriteResult initialized to indicate a successful write operation".into(),
+        ))?
+        .doc("initialize a WriteResult to indicate a successful write operation")?
+        .build()?;
+
+    let exception_initializer = lib
+        .declare_native_function("write_result_exception")?
+        .param(
+            "exception",
+            Type::Enum(common.exception.clone()),
+            "Exception code to include in the result",
+        )?
+        .return_type(ReturnType::Type(
+            Type::Struct(write_result.clone()),
+            "WriteResult initialized to indicate a successful write operation".into(),
+        ))?
+        .doc("initialize a WriteResult to indicate a successful write operation")?
+        .build()?;
+
+    let raw_exception_initializer = lib
+        .declare_native_function("write_result_raw_exception")?
+        .param(
+            "raw_exception",
+            Type::UInt8,
+            "Raw Exception code to include in the result",
+        )?
+        .return_type(ReturnType::Type(
+            Type::Struct(write_result.clone()),
+            "WriteResult initialized to indicate a successful write operation".into(),
+        ))?
+        .doc("initialize a WriteResult to indicate a successful write operation")?
+        .build()?;
+
     lib.define_interface(
         "WriteHandler",
         "Interface used to handle read and write requests received from the client",
