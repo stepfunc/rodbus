@@ -200,7 +200,7 @@ namespace rodbus_tests
                 }
             }));
 
-            var server = Server.CreateTcpServer(runtime, ENDPOINT, map);
+            var server = Server.CreateTcpServer(runtime, ENDPOINT, 100, map);
             var client = Channel.CreateTcpClient(runtime, ENDPOINT, 10);
 
             // set a unique pattern to test reads

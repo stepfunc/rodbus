@@ -101,7 +101,7 @@ namespace example
                 }
             }));
 
-            var server = Server.CreateTcpServer(runtime, "127.0.0.1:502", map);
+            var server = Server.CreateTcpServer(runtime, "127.0.0.1:502", 10, map);
 
             ushort registerValue = 0;
             bool bitValue = false;

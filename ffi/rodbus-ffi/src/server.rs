@@ -165,6 +165,7 @@ pub(crate) unsafe fn map_add_endpoint(
 pub(crate) unsafe fn create_tcp_server(
     runtime: *mut crate::Runtime,
     address: *const std::os::raw::c_char,
+    max_sessions: u16,
     endpoints: *mut crate::DeviceMap,
 ) -> *mut crate::Server {
     let runtime = match runtime.as_mut() {
@@ -200,7 +201,7 @@ pub(crate) unsafe fn create_tcp_server(
     let (tx, rx) = tokio::sync::mpsc::channel(1);
 
     let handler_map = endpoints.drain_and_convert();
-    let task = rodbus::server::create_tcp_server_task(rx, 100, listener, handler_map.clone());
+    let task = rodbus::server::create_tcp_server_task(rx, max_sessions as usize, listener, handler_map.clone());
     let join_handle = runtime.spawn(task);
 
     let server_handle = Server {

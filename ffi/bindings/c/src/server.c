@@ -132,7 +132,7 @@ int main() {
 
 	device_map_t* map = create_device_map();
 	map_add_endpoint(map, 1, get_write_handler(), (database_callback_t) {.callback = configure_db, .ctx = NULL});
-	server = create_tcp_server(runtime, "127.0.0.1:502", map);
+	server = create_tcp_server(runtime, "127.0.0.1:502", 100, map);
 	destroy_device_map(map);	
 
 	if (server == NULL) {

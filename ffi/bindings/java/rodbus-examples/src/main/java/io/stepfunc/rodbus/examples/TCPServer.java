@@ -100,7 +100,7 @@ public class TCPServer {
     }
 
     static void run(Runtime runtime) throws InterruptedException {
-        final Server server = Server.createTcpServer(runtime, "127.0.0.1:502", buildDeviceMap());
+        final Server server = Server.createTcpServer(runtime, "127.0.0.1:502", ushort(100), buildDeviceMap());
 
         final State state = new State();
 

@@ -47,6 +47,7 @@ pub(crate) fn build_server(
             "runtime on which to spawn the server",
         )?
         .param("address", Type::String, "IPv4 or IPv6 host/port string")?
+        .param("max_sessions", Type::Uint16, "Maximum number of concurrent sessions")?
         .param(
             "endpoints",
             Type::ClassRef(handler_map.declaration.clone()),
@@ -56,7 +57,7 @@ pub(crate) fn build_server(
             Type::ClassRef(server.clone()),
             "handle to the server".into(),
         ))?
-        .doc("Launch a TCP server to handle")?
+        .doc("Launch a TCP server. When the maximum number of concurrent sessions is reached, the oldest session is closed.")?
         .build()?;
 
     let destroy_fn = lib
