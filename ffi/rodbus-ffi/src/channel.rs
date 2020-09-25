@@ -1,5 +1,4 @@
 use rodbus::types::{AddressRange, WriteMultiple};
-use std::os::raw::c_char;
 use std::ptr::null_mut;
 
 pub struct Channel {
@@ -9,7 +8,7 @@ pub struct Channel {
 
 pub(crate) unsafe fn create_tcp_client(
     runtime: *mut crate::Runtime,
-    address: *const c_char,
+    address: &std::ffi::CStr,
     max_queued_requests: u16,
 ) -> *mut crate::Channel {
     let rt = runtime.as_mut().unwrap();

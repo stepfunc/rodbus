@@ -21,11 +21,12 @@ impl<'a> std::convert::From<rodbus::error::Error> for crate::ffi::BitReadResult<
 impl From<rodbus::error::Error> for crate::ffi::ErrorInfo {
     fn from(err: rodbus::error::Error) -> Self {
         fn from_status(status: crate::ffi::Status) -> crate::ffi::ErrorInfo {
-            crate::ffi::ErrorInfo {
+            crate::ffi::ErrorInfoFields {
                 summary: status,
                 exception: crate::ffi::Exception::Unknown, // doesn't matter what it is
                 raw_exception: 0,
             }
+            .into()
         }
 
         match err {
@@ -50,11 +51,12 @@ impl<'a> From<rodbus::error::details::ExceptionCode> for crate::ffi::ErrorInfo {
             exception: crate::ffi::Exception,
             raw_exception: u8,
         ) -> crate::ffi::ErrorInfo {
-            crate::ffi::ErrorInfo {
+            crate::ffi::ErrorInfoFields {
                 summary: crate::ffi::Status::Exception,
                 exception,
                 raw_exception,
             }
+            .into()
         }
 
         match x {

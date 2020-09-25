@@ -72,7 +72,7 @@ impl RequestHandler for RequestHandlerWrapper {
             .write_single_coil(value.value, value.index, &mut self.database)
         {
             Some(x) => {
-                if x.success {
+                if x.success() {
                     Ok(())
                 } else {
                     Err(ExceptionCode::IllegalDataAddress)
@@ -164,7 +164,7 @@ pub(crate) unsafe fn map_add_endpoint(
 
 pub(crate) unsafe fn create_tcp_server(
     runtime: *mut crate::Runtime,
-    address: *const std::os::raw::c_char,
+    address: &std::ffi::CStr,
     max_sessions: u16,
     endpoints: *mut crate::DeviceMap,
 ) -> *mut crate::Server {
@@ -201,7 +201,12 @@ pub(crate) unsafe fn create_tcp_server(
     let (tx, rx) = tokio::sync::mpsc::channel(1);
 
     let handler_map = endpoints.drain_and_convert();
-    let task = rodbus::server::create_tcp_server_task(rx, max_sessions as usize, listener, handler_map.clone());
+    let task = rodbus::server::create_tcp_server_task(
+        rx,
+        max_sessions as usize,
+        listener,
+        handler_map.clone(),
+    );
     let join_handle = runtime.spawn(task);
 
     let server_handle = Server {
@@ -245,25 +250,28 @@ pub(crate) unsafe fn server_update_database(
 }
 
 pub(crate) fn write_result_success() -> crate::ffi::WriteResult {
-    crate::ffi::WriteResult {
+    crate::ffi::WriteResultFields {
         success: true,
         exception: crate::ffi::Exception::Unknown,
         raw_exception: 0,
     }
+    .into()
 }
 
 pub(crate) fn write_result_exception(exception: crate::ffi::Exception) -> crate::ffi::WriteResult {
-    crate::ffi::WriteResult {
+    crate::ffi::WriteResultFields {
         success: false,
         exception,
         raw_exception: 0,
     }
+    .into()
 }
 
 pub(crate) fn write_result_raw_exception(raw_exception: u8) -> crate::ffi::WriteResult {
-    crate::ffi::WriteResult {
+    crate::ffi::WriteResultFields {
         success: false,
         exception: crate::ffi::Exception::Unknown,
         raw_exception,
     }
+    .into()
 }

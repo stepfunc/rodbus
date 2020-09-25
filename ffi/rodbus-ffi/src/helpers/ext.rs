@@ -105,28 +105,30 @@ impl crate::ffi::ResultCallback {
 
 impl crate::ffi::ErrorInfo {
     pub(crate) fn error(err: crate::ffi::Status) -> Self {
-        Self {
+        crate::ffi::ErrorInfoFields {
             summary: err,
             exception: crate::ffi::Exception::Unknown,
             raw_exception: 0,
         }
+        .into()
     }
 
     pub(crate) fn success() -> Self {
-        Self {
+        crate::ffi::ErrorInfoFields {
             summary: crate::ffi::Status::Ok,
             exception: crate::ffi::Exception::Unknown,
             raw_exception: 0,
         }
+        .into()
     }
 }
 
 impl crate::ffi::WriteResult {
     pub(crate) fn convert_to_result(self) -> Result<(), rodbus::error::details::ExceptionCode> {
-        if self.success {
+        if self.success() {
             return Ok(());
         }
-        let ex = match self.exception {
+        let ex = match self.exception() {
             crate::ffi::Exception::Acknowledge => {
                 rodbus::error::details::ExceptionCode::Acknowledge
             }
@@ -155,7 +157,7 @@ impl crate::ffi::WriteResult {
                 rodbus::error::details::ExceptionCode::ServerDeviceFailure
             }
             crate::ffi::Exception::Unknown => {
-                rodbus::error::details::ExceptionCode::Unknown(self.raw_exception)
+                rodbus::error::details::ExceptionCode::Unknown(self.raw_exception())
             }
         };
 

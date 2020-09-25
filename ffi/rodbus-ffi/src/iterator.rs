@@ -1,5 +1,3 @@
-use std::ptr::null;
-
 pub struct BitIterator<'a> {
     inner: rodbus::types::BitIterator<'a>,
     current: crate::ffi::Bit,
@@ -31,32 +29,32 @@ impl<'a> RegisterIterator<'a> {
     }
 }
 
-pub(crate) unsafe fn next_bit(it: *mut crate::BitIterator) -> *const crate::ffi::Bit {
+pub(crate) unsafe fn next_bit(it: *mut crate::BitIterator) -> Option<&crate::ffi::Bit> {
     match it.as_mut() {
         Some(it) => match it.inner.next() {
             Some(x) => {
                 it.current.index = x.index;
                 it.current.value = x.value;
-                &it.current as *const crate::ffi::Bit
+                Some(&it.current)
             }
-            None => null(),
+            None => None,
         },
-        None => null(),
+        None => None,
     }
 }
 
 pub(crate) unsafe fn next_register(
     it: *mut crate::RegisterIterator,
-) -> *const crate::ffi::Register {
+) -> Option<&crate::ffi::Register> {
     match it.as_mut() {
         Some(it) => match it.inner.next() {
             Some(x) => {
                 it.current.index = x.index;
                 it.current.value = x.value;
-                &it.current as *const crate::ffi::Register
+                Some(&it.current)
             }
-            None => null(),
+            None => None,
         },
-        None => null(),
+        None => None,
     }
 }

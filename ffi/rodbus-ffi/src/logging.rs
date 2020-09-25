@@ -28,7 +28,7 @@ impl Log for LoggerAdapter {
                 Level::Trace => crate::ffi::LogLevel::Trace,
             };
 
-            self.handler.on_message(level, message.as_ptr());
+            self.handler.on_message(level, &message);
         }
     }
 
