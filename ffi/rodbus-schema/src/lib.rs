@@ -19,7 +19,7 @@ pub fn build() -> Result<Library, BindingError> {
     client::build(&mut lib, &common)?;
     server::build(&mut lib, &common)?;
 
-    Ok(lib.build())
+    Ok(lib.build()?)
 }
 
 #[cfg(test)]
