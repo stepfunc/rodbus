@@ -43,7 +43,7 @@
 //!use std::str::FromStr;
 //!
 //!
-//!use tokio::time::delay_for;
+//!use tokio::time::sleep;
 //!
 //!#[tokio::main]
 //!async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -70,7 +70,7 @@
 //!            Err(err) => println!("Error: {:?}", err)
 //!        }
 //!
-//!        delay_for(std::time::Duration::from_secs(3)).await
+//!        sleep(std::time::Duration::from_secs(3)).await
 //!    }
 //!}
 //! ```
@@ -102,7 +102,7 @@
 //!    }
 //! }
 //!
-//! #[tokio::main(threaded_scheduler)]
+//! #[tokio::main(flavor = "multi_thread")]
 //! async fn main() -> Result<(), Box<dyn std::error::Error>> {
 //!
 //!    let handler = CoilsOnlyHandler::new().wrap();
@@ -129,7 +129,7 @@
 //!                *c = !*c;
 //!            }
 //!        }
-//!        tokio::time::delay_until(next).await;
+//!        tokio::time::sleep_until(next).await;
 //!    }
 //!}
 //!```

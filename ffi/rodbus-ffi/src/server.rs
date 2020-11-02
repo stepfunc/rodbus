@@ -120,7 +120,7 @@ impl RequestHandler for RequestHandlerWrapper {
 }
 
 pub struct Server {
-    runtime: tokio::runtime::Handle,
+    runtime: crate::Runtime,
     // never used but we have to hang onto it otherwise the server shuts down
     _server: rodbus::shutdown::TaskHandle,
     map: ServerHandlerMap<RequestHandlerWrapper>,
@@ -190,7 +190,7 @@ pub(crate) unsafe fn create_tcp_server(
     };
 
     // at this point, we know that all the arguments are good, so we can go ahead and try to bind a listener
-    let listener = match runtime.block_on(TcpListener::bind(address)) {
+    let listener = match runtime.inner.block_on(TcpListener::bind(address)) {
         Ok(x) => x,
         Err(err) => {
             log::error!("error binding listener: {}", err);
@@ -207,11 +207,11 @@ pub(crate) unsafe fn create_tcp_server(
         listener,
         handler_map.clone(),
     );
-    let join_handle = runtime.spawn(task);
+    let join_handle = runtime.inner.spawn(task);
 
     let server_handle = Server {
         _server: TaskHandle::new(tx, join_handle),
-        runtime: runtime.handle().clone(),
+        runtime: runtime.clone(),
         map: handler_map,
     };
 
@@ -244,7 +244,7 @@ pub(crate) unsafe fn server_update_database(
         transaction.callback(&mut lock.database);
     };
 
-    server.runtime.block_on(transaction);
+    server.runtime.inner.block_on(transaction);
 
     true
 }

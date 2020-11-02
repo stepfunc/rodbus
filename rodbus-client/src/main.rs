@@ -50,7 +50,7 @@ impl Args {
     }
 }
 
-#[tokio::main(basic_scheduler)]
+#[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // print log messages to the console
     SimpleLogger::new()
@@ -74,7 +74,7 @@ async fn run() -> Result<(), Error> {
         None => run_command(&args.command, &mut session).await,
         Some(period) => loop {
             run_command(&args.command, &mut session).await?;
-            tokio::time::delay_for(period).await
+            tokio::time::sleep(period).await
         },
     }
 }

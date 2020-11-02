@@ -212,6 +212,6 @@ async fn test_requests_and_responses() {
 
 #[test]
 fn can_read_and_write_values() {
-    let mut rt = Runtime::new().unwrap();
+    let rt = Runtime::new().unwrap();
     rt.block_on(test_requests_and_responses())
 }

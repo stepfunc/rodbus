@@ -16,7 +16,7 @@ crate-type = ["cdylib"]
 [dependencies]
 rodbus = { path = "../../rodbus" }
 log = { version = "0.4", features = ["std"] }
-tokio = { version = "^0.2.11", features = ["rt-threaded"]}
+tokio = { version = "0.3", features = ["rt-multi-thread"]}
 
 [build-dependencies]
 rodbus-schema = { path = "../rodbus-schema" }
