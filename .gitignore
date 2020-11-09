@@ -22,5 +22,6 @@
 # Generated Java lib
 /ffi/bindings/java/.idea
 /ffi/bindings/java/rodbus
+/ffi/bindings/java/rodbus-jni
 /ffi/bindings/java/**/target
 

@@ -1,5 +1,5 @@
-on: push
 name: CI
+on: [push, pull_request]
 jobs:
   test:
     strategy:
@@ -8,9 +8,7 @@ jobs:
         os:
           - ubuntu-latest
           - windows-latest
-          - macos-latest
         rust:
-          - 1.39.0  # MSRV
           - stable
           - beta
           - nightly
@@ -24,20 +22,87 @@ jobs:
           profile: minimal
           toolchain: ${{ matrix.rust }}
           override: true
-      - name: Build
-        uses: actions-rs/cargo@v1
-        with:
-          command: build
-      - name: Test
+      - name: Copy Windows config
+        if: ${{ runner.os == 'Windows' }}
+        shell: pwsh
+        run: Copy-Item -Path .cargo/config-windows.toml -Destination .cargo/config.toml
+      - name: Copy Linux config
+        if: ${{ runner.os == 'Linux' }}
+        shell: pwsh
+        run: Copy-Item -Path .cargo/config-linux.toml -Destination .cargo/config.toml
+      - name: Run Rust unit tests
         uses: actions-rs/cargo@v1
         with:
           command: test
+      - name: C bindings
+        uses: actions-rs/cargo@v1
+        with:
+          command: run
+          args: --release --bin rodbus-bindings -- --c
+      - name: .NET bindings
+        uses: actions-rs/cargo@v1
+        with:
+          command: run
+          args: --release --bin rodbus-bindings -- --dotnet
+      - name: Java bindings
+        uses: actions-rs/cargo@v1
+        with:
+          command: run
+          args: --release --bin rodbus-bindings -- --java
+      - name: Upload compiled bindings
+        if: ${{ matrix.rust == 'stable' }}
+        uses: actions/upload-artifact@v2
+        with:
+          name: ffi-modules
+          path: ffi/bindings/c/generated/lib
+      - name: Upload compiled Java bindings
+        if: ${{ matrix.rust == 'stable' }}
+        uses: actions/upload-artifact@v2
+        with:
+          name: ffi-modules
+          path: ffi/bindings/java/rodbus/src/main/resources
+  packaging:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v1
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+      - name: Download compiled FFI
+        uses: actions/download-artifact@v2
+        with:
+          name: ffi-modules
+          path: ffi-modules
+      - name: Package all bindings
+        uses: actions-rs/cargo@v1
+        with:
+          command: run
+          args: --release --bin rodbus-bindings -- --package ./ffi-modules
+      - name: Upload C bindings
+        uses: actions/upload-artifact@v2
+        with:
+          name: c-bindings
+          path: ffi/bindings/c/generated
+      - name: Upload .NET bindings
+        uses: actions/upload-artifact@v2
+        with:
+          name: dotnet-bindings
+          path: ffi/bindings/dotnet/nupkg/*.nupkg
+      - name: Upload Java bindings
+        uses: actions/upload-artifact@v2
+        with:
+          name: java-bindings
+          path: ffi/bindings/java/rodbus/target/*.jar
   linting:
     strategy:
       fail-fast: false
       matrix:
         rust:
-          - 1.39.0  # MSRV
           - stable
           - beta
           - nightly
@@ -53,29 +118,12 @@ jobs:
           override: true
           components: rustfmt, clippy
       - name: Format
-        if: runner.os == 'Linux'
         uses: actions-rs/cargo@v1
         with:
           command: fmt
           args: --all -- --check
       - name: Clippy
-        if: runner.os == 'Linux'
         uses: actions-rs/cargo@v1
         with:
           command: clippy
           args: -- -D warnings
-  code-coverage:
-    container:
-      image: xd009642/tarpaulin:latest
-      options: --security-opt seccomp=unconfined
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v1
-      - name: Run tarpaulin
-        run: cargo tarpaulin --exclude-files rodbus-client/** rodbus-ffi/** rodbus/examples/** --out Xml
-      - name: Upload to codecov.io
-        uses: codecov/codecov-action@v1
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          yml: .github/codecov.yml

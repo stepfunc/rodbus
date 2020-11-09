@@ -5,7 +5,7 @@ import io.stepfunc.rodbus.Runtime;
 import io.stepfunc.rodbus.*;
 import org.joou.UShort;
 
-import java.util.Collection;
+import java.util.List;
 
 import static org.joou.Unsigned.ubyte;
 import static org.joou.Unsigned.ushort;
@@ -21,7 +21,7 @@ public class TCPServer {
 
     static class SimpleWriteHandler implements WriteHandler {
         @Override
-        public WriteResult writeSingleCoil(Boolean value, UShort index, Database database) {
+        public WriteResult writeSingleCoil(boolean value, UShort index, Database database) {
             if (database.updateCoil(index, value)) {
                 return WriteResult.createSuccess();
             } else {
@@ -39,7 +39,7 @@ public class TCPServer {
         }
 
         @Override
-        public WriteResult writeMultipleCoils(UShort start, Collection<Bit> it, Database database) {
+        public WriteResult writeMultipleCoils(UShort start, List<Bit> it, Database database) {
             for (Bit bit : it) {
                 if (!database.updateCoil(bit.index, bit.value)) {
                     return WriteResult.createException(Exception.ILLEGAL_DATA_ADDRESS);
@@ -49,7 +49,7 @@ public class TCPServer {
         }
 
         @Override
-        public WriteResult writeMultipleRegisters(UShort start, Collection<Register> it, Database database) {
+        public WriteResult writeMultipleRegisters(UShort start, List<Register> it, Database database) {
             for (Register reg : it) {
                 if (!database.updateHoldingRegister(reg.index, reg.value)) {
                     return WriteResult.createException(Exception.ILLEGAL_DATA_ADDRESS);
