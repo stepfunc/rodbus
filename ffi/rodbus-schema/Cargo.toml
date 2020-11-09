@@ -11,4 +11,4 @@ repository = "https://www.github.com/stepfunc/rodbus"
 readme = "../README.md"
 
 [dependencies]
-oo-bindgen = { git = "https://git@github.com/grid-io/oo_bindgen.git", branch = "master" }
+oo-bindgen = { git = "https://git@github.com/grid-io/oo_bindgen.git" }

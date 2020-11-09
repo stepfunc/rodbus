@@ -1,9 +1,0 @@
-coverage:
-  status:
-    project:
-      informational: true
-    patch:
-      informational: true
-  precision: 2
-  round: down
-  range: "50...85"
