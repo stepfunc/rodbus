@@ -28,6 +28,6 @@
 
     <modules>
         <module>rodbus</module>
-        <module>rodbus-examples</module>
+        <module>rodbus-tests</module>
     </modules>
 </project>
