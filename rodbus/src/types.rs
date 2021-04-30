@@ -1,6 +1,6 @@
 use std::convert::TryFrom;
 
-use crate::error::details::{ADUParseError, InvalidRange, InvalidRequest};
+use crate::error::details::{AduParseError, InvalidRange, InvalidRequest};
 
 use crate::common::cursor::ReadCursor;
 use crate::error::Error;
@@ -221,11 +221,11 @@ impl<T> WriteMultiple<T> {
     }
 }
 
-pub(crate) fn coil_from_u16(value: u16) -> Result<bool, ADUParseError> {
+pub(crate) fn coil_from_u16(value: u16) -> Result<bool, AduParseError> {
     match value {
         crate::constants::coil::ON => Ok(true),
         crate::constants::coil::OFF => Ok(false),
-        _ => Err(ADUParseError::UnknownCoilState(value)),
+        _ => Err(AduParseError::UnknownCoilState(value)),
     }
 }
 

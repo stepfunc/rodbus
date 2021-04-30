@@ -1,3 +1,4 @@
+use oo_bindgen::callback::InterfaceHandle;
 use oo_bindgen::class::ClassDeclarationHandle;
 use oo_bindgen::iterator::IteratorHandle;
 use oo_bindgen::native_function::{NativeFunctionHandle, ReturnType, Type};
@@ -5,7 +6,6 @@ use oo_bindgen::native_struct::NativeStructHandle;
 use oo_bindgen::{BindingError, LibraryBuilder};
 
 use crate::common::CommonDefinitions;
-use oo_bindgen::callback::OneTimeCallbackHandle;
 use oo_bindgen::collection::CollectionHandle;
 
 pub(crate) fn build(
@@ -154,7 +154,7 @@ fn build_async_write_single_fn(
     lib: &mut LibraryBuilder,
     common: &CommonDefinitions,
     channel: &ClassDeclarationHandle,
-    callback: &OneTimeCallbackHandle,
+    callback: &InterfaceHandle,
     write_type: &NativeStructHandle,
     docs: &str,
 ) -> Result<NativeFunctionHandle, BindingError> {
@@ -176,7 +176,7 @@ fn build_async_write_single_fn(
         )?
         .param(
             "callback",
-            Type::OneTimeCallback(callback.clone()),
+            Type::Interface(callback.clone()),
             "callback invoked on completion",
         )?
         .return_type(ReturnType::void())?
@@ -189,7 +189,7 @@ fn build_async_write_multiple_fn(
     lib: &mut LibraryBuilder,
     common: &CommonDefinitions,
     channel: &ClassDeclarationHandle,
-    callback: &OneTimeCallbackHandle,
+    callback: &InterfaceHandle,
     list_type: &CollectionHandle,
     docs: &str,
 ) -> Result<NativeFunctionHandle, BindingError> {
@@ -212,7 +212,7 @@ fn build_async_write_multiple_fn(
         )?
         .param(
             "callback",
-            Type::OneTimeCallback(callback.clone()),
+            Type::Interface(callback.clone()),
             "callback invoked on completion",
         )?
         .return_type(ReturnType::void())?
@@ -225,7 +225,7 @@ fn build_async_read_fn(
     lib: &mut LibraryBuilder,
     common: &CommonDefinitions,
     channel: &ClassDeclarationHandle,
-    callback: &OneTimeCallbackHandle,
+    callback: &InterfaceHandle,
     docs: &str,
 ) -> Result<NativeFunctionHandle, BindingError> {
     lib.declare_native_function(name)?
@@ -246,7 +246,7 @@ fn build_async_read_fn(
         )?
         .param(
             "callback",
-            Type::OneTimeCallback(callback.clone()),
+            Type::Interface(callback.clone()),
             "callback invoked on completion",
         )?
         .return_type(ReturnType::void())?
@@ -257,11 +257,11 @@ fn build_async_read_fn(
 fn build_bit_read_callback(
     lib: &mut LibraryBuilder,
     common: &CommonDefinitions,
-) -> Result<OneTimeCallbackHandle, BindingError> {
+) -> Result<InterfaceHandle, BindingError> {
     let bit_read_result =
         build_callback_struct(lib, &common.bit, &common.bit_iterator, &common.error_info)?;
     let bit_read_callback = lib
-        .define_one_time_callback(
+        .define_interface(
             "BitReadCallback",
             "Callback for reading coils or input registers",
         )?
@@ -272,6 +272,7 @@ fn build_bit_read_callback(
         .param("result", Type::Struct(bit_read_result), "result")?
         .return_type(ReturnType::void())?
         .build()?
+        .destroy_callback("on_destroy")?
         .build()?;
 
     Ok(bit_read_callback)
@@ -280,7 +281,7 @@ fn build_bit_read_callback(
 fn build_register_read_callback(
     lib: &mut LibraryBuilder,
     common: &CommonDefinitions,
-) -> Result<OneTimeCallbackHandle, BindingError> {
+) -> Result<InterfaceHandle, BindingError> {
     let read_result = build_callback_struct(
         lib,
         &common.register,
@@ -288,7 +289,7 @@ fn build_register_read_callback(
         &common.error_info,
     )?;
     let read_callback = lib
-        .define_one_time_callback(
+        .define_interface(
             "RegisterReadCallback",
             "Callback for reading holding or input registers",
         )?
@@ -299,6 +300,7 @@ fn build_register_read_callback(
         .param("result", Type::Struct(read_result), "result")?
         .return_type(ReturnType::void())?
         .build()?
+        .destroy_callback("on_destroy")?
         .build()?;
 
     Ok(read_callback)
@@ -307,8 +309,8 @@ fn build_register_read_callback(
 fn build_result_only_callback(
     lib: &mut LibraryBuilder,
     common: &CommonDefinitions,
-) -> Result<OneTimeCallbackHandle, BindingError> {
-    lib.define_one_time_callback(
+) -> Result<InterfaceHandle, BindingError> {
+    lib.define_interface(
         "ResultCallback",
         "Callback type for anything that doesn't return a value, e.g. write operations",
     )?
@@ -323,6 +325,7 @@ fn build_result_only_callback(
     )?
     .return_type(ReturnType::void())?
     .build()?
+    .destroy_callback("on_destroy")?
     .build()
 }
 

@@ -180,6 +180,9 @@ clippy::all
     bare_trait_objects
 )]
 
+/// Current version of the library
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+
 /// client API
 pub mod client;
 /// public constant values related to the Modbus specification

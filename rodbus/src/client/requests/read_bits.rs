@@ -53,6 +53,6 @@ impl ReadBits {
         // there's a byte-count here that we don't actually need
         cursor.read_u8()?;
         // the reset is a sequence of bits
-        Ok(BitIterator::parse_all(range, cursor)?)
+        BitIterator::parse_all(range, cursor)
     }
 }

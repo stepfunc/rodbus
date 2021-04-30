@@ -6,7 +6,7 @@ use crate::error::details::ExceptionCode;
 use crate::error::Error;
 use crate::server::handler::RequestHandler;
 use crate::server::response::{BitWriter, RegisterWriter};
-use crate::tcp::frame::MBAPFormatter;
+use crate::tcp::frame::MbapFormatter;
 use crate::types::*;
 
 pub(crate) enum Request<'a> {
@@ -38,7 +38,7 @@ impl<'a> Request<'a> {
         self,
         header: FrameHeader,
         handler: &mut T,
-        writer: &'b mut MBAPFormatter,
+        writer: &'b mut MbapFormatter,
     ) -> Result<&'b [u8], Error>
     where
         T: RequestHandler,
@@ -46,7 +46,7 @@ impl<'a> Request<'a> {
         fn serialize_result<T>(
             function: FunctionCode,
             header: FrameHeader,
-            writer: &mut MBAPFormatter,
+            writer: &mut MbapFormatter,
             result: Result<T, ExceptionCode>,
         ) -> Result<&[u8], Error>
         where
@@ -170,7 +170,7 @@ mod tests {
         use crate::common::cursor::ReadCursor;
 
         use super::super::*;
-        use crate::error::details::ADUParseError;
+        use crate::error::details::AduParseError;
         use crate::types::Indexed;
 
         #[test]
@@ -179,7 +179,7 @@ mod tests {
             let err = Request::parse(FunctionCode::WriteMultipleCoils, &mut cursor)
                 .err()
                 .unwrap();
-            assert_eq!(err, ADUParseError::InsufficientBytes.into());
+            assert_eq!(err, AduParseError::InsufficientBytes.into());
         }
 
         #[test]
@@ -188,7 +188,7 @@ mod tests {
             let err = Request::parse(FunctionCode::WriteMultipleCoils, &mut cursor)
                 .err()
                 .unwrap();
-            assert_eq!(err, ADUParseError::InsufficientBytes.into());
+            assert_eq!(err, AduParseError::InsufficientBytes.into());
         }
 
         #[test]
@@ -197,7 +197,7 @@ mod tests {
             let err = Request::parse(FunctionCode::WriteMultipleCoils, &mut cursor)
                 .err()
                 .unwrap();
-            assert_eq!(err, ADUParseError::InsufficientBytes.into());
+            assert_eq!(err, AduParseError::InsufficientBytes.into());
         }
 
         #[test]
@@ -206,7 +206,7 @@ mod tests {
             let err = Request::parse(FunctionCode::WriteMultipleCoils, &mut cursor)
                 .err()
                 .unwrap();
-            assert_eq!(err, ADUParseError::TrailingBytes(1).into());
+            assert_eq!(err, AduParseError::TrailingBytes(1).into());
         }
 
         #[test]
@@ -235,7 +235,7 @@ mod tests {
         use crate::common::cursor::ReadCursor;
 
         use super::super::*;
-        use crate::error::details::ADUParseError;
+        use crate::error::details::AduParseError;
         use crate::types::Indexed;
 
         #[test]
@@ -244,7 +244,7 @@ mod tests {
             let err = Request::parse(FunctionCode::WriteMultipleRegisters, &mut cursor)
                 .err()
                 .unwrap();
-            assert_eq!(err, ADUParseError::InsufficientBytes.into());
+            assert_eq!(err, AduParseError::InsufficientBytes.into());
         }
 
         #[test]
@@ -253,7 +253,7 @@ mod tests {
             let err = Request::parse(FunctionCode::WriteMultipleRegisters, &mut cursor)
                 .err()
                 .unwrap();
-            assert_eq!(err, ADUParseError::InsufficientBytes.into());
+            assert_eq!(err, AduParseError::InsufficientBytes.into());
         }
 
         #[test]
@@ -262,7 +262,7 @@ mod tests {
             let err = Request::parse(FunctionCode::WriteMultipleRegisters, &mut cursor)
                 .err()
                 .unwrap();
-            assert_eq!(err, ADUParseError::InsufficientBytes.into());
+            assert_eq!(err, AduParseError::InsufficientBytes.into());
         }
 
         #[test]
@@ -271,7 +271,7 @@ mod tests {
             let err = Request::parse(FunctionCode::WriteMultipleRegisters, &mut cursor)
                 .err()
                 .unwrap();
-            assert_eq!(err, ADUParseError::TrailingBytes(1).into());
+            assert_eq!(err, AduParseError::TrailingBytes(1).into());
         }
 
         #[test]

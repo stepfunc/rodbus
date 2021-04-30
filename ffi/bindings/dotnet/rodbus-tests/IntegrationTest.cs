@@ -79,115 +79,119 @@ namespace rodbus_tests
     {
         private static readonly byte UNIT_ID = 1;
         private static readonly ushort NUM_POINTS = 10;
-        private static readonly string ENDPOINT = "127.0.0.1:50000";
-        private static readonly RequestParam param = new RequestParam { UnitId = UNIT_ID, TimeoutMs = 1000 };
+        private static readonly string ENDPOINT = "127.0.0.1:20000";
+        private static readonly RequestParam param = new RequestParam(UNIT_ID, 1000);
 
         static void TestReadDiscreteInputs(Channel client)
         {
-            var result = client.ReadDiscreteInputs(new AddressRange { Start = 2, Count = 3 }, param).Result;
+            var result = client.ReadDiscreteInputs(new AddressRange(2, 3), param).Result;
+            var resultList = result.Iterator.ToList();
             Assert.AreEqual(Status.Ok, result.Result.Summary);
-            CollectionAssert.AreEqual(
-                new List<Bit>
-                {
-                        new Bit { Index = 2, Value = false },
-                        new Bit { Index = 3, Value = true },
-                        new Bit { Index = 4, Value = false },
-                },
-                result.Iterator.ToList()
-            );
-            result = client.ReadDiscreteInputs(new AddressRange { Start = 9, Count = 2 }, param).Result;
+
+            Assert.AreEqual(3, resultList.Count);
+            Assert.AreEqual(2, resultList[0].Index);
+            Assert.AreEqual(false, resultList[0].Value);
+            Assert.AreEqual(3, resultList[1].Index);
+            Assert.AreEqual(true, resultList[1].Value);
+            Assert.AreEqual(4, resultList[2].Index);
+            Assert.AreEqual(false, resultList[2].Value);
+
+            result = client.ReadDiscreteInputs(new AddressRange(9, 2), param).Result;
             Assert.AreEqual(Status.Exception, result.Result.Summary);
             Assert.AreEqual(Exception.IllegalDataAddress, result.Result.Exception);
         }
 
         static void TestReadInputRegisters(Channel client)
         {
-            var result = client.ReadInputRegisters(new AddressRange { Start = 3, Count = 3 }, param).Result;
+            var result = client.ReadInputRegisters(new AddressRange(3, 3), param).Result;
+            var resultList = result.Iterator.ToList();
             Assert.AreEqual(Status.Ok, result.Result.Summary);
-            CollectionAssert.AreEqual(
-                new List<Register>
-                {
-                        new Register { Index = 3, Value = 0 },
-                        new Register { Index = 4, Value = 42 },
-                        new Register { Index = 5, Value = 0 },
-                },
-                result.Iterator.ToList()
-            );
-            result = client.ReadInputRegisters(new AddressRange { Start = 10, Count = 1 }, param).Result;
+
+            Assert.AreEqual(3, resultList.Count);
+            Assert.AreEqual(3, resultList[0].Index);
+            Assert.AreEqual(0, resultList[0].Value);
+            Assert.AreEqual(4, resultList[1].Index);
+            Assert.AreEqual(42, resultList[1].Value);
+            Assert.AreEqual(5, resultList[2].Index);
+            Assert.AreEqual(0, resultList[2].Value);
+
+            result = client.ReadInputRegisters(new AddressRange(10, 1), param).Result;
             Assert.AreEqual(Status.Exception, result.Result.Summary);
             Assert.AreEqual(Exception.IllegalDataAddress, result.Result.Exception);
         }
 
         static void TestWriteSingleCoil(Channel client)
         {            
-            var writeResult = client.WriteSingleCoil(new Bit { Index = 1, Value = true }, param).Result;
+            var writeResult = client.WriteSingleCoil(new Bit(1, true), param).Result;
             Assert.AreEqual(Status.Ok, writeResult.Summary);
-            var readResult = client.ReadCoils(new AddressRange { Start = 0, Count = 2 }, param).Result;
+
+            var readResult = client.ReadCoils(new AddressRange(0, 2), param).Result;
+            var resultList = readResult.Iterator.ToList();
             Assert.AreEqual(Status.Ok, readResult.Result.Summary);
-            CollectionAssert.AreEqual(
-                new List<Bit>
-                {
-                        new Bit { Index = 0, Value = false },
-                        new Bit { Index = 1, Value = true },
-                },
-                readResult.Iterator.ToList()
-            );
+
+            Assert.AreEqual(2, resultList.Count);
+            Assert.AreEqual(0, resultList[0].Index);
+            Assert.AreEqual(false, resultList[0].Value);
+            Assert.AreEqual(1, resultList[1].Index);
+            Assert.AreEqual(true, resultList[1].Value);
         }
 
         static void TestWriteSingleRegister(Channel client)
         {            
-            var writeResult = client.WriteSingleRegister(new Register { Index = 1, Value = 22 }, param).Result;
+            var writeResult = client.WriteSingleRegister(new Register(1, 22), param).Result;
             Assert.AreEqual(Status.Ok, writeResult.Summary);
-            var readResult = client.ReadHoldingRegisters(new AddressRange { Start = 0, Count = 2 }, param).Result;
+
+            var readResult = client.ReadHoldingRegisters(new AddressRange(0, 2), param).Result;
+            var resultList = readResult.Iterator.ToList();
             Assert.AreEqual(Status.Ok, readResult.Result.Summary);
-            CollectionAssert.AreEqual(
-                new List<Register>
-                {
-                        new Register { Index = 0, Value = 0 },
-                        new Register { Index = 1, Value = 22 },
-                },
-                readResult.Iterator.ToList()
-            );
+
+            Assert.AreEqual(2, resultList.Count);
+            Assert.AreEqual(0, resultList[0].Index);
+            Assert.AreEqual(0, resultList[0].Value);
+            Assert.AreEqual(1, resultList[1].Index);
+            Assert.AreEqual(22, resultList[1].Value);
         }
 
         static void TestWriteMultipeCoils(Channel client)
         {            
             var writeResult = client.WriteMultipleCoils(0, new List<bool> { true, false, true }, param).Result;
             Assert.AreEqual(Status.Ok, writeResult.Summary);
-            var readResult = client.ReadCoils(new AddressRange { Start = 0, Count = 3 }, param).Result;
+
+            var readResult = client.ReadCoils(new AddressRange(0, 3), param).Result;
+            var resultList = readResult.Iterator.ToList();
             Assert.AreEqual(Status.Ok, readResult.Result.Summary);
-            CollectionAssert.AreEqual(
-                new List<Bit>
-                {
-                        new Bit { Index = 0, Value = true },
-                        new Bit { Index = 1, Value = false },
-                        new Bit { Index = 2, Value = true },
-                },
-                readResult.Iterator.ToList()
-            );
+
+            Assert.AreEqual(3, resultList.Count);
+            Assert.AreEqual(0, resultList[0].Index);
+            Assert.AreEqual(true, resultList[0].Value);
+            Assert.AreEqual(1, resultList[1].Index);
+            Assert.AreEqual(false, resultList[1].Value);
+            Assert.AreEqual(2, resultList[2].Index);
+            Assert.AreEqual(true, resultList[2].Value);
         }
 
         static void TestWriteMultipeRegisters(Channel client)
         {
             var writeResult = client.WriteMultipleRegisters(0, new List<ushort> { 0xCAFE, 21, 0xFFFF }, param).Result;
             Assert.AreEqual(Status.Ok, writeResult.Summary);
-            var readResult = client.ReadHoldingRegisters(new AddressRange { Start = 0, Count = 3 }, param).Result;
+
+            var readResult = client.ReadHoldingRegisters(new AddressRange(0, 3), param).Result;
+            var resultList = readResult.Iterator.ToList();
             Assert.AreEqual(Status.Ok, readResult.Result.Summary);
-            CollectionAssert.AreEqual(
-                new List<Register>
-                {
-                        new Register { Index = 0, Value = 0xCAFE },
-                        new Register { Index = 1, Value = 21 },
-                        new Register { Index = 2, Value = 0xFFFF },
-                },
-                readResult.Iterator.ToList()
-            );
+
+            Assert.AreEqual(3, resultList.Count);
+            Assert.AreEqual(0, resultList[0].Index);
+            Assert.AreEqual(0xCAFE, resultList[0].Value);
+            Assert.AreEqual(1, resultList[1].Index);
+            Assert.AreEqual(21, resultList[1].Value);
+            Assert.AreEqual(2, resultList[2].Index);
+            Assert.AreEqual(0xFFFF, resultList[2].Value);
         }
 
         [TestMethod]
         public void ClientAndServerCommunication()
         {
-            using var runtime = new Runtime(new RuntimeConfig { NumCoreThreads = 2 });
+            var runtime = new Runtime(new RuntimeConfig(2));
             var map = new DeviceMap();
             map.AddEndpoint(UNIT_ID, new WriteHandler(), new DatabaseUpdate((db) =>
             {

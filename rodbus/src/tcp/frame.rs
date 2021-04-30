@@ -16,7 +16,7 @@ pub(crate) mod constants {
 }
 
 #[derive(Clone, Copy)]
-struct MBAPHeader {
+struct MbapHeader {
     tx_id: TxId,
     adu_length: usize,
     unit_id: UnitId,
@@ -25,18 +25,18 @@ struct MBAPHeader {
 #[derive(Clone, Copy)]
 enum ParseState {
     Begin,
-    Header(MBAPHeader),
+    Header(MbapHeader),
 }
 
-pub(crate) struct MBAPParser {
+pub(crate) struct MbapParser {
     state: ParseState,
 }
 
-pub(crate) struct MBAPFormatter {
+pub(crate) struct MbapFormatter {
     buffer: [u8; constants::MAX_FRAME_LENGTH],
 }
 
-impl MBAPFormatter {
+impl MbapFormatter {
     pub(crate) fn new() -> Self {
         Self {
             buffer: [0; constants::MAX_FRAME_LENGTH],
@@ -44,14 +44,14 @@ impl MBAPFormatter {
     }
 }
 
-impl MBAPParser {
+impl MbapParser {
     pub(crate) fn new() -> Self {
         Self {
             state: ParseState::Begin,
         }
     }
 
-    fn parse_header(cursor: &mut ReadBuffer) -> Result<MBAPHeader, Error> {
+    fn parse_header(cursor: &mut ReadBuffer) -> Result<MbapHeader, Error> {
         let tx_id = TxId::new(cursor.read_u16_be()?);
         let protocol_id = cursor.read_u16_be()?;
         let length = cursor.read_u16_be()? as usize;
@@ -62,7 +62,7 @@ impl MBAPParser {
         }
 
         if length > constants::MAX_LENGTH_FIELD {
-            return Err(details::FrameParseError::MBAPLengthTooBig(
+            return Err(details::FrameParseError::MbapLengthTooBig(
                 length,
                 constants::MAX_LENGTH_FIELD,
             )
@@ -71,24 +71,24 @@ impl MBAPParser {
 
         // must be > 0 b/c the 1-byte unit identifier counts towards length
         if length == 0 {
-            return Err(details::FrameParseError::MBAPLengthZero.into());
+            return Err(details::FrameParseError::MbapLengthZero.into());
         }
 
-        Ok(MBAPHeader {
+        Ok(MbapHeader {
             tx_id,
             adu_length: length - 1,
             unit_id,
         })
     }
 
-    fn parse_body(header: &MBAPHeader, cursor: &mut ReadBuffer) -> Result<Frame, Error> {
+    fn parse_body(header: &MbapHeader, cursor: &mut ReadBuffer) -> Result<Frame, Error> {
         let mut frame = Frame::new(FrameHeader::new(header.unit_id, header.tx_id));
         frame.set(cursor.read(header.adu_length)?);
         Ok(frame)
     }
 }
 
-impl FrameParser for MBAPParser {
+impl FrameParser for MbapParser {
     fn max_frame_size(&self) -> usize {
         constants::MAX_FRAME_LENGTH
     }
@@ -116,7 +116,7 @@ impl FrameParser for MBAPParser {
     }
 }
 
-impl FrameFormatter for MBAPFormatter {
+impl FrameFormatter for MbapFormatter {
     fn format_impl(&mut self, header: FrameHeader, msg: &dyn Serialize) -> Result<usize, Error> {
         let mut cursor = WriteCursor::new(self.buffer.as_mut());
         cursor.write_u16_be(header.tx_id.to_u16())?;
@@ -133,7 +133,7 @@ impl FrameFormatter for MBAPFormatter {
         {
             // write the resulting length
             let frame_length_value = u16::try_from(adu_length + 1)
-                .map_err(|_err| details::InternalError::ADUTooBig(adu_length))?;
+                .map_err(|_err| details::InternalError::AduTooBig(adu_length))?;
 
             cursor.seek_from_start(4)?;
             cursor.write_u16_be(frame_length_value)?;
@@ -184,7 +184,7 @@ mod tests {
     fn test_segmented_parse(split_at: usize) {
         let (f1, f2) = SIMPLE_FRAME.split_at(split_at);
         let mut io = Builder::new().read(f1).read(f2).build();
-        let mut reader = FramedReader::new(MBAPParser::new());
+        let mut reader = FramedReader::new(MbapParser::new());
         let frame = block_on(reader.next_frame(&mut io)).unwrap();
 
         assert_equals_simple_frame(&frame);
@@ -192,13 +192,13 @@ mod tests {
 
     fn test_error(input: &[u8]) -> Error {
         let mut io = Builder::new().read(input).build();
-        let mut reader = FramedReader::new(MBAPParser::new());
+        let mut reader = FramedReader::new(MbapParser::new());
         block_on(reader.next_frame(&mut io)).err().unwrap()
     }
 
     #[test]
     fn correctly_formats_frame() {
-        let mut formatter = MBAPFormatter::new();
+        let mut formatter = MbapFormatter::new();
         let msg = MockMessage { a: 0x03, b: 0x04 };
         let header = FrameHeader::new(UnitId::new(42), TxId::new(7));
         let size = formatter.format_impl(header, &msg).unwrap();
@@ -210,7 +210,7 @@ mod tests {
     #[test]
     fn can_parse_frame_from_stream() {
         let mut io = Builder::new().read(SIMPLE_FRAME).build();
-        let mut reader = FramedReader::new(MBAPParser::new());
+        let mut reader = FramedReader::new(MbapParser::new());
         let frame = block_on(reader.next_frame(&mut io)).unwrap();
 
         assert_equals_simple_frame(&frame);
@@ -223,7 +223,7 @@ mod tests {
         let payload = &[0xCC; 253];
 
         let mut io = Builder::new().read(header).read(payload).build();
-        let mut reader = FramedReader::new(MBAPParser::new());
+        let mut reader = FramedReader::new(MbapParser::new());
         let frame = block_on(reader.next_frame(&mut io)).unwrap();
 
         assert_eq!(frame.payload(), payload.as_ref());
@@ -253,7 +253,7 @@ mod tests {
         let frame = &[0x00, 0x07, 0x00, 0x00, 0x00, 0x00, 0x2A];
         assert_eq!(
             test_error(frame),
-            Error::BadFrame(details::FrameParseError::MBAPLengthZero)
+            Error::BadFrame(details::FrameParseError::MbapLengthZero)
         );
     }
 
@@ -262,7 +262,7 @@ mod tests {
         let frame = &[0x00, 0x07, 0x00, 0x00, 0x00, 0xFF, 0x2A];
         assert_eq!(
             test_error(frame),
-            Error::BadFrame(details::FrameParseError::MBAPLengthTooBig(
+            Error::BadFrame(details::FrameParseError::MbapLengthTooBig(
                 0xFF,
                 constants::MAX_LENGTH_FIELD,
             ))

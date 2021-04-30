@@ -48,7 +48,7 @@ pub(crate) fn define_status(lib: &mut LibraryBuilder) -> Result<Handle<NativeEnu
             "The response from the server was received but was improperly formatted",
         )?
         .variant(
-            "IOError",
+            "IoError",
             6,
             "An I/O error occurred on the underlying stream while performing the request",
         )?

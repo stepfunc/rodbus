@@ -8,7 +8,7 @@ use crate::error::*;
 use crate::server::handler::{RequestHandler, ServerHandlerMap};
 use crate::server::request::Request;
 use crate::server::response::ErrorResponse;
-use crate::tcp::frame::{MBAPFormatter, MBAPParser};
+use crate::tcp::frame::{MbapFormatter, MbapParser};
 
 pub(crate) struct SessionTask<T, U>
 where
@@ -18,8 +18,8 @@ where
     io: U,
     handlers: ServerHandlerMap<T>,
     shutdown: tokio::sync::mpsc::Receiver<()>,
-    reader: FramedReader<MBAPParser>,
-    writer: MBAPFormatter,
+    reader: FramedReader<MbapParser>,
+    writer: MbapFormatter,
 }
 
 impl<T, U> SessionTask<T, U>
@@ -36,8 +36,8 @@ where
             io,
             handlers,
             shutdown,
-            reader: FramedReader::new(MBAPParser::new()),
-            writer: MBAPFormatter::new(),
+            reader: FramedReader::new(MbapParser::new()),
+            writer: MbapFormatter::new(),
         }
     }
 

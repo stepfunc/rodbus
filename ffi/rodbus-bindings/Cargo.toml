@@ -11,6 +11,6 @@ repository = "https://www.github.com/stepfunc/rodbus"
 readme = "../README.md"
 
 [dependencies]
-ci-script = { git = "https://git@github.com/grid-io/oo_bindgen.git" }
+ci-script = { git = "https://git@github.com/grid-io/oo_bindgen.git", tag = "0.1.0" }
 rodbus-schema = { path = "../rodbus-schema" }
 rodbus-ffi = { path = "../rodbus-ffi" }

@@ -17,7 +17,7 @@ public class IntegrationTest {
     static final UByte UNIT_ID = ubyte(1);
     static final UInteger TIMEOUT_MS = uint(1000);
     static final int NUM_POINTS = 10;
-    static final String ENDPOINT = "127.0.0.1:50000";
+    static final String ENDPOINT = "127.0.0.1:20000";
 
     static class TestWriteHandler implements WriteHandler {
         @Override
@@ -63,44 +63,38 @@ public class IntegrationTest {
 
     @Test
     public void clientAndServerCommunication() throws ExecutionException, InterruptedException {
-        final RuntimeConfig runtimeConfig = new RuntimeConfig();
-        runtimeConfig.numCoreThreads = ushort(2);
-        try(Runtime runtime = new Runtime(runtimeConfig)) {
-            DeviceMap map = new DeviceMap();
-            map.addEndpoint(UNIT_ID, new TestWriteHandler(), db -> {
-                for(int i = 0; i < NUM_POINTS; i++) {
-                    db.addCoil(ushort(i), false);
-                    db.addDiscreteInput(ushort(i), false);
-                    db.addHoldingRegister(ushort(i), ushort(0));
-                    db.addInputRegister(ushort(i), ushort(0));
-                }
-            });
+        final RuntimeConfig runtimeConfig = new RuntimeConfig(ushort(2));
+        Runtime runtime = new Runtime(runtimeConfig);
 
-            Server server = Server.createTcpServer(runtime, ENDPOINT, ushort(100), map);
-            Channel client = Channel.createTcpClient(runtime, ENDPOINT, ushort(10));
+        final DeviceMap deviceMap = new DeviceMap();
+        deviceMap.addEndpoint(UNIT_ID, new TestWriteHandler(), db -> {
+            for(int i = 0; i < NUM_POINTS; i++) {
+                db.addCoil(ushort(i), false);
+                db.addDiscreteInput(ushort(i), false);
+                db.addHoldingRegister(ushort(i), ushort(0));
+                db.addInputRegister(ushort(i), ushort(0));
+            }
+        });
 
-            // Set a unique pattern to test reads
-            server.update(UNIT_ID, db -> {
-                db.updateDiscreteInput(ushort(3), true);
-                db.updateInputRegister(ushort(4), ushort(42));
-            });
+        final Server server = Server.createTcpServer(runtime, ENDPOINT, ushort(100), deviceMap);
+        final Channel client = Channel.createTcpClient(runtime, ENDPOINT, ushort(10));
 
-            testReadDiscreteInputs(client);
-            testReadInputRegisters(client);
-            testWriteSingleCoil(client);
-            testWriteSingleRegister(client);
-            testWriteMultipleCoils(client);
-        }
+        // Set a unique pattern to test reads
+        server.update(UNIT_ID, db -> {
+            db.updateDiscreteInput(ushort(3), true);
+            db.updateInputRegister(ushort(4), ushort(42));
+        });
+
+        testReadDiscreteInputs(client);
+        testReadInputRegisters(client);
+        testWriteSingleCoil(client);
+        testWriteSingleRegister(client);
+        testWriteMultipleCoils(client);
     }
 
     private void testReadDiscreteInputs(Channel client) throws ExecutionException, InterruptedException {
-        RequestParam param = new RequestParam();
-        param.unitId = UNIT_ID;
-        param.timeoutMs = TIMEOUT_MS;
-
-        AddressRange range = new AddressRange();
-        range.start = ushort(2);
-        range.count = ushort(3);
+        RequestParam param = new RequestParam(UNIT_ID, TIMEOUT_MS);
+        AddressRange range = new AddressRange(ushort(2), ushort(3));
 
         BitReadResult result = client.readDiscreteInputs(range, param).toCompletableFuture().get();
 
@@ -124,13 +118,8 @@ public class IntegrationTest {
     }
 
     private void testReadInputRegisters(Channel client) throws ExecutionException, InterruptedException {
-        RequestParam param = new RequestParam();
-        param.unitId = UNIT_ID;
-        param.timeoutMs = TIMEOUT_MS;
-
-        AddressRange range = new AddressRange();
-        range.start = ushort(3);
-        range.count = ushort(3);
+        RequestParam param = new RequestParam(UNIT_ID, TIMEOUT_MS);
+        AddressRange range = new AddressRange(ushort(3), ushort(3));
 
         RegisterReadResult result = client.readInputRegisters(range, param).toCompletableFuture().get();
 
@@ -154,22 +143,15 @@ public class IntegrationTest {
     }
 
     private void testWriteSingleCoil(Channel client) throws ExecutionException, InterruptedException {
-        RequestParam param = new RequestParam();
-        param.unitId = UNIT_ID;
-        param.timeoutMs = TIMEOUT_MS;
-
-        Bit bit = new Bit();
-        bit.index = ushort(1);
-        bit.value = true;
+        RequestParam param = new RequestParam(UNIT_ID, TIMEOUT_MS);
+        Bit bit = new Bit(ushort(1), true);
 
         ErrorInfo writeResult = client.writeSingleCoil(bit, param).toCompletableFuture().get();
         assertThat(writeResult.summary).isEqualTo(Status.OK);
 
         // ======
 
-        AddressRange range = new AddressRange();
-        range.start = ushort(0);
-        range.count = ushort(2);
+        AddressRange range = new AddressRange(ushort(0), ushort(2));
 
         BitReadResult readResult = client.readCoils(range, param).toCompletableFuture().get();
 
@@ -182,22 +164,15 @@ public class IntegrationTest {
     }
 
     private void testWriteSingleRegister(Channel client) throws ExecutionException, InterruptedException {
-        RequestParam param = new RequestParam();
-        param.unitId = UNIT_ID;
-        param.timeoutMs = TIMEOUT_MS;
-
-        Register register = new Register();
-        register.index = ushort(1);
-        register.value = ushort(22);
+        RequestParam param = new RequestParam(UNIT_ID, TIMEOUT_MS);
+        Register register = new Register(ushort(1), ushort(22));
 
         ErrorInfo writeResult = client.writeSingleRegister(register, param).toCompletableFuture().get();
         assertThat(writeResult.summary).isEqualTo(Status.OK);
 
         // ======
 
-        AddressRange range = new AddressRange();
-        range.start = ushort(0);
-        range.count = ushort(2);
+        AddressRange range = new AddressRange(ushort(0), ushort(2));
 
         RegisterReadResult readResult = client.readHoldingRegisters(range, param).toCompletableFuture().get();
 
@@ -210,18 +185,14 @@ public class IntegrationTest {
     }
 
     private void testWriteMultipleCoils(Channel client) throws ExecutionException, InterruptedException {
-        RequestParam param = new RequestParam();
-        param.unitId = UNIT_ID;
-        param.timeoutMs = TIMEOUT_MS;
+        RequestParam param = new RequestParam(UNIT_ID, TIMEOUT_MS);
 
         ErrorInfo writeResult = client.writeMultipleCoils(ushort(0), Arrays.asList(true, false, true), param).toCompletableFuture().get();
         assertThat(writeResult.summary).isEqualTo(Status.OK);
 
         // ======
 
-        AddressRange range = new AddressRange();
-        range.start = ushort(0);
-        range.count = ushort(3);
+        AddressRange range = new AddressRange(ushort(0), ushort(3));
 
         BitReadResult readResult = client.readCoils(range, param).toCompletableFuture().get();
 
@@ -236,18 +207,14 @@ public class IntegrationTest {
     }
 
     private void testWriteMultipleRegisters(Channel client) throws ExecutionException, InterruptedException {
-        RequestParam param = new RequestParam();
-        param.unitId = UNIT_ID;
-        param.timeoutMs = TIMEOUT_MS;
+        RequestParam param = new RequestParam(UNIT_ID, TIMEOUT_MS);
 
         ErrorInfo writeResult = client.writeMultipleRegisters(ushort(0), Arrays.asList(ushort(0xCAFE), ushort(21), ushort(0xFFFF)), param).toCompletableFuture().get();
         assertThat(writeResult.summary).isEqualTo(Status.OK);
 
         // ======
 
-        AddressRange range = new AddressRange();
-        range.start = ushort(0);
-        range.count = ushort(3);
+        AddressRange range = new AddressRange(ushort(0), ushort(3));
 
         RegisterReadResult readResult = client.readHoldingRegisters(range, param).toCompletableFuture().get();
 

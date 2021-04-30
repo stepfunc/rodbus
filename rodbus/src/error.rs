@@ -5,7 +5,7 @@ pub enum Error {
     Exception(details::ExceptionCode),
     BadRequest(details::InvalidRequest),
     BadFrame(details::FrameParseError),
-    BadResponse(details::ADUParseError),
+    BadResponse(details::AduParseError),
     Internal(details::InternalError),
     /// timeout occurred before receiving a response from the server
     ResponseTimeout,
@@ -51,8 +51,8 @@ impl From<details::InternalError> for Error {
     }
 }
 
-impl From<details::ADUParseError> for Error {
-    fn from(err: details::ADUParseError) -> Self {
+impl From<details::AduParseError> for Error {
+    fn from(err: details::AduParseError) -> Self {
         Error::BadResponse(err)
     }
 }
@@ -113,7 +113,7 @@ pub mod details {
         /// Insufficient space for write operation
         InsufficientWriteSpace(usize, usize), // written vs remaining space
         /// ADU size is larger than the maximum allowed size
-        ADUTooBig(usize),
+        AduTooBig(usize),
         /// The calculated frame size exceeds what is allowed by the spec
         FrameTooBig(usize, usize), // calculate size vs allowed maximum
         /// Attempted to read more bytes than present
@@ -134,7 +134,7 @@ pub mod details {
                     "attempted to write {} bytes with {} bytes remaining",
                     written, remaining
                 ),
-                InternalError::ADUTooBig(size) => write!(
+                InternalError::AduTooBig(size) => write!(
                     f,
                     "ADU length of {} exceeds the maximum allowed length",
                     size
@@ -278,9 +278,9 @@ pub mod details {
     #[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Ord, Eq)]
     pub enum FrameParseError {
         /// Received TCP frame with the length field set to zero
-        MBAPLengthZero,
+        MbapLengthZero,
         /// Received TCP frame with length that exceeds max allowed size
-        MBAPLengthTooBig(usize, usize), // actual size and the maximum size
+        MbapLengthTooBig(usize, usize), // actual size and the maximum size
         /// Received TCP frame within non-Modbus protocol id
         UnknownProtocolId(u16),
     }
@@ -290,10 +290,10 @@ pub mod details {
     impl std::fmt::Display for FrameParseError {
         fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
             match self {
-                FrameParseError::MBAPLengthZero => {
+                FrameParseError::MbapLengthZero => {
                     f.write_str("Received TCP frame with the length field set to zero")
                 }
-                FrameParseError::MBAPLengthTooBig(size, max) => write!(
+                FrameParseError::MbapLengthTooBig(size, max) => write!(
                     f,
                     "Received TCP frame with length ({}) that exceeds max allowed size ({})",
                     size, max
@@ -307,7 +307,7 @@ pub mod details {
 
     /// errors that occur while parsing requests and responses
     #[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Ord, Eq)]
-    pub enum ADUParseError {
+    pub enum AduParseError {
         /// response is too short to be valid
         InsufficientBytes,
         /// byte count doesn't match the actual number of bytes present
@@ -322,31 +322,31 @@ pub mod details {
         UnknownCoilState(u16),
     }
 
-    impl std::error::Error for ADUParseError {}
+    impl std::error::Error for AduParseError {}
 
-    impl std::fmt::Display for ADUParseError {
+    impl std::fmt::Display for AduParseError {
         fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
             match self {
-                ADUParseError::InsufficientBytes => {
+                AduParseError::InsufficientBytes => {
                     f.write_str("response is too short to be valid")
                 }
-                ADUParseError::InsufficientBytesForByteCount(count, remaining) => write!(
+                AduParseError::InsufficientBytesForByteCount(count, remaining) => write!(
                     f,
                     "byte count ({}) doesn't match the actual number of bytes remaining ({})",
                     count, remaining
                 ),
-                ADUParseError::TrailingBytes(remaining) => {
+                AduParseError::TrailingBytes(remaining) => {
                     write!(f, "response contains {} extra trailing bytes", remaining)
                 }
-                ADUParseError::ReplyEchoMismatch => {
+                AduParseError::ReplyEchoMismatch => {
                     f.write_str("a parameter expected to be echoed in the reply did not match")
                 }
-                ADUParseError::UnknownResponseFunction(actual, expected, error) => write!(
+                AduParseError::UnknownResponseFunction(actual, expected, error) => write!(
                     f,
                     "received unknown response function code: {}. Expected {} or {}",
                     actual, expected, error
                 ),
-                ADUParseError::UnknownCoilState(value) => write!(
+                AduParseError::UnknownCoilState(value) => write!(
                     f,
                     "received coil state with unspecified value: 0x{:04X}",
                     value

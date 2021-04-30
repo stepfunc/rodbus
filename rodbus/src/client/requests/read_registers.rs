@@ -55,6 +55,6 @@ impl ReadRegisters {
         // there's a byte-count here that we don't actually need
         cursor.read_u8()?;
         // the reset is a sequence of bits
-        Ok(RegisterIterator::parse_all(range, cursor)?)
+        RegisterIterator::parse_all(range, cursor)
     }
 }

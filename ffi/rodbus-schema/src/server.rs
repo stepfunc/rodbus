@@ -1,6 +1,6 @@
 use crate::common::CommonDefinitions;
 
-use oo_bindgen::callback::{InterfaceHandle, OneTimeCallbackHandle};
+use oo_bindgen::callback::InterfaceHandle;
 use oo_bindgen::class::{ClassDeclarationHandle, ClassHandle};
 use oo_bindgen::native_function::{NativeFunctionHandle, ReturnType, Type};
 use oo_bindgen::native_struct::NativeStructHandle;
@@ -21,7 +21,7 @@ pub(crate) fn build_server(
     let database = build_database_class(lib)?;
 
     let db_update_callback = lib
-        .define_one_time_callback(
+        .define_interface(
             "DatabaseCallback",
             "Callback used to access the internal database while it is locked",
         )?
@@ -33,6 +33,7 @@ pub(crate) fn build_server(
         )?
         .return_type(ReturnType::void())?
         .build()?
+        .destroy_callback("on_destroy")?
         .build()?;
 
     let handler_map = build_handler_map(lib, &database.declaration, &db_update_callback, common)?;
@@ -75,7 +76,7 @@ pub(crate) fn build_server(
         .declare_native_function("server_update_database")?
         .param("server", Type::ClassRef(server.clone()), "server on which the endpoint resides")?
         .param("unit_id", Type::Uint8, "Unit id of the database to update")?
-        .param("transaction", Type::OneTimeCallback(db_update_callback), "callback invoked when a lock has been acquired")?
+        .param("transaction", Type::Interface(db_update_callback), "callback invoked when a lock has been acquired")?
         .return_type(ReturnType::Type(Type::Bool, "true if the unit id is present, false otherwise".into()))?
         .doc("Update the database associated with a particular unit id. If the unit id exists, lock the database and call user code to perform the transaction")?
         .build()?;
@@ -227,7 +228,7 @@ pub(crate) fn build_database_class(lib: &mut LibraryBuilder) -> Result<ClassHand
 pub(crate) fn build_handler_map(
     lib: &mut LibraryBuilder,
     database: &ClassDeclarationHandle,
-    db_update_callback: &OneTimeCallbackHandle,
+    db_update_callback: &InterfaceHandle,
     common: &CommonDefinitions,
 ) -> Result<ClassHandle, BindingError> {
     let write_handler = build_write_handler_interface(lib, database, common)?;
@@ -269,7 +270,7 @@ pub(crate) fn build_handler_map(
         )?
         .param(
             "configure",
-            Type::OneTimeCallback(db_update_callback.clone()),
+            Type::Interface(db_update_callback.clone()),
             "one-time callback interface configuring the initial state of the database",
         )?
         .return_type(ReturnType::Type(

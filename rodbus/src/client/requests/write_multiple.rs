@@ -1,7 +1,7 @@
 use crate::client::message::Promise;
 use crate::common::cursor::{ReadCursor, WriteCursor};
 use crate::common::traits::{Parse, Serialize};
-use crate::error::details::ADUParseError;
+use crate::error::details::AduParseError;
 use crate::error::Error;
 use crate::types::{AddressRange, WriteMultiple};
 
@@ -37,7 +37,7 @@ where
     fn parse_all(&self, mut cursor: ReadCursor) -> Result<AddressRange, Error> {
         let range = AddressRange::parse(&mut cursor)?;
         if range != self.request.range {
-            return Err(Error::BadResponse(ADUParseError::ReplyEchoMismatch));
+            return Err(Error::BadResponse(AduParseError::ReplyEchoMismatch));
         }
         cursor.expect_empty()?;
         Ok(range)

@@ -31,14 +31,14 @@ impl Parse for Indexed<u16> {
 mod coils {
     use crate::common::cursor::ReadCursor;
     use crate::common::traits::Parse;
-    use crate::error::details::ADUParseError;
+    use crate::error::details::AduParseError;
     use crate::types::Indexed;
 
     #[test]
     fn parse_fails_for_unknown_coil_value() {
         let mut cursor = ReadCursor::new(&[0x00, 0x01, 0xAB, 0xCD]);
         let result = Indexed::<bool>::parse(&mut cursor);
-        assert_eq!(result, Err(ADUParseError::UnknownCoilState(0xABCD).into()))
+        assert_eq!(result, Err(AduParseError::UnknownCoilState(0xABCD).into()))
     }
 
     #[test]

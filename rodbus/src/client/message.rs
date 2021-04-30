@@ -1,5 +1,5 @@
 use crate::common::function::FunctionCode;
-use crate::error::details::{ADUParseError, ExceptionCode};
+use crate::error::details::{AduParseError, ExceptionCode};
 use crate::error::*;
 
 use crate::client::requests::read_bits::ReadBits;
@@ -63,13 +63,13 @@ impl Request {
                     if cursor.is_empty() {
                         Error::Exception(exception)
                     } else {
-                        Error::BadResponse(ADUParseError::TrailingBytes(cursor.len()))
+                        Error::BadResponse(AduParseError::TrailingBytes(cursor.len()))
                     }
                 }
                 Err(err) => err.into(),
             }
         } else {
-            Error::BadResponse(ADUParseError::UnknownResponseFunction(
+            Error::BadResponse(AduParseError::UnknownResponseFunction(
                 function,
                 code.get_value(),
                 code.as_error(),

@@ -1,6 +1,6 @@
 use crate::client::message::Promise;
 use crate::common::cursor::{ReadCursor, WriteCursor};
-use crate::error::details::ADUParseError;
+use crate::error::details::AduParseError;
 use crate::error::Error;
 use crate::types::{coil_from_u16, coil_to_u16, Indexed};
 
@@ -42,7 +42,7 @@ where
         let response = T::parse(&mut cursor)?;
         cursor.expect_empty()?;
         if self.request != response {
-            return Err(ADUParseError::ReplyEchoMismatch.into());
+            return Err(AduParseError::ReplyEchoMismatch.into());
         }
         Ok(response)
     }

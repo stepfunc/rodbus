@@ -3,105 +3,11 @@ on:
   push:
     branches:
       - master
+    tags:
+      - "*"
   pull_request:
 jobs:
-  test:
-    strategy:
-      fail-fast: false
-      matrix:
-        os:
-          - ubuntu-latest
-          - windows-latest
-        rust:
-          - stable
-          - beta
-          - nightly
-    runs-on: ${{ matrix.os }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v1
-      - name: Install Rust ${{ matrix.rust }}
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: ${{ matrix.rust }}
-          override: true
-      - name: Copy Windows config
-        if: ${{ runner.os == 'Windows' }}
-        shell: pwsh
-        run: Copy-Item -Path .cargo/config-windows.toml -Destination .cargo/config.toml
-      - name: Copy Linux config
-        if: ${{ runner.os == 'Linux' }}
-        shell: pwsh
-        run: Copy-Item -Path .cargo/config-linux.toml -Destination .cargo/config.toml
-      - name: Run Rust unit tests
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-      - name: C bindings
-        uses: actions-rs/cargo@v1
-        with:
-          command: run
-          args: --release --bin rodbus-bindings -- --c
-      - name: .NET bindings
-        uses: actions-rs/cargo@v1
-        with:
-          command: run
-          args: --release --bin rodbus-bindings -- --dotnet
-      - name: Java bindings
-        uses: actions-rs/cargo@v1
-        with:
-          command: run
-          args: --release --bin rodbus-bindings -- --java
-      - name: Upload compiled bindings
-        if: ${{ matrix.rust == 'stable' }}
-        uses: actions/upload-artifact@v2
-        with:
-          name: ffi-modules
-          path: ffi/bindings/c/generated/lib
-      - name: Upload compiled Java bindings
-        if: ${{ matrix.rust == 'stable' }}
-        uses: actions/upload-artifact@v2
-        with:
-          name: ffi-modules
-          path: ffi/bindings/java/rodbus/src/main/resources
-  packaging:
-    needs: test
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v1
-      - name: Install Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          override: true
-      - name: Download compiled FFI
-        uses: actions/download-artifact@v2
-        with:
-          name: ffi-modules
-          path: ffi-modules
-      - name: Package all bindings
-        uses: actions-rs/cargo@v1
-        with:
-          command: run
-          args: --release --bin rodbus-bindings -- --package ./ffi-modules
-      - name: Upload C bindings
-        uses: actions/upload-artifact@v2
-        with:
-          name: c-bindings
-          path: ffi/bindings/c/generated
-      - name: Upload .NET bindings
-        uses: actions/upload-artifact@v2
-        with:
-          name: dotnet-bindings
-          path: ffi/bindings/dotnet/nupkg/*.nupkg
-      - name: Upload Java bindings
-        uses: actions/upload-artifact@v2
-        with:
-          name: java-bindings
-          path: ffi/bindings/java/rodbus/target/*.jar
+  # Check formatting and run clippy lints
   linting:
     strategy:
       fail-fast: false
@@ -109,11 +15,10 @@ jobs:
         rust:
           - stable
           - beta
-          - nightly
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v1
+        uses: actions/checkout@v2
       - name: Install Rust ${{ matrix.rust }}
         uses: actions-rs/toolchain@v1
         with:
@@ -131,3 +36,294 @@ jobs:
         with:
           command: clippy
           args: -- -D warnings
+  # Lock the dependencies
+  lock:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+        with:
+          path: rodbus
+      - name: Checkout complicense
+        uses: actions/checkout@v2
+        with:
+          repository: stepfunc/complicense
+          path: complicense
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+      - name: Caching
+        uses: Swatinem/rust-cache@v1
+      - name: Install cargo-license
+        uses: actions-rs/cargo@v1
+        with:
+          command: install
+          args: cargo-license
+      - name: Update dependencies
+        working-directory: rodbus
+        run: cargo update
+      - name: Generate dependencies.json
+        working-directory: rodbus/rodbus
+        run: cargo-license --avoid-dev-deps --avoid-build-deps -j > ../dependencies.json
+      - name: Generate dependencies.txt
+        working-directory: complicense
+        run: cargo run -- --import ../rodbus/dependencies.json --config ../rodbus/deps-config.json  --token ${{ github.token }} > ../rodbus/dependencies.txt
+      - name: Upload dependencies info
+        uses: actions/upload-artifact@v2
+        with:
+          name: dependencies
+          path: |
+            rodbus/Cargo.lock
+            rodbus/dependencies.json
+            rodbus/dependencies.txt
+  # Run the unit tests on Windows and Linux
+  test:
+    needs: lock
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - windows-latest
+        rust:
+          - stable
+          - beta
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Install Rust ${{ matrix.rust }}
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: ${{ matrix.rust }}
+          override: true
+      - name: Copy Windows config
+        if: ${{ runner.os == 'Windows' }}
+        shell: pwsh
+        run: Copy-Item -Path .cargo/config-windows.toml -Destination .cargo/config.toml
+      - name: Copy Linux config
+        if: ${{ runner.os == 'Linux' }}
+        shell: pwsh
+        run: Copy-Item -Path .cargo/config-linux.toml -Destination .cargo/config.toml
+      - name: Caching
+        uses: Swatinem/rust-cache@v1
+      - name: Download Cargo.lock
+        uses: actions/download-artifact@v2
+        with:
+          name: dependencies
+      - name: Run Rust unit tests
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+  # Build bindings on Windows x64 and Linux x64
+  bindings:
+    needs: lock
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest # 64-bit Linux (kernel 2.6.32+, glibc 2.11+) (x86_64-unknown-linux-gnu)
+          - windows-latest # 64-bit MSVC (Windows 7+) (x86_64-pc-windows-msvc)
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+      - name: Copy Windows config
+        if: ${{ runner.os == 'Windows' }}
+        shell: pwsh
+        run: Copy-Item -Path .cargo/config-windows.toml -Destination .cargo/config.toml
+      - name: Copy Linux config
+        if: ${{ runner.os == 'Linux' }}
+        shell: pwsh
+        run: Copy-Item -Path .cargo/config-linux.toml -Destination .cargo/config.toml
+      - name: Caching
+        uses: Swatinem/rust-cache@v1
+      - name: Download Cargo.lock
+        uses: actions/download-artifact@v2
+        with:
+          name: dependencies
+      - name: Build
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --release
+      - name: C bindings
+        uses: actions-rs/cargo@v1
+        with:
+          command: run
+          args: --release --bin rodbus-bindings -- --c
+      - name: .NET bindings
+        uses: actions-rs/cargo@v1
+        with:
+          command: run
+          args: --release --bin rodbus-bindings -- --dotnet
+      - name: Java bindings
+        uses: actions-rs/cargo@v1
+        with:
+          command: run
+          args: --release --bin rodbus-bindings -- --java
+      - name: Upload compiled C bindings (Windows)
+        if: ${{ runner.os == 'Windows' }}
+        uses: actions/upload-artifact@v2
+        with:
+          name: ffi-modules
+          path: ffi/bindings/c/generated/x86_64-pc-windows-msvc/lib
+      - name: Upload compiled C bindings (Linux)
+        if: ${{ runner.os == 'Linux' }}
+        uses: actions/upload-artifact@v2
+        with:
+          name: ffi-modules
+          path: ffi/bindings/c/generated/x86_64-unknown-linux-gnu/lib
+      - name: Upload compiled Java bindings
+        uses: actions/upload-artifact@v2
+        with:
+          name: ffi-modules
+          path: ffi/bindings/java/rodbus/src/main/resources
+  # Cross-compilation for ARM devices and produce C bindings
+  cross:
+    needs: lock
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - arm-unknown-linux-gnueabi # ARMv6 Linux (kernel 3.2, glibc 2.17)
+          - arm-unknown-linux-gnueabihf # ARMv6 Linux, hardfloat (kernel 3.2, glibc 2.17)
+          - armv7-unknown-linux-gnueabihf # ARMv7 Linux, hardfloat (kernel 3.2, glibc 2.17)
+          - aarch64-unknown-linux-gnu # ARM64 Linux (kernel 4.2, glibc 2.17+)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          target: ${{ matrix.target }}
+          override: true
+      - name: Download Cargo.lock
+        uses: actions/download-artifact@v2
+        with:
+          name: dependencies
+      - name: Build
+        uses: actions-rs/cargo@v1
+        with:
+          use-cross: true
+          command: build
+          args: --release --target ${{ matrix.target }}
+      - name: C bindings
+        uses: actions-rs/cargo@v1
+        with:
+          use-cross: true
+          command: run
+          args: --release --target ${{ matrix.target }} --bin rodbus-bindings -- --c --no-tests
+      - name: Upload compiled C bindings
+        uses: actions/upload-artifact@v2
+        with:
+          name: ffi-modules
+          path: ffi/bindings/c/generated/${{ matrix.target }}/lib
+  # Package all the generated bindings
+  packaging:
+    needs: [lock, bindings, cross]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+      - name: Caching
+        uses: Swatinem/rust-cache@v1
+      - name: Download Cargo.lock
+        uses: actions/download-artifact@v2
+        with:
+          name: dependencies
+      - name: Download compiled FFI
+        uses: actions/download-artifact@v2
+        with:
+          name: ffi-modules
+          path: ffi-modules
+      - name: Package all bindings
+        uses: actions-rs/cargo@v1
+        with:
+          command: run
+          args: --bin rodbus-bindings -- --package ./ffi-modules -f dependencies.txt
+      - name: Upload C bindings
+        uses: actions/upload-artifact@v2
+        with:
+          name: c-bindings
+          path: ffi/bindings/c/generated
+      - name: Upload .NET bindings
+        uses: actions/upload-artifact@v2
+        with:
+          name: dotnet-bindings
+          path: ffi/bindings/dotnet/nupkg/*
+      - name: Upload Java bindings
+        uses: actions/upload-artifact@v2
+        with:
+          name: java-bindings
+          path: ffi/bindings/java/rodbus/target/*.jar
+      - name: Upload Java pom.xml
+        uses: actions/upload-artifact@v2
+        with:
+          name: java-bindings
+          path: ffi/bindings/java/rodbus/pom.xml
+  release:
+    needs: packaging
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v2
+        with:
+          path: artifacts
+      - name: Import PGP key
+        uses: crazy-max/ghaction-import-gpg@v3
+        with:
+          gpg-private-key: ${{ secrets.SFIO_PGP_PRIVATE_KEY }}
+          passphrase: ${{ secrets.SFIO_PGP_PRIVATE_KEY_PASSPHRASE }}
+      - name: Login to OSSRH
+        uses: whelk-io/maven-settings-xml-action@v14
+        with:
+          servers: '[{ "id": "ossrh", "username": "${{ secrets.SFIO_OSSRH_USERNAME }}", "password": "${{ secrets.SFIO_OSSRH_PASSWORD }}" }]'
+      - name: Deploy Java
+        shell: bash
+        working-directory: artifacts/java-bindings
+        run: >
+          mvn gpg:sign-and-deploy-file -Durl=https://oss.sonatype.org/service/local/staging/deploy/maven2 -DrepositoryId=ossrh -DpomFile=pom.xml -Dfile=$(find rodbus-*.*.*.jar) &&
+          mvn gpg:sign-and-deploy-file -Durl=https://oss.sonatype.org/service/local/staging/deploy/maven2 -DrepositoryId=ossrh -DpomFile=pom.xml -Dfile=$(find rodbus-*.*.*-sources.jar) -Dclassifier=sources &&
+          mvn gpg:sign-and-deploy-file -Durl=https://oss.sonatype.org/service/local/staging/deploy/maven2 -DrepositoryId=ossrh -DpomFile=pom.xml -Dfile=$(find rodbus-*.*.*-javadoc.jar) -Dclassifier=javadoc
+      - name: Publish NuGet package
+        shell: bash
+        run: dotnet nuget push $(find artifacts/dotnet-bindings/rodbus*.nupkg) -s https://api.nuget.org/v3/index.json -k ${{ secrets.SFIO_NUGET_KEY }}
+      - name: Package C bindings and conformance results
+        shell: bash
+        run: >
+          mkdir release &&
+          for i in artifacts/c-bindings/*; do (cd $i && zip -r ../../../release/rodbus-${GITHUB_REF##*/}-$(basename $i).zip .); done &&
+          (cd artifacts/conformance-results && zip -r ../../release/conformance-results.zip .)
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v1
+        with:
+          draft: true
+          files: |
+            release/*.zip
+            artifacts/dotnet-bindings/rodbus*
+            artifacts/java-bindings/*.jar
+            artifacts/dependencies/dependencies.txt
+            artifacts/dependencies/dependencies.json
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

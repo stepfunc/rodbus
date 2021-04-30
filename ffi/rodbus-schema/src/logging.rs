@@ -53,10 +53,8 @@ pub(crate) fn define_logging(lib: &mut LibraryBuilder) -> Result<(), BindingErro
         .doc("Set the maximum level that will be logged")?
         .build()?;
 
-    let logging_class = lib.declare_class("Logging")?;
-
     let _ = lib
-        .define_class(&logging_class)?
+        .define_static_class("Logging")?
         .static_method("SetHandler", &set_logger_fn)?
         .static_method("SetMaxLogLevel", &set_max_level_fn)?
         .doc("Helper functions for logging")?

@@ -6,7 +6,7 @@ use tokio::sync::*;
 use crate::client::message::Request;
 use crate::common::frame::{FrameFormatter, FrameHeader, FramedReader, TxId};
 use crate::error::*;
-use crate::tcp::frame::{MBAPFormatter, MBAPParser};
+use crate::tcp::frame::{MbapFormatter, MbapParser};
 
 /**
 * We always common requests in a TCP session until one of the following occurs
@@ -14,7 +14,7 @@ use crate::tcp::frame::{MBAPFormatter, MBAPParser};
 #[derive(Debug, PartialEq)]
 pub(crate) enum SessionError {
     // the stream errors
-    IOError,
+    IoError,
     // unrecoverable framing issue,
     BadFrame,
     // the mpsc is closed (dropped)  on the sender side
@@ -24,7 +24,7 @@ pub(crate) enum SessionError {
 impl SessionError {
     pub(crate) fn from(err: &Error) -> Option<Self> {
         match err {
-            Error::Io(_) => Some(SessionError::IOError),
+            Error::Io(_) => Some(SessionError::IoError),
             Error::BadFrame(_) => Some(SessionError::BadFrame),
             // all other errors don't kill the loop
             _ => None,
@@ -34,8 +34,8 @@ impl SessionError {
 
 pub(crate) struct ClientLoop {
     rx: mpsc::Receiver<Request>,
-    formatter: MBAPFormatter,
-    reader: FramedReader<MBAPParser>,
+    formatter: MbapFormatter,
+    reader: FramedReader<MbapParser>,
     tx_id: TxId,
 }
 
@@ -43,8 +43,8 @@ impl ClientLoop {
     pub(crate) fn new(rx: mpsc::Receiver<Request>) -> Self {
         Self {
             rx,
-            formatter: MBAPFormatter::new(),
-            reader: FramedReader::new(MBAPParser::new()),
+            formatter: MbapFormatter::new(),
+            reader: FramedReader::new(MbapParser::new()),
             tx_id: TxId::default(),
         }
     }
@@ -187,7 +187,7 @@ mod tests {
     where
         T: Serialize + Sized,
     {
-        let mut fmt = MBAPFormatter::new();
+        let mut fmt = MbapFormatter::new();
         let header = FrameHeader::new(UnitId::new(1), TxId::new(0));
         let bytes = fmt.format(header, function, payload).unwrap();
         Vec::from(bytes)

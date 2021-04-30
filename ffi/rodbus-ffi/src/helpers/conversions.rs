@@ -39,7 +39,7 @@ impl From<rodbus::error::Error> for crate::ffi::ErrorInfo {
             }
             rodbus::error::Error::BadRequest(_) => from_status(crate::ffi::Status::BadRequest),
             rodbus::error::Error::Exception(ex) => ex.into(),
-            rodbus::error::Error::Io(_) => from_status(crate::ffi::Status::IOError),
+            rodbus::error::Error::Io(_) => from_status(crate::ffi::Status::IoError),
             rodbus::error::Error::BadResponse(_) => from_status(crate::ffi::Status::BadResponse),
         }
     }

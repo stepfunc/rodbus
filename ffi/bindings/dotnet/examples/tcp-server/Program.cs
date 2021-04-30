@@ -88,7 +88,7 @@ namespace example
             Logging.SetMaxLogLevel(LogLevel.Info);
             Logging.SetHandler(new LogHandler());
 
-            using var runtime = new Runtime(new RuntimeConfig { NumCoreThreads = 1 });
+            var runtime = new Runtime(new RuntimeConfig(1));
             var map = new DeviceMap();
             map.AddEndpoint(1, new WriteHandler(), new DatabaseUpdate((db) =>
             {
