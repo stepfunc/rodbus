@@ -1,42 +1,9 @@
+use crate::ffi;
 use rodbus::client::session::CallbackSession;
 use rodbus::types::UnitId;
-use std::ptr::null_mut;
-use tokio::time::Duration;
+use std::time::Duration;
 
-impl crate::ffi::BitReadCallback {
-    pub(crate) fn bad_argument(self) {
-        let result = crate::ffi::BitReadResult {
-            result: crate::ffi::ErrorInfo::error(crate::ffi::Status::BadArgument),
-            iterator: null_mut(),
-        };
-
-        self.on_complete(result);
-    }
-
-    pub(crate) fn convert_to_fn_once(
-        self,
-    ) -> impl FnOnce(std::result::Result<rodbus::types::BitIterator, rodbus::error::Error>) {
-        move |result: std::result::Result<rodbus::types::BitIterator, rodbus::error::Error>| {
-            match result {
-                Err(err) => {
-                    self.on_complete(err.into());
-                }
-                Ok(values) => {
-                    let mut iter = crate::BitIterator::new(values);
-
-                    let result = crate::ffi::BitReadResult {
-                        result: crate::ffi::ErrorInfo::success(),
-                        iterator: &mut iter as *mut crate::BitIterator,
-                    };
-
-                    self.on_complete(result);
-                }
-            }
-        }
-    }
-}
-
-impl crate::ffi::RequestParam {
+impl ffi::RequestParam {
     pub(crate) fn build_session(
         &self,
         channel: &crate::Channel,
@@ -48,15 +15,31 @@ impl crate::ffi::RequestParam {
     }
 }
 
-impl crate::ffi::RegisterReadCallback {
-    pub(crate) fn bad_argument(self) {
-        let result = crate::ffi::RegisterReadResult {
-            result: crate::ffi::ErrorInfo::error(crate::ffi::Status::BadArgument),
-            iterator: null_mut(),
-        };
-        self.on_complete(result);
-    }
+impl ffi::BitReadCallback {
+    pub(crate) fn convert_to_fn_once(
+        self,
+    ) -> impl FnOnce(std::result::Result<rodbus::types::BitIterator, rodbus::error::Error>) {
+        move |result: std::result::Result<rodbus::types::BitIterator, rodbus::error::Error>| {
+            match result {
+                Err(err) => {
+                    self.on_complete(err.into());
+                }
+                Ok(values) => {
+                    let mut iter = crate::BitIterator::new(values);
 
+                    let result = ffi::BitReadResult {
+                        result: ffi::ErrorInfo::success(),
+                        iterator: &mut iter as *mut crate::BitIterator,
+                    };
+
+                    self.on_complete(result);
+                }
+            }
+        }
+    }
+}
+
+impl ffi::RegisterReadCallback {
     pub(crate) fn convert_to_fn_once(
         self,
     ) -> impl FnOnce(std::result::Result<rodbus::types::RegisterIterator, rodbus::error::Error>)
@@ -69,8 +52,8 @@ impl crate::ffi::RegisterReadCallback {
                 Ok(values) => {
                     let mut iter = crate::RegisterIterator::new(values);
 
-                    let result = crate::ffi::RegisterReadResult {
-                        result: crate::ffi::ErrorInfo::success(),
+                    let result = ffi::RegisterReadResult {
+                        result: ffi::ErrorInfo::success(),
                         iterator: &mut iter as *mut crate::RegisterIterator,
                     };
 
@@ -81,13 +64,7 @@ impl crate::ffi::RegisterReadCallback {
     }
 }
 
-impl crate::ffi::ResultCallback {
-    pub(crate) fn bad_argument(self) {
-        self.on_complete(crate::ffi::ErrorInfo::error(
-            crate::ffi::Status::BadArgument,
-        ));
-    }
-
+impl ffi::ResultCallback {
     /// we do't care what type T is b/c we're going to ignore it
     pub(crate) fn convert_to_fn_once<T>(
         self,
@@ -97,66 +74,55 @@ impl crate::ffi::ResultCallback {
                 self.on_complete(err.into());
             }
             Ok(_) => {
-                self.on_complete(crate::ffi::ErrorInfo::success());
+                self.on_complete(ffi::ErrorInfo::success());
             }
         }
     }
 }
 
-impl crate::ffi::ErrorInfo {
-    pub(crate) fn error(err: crate::ffi::Status) -> Self {
-        crate::ffi::ErrorInfoFields {
-            summary: err,
-            exception: crate::ffi::Exception::Unknown,
-            raw_exception: 0,
-        }
-        .into()
-    }
-
+impl ffi::ErrorInfo {
     pub(crate) fn success() -> Self {
-        crate::ffi::ErrorInfoFields {
-            summary: crate::ffi::Status::Ok,
-            exception: crate::ffi::Exception::Unknown,
+        ffi::ErrorInfoFields {
+            summary: ffi::Status::Ok,
+            exception: ffi::ModbusException::Unknown,
             raw_exception: 0,
         }
         .into()
     }
 }
 
-impl crate::ffi::WriteResult {
+impl ffi::WriteResult {
     pub(crate) fn convert_to_result(self) -> Result<(), rodbus::error::details::ExceptionCode> {
         if self.success() {
             return Ok(());
         }
         let ex = match self.exception() {
-            crate::ffi::Exception::Acknowledge => {
-                rodbus::error::details::ExceptionCode::Acknowledge
-            }
-            crate::ffi::Exception::GatewayPathUnavailable => {
+            ffi::ModbusException::Acknowledge => rodbus::error::details::ExceptionCode::Acknowledge,
+            ffi::ModbusException::GatewayPathUnavailable => {
                 rodbus::error::details::ExceptionCode::GatewayPathUnavailable
             }
-            crate::ffi::Exception::GatewayTargetDeviceFailedToRespond => {
+            ffi::ModbusException::GatewayTargetDeviceFailedToRespond => {
                 rodbus::error::details::ExceptionCode::GatewayTargetDeviceFailedToRespond
             }
-            crate::ffi::Exception::IllegalDataAddress => {
+            ffi::ModbusException::IllegalDataAddress => {
                 rodbus::error::details::ExceptionCode::IllegalDataAddress
             }
-            crate::ffi::Exception::IllegalDataValue => {
+            ffi::ModbusException::IllegalDataValue => {
                 rodbus::error::details::ExceptionCode::IllegalDataValue
             }
-            crate::ffi::Exception::IllegalFunction => {
+            ffi::ModbusException::IllegalFunction => {
                 rodbus::error::details::ExceptionCode::IllegalFunction
             }
-            crate::ffi::Exception::MemoryParityError => {
+            ffi::ModbusException::MemoryParityError => {
                 rodbus::error::details::ExceptionCode::MemoryParityError
             }
-            crate::ffi::Exception::ServerDeviceBusy => {
+            ffi::ModbusException::ServerDeviceBusy => {
                 rodbus::error::details::ExceptionCode::ServerDeviceBusy
             }
-            crate::ffi::Exception::ServerDeviceFailure => {
+            ffi::ModbusException::ServerDeviceFailure => {
                 rodbus::error::details::ExceptionCode::ServerDeviceFailure
             }
-            crate::ffi::Exception::Unknown => {
+            ffi::ModbusException::Unknown => {
                 rodbus::error::details::ExceptionCode::Unknown(self.raw_exception())
             }
         };

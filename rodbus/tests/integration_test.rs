@@ -115,7 +115,7 @@ async fn test_requests_and_responses() {
         .create_session(UnitId::new(0x01), Duration::from_secs(1));
 
     {
-        let mut guard = handler.lock().await;
+        let mut guard = handler.lock().unwrap();
         guard.discrete_inputs[0] = true;
         guard.input_registers[0] = 0xCAFE;
     }
@@ -212,6 +212,6 @@ async fn test_requests_and_responses() {
 
 #[test]
 fn can_read_and_write_values() {
-    let mut rt = Runtime::new().unwrap();
+    let rt = Runtime::new().unwrap();
     rt.block_on(test_requests_and_responses())
 }

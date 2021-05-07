@@ -1,9 +1,9 @@
 use std::collections::BTreeMap;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
+use crate::tokio;
+use crate::tokio::net::TcpListener;
 use std::net::SocketAddr;
-use tokio::net::TcpListener;
-use tokio::sync::Mutex;
 
 use crate::server::handler::{RequestHandler, ServerHandlerMap};
 
@@ -103,7 +103,7 @@ where
         let tracker = self.tracker.clone();
         let (tx, rx) = tokio::sync::mpsc::channel(1);
 
-        let id = self.tracker.lock().await.add(tx);
+        let id = self.tracker.lock().unwrap().add(tx);
 
         log::info!("accepted connection {} from: {}", id, addr);
 
@@ -113,7 +113,7 @@ where
                 .await
                 .ok();
             log::info!("shutdown session: {}", id);
-            tracker.lock().await.remove(id);
+            tracker.lock().unwrap().remove(id);
         });
     }
 }

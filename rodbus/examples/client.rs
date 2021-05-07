@@ -3,7 +3,7 @@ use std::time::Duration;
 
 use rodbus::prelude::*;
 
-#[tokio::main(basic_scheduler)]
+#[tokio::main(flavor = "multi_thread")]
 async fn main() -> Result<(), Box<dyn Error>> {
     // Create a channel
     let channel = spawn_tcp_client_task("127.0.0.1:502".parse().unwrap(), 1, strategy::default());

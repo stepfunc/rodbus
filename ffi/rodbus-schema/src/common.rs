@@ -1,4 +1,5 @@
 use oo_bindgen::class::ClassHandle;
+use oo_bindgen::error_type::{ErrorType, ExceptionType};
 use oo_bindgen::iterator::IteratorHandle;
 use oo_bindgen::native_enum::NativeEnumHandle;
 use oo_bindgen::native_function::{ReturnType, Type};
@@ -6,6 +7,7 @@ use oo_bindgen::native_struct::NativeStructHandle;
 use oo_bindgen::{BindingError, LibraryBuilder};
 
 pub(crate) struct CommonDefinitions {
+    pub(crate) error_type: ErrorType,
     pub(crate) runtime_handle: ClassHandle,
     pub(crate) error_info: NativeStructHandle,
     pub(crate) address_range: NativeStructHandle,
@@ -19,12 +21,14 @@ pub(crate) struct CommonDefinitions {
 
 impl CommonDefinitions {
     pub(crate) fn build(lib: &mut LibraryBuilder) -> Result<CommonDefinitions, BindingError> {
+        let error_type = build_error_type(lib)?;
         let bit = build_bit(lib)?;
         let register = build_register(lib)?;
         let exception = crate::enums::define_exception(lib)?;
 
         Ok(Self {
-            runtime_handle: crate::runtime::build_runtime_class(lib)?,
+            error_type: error_type.clone(),
+            runtime_handle: crate::runtime::build_runtime_class(lib, error_type)?,
             error_info: build_error_info(lib, &exception)?,
             address_range: build_address_range(lib)?,
             request_param: build_request_param(lib)?,
@@ -35,6 +39,34 @@ impl CommonDefinitions {
             exception,
         })
     }
+}
+
+fn build_error_type(lib: &mut LibraryBuilder) -> Result<ErrorType, BindingError> {
+    lib.define_error_type(
+        "ParamError",
+        "ParamException",
+        ExceptionType::UncheckedException,
+    )?
+    .add_error("NullParameter", "Null parameter")?
+    .add_error("RuntimeCreationFailure", "Failed to create tokio runtime")?
+    .add_error("RuntimeDestroyed", "Runtime was already disposed of")?
+    .add_error(
+        "RuntimeCannotBlockWithinAsync",
+        "Runtime cannot execute blocking call within asynchronous context",
+    )?
+    .add_error("InvalidSocketAddress", "Invalid socket address")?
+    .add_error("InvalidRange", "Invalid Modbus address range")?
+    .add_error("InvalidRequest", "Invalid Modbus request")?
+    .add_error(
+        "ServerBindError",
+        "Server failed to bind to the specified port",
+    )?
+    .add_error(
+        "InvalidUnitId",
+        "The specified unit id is not associated to this server",
+    )?
+    .doc("Error type used throughout the library")?
+    .build()
 }
 
 fn build_bit(lib: &mut LibraryBuilder) -> Result<NativeStructHandle, BindingError> {

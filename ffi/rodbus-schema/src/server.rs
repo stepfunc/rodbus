@@ -58,11 +58,12 @@ pub(crate) fn build_server(
             Type::ClassRef(server.clone()),
             "handle to the server".into(),
         ))?
+        .fails_with(common.error_type.clone())?
         .doc("Launch a TCP server. When the maximum number of concurrent sessions is reached, the oldest session is closed.")?
         .build()?;
 
     let destroy_fn = lib
-        .declare_native_function("destroy_server")?
+        .declare_native_function("server_destroy")?
         .param(
             "server",
             Type::ClassRef(server.clone()),
@@ -74,10 +75,11 @@ pub(crate) fn build_server(
 
     let update_fn = lib
         .declare_native_function("server_update_database")?
-        .param("server", Type::ClassRef(server.clone()), "server on which the endpoint resides")?
+        .param("server", Type::ClassRef(server.clone()), "Server on which the endpoint resides")?
         .param("unit_id", Type::Uint8, "Unit id of the database to update")?
         .param("transaction", Type::Interface(db_update_callback), "callback invoked when a lock has been acquired")?
-        .return_type(ReturnType::Type(Type::Bool, "true if the unit id is present, false otherwise".into()))?
+        .return_type(ReturnType::void())?
+        .fails_with(common.error_type.clone())?
         .doc("Update the database associated with a particular unit id. If the unit id exists, lock the database and call user code to perform the transaction")?
         .build()?;
 
@@ -85,6 +87,7 @@ pub(crate) fn build_server(
         .destructor(&destroy_fn)?
         .method("update", &update_fn)?
         .static_method("create_tcp_server", &create_tcp_server_fn)?
+        .custom_destroy("Shutdown")?
         .doc("Handle to the running server. The server remains alive until this reference is destroyed")?
         .build()
 }

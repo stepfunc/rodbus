@@ -1,6 +1,7 @@
 use crate::common::function::FunctionCode;
 use crate::error::details::{AduParseError, ExceptionCode};
 use crate::error::*;
+use crate::tokio;
 
 use crate::client::requests::read_bits::ReadBits;
 use crate::client::requests::read_registers::ReadRegisters;
@@ -10,7 +11,6 @@ use crate::common::cursor::{ReadCursor, WriteCursor};
 use crate::common::traits::Serialize;
 use crate::types::{Indexed, UnitId};
 use std::time::Duration;
-use tokio::sync::oneshot;
 
 pub(crate) struct Request {
     pub(crate) id: UnitId,
@@ -135,7 +135,7 @@ impl Serialize for RequestDetails {
 }
 
 pub(crate) enum Promise<T> {
-    Channel(oneshot::Sender<Result<T, Error>>),
+    Channel(tokio::sync::oneshot::Sender<Result<T, Error>>),
     Callback(Box<dyn FnOnce(Result<T, Error>) + Send + Sync + 'static>),
 }
 

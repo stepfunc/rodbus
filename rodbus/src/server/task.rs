@@ -1,4 +1,5 @@
-use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
+use crate::tokio;
+use crate::tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
 
 use crate::common::cursor::ReadCursor;
 use crate::common::frame::{Frame, FrameFormatter, FrameHeader, FramedReader};
@@ -58,7 +59,7 @@ where
     }
 
     async fn run_one(&mut self) -> Result<(), Error> {
-        tokio::select! {
+        crate::tokio::select! {
             frame = self.reader.next_frame(&mut self.io) => {
                self.reply_to_request(frame?).await
             }
@@ -115,7 +116,7 @@ where
 
         // get the reply data (or exception reply)
         let reply_frame: &[u8] = {
-            let mut lock = handler.lock().await;
+            let mut lock = handler.lock().unwrap();
             request.get_reply(frame.header, lock.as_mut(), &mut self.writer)?
         };
 

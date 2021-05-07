@@ -1,7 +1,8 @@
-#![allow(clippy::clippy::missing_safety_doc)]
+#![allow(clippy::missing_safety_doc)]
 
-mod channel;
+mod client;
 mod database;
+mod error;
 mod iterator;
 mod list;
 mod logging;
@@ -13,11 +14,9 @@ pub(crate) mod helpers {
     mod conversions;
     // Additional impl for FFI types
     mod ext;
-    // parsing C strings into types
-    pub(crate) mod parse;
 }
 
-pub use channel::*;
+pub use client::*;
 pub use database::*;
 pub use iterator::*;
 pub use list::*;

@@ -1,3 +1,5 @@
+use crate::tokio;
+
 /// A handle to an async task that can be used to shut it down
 pub struct TaskHandle {
     tx: tokio::sync::mpsc::Sender<()>,

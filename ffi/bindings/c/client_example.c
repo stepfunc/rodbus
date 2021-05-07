@@ -86,13 +86,17 @@ int main()
 
     rodbus_runtime_t *runtime = NULL;
     rodbus_channel_t *channel = NULL;
+    rodbus_param_error_t err = RODBUS_PARAM_ERROR_OK;
 
-    runtime = rodbus_runtime_new(NULL);
-    if (!runtime) {
+    rodbus_runtime_config_t runtime_config = rodbus_runtime_config_init();
+    runtime_config.num_core_threads = 4;
+    err = rodbus_runtime_new(runtime_config, &runtime);
+    if (!err) {
         printf("Unable to initialize runtime \n");
         goto cleanup;
     }
-    channel = rodbus_create_tcp_client(runtime, "127.0.0.1:502", 100);
+
+    err = rodbus_create_tcp_client(runtime, "127.0.0.1:502", 100, &channel);
     if (!channel) {
         printf("Unable to initialize channel \n");
         goto cleanup;
@@ -156,7 +160,7 @@ int main()
     }
 
 cleanup:
-    rodbus_destroy_channel(channel);
+    rodbus_channel_destroy(channel);
     rodbus_runtime_destroy(runtime);
 
     return 0;

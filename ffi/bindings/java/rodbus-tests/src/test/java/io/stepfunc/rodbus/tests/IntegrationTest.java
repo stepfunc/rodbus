@@ -1,7 +1,7 @@
 package io.stepfunc.rodbus.tests;
 
 import io.stepfunc.rodbus.*;
-import io.stepfunc.rodbus.Exception;
+import io.stepfunc.rodbus.ModbusException;
 import io.stepfunc.rodbus.Runtime;
 import org.joou.*;
 import org.junit.jupiter.api.Test;
@@ -25,7 +25,7 @@ public class IntegrationTest {
             if (database.updateCoil(index, value)) {
                 return WriteResult.createSuccess();
             } else {
-                return WriteResult.createException(Exception.ILLEGAL_DATA_ADDRESS);
+                return WriteResult.createException(ModbusException.ILLEGAL_DATA_ADDRESS);
             }
         }
 
@@ -34,7 +34,7 @@ public class IntegrationTest {
             if (database.updateHoldingRegister(index, value)) {
                 return WriteResult.createSuccess();
             } else {
-                return WriteResult.createException(Exception.ILLEGAL_DATA_ADDRESS);
+                return WriteResult.createException(ModbusException.ILLEGAL_DATA_ADDRESS);
             }
         }
 
@@ -42,7 +42,7 @@ public class IntegrationTest {
         public WriteResult writeMultipleCoils(UShort start, List<Bit> it, Database database) {
             for (Bit bit : it) {
                 if (!database.updateCoil(bit.index, bit.value)) {
-                    return WriteResult.createException(Exception.ILLEGAL_DATA_ADDRESS);
+                    return WriteResult.createException(ModbusException.ILLEGAL_DATA_ADDRESS);
                 }
             }
 
@@ -53,7 +53,7 @@ public class IntegrationTest {
         public WriteResult writeMultipleRegisters(UShort start, List<Register> it, Database database) {
             for (Register register : it) {
                 if (!database.updateHoldingRegister(register.index, register.value)) {
-                    return WriteResult.createException(Exception.ILLEGAL_DATA_ADDRESS);
+                    return WriteResult.createException(ModbusException.ILLEGAL_DATA_ADDRESS);
                 }
             }
 
@@ -63,7 +63,7 @@ public class IntegrationTest {
 
     @Test
     public void clientAndServerCommunication() throws ExecutionException, InterruptedException {
-        final RuntimeConfig runtimeConfig = new RuntimeConfig(ushort(2));
+        final RuntimeConfig runtimeConfig = new RuntimeConfig();
         Runtime runtime = new Runtime(runtimeConfig);
 
         final DeviceMap deviceMap = new DeviceMap();
@@ -114,7 +114,7 @@ public class IntegrationTest {
         result = client.readDiscreteInputs(range, param).toCompletableFuture().get();
 
         assertThat(result.result.summary).isEqualTo(Status.EXCEPTION);
-        assertThat(result.result.exception).isEqualTo(Exception.ILLEGAL_DATA_ADDRESS);
+        assertThat(result.result.exception).isEqualTo(ModbusException.ILLEGAL_DATA_ADDRESS);
     }
 
     private void testReadInputRegisters(Channel client) throws ExecutionException, InterruptedException {
@@ -139,7 +139,7 @@ public class IntegrationTest {
         result = client.readInputRegisters(range, param).toCompletableFuture().get();
 
         assertThat(result.result.summary).isEqualTo(Status.EXCEPTION);
-        assertThat(result.result.exception).isEqualTo(Exception.ILLEGAL_DATA_ADDRESS);
+        assertThat(result.result.exception).isEqualTo(ModbusException.ILLEGAL_DATA_ADDRESS);
     }
 
     private void testWriteSingleCoil(Channel client) throws ExecutionException, InterruptedException {

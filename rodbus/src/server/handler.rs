@@ -1,7 +1,5 @@
 use std::collections::BTreeMap;
-use std::sync::Arc;
-
-use tokio::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 use crate::error::details::ExceptionCode;
 use crate::types::*;

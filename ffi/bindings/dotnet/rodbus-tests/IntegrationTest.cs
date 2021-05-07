@@ -14,7 +14,7 @@ namespace rodbus_tests
             {
                 if (!database.UpdateCoil(bit.Index, bit.Value))
                 {
-                    return WriteResult.CreateException(rodbus.Exception.IllegalDataAddress);
+                    return WriteResult.CreateException(rodbus.ModbusException.IllegalDataAddress);
                 }
             }
 
@@ -27,7 +27,7 @@ namespace rodbus_tests
             {
                 if (!database.UpdateHoldingRegister(bit.Index, bit.Value))
                 {
-                    return WriteResult.CreateException(rodbus.Exception.IllegalDataAddress);
+                    return WriteResult.CreateException(rodbus.ModbusException.IllegalDataAddress);
                 }
             }
 
@@ -42,7 +42,7 @@ namespace rodbus_tests
             }
             else
             {
-                return WriteResult.CreateException(rodbus.Exception.IllegalDataAddress);
+                return WriteResult.CreateException(rodbus.ModbusException.IllegalDataAddress);
             }
         }
 
@@ -54,7 +54,7 @@ namespace rodbus_tests
             }
             else
             {
-                return WriteResult.CreateException(rodbus.Exception.IllegalDataAddress);
+                return WriteResult.CreateException(rodbus.ModbusException.IllegalDataAddress);
             }
         }
     }
@@ -98,7 +98,7 @@ namespace rodbus_tests
 
             result = client.ReadDiscreteInputs(new AddressRange(9, 2), param).Result;
             Assert.AreEqual(Status.Exception, result.Result.Summary);
-            Assert.AreEqual(Exception.IllegalDataAddress, result.Result.Exception);
+            Assert.AreEqual(ModbusException.IllegalDataAddress, result.Result.Exception);
         }
 
         static void TestReadInputRegisters(Channel client)
@@ -117,7 +117,7 @@ namespace rodbus_tests
 
             result = client.ReadInputRegisters(new AddressRange(10, 1), param).Result;
             Assert.AreEqual(Status.Exception, result.Result.Summary);
-            Assert.AreEqual(Exception.IllegalDataAddress, result.Result.Exception);
+            Assert.AreEqual(ModbusException.IllegalDataAddress, result.Result.Exception);
         }
 
         static void TestWriteSingleCoil(Channel client)
@@ -191,7 +191,7 @@ namespace rodbus_tests
         [TestMethod]
         public void ClientAndServerCommunication()
         {
-            var runtime = new Runtime(new RuntimeConfig(2));
+            var runtime = new Runtime(new RuntimeConfig());
             var map = new DeviceMap();
             map.AddEndpoint(UNIT_ID, new WriteHandler(), new DatabaseUpdate((db) =>
             {

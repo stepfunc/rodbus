@@ -1,7 +1,8 @@
 use std::time::Duration;
 
-use tokio::prelude::*;
-use tokio::sync::*;
+use crate::tokio;
+use crate::tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
+use crate::tokio::time::Instant;
 
 use crate::client::message::Request;
 use crate::common::frame::{FrameFormatter, FrameHeader, FramedReader, TxId};
@@ -33,14 +34,14 @@ impl SessionError {
 }
 
 pub(crate) struct ClientLoop {
-    rx: mpsc::Receiver<Request>,
+    rx: tokio::sync::mpsc::Receiver<Request>,
     formatter: MbapFormatter,
     reader: FramedReader<MbapParser>,
     tx_id: TxId,
 }
 
 impl ClientLoop {
-    pub(crate) fn new(rx: mpsc::Receiver<Request>) -> Self {
+    pub(crate) fn new(rx: tokio::sync::mpsc::Receiver<Request>) -> Self {
         Self {
             rx,
             formatter: MbapFormatter::new(),
@@ -67,7 +68,7 @@ impl ClientLoop {
     {
         let result = self.execute_request::<T>(io, request).await;
 
-        if let Err(e) = result.as_ref() {
+        if let Err(e) = &result {
             log::warn!("error occurred making request: {}", e);
         }
 
@@ -89,22 +90,22 @@ impl ClientLoop {
 
         io.write_all(bytes).await?;
 
-        let deadline = tokio::time::Instant::now() + request.timeout;
+        let deadline = Instant::now() + request.timeout;
 
         // loop until we get a response with the correct tx id or we timeout
         let response = loop {
-            let frame = match tokio::time::timeout_at(deadline, self.reader.next_frame(io)).await {
-                Err(_) => {
+            let frame = tokio::select! {
+                _ = tokio::time::sleep_until(deadline) => {
                     request.details.fail(Error::ResponseTimeout);
                     return Ok(());
                 }
-                Ok(result) => match result {
+                x = self.reader.next_frame(io) => match x {
                     Ok(frame) => frame,
                     Err(err) => {
                         request.details.fail(err);
                         return Err(err);
                     }
-                },
+                }
             };
 
             log::info!("<- {:?}", frame.payload());
@@ -126,16 +127,24 @@ impl ClientLoop {
     }
 
     pub(crate) async fn fail_requests_for(&mut self, duration: Duration) -> Result<(), ()> {
-        let deadline = tokio::time::Instant::now() + duration;
+        let deadline = Instant::now() + duration;
 
         loop {
-            match tokio::time::timeout_at(deadline, self.rx.recv()).await {
-                // timeout occurred
-                Err(_) => return Ok(()),
-                // channel was closed
-                Ok(None) => return Err(()),
-                // fail request, do another iteration
-                Ok(Some(request)) => request.details.fail(Error::NoConnection),
+            tokio::select! {
+                _ = tokio::time::sleep_until(deadline) => {
+                    // Timeout occured
+                    return Ok(())
+                }
+                x = self.rx.recv() => match x {
+                    Some(request) => {
+                        // fail request, do another iteration
+                        request.details.fail(Error::NoConnection)
+                    }
+                    None => {
+                        // channel was closed
+                        return Err(())
+                    }
+                }
             }
         }
     }
@@ -143,43 +152,72 @@ impl ClientLoop {
 
 #[cfg(test)]
 mod tests {
+    use std::task::Poll;
+
     use super::*;
     use crate::client::message::RequestDetails;
     use crate::client::requests::read_bits::ReadBits;
     use crate::common::function::FunctionCode;
     use crate::common::traits::Serialize;
     use crate::error::details::FrameParseError;
+    use crate::tokio::test::*;
     use crate::types::{AddressRange, Indexed, UnitId};
 
     struct ClientFixture {
-        tx: tokio::sync::mpsc::Sender<Request>,
         client: ClientLoop,
+        io: io::MockIO,
+        io_handle: io::Handle,
     }
 
     impl ClientFixture {
-        fn new() -> Self {
+        fn new() -> (Self, tokio::sync::mpsc::Sender<Request>) {
             let (tx, rx) = tokio::sync::mpsc::channel(10);
-            Self {
+            let (io, io_handle) = io::mock();
+            (
+                Self {
+                    client: ClientLoop::new(rx),
+                    io,
+                    io_handle,
+                },
                 tx,
-                client: ClientLoop::new(rx),
-            }
+            )
         }
 
         fn read_coils(
             &mut self,
+            tx: &mut tokio::sync::mpsc::Sender<Request>,
             range: AddressRange,
             timeout: Duration,
         ) -> tokio::sync::oneshot::Receiver<Result<Vec<Indexed<bool>>, Error>> {
-            let (tx, rx) = tokio::sync::oneshot::channel();
+            let (response_tx, response_rx) = tokio::sync::oneshot::channel();
             let details = RequestDetails::ReadCoils(ReadBits::new(
                 range.of_read_bits().unwrap(),
-                crate::client::requests::read_bits::Promise::Channel(tx),
+                crate::client::requests::read_bits::Promise::Channel(response_tx),
             ));
             let request = Request::new(UnitId::new(1), timeout, details);
-            if let Err(_) = tokio_test::block_on(self.tx.send(request)) {
-                panic!("can't send");
+
+            let mut task = spawn(tx.send(request));
+            match task.poll() {
+                Poll::Ready(result) => match result {
+                    Ok(()) => response_rx,
+                    Err(_) => {
+                        panic!("can't send");
+                    }
+                },
+                Poll::Pending => {
+                    panic!("task not completed");
+                }
             }
-            rx
+        }
+
+        fn assert_pending(&mut self) {
+            let mut task = spawn(self.client.run(&mut self.io));
+            assert_pending!(task.poll());
+        }
+
+        fn assert_run(&mut self, err: SessionError) {
+            let mut task = spawn(self.client.run(&mut self.io));
+            assert_ready_eq!(task.poll(), err);
         }
     }
 
@@ -195,95 +233,80 @@ mod tests {
 
     #[test]
     fn task_completes_with_shutdown_error_when_sender_dropped() {
-        let mut fixture = ClientFixture::new();
-        let io = tokio_test::io::Builder::new().build();
-        drop(fixture.tx);
-        assert_eq!(
-            tokio_test::block_on(fixture.client.run(io)),
-            SessionError::Shutdown
-        );
+        let (mut fixture, tx) = ClientFixture::new();
+        drop(tx);
+
+        fixture.assert_run(SessionError::Shutdown);
     }
 
     #[test]
     fn returns_timeout_when_no_response() {
-        let mut fixture = ClientFixture::new();
+        let (mut fixture, mut tx) = ClientFixture::new();
 
         let range = AddressRange::try_from(7, 2).unwrap();
 
         let request = get_framed_adu(FunctionCode::ReadCoils, &range);
 
-        let io = tokio_test::io::Builder::new()
-            .write(&request)
-            .wait(Duration::from_secs(5))
-            .build();
+        fixture.io_handle.write(&request);
 
-        let rx = fixture.read_coils(range, Duration::from_secs(0));
-        drop(fixture.tx);
+        let rx = fixture.read_coils(&mut tx, range, Duration::from_secs(0));
+        fixture.assert_pending();
 
-        assert_eq!(
-            tokio_test::block_on(fixture.client.run(io)),
-            SessionError::Shutdown
-        );
+        crate::tokio::time::advance(Duration::from_secs(5));
+        fixture.assert_pending();
 
-        let result = tokio_test::block_on(rx).unwrap();
+        drop(tx);
 
-        assert_eq!(result, Err(Error::ResponseTimeout));
+        fixture.assert_run(SessionError::Shutdown);
+
+        assert_ready_eq!(spawn(rx).poll(), Ok(Err(Error::ResponseTimeout)));
     }
 
     #[test]
     fn framing_errors_kill_the_session() {
-        let mut fixture = ClientFixture::new();
+        let (mut fixture, mut tx) = ClientFixture::new();
 
         let range = AddressRange::try_from(7, 2).unwrap();
 
         let request = get_framed_adu(FunctionCode::ReadCoils, &range);
 
-        let io = tokio_test::io::Builder::new()
-            .write(&request)
-            .read(&[0x00, 0x00, 0xCA, 0xFE, 0x00, 0x01, 0x01]) // non-Modbus protocol id
-            .build();
+        fixture.io_handle.write(&request);
+        fixture
+            .io_handle
+            .read(&[0x00, 0x00, 0xCA, 0xFE, 0x00, 0x01, 0x01]); // non-Modbus protocol id
 
-        let rx = fixture.read_coils(range, Duration::from_secs(0));
-        drop(fixture.tx);
+        let rx = fixture.read_coils(&mut tx, range, Duration::from_secs(5));
 
-        assert_eq!(
-            tokio_test::block_on(fixture.client.run(io)),
-            SessionError::BadFrame
-        );
+        fixture.assert_run(SessionError::BadFrame);
 
-        let result = tokio_test::block_on(rx).unwrap();
-
-        assert_eq!(
-            result,
-            Err(Error::BadFrame(FrameParseError::UnknownProtocolId(0xCAFE)))
+        assert_ready_eq!(
+            spawn(rx).poll(),
+            Ok(Err(Error::BadFrame(FrameParseError::UnknownProtocolId(
+                0xCAFE
+            ))))
         );
     }
 
     #[test]
     fn transmit_read_coils_when_requested() {
-        let mut fixture = ClientFixture::new();
+        let (mut fixture, mut tx) = ClientFixture::new();
 
         let range = AddressRange::try_from(7, 2).unwrap();
 
         let request = get_framed_adu(FunctionCode::ReadCoils, &range);
         let response = get_framed_adu(FunctionCode::ReadCoils, &[true, false].as_ref());
 
-        let io = tokio_test::io::Builder::new()
-            .write(&request)
-            .read(&response)
-            .build();
+        fixture.io_handle.write(&request);
+        fixture.io_handle.read(&response);
 
-        let rx = fixture.read_coils(range, Duration::from_secs(1));
-        drop(fixture.tx);
+        let rx = fixture.read_coils(&mut tx, range, Duration::from_secs(1));
+        drop(tx);
 
-        assert_eq!(
-            tokio_test::block_on(fixture.client.run(io)),
-            SessionError::Shutdown
-        );
+        fixture.assert_run(SessionError::Shutdown);
 
-        assert_eq!(
-            tokio_test::block_on(rx).unwrap().unwrap(),
-            vec![Indexed::new(7, true), Indexed::new(8, false)]
+        assert_ready_eq!(
+            spawn(rx).poll(),
+            Ok(Ok(vec![Indexed::new(7, true), Indexed::new(8, false)]))
         );
     }
 }

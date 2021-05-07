@@ -151,8 +151,9 @@ impl FrameFormatter for MbapFormatter {
 
 #[cfg(test)]
 mod tests {
-    use tokio_test::block_on;
-    use tokio_test::io::Builder;
+    use std::task::Poll;
+
+    use crate::tokio::test::*;
 
     use crate::common::frame::FramedReader;
     use crate::error::*;
@@ -183,17 +184,32 @@ mod tests {
 
     fn test_segmented_parse(split_at: usize) {
         let (f1, f2) = SIMPLE_FRAME.split_at(split_at);
-        let mut io = Builder::new().read(f1).read(f2).build();
+        let (mut io, mut io_handle) = io::mock();
         let mut reader = FramedReader::new(MbapParser::new());
-        let frame = block_on(reader.next_frame(&mut io)).unwrap();
+        let mut task = spawn(reader.next_frame(&mut io));
 
-        assert_equals_simple_frame(&frame);
+        assert!(task.poll().is_pending());
+        io_handle.read(f1);
+        assert!(task.poll().is_pending());
+        io_handle.read(f2);
+        if let Poll::Ready(frame) = task.poll() {
+            assert_equals_simple_frame(&frame.unwrap());
+        } else {
+            panic!("Task not ready");
+        }
     }
 
     fn test_error(input: &[u8]) -> Error {
-        let mut io = Builder::new().read(input).build();
+        let (mut io, mut io_handle) = io::mock();
         let mut reader = FramedReader::new(MbapParser::new());
-        block_on(reader.next_frame(&mut io)).err().unwrap()
+        let mut task = spawn(reader.next_frame(&mut io));
+
+        io_handle.read(input);
+        if let Poll::Ready(frame) = task.poll() {
+            return frame.err().unwrap();
+        } else {
+            panic!("Task not ready");
+        }
     }
 
     #[test]
@@ -209,11 +225,16 @@ mod tests {
 
     #[test]
     fn can_parse_frame_from_stream() {
-        let mut io = Builder::new().read(SIMPLE_FRAME).build();
+        let (mut io, mut io_handle) = io::mock();
         let mut reader = FramedReader::new(MbapParser::new());
-        let frame = block_on(reader.next_frame(&mut io)).unwrap();
+        let mut task = spawn(reader.next_frame(&mut io));
 
-        assert_equals_simple_frame(&frame);
+        io_handle.read(SIMPLE_FRAME);
+        if let Poll::Ready(frame) = task.poll() {
+            assert_equals_simple_frame(&frame.unwrap());
+        } else {
+            panic!("Task not ready");
+        }
     }
 
     #[test]
@@ -222,11 +243,20 @@ mod tests {
         let header = &[0x00, 0x07, 0x00, 0x00, 0x00, 0xFE, 0x2A];
         let payload = &[0xCC; 253];
 
-        let mut io = Builder::new().read(header).read(payload).build();
+        let (mut io, mut io_handle) = io::mock();
         let mut reader = FramedReader::new(MbapParser::new());
-        let frame = block_on(reader.next_frame(&mut io)).unwrap();
+        let mut task = spawn(async {
+            assert_eq!(
+                reader.next_frame(&mut io).await.unwrap().payload(),
+                payload.as_ref()
+            );
+        });
 
-        assert_eq!(frame.payload(), payload.as_ref());
+        assert_pending!(task.poll());
+        io_handle.read(header);
+        assert_pending!(task.poll());
+        io_handle.read(payload);
+        assert_ready!(task.poll());
     }
 
     #[test]

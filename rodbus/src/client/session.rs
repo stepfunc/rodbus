@@ -1,7 +1,6 @@
 use std::time::Duration;
 
-use tokio::runtime::Runtime;
-use tokio::sync::{mpsc, oneshot};
+use crate::tokio;
 
 use crate::client::message::{Promise, Request, RequestDetails};
 use crate::client::requests::read_bits::ReadBits;
@@ -24,14 +23,14 @@ use crate::types::{AddressRange, BitIterator, Indexed, RegisterIterator, UnitId,
 pub struct AsyncSession {
     id: UnitId,
     response_timeout: Duration,
-    request_channel: mpsc::Sender<Request>,
+    request_channel: tokio::sync::mpsc::Sender<Request>,
 }
 
 impl AsyncSession {
     pub(crate) fn new(
         id: UnitId,
         response_timeout: Duration,
-        request_channel: mpsc::Sender<Request>,
+        request_channel: tokio::sync::mpsc::Sender<Request>,
     ) -> Self {
         AsyncSession {
             id,
@@ -41,7 +40,7 @@ impl AsyncSession {
     }
 
     pub async fn read_coils(&mut self, range: AddressRange) -> Result<Vec<Indexed<bool>>, Error> {
-        let (tx, rx) = oneshot::channel::<Result<Vec<Indexed<bool>>, Error>>();
+        let (tx, rx) = tokio::sync::oneshot::channel::<Result<Vec<Indexed<bool>>, Error>>();
         let request = self.wrap(RequestDetails::ReadCoils(ReadBits::new(
             range.of_read_bits()?,
             crate::client::requests::read_bits::Promise::Channel(tx),
@@ -54,7 +53,7 @@ impl AsyncSession {
         &mut self,
         range: AddressRange,
     ) -> Result<Vec<Indexed<bool>>, Error> {
-        let (tx, rx) = oneshot::channel::<Result<Vec<Indexed<bool>>, Error>>();
+        let (tx, rx) = tokio::sync::oneshot::channel::<Result<Vec<Indexed<bool>>, Error>>();
         let request = self.wrap(RequestDetails::ReadDiscreteInputs(ReadBits::new(
             range.of_read_bits()?,
             crate::client::requests::read_bits::Promise::Channel(tx),
@@ -67,7 +66,7 @@ impl AsyncSession {
         &mut self,
         range: AddressRange,
     ) -> Result<Vec<Indexed<u16>>, Error> {
-        let (tx, rx) = oneshot::channel::<Result<Vec<Indexed<u16>>, Error>>();
+        let (tx, rx) = tokio::sync::oneshot::channel::<Result<Vec<Indexed<u16>>, Error>>();
         let request = self.wrap(RequestDetails::ReadHoldingRegisters(ReadRegisters::new(
             range.of_read_registers()?,
             crate::client::requests::read_registers::Promise::Channel(tx),
@@ -80,7 +79,7 @@ impl AsyncSession {
         &mut self,
         range: AddressRange,
     ) -> Result<Vec<Indexed<u16>>, Error> {
-        let (tx, rx) = oneshot::channel::<Result<Vec<Indexed<u16>>, Error>>();
+        let (tx, rx) = tokio::sync::oneshot::channel::<Result<Vec<Indexed<u16>>, Error>>();
         let request = self.wrap(RequestDetails::ReadInputRegisters(ReadRegisters::new(
             range.of_read_registers()?,
             crate::client::requests::read_registers::Promise::Channel(tx),
@@ -93,7 +92,7 @@ impl AsyncSession {
         &mut self,
         request: Indexed<bool>,
     ) -> Result<Indexed<bool>, Error> {
-        let (tx, rx) = oneshot::channel::<Result<Indexed<bool>, Error>>();
+        let (tx, rx) = tokio::sync::oneshot::channel::<Result<Indexed<bool>, Error>>();
         let request = self.wrap(RequestDetails::WriteSingleCoil(SingleWrite::new(
             request,
             Promise::Channel(tx),
@@ -106,7 +105,7 @@ impl AsyncSession {
         &mut self,
         request: Indexed<u16>,
     ) -> Result<Indexed<u16>, Error> {
-        let (tx, rx) = oneshot::channel::<Result<Indexed<u16>, Error>>();
+        let (tx, rx) = tokio::sync::oneshot::channel::<Result<Indexed<u16>, Error>>();
         let request = self.wrap(RequestDetails::WriteSingleRegister(SingleWrite::new(
             request,
             Promise::Channel(tx),
@@ -119,7 +118,7 @@ impl AsyncSession {
         &mut self,
         request: WriteMultiple<bool>,
     ) -> Result<AddressRange, Error> {
-        let (tx, rx) = oneshot::channel::<Result<AddressRange, Error>>();
+        let (tx, rx) = tokio::sync::oneshot::channel::<Result<AddressRange, Error>>();
         let request = self.wrap(RequestDetails::WriteMultipleCoils(MultipleWrite::new(
             request,
             Promise::Channel(tx),
@@ -132,7 +131,7 @@ impl AsyncSession {
         &mut self,
         request: WriteMultiple<u16>,
     ) -> Result<AddressRange, Error> {
-        let (tx, rx) = oneshot::channel::<Result<AddressRange, Error>>();
+        let (tx, rx) = tokio::sync::oneshot::channel::<Result<AddressRange, Error>>();
         let request = self.wrap(RequestDetails::WriteMultipleRegisters(MultipleWrite::new(
             request,
             Promise::Channel(tx),
@@ -291,6 +290,7 @@ impl CallbackSession {
     }
 }
 
+/*
 /// A wrapper around [`AsyncSession`] that exposes a synchronous API
 ///
 /// This is primarily used to adapt Rodbus to a synchronous API for FFI,
@@ -373,4 +373,4 @@ impl SyncSession {
     ) -> Result<AddressRange, Error> {
         runtime.block_on(self.inner.write_multiple_registers(value))
     }
-}
+}*/

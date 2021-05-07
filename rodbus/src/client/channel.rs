@@ -1,16 +1,15 @@
 use std::net::SocketAddr;
 use std::time::Duration;
 
-use tokio::sync::mpsc;
-
 use crate::client::message::Request;
 use crate::client::session::AsyncSession;
 use crate::tcp::client::TcpChannelTask;
+use crate::tokio;
 use crate::types::UnitId;
 
 /// Channel from which `AsyncSession` objects can be created to make requests
 pub struct Channel {
-    tx: mpsc::Sender<Request>,
+    tx: tokio::sync::mpsc::Sender<Request>,
 }
 
 /// Dynamic trait that controls how the channel
@@ -84,7 +83,7 @@ impl Channel {
         max_queued_requests: usize,
         connect_retry: Box<dyn ReconnectStrategy + Send>,
     ) -> (Self, impl std::future::Future<Output = ()>) {
-        let (tx, rx) = mpsc::channel(max_queued_requests);
+        let (tx, rx) = tokio::sync::mpsc::channel(max_queued_requests);
         let task = async move { TcpChannelTask::new(addr, rx, connect_retry).run().await };
         (Channel { tx }, task)
     }

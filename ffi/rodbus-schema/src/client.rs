@@ -31,12 +31,12 @@ pub(crate) fn build(
             Type::ClassRef(channel.clone()),
             "pointer to the created channel or NULL if an error occurred".into(),
         ))?
+        .fails_with(common.error_type.clone())?
         .doc("create a new tcp channel instance")?
         .build()?;
 
-    let destroy_channel_fn = lib.declare_native_function("destroy_channel")?;
-
-    let destroy_channel_fn = destroy_channel_fn
+    let destroy_channel_fn = lib
+        .declare_native_function("channel_destroy")?
         .param(
             "channel",
             Type::ClassRef(channel.clone()),
@@ -143,6 +143,7 @@ pub(crate) fn build(
         .async_method("write_multiple_registers", &write_multiple_registers_fn)?
         // destructor
         .destructor(&destroy_channel_fn)?
+        .custom_destroy("Shutdown")?
         .doc("Abstract representation of a channel")?
         .build()?;
 
@@ -180,6 +181,7 @@ fn build_async_write_single_fn(
             "callback invoked on completion",
         )?
         .return_type(ReturnType::void())?
+        .fails_with(common.error_type.clone())?
         .doc(docs)?
         .build()
 }
@@ -216,6 +218,7 @@ fn build_async_write_multiple_fn(
             "callback invoked on completion",
         )?
         .return_type(ReturnType::void())?
+        .fails_with(common.error_type.clone())?
         .doc(docs)?
         .build()
 }
@@ -250,6 +253,7 @@ fn build_async_read_fn(
             "callback invoked on completion",
         )?
         .return_type(ReturnType::void())?
+        .fails_with(common.error_type.clone())?
         .doc(docs)?
         .build()
 }

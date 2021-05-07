@@ -1,6 +1,7 @@
 use std::net::SocketAddr;
 
-use tokio::sync::mpsc::Receiver;
+use crate::tokio::net::TcpStream;
+use crate::tokio::sync::mpsc::Receiver;
 
 use crate::client::channel::ReconnectStrategy;
 use crate::client::message::Request;
@@ -28,7 +29,7 @@ impl TcpChannelTask {
     pub(crate) async fn run(&mut self) {
         // try to connect
         loop {
-            match tokio::net::TcpStream::connect(self.addr).await {
+            match TcpStream::connect(self.addr).await {
                 Err(e) => {
                     log::warn!("error connecting: {}", e);
                     let delay = self.connect_retry.next_delay();

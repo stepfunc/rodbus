@@ -82,7 +82,7 @@ impl RequestHandler for SimpleHandler {
     }
 }
 
-#[tokio::main(threaded_scheduler)]
+#[tokio::main(flavor = "multi_thread")]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = std::env::args().collect();
 
@@ -122,11 +122,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     loop {
         next += tokio::time::Duration::from_secs(2);
         {
-            let mut guard = handler.lock().await;
+            let mut guard = handler.lock().unwrap();
             for c in guard.coils_as_mut() {
                 *c = !*c;
             }
         }
-        tokio::time::delay_until(next).await;
+        tokio::time::sleep_until(next).await;
     }
 }

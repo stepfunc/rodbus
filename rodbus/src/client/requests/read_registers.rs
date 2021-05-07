@@ -1,6 +1,7 @@
 use crate::common::cursor::{ReadCursor, WriteCursor};
 use crate::common::traits::Serialize;
 use crate::error::Error;
+use crate::tokio;
 use crate::types::{AddressRange, Indexed, ReadRegistersRange, RegisterIterator};
 
 pub(crate) enum Promise {

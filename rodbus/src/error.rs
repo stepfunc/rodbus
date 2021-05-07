@@ -1,3 +1,5 @@
+use crate::tokio;
+
 /// Top level error type for the client API
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Error {

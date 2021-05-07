@@ -43,9 +43,7 @@
 //!use std::str::FromStr;
 //!
 //!
-//!use tokio::time::delay_for;
-//!
-//!#[tokio::main]
+//!#[tokio::main(flavor = "multi_thread")]
 //!async fn main() -> Result<(), Box<dyn std::error::Error>> {
 //!
 //!    let channel = spawn_tcp_client_task(
@@ -70,7 +68,7 @@
 //!            Err(err) => println!("Error: {:?}", err)
 //!        }
 //!
-//!        delay_for(std::time::Duration::from_secs(3)).await
+//!        tokio::time::sleep(std::time::Duration::from_secs(3)).await
 //!    }
 //!}
 //! ```
@@ -102,7 +100,7 @@
 //!    }
 //! }
 //!
-//! #[tokio::main(threaded_scheduler)]
+//! #[tokio::main(flavor = "multi_thread")]
 //! async fn main() -> Result<(), Box<dyn std::error::Error>> {
 //!
 //!    let handler = CoilsOnlyHandler::new().wrap();
@@ -124,12 +122,12 @@
 //!    loop {
 //!        next += tokio::time::Duration::from_secs(2);
 //!        {
-//!            let mut guard = handler.lock().await;
+//!            let mut guard = handler.lock().unwrap();
 //!            for c in &mut guard.coils {
 //!                *c = !*c;
 //!            }
 //!        }
-//!        tokio::time::delay_until(next).await;
+//!        tokio::time::sleep_until(next).await;
 //!    }
 //!}
 //!```
@@ -175,7 +173,7 @@ clippy::all
 #![forbid(
     unsafe_code,
     //intra_doc_link_resolution_failure,
-    safe_packed_borrows,
+    unaligned_references,
     while_true,
     bare_trait_objects
 )]
@@ -201,3 +199,4 @@ pub mod types;
 // internal modules
 mod common;
 mod tcp;
+mod tokio;

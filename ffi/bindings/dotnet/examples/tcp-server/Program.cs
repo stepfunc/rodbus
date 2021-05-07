@@ -24,7 +24,7 @@ namespace example
                 {
                     if (!database.UpdateCoil(bit.Index, bit.Value))
                     {
-                        return WriteResult.CreateException(rodbus.Exception.IllegalDataAddress);
+                        return WriteResult.CreateException(rodbus.ModbusException.IllegalDataAddress);
                     }
                 }
 
@@ -37,7 +37,7 @@ namespace example
                 {
                     if (!database.UpdateHoldingRegister(bit.Index, bit.Value))
                     {
-                        return WriteResult.CreateException(rodbus.Exception.IllegalDataAddress);
+                        return WriteResult.CreateException(rodbus.ModbusException.IllegalDataAddress);
                     }
                 }
 
@@ -52,7 +52,7 @@ namespace example
                 }
                 else
                 {
-                    return WriteResult.CreateException(rodbus.Exception.IllegalDataAddress);
+                    return WriteResult.CreateException(rodbus.ModbusException.IllegalDataAddress);
                 }
             }
 
@@ -64,7 +64,7 @@ namespace example
                 }
                 else
                 {
-                    return WriteResult.CreateException(rodbus.Exception.IllegalDataAddress);
+                    return WriteResult.CreateException(rodbus.ModbusException.IllegalDataAddress);
                 }
             }
         }
@@ -88,7 +88,7 @@ namespace example
             Logging.SetMaxLogLevel(LogLevel.Info);
             Logging.SetHandler(new LogHandler());
 
-            var runtime = new Runtime(new RuntimeConfig(1));
+            var runtime = new Runtime(new RuntimeConfig());
             var map = new DeviceMap();
             map.AddEndpoint(1, new WriteHandler(), new DatabaseUpdate((db) =>
             {

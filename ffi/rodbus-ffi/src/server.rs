@@ -1,19 +1,20 @@
+use crate::ffi;
 use crate::Database;
 use rodbus::error::details::ExceptionCode;
 use rodbus::server::handler::{RequestHandler, ServerHandlerMap};
 use rodbus::shutdown::TaskHandle;
 use rodbus::types::{Indexed, UnitId, WriteCoils, WriteRegisters};
 use std::collections::HashMap;
-use std::ptr::null_mut;
+use std::net::SocketAddr;
 use tokio::net::TcpListener;
 
 struct RequestHandlerWrapper {
     database: Database,
-    write_handler: crate::ffi::WriteHandler,
+    write_handler: ffi::WriteHandler,
 }
 
 impl RequestHandlerWrapper {
-    pub(crate) fn new(handler: crate::ffi::WriteHandler) -> Self {
+    pub(crate) fn new(handler: ffi::WriteHandler) -> Self {
         Self {
             database: Database::new(),
             write_handler: handler,
@@ -120,7 +121,6 @@ impl RequestHandler for RequestHandlerWrapper {
 }
 
 pub struct Server {
-    runtime: tokio::runtime::Handle,
     // never used but we have to hang onto it otherwise the server shuts down
     _server: rodbus::shutdown::TaskHandle,
     map: ServerHandlerMap<RequestHandlerWrapper>,
@@ -141,8 +141,8 @@ pub(crate) unsafe fn destroy_device_map(map: *mut DeviceMap) {
 pub(crate) unsafe fn map_add_endpoint(
     map: *mut DeviceMap,
     unit_id: u8,
-    handler: crate::ffi::WriteHandler,
-    configure: crate::ffi::DatabaseCallback,
+    handler: ffi::WriteHandler,
+    configure: ffi::DatabaseCallback,
 ) -> bool {
     let map = match map.as_mut() {
         Some(x) => x,
@@ -167,36 +167,15 @@ pub(crate) unsafe fn create_tcp_server(
     address: &std::ffi::CStr,
     max_sessions: u16,
     endpoints: *mut crate::DeviceMap,
-) -> *mut crate::Server {
-    let runtime = match runtime.as_mut() {
-        Some(x) => x,
-        None => {
-            log::error!("runtime may not be NULL");
-            return null_mut();
-        }
-    };
+) -> Result<*mut crate::Server, ffi::ParamError> {
+    let runtime = runtime.as_ref().ok_or(ffi::ParamError::NullParameter)?;
+    let address = address.to_string_lossy().parse::<SocketAddr>()?;
+    let endpoints = endpoints.as_mut().ok_or(ffi::ParamError::NullParameter)?;
 
-    let address = match crate::helpers::parse::parse_socket_address(address) {
-        Some(x) => x,
-        None => return null_mut(),
-    };
-
-    let endpoints = match endpoints.as_mut() {
-        Some(x) => x,
-        None => {
-            log::error!("endpoints may not be NULL");
-            return null_mut();
-        }
-    };
-
-    // at this point, we know that all the arguments are good, so we can go ahead and try to bind a listener
-    let listener = match runtime.block_on(TcpListener::bind(address)) {
-        Ok(x) => x,
-        Err(err) => {
-            log::error!("error binding listener: {}", err);
-            return null_mut();
-        }
-    };
+    let listener = runtime
+        .inner
+        .block_on(TcpListener::bind(address))
+        .map_err(|_| ffi::ParamError::ServerBindError)?;
 
     let (tx, rx) = tokio::sync::mpsc::channel(1);
 
@@ -207,18 +186,17 @@ pub(crate) unsafe fn create_tcp_server(
         listener,
         handler_map.clone(),
     );
-    let join_handle = runtime.spawn(task);
+    let join_handle = runtime.inner.spawn(task);
 
     let server_handle = Server {
         _server: TaskHandle::new(tx, join_handle),
-        runtime: runtime.handle().clone(),
         map: handler_map,
     };
 
-    Box::into_raw(Box::new(server_handle))
+    Ok(Box::into_raw(Box::new(server_handle)))
 }
 
-pub(crate) unsafe fn destroy_server(server: *mut crate::Server) {
+pub(crate) unsafe fn server_destroy(server: *mut crate::Server) {
     if !server.is_null() {
         Box::from_raw(server);
     }
@@ -227,39 +205,33 @@ pub(crate) unsafe fn destroy_server(server: *mut crate::Server) {
 pub(crate) unsafe fn server_update_database(
     server: *mut crate::Server,
     unit_id: u8,
-    transaction: crate::ffi::DatabaseCallback,
-) -> bool {
-    let server = match server.as_mut() {
-        None => return false,
-        Some(x) => x,
-    };
+    transaction: ffi::DatabaseCallback,
+) -> Result<(), ffi::ParamError> {
+    let server = server.as_mut().ok_or(ffi::ParamError::NullParameter)?;
+    let handler = server
+        .map
+        .get(UnitId::new(unit_id))
+        .ok_or(ffi::ParamError::InvalidUnitId)?;
 
-    let handler = match server.map.get(UnitId::new(unit_id)) {
-        None => return false,
-        Some(x) => x,
-    };
-
-    let transaction = async {
-        let mut lock = handler.lock().await;
+    {
+        let mut lock = handler.lock().unwrap();
         transaction.callback(&mut lock.database);
-    };
+    }
 
-    server.runtime.block_on(transaction);
-
-    true
+    Ok(())
 }
 
-pub(crate) fn write_result_success() -> crate::ffi::WriteResult {
-    crate::ffi::WriteResultFields {
+pub(crate) fn write_result_success() -> ffi::WriteResult {
+    ffi::WriteResultFields {
         success: true,
-        exception: crate::ffi::Exception::Unknown,
+        exception: ffi::ModbusException::Unknown,
         raw_exception: 0,
     }
     .into()
 }
 
-pub(crate) fn write_result_exception(exception: crate::ffi::Exception) -> crate::ffi::WriteResult {
-    crate::ffi::WriteResultFields {
+pub(crate) fn write_result_exception(exception: ffi::ModbusException) -> ffi::WriteResult {
+    ffi::WriteResultFields {
         success: false,
         exception,
         raw_exception: 0,
@@ -267,10 +239,10 @@ pub(crate) fn write_result_exception(exception: crate::ffi::Exception) -> crate:
     .into()
 }
 
-pub(crate) fn write_result_raw_exception(raw_exception: u8) -> crate::ffi::WriteResult {
-    crate::ffi::WriteResultFields {
+pub(crate) fn write_result_raw_exception(raw_exception: u8) -> ffi::WriteResult {
+    ffi::WriteResultFields {
         success: false,
-        exception: crate::ffi::Exception::Unknown,
+        exception: ffi::ModbusException::Unknown,
         raw_exception,
     }
     .into()

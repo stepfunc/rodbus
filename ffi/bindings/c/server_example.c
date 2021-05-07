@@ -26,7 +26,7 @@ rodbus_write_result_t on_write_single_coil(bool value, uint16_t address, rodbus_
         return rodbus_write_result_success();
     }
     else {
-        return rodbus_write_result_exception(RODBUS_EXCEPTION_ILLEGAL_DATA_ADDRESS);
+        return rodbus_write_result_exception(RODBUS_MODBUS_EXCEPTION_ILLEGAL_DATA_ADDRESS);
     }
 }
 
@@ -36,7 +36,7 @@ rodbus_write_result_t on_write_single_register(uint16_t value, uint16_t address,
         return rodbus_write_result_success();
     }
     else {
-        return rodbus_write_result_exception(RODBUS_EXCEPTION_ILLEGAL_DATA_ADDRESS);
+        return rodbus_write_result_exception(RODBUS_MODBUS_EXCEPTION_ILLEGAL_DATA_ADDRESS);
     }
 }
 
@@ -45,7 +45,7 @@ rodbus_write_result_t on_write_multiple_coils(uint16_t start, rodbus_bit_iterato
     rodbus_bit_t *bit = NULL;
     while (bit = rodbus_next_bit(it)) {
         if (!rodbus_database_update_coil(db, bit->index, bit->value)) {
-            return rodbus_write_result_exception(RODBUS_EXCEPTION_ILLEGAL_DATA_ADDRESS);
+            return rodbus_write_result_exception(RODBUS_MODBUS_EXCEPTION_ILLEGAL_DATA_ADDRESS);
         }
     }
     return rodbus_write_result_success();
@@ -56,7 +56,7 @@ rodbus_write_result_t on_write_multiple_registers(uint16_t start, rodbus_registe
     rodbus_register_t *reg = NULL;
     while (reg = rodbus_next_register(it)) {
         if (!rodbus_database_update_holding_register(db, reg->index, reg->value)) {
-            return rodbus_write_result_exception(RODBUS_EXCEPTION_ILLEGAL_DATA_ADDRESS);
+            return rodbus_write_result_exception(RODBUS_MODBUS_EXCEPTION_ILLEGAL_DATA_ADDRESS);
         }
     }
     return rodbus_write_result_success();
@@ -114,19 +114,22 @@ int main()
 
     rodbus_runtime_t *runtime = NULL;
     rodbus_server_t *server = NULL;
+    rodbus_param_error_t err = RODBUS_PARAM_ERROR_OK;
 
-    runtime = rodbus_runtime_new(NULL);
-    if (!runtime) {
+    rodbus_runtime_config_t runtime_config = rodbus_runtime_config_init();
+    runtime_config.num_core_threads = 4;
+    err = rodbus_runtime_new(runtime_config, &runtime);
+    if (!err) {
         printf("Unable to initialize runtime\n");
         goto cleanup;
     }
 
     rodbus_device_map_t *map = rodbus_create_device_map();
     rodbus_map_add_endpoint(map, 1, get_write_handler(), (rodbus_database_callback_t){.callback = configure_db, .ctx = NULL});
-    server = rodbus_create_tcp_server(runtime, "127.0.0.1:502", 100, map);
+    err = rodbus_create_tcp_server(runtime, "127.0.0.1:502", 100, map, &server);
     rodbus_destroy_device_map(map);
 
-    if (server == NULL) {
+    if (!err) {
         printf("Unable to initialize server\n");
         goto cleanup;
     }
@@ -139,7 +142,7 @@ int main()
     }
 
 cleanup:
-    rodbus_destroy_server(server);
+    rodbus_server_destroy(server);
     rodbus_runtime_destroy(runtime);
 
     return 0;
