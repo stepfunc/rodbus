@@ -126,13 +126,13 @@ pub struct Server {
     map: ServerHandlerMap<RequestHandlerWrapper>,
 }
 
-pub(crate) unsafe fn create_device_map() -> *mut DeviceMap {
+pub(crate) unsafe fn device_map_new() -> *mut DeviceMap {
     Box::into_raw(Box::new(DeviceMap {
         inner: HashMap::new(),
     }))
 }
 
-pub(crate) unsafe fn destroy_device_map(map: *mut DeviceMap) {
+pub(crate) unsafe fn device_map_destroy(map: *mut DeviceMap) {
     if !map.is_null() {
         Box::from_raw(map);
     }

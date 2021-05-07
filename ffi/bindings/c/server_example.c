@@ -124,10 +124,10 @@ int main()
         goto cleanup;
     }
 
-    rodbus_device_map_t *map = rodbus_create_device_map();
+    rodbus_device_map_t *map = rodbus_device_map_new();
     rodbus_map_add_endpoint(map, 1, get_write_handler(), (rodbus_database_callback_t){.callback = configure_db, .ctx = NULL});
     err = rodbus_create_tcp_server(runtime, "127.0.0.1:502", 100, map, &server);
-    rodbus_destroy_device_map(map);
+    rodbus_device_map_destroy(map);
 
     if (!err) {
         printf("Unable to initialize server\n");

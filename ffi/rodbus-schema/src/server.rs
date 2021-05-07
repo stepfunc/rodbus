@@ -239,7 +239,7 @@ pub(crate) fn build_handler_map(
     let device_map = lib.declare_class("DeviceMap")?;
 
     let create_map = lib
-        .declare_native_function("create_device_map")?
+        .declare_native_function("device_map_new")?
         .return_type(ReturnType::Type(
             Type::ClassRef(device_map.clone()),
             "Device map instance".into(),
@@ -248,7 +248,7 @@ pub(crate) fn build_handler_map(
         .build()?;
 
     let destroy_map = lib
-        .declare_native_function("destroy_device_map")?
+        .declare_native_function("device_map_destroy")?
         .param(
             "map",
             Type::ClassRef(device_map.clone()),
