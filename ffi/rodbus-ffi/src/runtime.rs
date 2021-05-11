@@ -69,7 +69,7 @@ pub(crate) unsafe fn runtime_new(
         config.num_core_threads as usize
     };
 
-    log::info!("creating runtime with {} threads", num_threads);
+    tracing::info!("creating runtime with {} threads", num_threads);
     let runtime = build_runtime(|r| r.worker_threads(num_threads as usize))
         .map_err(|_| ffi::ParamError::RuntimeCreationFailure)?;
     Ok(Box::into_raw(Box::new(Runtime::new(runtime))))

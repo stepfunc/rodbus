@@ -38,7 +38,7 @@ impl SessionTracker {
         // TODO - this is so ugly. there's a nightly API on BTreeMap that has a remove_first
         if !self.sessions.is_empty() && self.sessions.len() >= self.max {
             let id = *self.sessions.keys().next().unwrap();
-            log::warn!("exceeded max connections, closing oldest session: {}", id);
+            tracing::warn!("exceeded max connections, closing oldest session: {}", id);
             // when the record drops, and there are no more senders,
             // the other end will stop the task
             self.sessions.remove(&id).unwrap();
@@ -80,13 +80,13 @@ where
         loop {
             tokio::select! {
                _ = shutdown.recv() => {
-                    log::info!("server shutdown");
+                    tracing::info!("server shutdown");
                     return; // shutdown signal
                }
                result = self.listener.accept() => {
                    match result {
                         Err(err) => {
-                            log::error!("error accepting connection: {}", err);
+                            tracing::error!("error accepting connection: {}", err);
                             return;
                         }
                         Ok((socket, addr)) => {
@@ -105,14 +105,14 @@ where
 
         let id = self.tracker.lock().unwrap().add(tx);
 
-        log::info!("accepted connection {} from: {}", id, addr);
+        tracing::info!("accepted connection {} from: {}", id, addr);
 
         tokio::spawn(async move {
             crate::server::task::SessionTask::new(socket, handlers, rx)
                 .run()
                 .await
                 .ok();
-            log::info!("shutdown session: {}", id);
+            tracing::info!("shutdown session: {}", id);
             tracker.lock().unwrap().remove(id);
         });
     }

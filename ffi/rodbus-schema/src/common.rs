@@ -22,6 +22,7 @@ pub(crate) struct CommonDefinitions {
 impl CommonDefinitions {
     pub(crate) fn build(lib: &mut LibraryBuilder) -> Result<CommonDefinitions, BindingError> {
         let error_type = build_error_type(lib)?;
+        crate::logging::define(lib, error_type.clone())?;
         let bit = build_bit(lib)?;
         let register = build_register(lib)?;
         let exception = crate::enums::define_exception(lib)?;
@@ -48,6 +49,10 @@ fn build_error_type(lib: &mut LibraryBuilder) -> Result<ErrorType, BindingError>
         ExceptionType::UncheckedException,
     )?
     .add_error("NullParameter", "Null parameter")?
+    .add_error(
+        "LoggingAlreadyConfigured",
+        "Logging can only be configured once",
+    )?
     .add_error("RuntimeCreationFailure", "Failed to create tokio runtime")?
     .add_error("RuntimeDestroyed", "Runtime was already disposed of")?
     .add_error(

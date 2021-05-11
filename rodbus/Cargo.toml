@@ -12,8 +12,8 @@ readme = "../README.md"
 
 [dependencies]
 tokio-mock = { git = "https://github.com/stepfunc/tokio-mock.git", branch="master" }
-log = "0.4"
+tracing = "0.1"
 
 [dev-dependencies]
-simple_logger = "1.9"
 tokio = { version = "1.5", features = ["rt-multi-thread", "macros"] }
+tracing-subscriber = "0.2"

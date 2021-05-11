@@ -75,7 +75,7 @@ where
         // if no addresses match, then don't respond
         let handler = match self.handlers.get(frame.header.unit_id) {
             None => {
-                log::warn!(
+                tracing::warn!(
                     "received frame for unmapped unit id: {}",
                     frame.header.unit_id.value
                 );
@@ -86,13 +86,13 @@ where
 
         let function = match cursor.read_u8() {
             Err(_) => {
-                log::warn!("received an empty frame");
+                tracing::warn!("received an empty frame");
                 return Ok(());
             }
             Ok(value) => match FunctionCode::get(value) {
                 Some(x) => x,
                 None => {
-                    log::warn!("received unknown function code: {}", value);
+                    tracing::warn!("received unknown function code: {}", value);
                     return self
                         .reply_with_error(frame.header, ErrorResponse::unknown_function(value))
                         .await;
@@ -103,7 +103,7 @@ where
         let request = match Request::parse(function, &mut cursor) {
             Ok(x) => x,
             Err(err) => {
-                log::warn!("error parsing {:?} request: {}", function, err);
+                tracing::warn!("error parsing {:?} request: {}", function, err);
                 let reply = self.writer.exception(
                     frame.header,
                     function,

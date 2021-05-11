@@ -48,9 +48,6 @@ pub fn build() -> Result<Library, BindingError> {
     };
     let mut lib = LibraryBuilder::new("rodbus", Version::parse(rodbus::VERSION).unwrap(), info);
 
-    // not coupled to any other parts of the API
-    logging::define_logging(&mut lib)?;
-
     let common = CommonDefinitions::build(&mut lib)?;
 
     client::build(&mut lib, &common)?;

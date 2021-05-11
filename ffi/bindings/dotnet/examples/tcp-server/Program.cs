@@ -7,14 +7,13 @@ namespace example
 {
     class Program
     {
-        class LogHandler : ILogHandler
+        class ConsoleLogger : ILogger
         {
             public void OnMessage(LogLevel level, string message)
             {
-                Console.WriteLine($"{level} - {message}");
+                Console.Write($"{message}");
             }
         }
-
 
         class WriteHandler : IWriteHandler
         {
@@ -85,8 +84,12 @@ namespace example
 
         static void Main(string[] args)
         {
-            Logging.SetMaxLogLevel(LogLevel.Info);
-            Logging.SetHandler(new LogHandler());
+            // Initialize logging with the default configuration
+            // This may only be called once during program initialization
+            Logging.Configure(
+                new LoggingConfig(),
+                new ConsoleLogger()
+            );
 
             var runtime = new Runtime(new RuntimeConfig());
             var map = new DeviceMap();

@@ -69,7 +69,7 @@ impl ClientLoop {
         let result = self.execute_request::<T>(io, request).await;
 
         if let Err(e) = &result {
-            log::warn!("error occurred making request: {}", e);
+            tracing::warn!("error occurred making request: {}", e);
         }
 
         result.as_ref().err().and_then(|e| SessionError::from(e))
@@ -86,7 +86,7 @@ impl ClientLoop {
             &request.details,
         )?;
 
-        log::info!("-> {:?}", bytes);
+        tracing::info!("-> {:?}", bytes);
 
         io.write_all(bytes).await?;
 
@@ -108,10 +108,10 @@ impl ClientLoop {
                 }
             };
 
-            log::info!("<- {:?}", frame.payload());
+            tracing::info!("<- {:?}", frame.payload());
 
             if frame.header.tx_id != tx_id {
-                log::warn!(
+                tracing::warn!(
                     "received {:?} while expecting {:?}",
                     frame.header.tx_id,
                     tx_id

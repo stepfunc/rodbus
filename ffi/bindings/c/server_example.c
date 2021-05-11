@@ -11,13 +11,16 @@
 
 void on_log_message(rodbus_log_level_t level, const char *message, void *ctx) { printf("%s \n", message); }
 
-bool init_logging()
+rodbus_logger_t get_logger()
 {
-    rodbus_log_handler_t handler = {.on_message = &on_log_message, .on_destroy = NULL, .ctx = NULL};
-
-    rodbus_set_max_log_level(RODBUS_LOG_LEVEL_INFO);
-
-    return rodbus_set_log_handler(handler);
+    return (rodbus_logger_t){
+        // function pointer where log messages will be sent
+        .on_message = &on_log_message,
+        // no context to free
+        .on_destroy = NULL,
+        // optional context argument applied to all log callbacks
+        .ctx = NULL,
+    };
 }
 
 rodbus_write_result_t on_write_single_coil(bool value, uint16_t address, rodbus_database_t *db, void *ctx)
@@ -106,11 +109,8 @@ void update_db(rodbus_database_t *db, void *ctx)
 
 int main()
 {
-
-    if (!init_logging()) {
-        printf("Unable to initialize logging\n");
-        return -1;
-    }
+    // initialize logging with the default configuration
+    rodbus_configure_logging(rodbus_logging_config_init(), get_logger());
 
     rodbus_runtime_t *runtime = NULL;
     rodbus_server_t *server = NULL;

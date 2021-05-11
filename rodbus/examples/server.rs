@@ -4,7 +4,6 @@ use std::str::FromStr;
 use tokio::net::TcpListener;
 
 use rodbus::prelude::*;
-use simple_logger::SimpleLogger;
 
 struct SimpleHandler {
     coils: Vec<bool>,
@@ -51,7 +50,7 @@ impl RequestHandler for SimpleHandler {
     }
 
     fn write_single_coil(&mut self, value: Indexed<bool>) -> Result<(), details::ExceptionCode> {
-        log::info!(
+        tracing::info!(
             "write single coil, index: {} value: {}",
             value.index,
             value.value
@@ -60,7 +59,7 @@ impl RequestHandler for SimpleHandler {
     }
 
     fn write_single_register(&mut self, value: Indexed<u16>) -> Result<(), details::ExceptionCode> {
-        log::info!(
+        tracing::info!(
             "write single register, index: {} value: {}",
             value.index,
             value.value
@@ -69,7 +68,7 @@ impl RequestHandler for SimpleHandler {
     }
 
     fn write_multiple_coils(&mut self, values: WriteCoils) -> Result<(), details::ExceptionCode> {
-        log::info!("write multiple coils {:?}", values.range);
+        tracing::info!("write multiple coils {:?}", values.range);
         Ok(())
     }
 
@@ -77,7 +76,7 @@ impl RequestHandler for SimpleHandler {
         &mut self,
         values: WriteRegisters,
     ) -> Result<(), details::ExceptionCode> {
-        log::info!("write multiple registers {:?}", values.range);
+        tracing::info!("write multiple registers {:?}", values.range);
         Ok(())
     }
 }
@@ -95,11 +94,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     };
 
-    // print log messages to the console
-    SimpleLogger::new()
-        .with_level(log::LevelFilter::Info)
-        .init()
-        .unwrap();
+    // initialize logging
+    tracing_subscriber::fmt()
+        .with_max_level(tracing::Level::INFO)
+        .with_target(false)
+        .init();
 
     let handler =
         SimpleHandler::new(vec![false; 10], vec![false; 20], vec![0; 10], vec![0; 20]).wrap();

@@ -22,6 +22,12 @@ impl RequestHandler for Handler {
 
 #[tokio::main(flavor = "multi_thread")]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Initialize logging
+    tracing_subscriber::fmt()
+        .with_max_level(tracing::Level::INFO)
+        .with_target(false)
+        .init();
+
     let args: Vec<String> = std::env::args().collect();
 
     if args.len() != 3 {

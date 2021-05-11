@@ -5,6 +5,12 @@ use rodbus::prelude::*;
 
 #[tokio::main(flavor = "multi_thread")]
 async fn main() -> Result<(), Box<dyn Error>> {
+    // Initialize logging
+    tracing_subscriber::fmt()
+        .with_max_level(tracing::Level::INFO)
+        .with_target(false)
+        .init();
+
     // Create a channel
     let channel = spawn_tcp_client_task("127.0.0.1:502".parse().unwrap(), 1, strategy::default());
 

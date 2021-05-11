@@ -31,7 +31,7 @@ impl TcpChannelTask {
         loop {
             match TcpStream::connect(self.addr).await {
                 Err(e) => {
-                    log::warn!("error connecting: {}", e);
+                    tracing::warn!("error connecting: {}", e);
                     let delay = self.connect_retry.next_delay();
                     if self.client_loop.fail_requests_for(delay).await.is_err() {
                         // this occurs when the mpsc is dropped, so the task can exit
@@ -39,7 +39,7 @@ impl TcpChannelTask {
                     }
                 }
                 Ok(stream) => {
-                    log::info!("connected to: {}", self.addr);
+                    tracing::info!("connected to: {}", self.addr);
                     match self.client_loop.run(stream).await {
                         // the mpsc was closed, end the task
                         SessionError::Shutdown => return,
