@@ -6,9 +6,9 @@ use std::time::Duration;
 
 use clap::{App, Arg, ArgMatches, SubCommand};
 
+use rodbus::decode::PduDecodeLevel;
 use rodbus::error::details::{InvalidRange, InvalidRequest};
 use rodbus::prelude::*;
-use simple_logger::SimpleLogger;
 
 #[derive(Debug)]
 enum Error {
@@ -52,11 +52,11 @@ impl Args {
 
 #[tokio::main(flavor = "multi_thread")]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // print log messages to the console
-    SimpleLogger::new()
-        .with_level(log::LevelFilter::Info)
-        .init()
-        .unwrap();
+    // Initialize logging
+    tracing_subscriber::fmt()
+        .with_max_level(tracing::Level::INFO)
+        .with_target(false)
+        .init();
 
     if let Err(ref e) = run().await {
         println!("error: {}", e);
@@ -67,7 +67,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 async fn run() -> Result<(), Error> {
     let args = parse_args()?;
-    let channel = spawn_tcp_client_task(args.address, 1, strategy::default());
+    let channel = spawn_tcp_client_task(args.address, 1, strategy::default(), PduDecodeLevel::DataValues.into());
     let mut session = channel.create_session(args.id, Duration::from_secs(1));
 
     match args.period {

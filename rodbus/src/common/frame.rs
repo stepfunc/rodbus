@@ -1,4 +1,4 @@
-use crate::tokio::io::AsyncRead;
+use crate::common::phys::PhysLayer;
 
 use crate::common::buffer::ReadBuffer;
 use crate::common::function::FunctionCode;
@@ -41,6 +41,12 @@ impl TxId {
 impl Default for TxId {
     fn default() -> Self {
         TxId::new(0)
+    }
+}
+
+impl std::fmt::Display for TxId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:#04X}", self.value)
     }
 }
 
@@ -175,9 +181,7 @@ impl<T: FrameParser> FramedReader<T> {
         }
     }
 
-    pub(crate) async fn next_frame<R>(&mut self, io: &mut R) -> Result<Frame, Error>
-    where
-        R: AsyncRead + Unpin,
+    pub(crate) async fn next_frame(&mut self, io: &mut PhysLayer) -> Result<Frame, Error>
     {
         loop {
             match self.parser.parse(&mut self.buffer)? {

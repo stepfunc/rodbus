@@ -1,5 +1,6 @@
 extern crate rodbus;
 
+use rodbus::decode::DecodeLevel;
 use rodbus::prelude::*;
 use std::net::SocketAddr;
 use std::str::FromStr;
@@ -109,9 +110,10 @@ async fn test_requests_and_responses() {
         1,
         TcpListener::bind(addr).await.unwrap(),
         ServerHandlerMap::single(UnitId::new(1), handler.clone()),
+        DecodeLevel::default(),
     );
 
-    let mut session = spawn_tcp_client_task(addr, 10, strategy::default())
+    let mut session = spawn_tcp_client_task(addr, 10, strategy::default(), DecodeLevel::default())
         .create_session(UnitId::new(0x01), Duration::from_secs(1));
 
     {

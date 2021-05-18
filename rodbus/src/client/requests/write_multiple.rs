@@ -1,6 +1,8 @@
 use crate::client::message::Promise;
 use crate::common::cursor::{ReadCursor, WriteCursor};
+use crate::common::function::FunctionCode;
 use crate::common::traits::{Parse, Serialize};
+use crate::decode::PduDecodeLevel;
 use crate::error::details::AduParseError;
 use crate::error::Error;
 use crate::types::{AddressRange, WriteMultiple};
@@ -9,7 +11,7 @@ pub(crate) struct MultipleWrite<T>
 where
     WriteMultiple<T>: Serialize,
 {
-    request: WriteMultiple<T>,
+    pub(crate) request: WriteMultiple<T>,
     promise: Promise<AddressRange>,
 }
 
@@ -29,8 +31,23 @@ where
         self.promise.failure(err)
     }
 
-    pub(crate) fn handle_response(self, cursor: ReadCursor) {
+    pub(crate) fn handle_response(self, cursor: ReadCursor, function: FunctionCode, decode: PduDecodeLevel) {
         let result = self.parse_all(cursor);
+
+        match &result {
+            Ok(response) => {
+                if decode.data_headers() {
+                    tracing::info!("PDU RX - {} {}", function, response);
+                } else if decode.header() {
+                    tracing::info!("PDU RX - {}", function);
+                }
+            }
+            Err(err) => {
+                // TODO: check if this is how we want to log it
+                tracing::warn!("{}", err);
+            }
+        }
+
         self.promise.complete(result)
     }
 

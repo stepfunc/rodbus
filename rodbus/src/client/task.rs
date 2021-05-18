@@ -1,13 +1,13 @@
 use std::time::Duration;
 
+use crate::common::phys::PhysLayer;
+use crate::decode::PduDecodeLevel;
 use crate::tokio;
-use crate::tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
 use crate::tokio::time::Instant;
 
-use crate::client::message::Request;
-use crate::common::frame::{FrameFormatter, FrameHeader, FramedReader, TxId};
+use crate::client::message::{Request, RequestDetailsDisplay};
+use crate::common::frame::{FrameFormatter, FrameHeader, FrameParser, FramedReader, TxId};
 use crate::error::*;
-use crate::tcp::frame::{MbapFormatter, MbapParser};
 
 /**
 * We always common requests in a TCP session until one of the following occurs
@@ -33,26 +33,32 @@ impl SessionError {
     }
 }
 
-pub(crate) struct ClientLoop {
+pub(crate) struct ClientLoop<F, P>
+where F: FrameFormatter,
+      P: FrameParser
+{
     rx: tokio::sync::mpsc::Receiver<Request>,
-    formatter: MbapFormatter,
-    reader: FramedReader<MbapParser>,
+    formatter: F,
+    reader: FramedReader<P>,
     tx_id: TxId,
+    decode: PduDecodeLevel,
 }
 
-impl ClientLoop {
-    pub(crate) fn new(rx: tokio::sync::mpsc::Receiver<Request>) -> Self {
+impl<F, P> ClientLoop<F, P>
+where F: FrameFormatter,
+      P: FrameParser
+{
+    pub(crate) fn new(rx: tokio::sync::mpsc::Receiver<Request>, formatter: F, parser: P, decode: PduDecodeLevel) -> Self {
         Self {
             rx,
-            formatter: MbapFormatter::new(),
-            reader: FramedReader::new(MbapParser::new()),
+            formatter,
+            reader: FramedReader::new(parser),
             tx_id: TxId::default(),
+            decode,
         }
     }
 
-    pub(crate) async fn run<T>(&mut self, mut io: T) -> SessionError
-    where
-        T: AsyncRead + AsyncWrite + Unpin,
+    pub(crate) async fn run(&mut self, mut io: PhysLayer) -> SessionError
     {
         while let Some(request) = self.rx.recv().await {
             if let Some(err) = self.run_one_request(&mut io, request).await {
@@ -62,11 +68,9 @@ impl ClientLoop {
         SessionError::Shutdown
     }
 
-    async fn run_one_request<T>(&mut self, io: &mut T, request: Request) -> Option<SessionError>
-    where
-        T: AsyncRead + AsyncWrite + Unpin,
+    async fn run_one_request(&mut self, io: &mut PhysLayer, request: Request) -> Option<SessionError>
     {
-        let result = self.execute_request::<T>(io, request).await;
+        let result = self.execute_request(io, request).await;
 
         if let Err(e) = &result {
             tracing::warn!("error occurred making request: {}", e);
@@ -75,10 +79,7 @@ impl ClientLoop {
         result.as_ref().err().and_then(|e| SessionError::from(e))
     }
 
-    async fn execute_request<T>(&mut self, io: &mut T, request: Request) -> Result<(), Error>
-    where
-        T: AsyncRead + AsyncWrite + Unpin,
-    {
+    async fn execute_request(&mut self, io: &mut PhysLayer, request: Request) -> Result<(), Error> {
         let tx_id = self.tx_id.next();
         let bytes = self.formatter.format(
             FrameHeader::new(request.id, tx_id),
@@ -86,9 +87,11 @@ impl ClientLoop {
             &request.details,
         )?;
 
-        tracing::info!("-> {:?}", bytes);
+        if self.decode.enabled() {
+            tracing::info!("PDU TX - {}", RequestDetailsDisplay::new(self.decode, &request.details));
+        }
 
-        io.write_all(bytes).await?;
+        io.write(bytes).await?;
 
         let deadline = Instant::now() + request.timeout;
 
@@ -108,8 +111,6 @@ impl ClientLoop {
                 }
             };
 
-            tracing::info!("<- {:?}", frame.payload());
-
             if frame.header.tx_id != tx_id {
                 tracing::warn!(
                     "received {:?} while expecting {:?}",
@@ -122,7 +123,7 @@ impl ClientLoop {
             break frame;
         };
 
-        request.handle_response(response.payload());
+        request.handle_response(response.payload(), self.decode);
         Ok(())
     }
 
@@ -150,6 +151,8 @@ impl ClientLoop {
     }
 }
 
+// TODO: revive this
+/*
 #[cfg(test)]
 mod tests {
     use std::task::Poll;
@@ -310,3 +313,4 @@ mod tests {
         );
     }
 }
+*/

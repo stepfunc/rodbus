@@ -18,5 +18,5 @@ path = "src/main.rs"
 rodbus = { path = "../rodbus", version = "0.1.1" }
 clap = "2.33"
 tokio = { version = "1.5", features = ["macros", "time"] }
-simple_logger = "1.9"
-log = "0.4"
+tracing = "0.1"
+tracing-subscriber = "0.2"

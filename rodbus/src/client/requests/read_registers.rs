@@ -1,8 +1,10 @@
 use crate::common::cursor::{ReadCursor, WriteCursor};
+use crate::common::function::FunctionCode;
 use crate::common::traits::Serialize;
+use crate::decode::PduDecodeLevel;
 use crate::error::Error;
 use crate::tokio;
-use crate::types::{AddressRange, Indexed, ReadRegistersRange, RegisterIterator};
+use crate::types::{AddressRange, Indexed, ReadRegistersRange, RegisterIterator, RegisterIteratorDisplay};
 
 pub(crate) enum Promise {
     Channel(tokio::sync::oneshot::Sender<Result<Vec<Indexed<u16>>, Error>>),
@@ -25,7 +27,7 @@ impl Promise {
 }
 
 pub(crate) struct ReadRegisters {
-    request: ReadRegistersRange,
+    pub(crate) request: ReadRegistersRange,
     promise: Promise,
 }
 
@@ -42,11 +44,22 @@ impl ReadRegisters {
         self.promise.failure(err)
     }
 
-    pub(crate) fn handle_response(self, mut cursor: ReadCursor) {
-        self.promise.complete(Self::parse_registers_response(
-            self.request.inner,
-            &mut cursor,
-        ))
+    pub(crate) fn handle_response(self, mut cursor: ReadCursor, function: FunctionCode, decode: PduDecodeLevel) {
+        let result = Self::parse_registers_response(self.request.inner, &mut cursor);
+
+        match &result {
+            Ok(response) => {
+                if decode.enabled() {
+                    tracing::info!("PDU RX - {} {}", function, RegisterIteratorDisplay::new(decode, response));
+                }
+            }
+            Err(err) => {
+                // TODO: check if this is how we want to log it
+                tracing::warn!("{}", err);
+            }
+        }
+
+        self.promise.complete(result)
     }
 
     fn parse_registers_response<'a>(

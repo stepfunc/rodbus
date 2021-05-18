@@ -1,6 +1,7 @@
 use std::net::SocketAddr;
 
 use crate::client::channel::{Channel, ReconnectStrategy};
+use crate::decode::DecodeLevel;
 
 /// persistent communication channel such as a TCP connection
 pub mod channel;
@@ -21,14 +22,16 @@ pub(crate) mod task;
 /// * `addr` - Socket address of the remote server
 /// * `max_queued_requests` - The maximum size of the request queue
 /// * `retry` - A boxed trait object that controls when the connection is retried on failure
+/// * `decode` - Decode log level
 ///
 /// [`RetryStrategy`]: ./channel/trait.ReconnectStrategy.html
 pub fn spawn_tcp_client_task(
     addr: SocketAddr,
     max_queued_requests: usize,
     retry: Box<dyn ReconnectStrategy + Send>,
+    decode: DecodeLevel
 ) -> Channel {
-    Channel::new(addr, max_queued_requests, retry)
+    Channel::new(addr, max_queued_requests, retry, decode)
 }
 
 /// Creates a channel task, but does not spawn it. Most users will prefer
@@ -40,6 +43,7 @@ pub fn spawn_tcp_client_task(
 /// * `addr` - Socket address of the remote server
 /// * `max_queued_requests` - The maximum size of the request queue
 /// * `retry` - A boxed trait object that controls when the connection is retried on failure
+/// * `decode` - Decode log level
 ///
 /// [`spawn_tcp_client_task`]: fn.spawn_tcp_client_task.html
 /// [`RetryStrategy`]: ./channel/trait.ReconnectStrategy.html
@@ -47,6 +51,7 @@ pub fn create_handle_and_task(
     addr: SocketAddr,
     max_queued_requests: usize,
     retry: Box<dyn ReconnectStrategy + Send>,
+    decode: DecodeLevel
 ) -> (Channel, impl std::future::Future<Output = ()>) {
-    Channel::create_handle_and_task(addr, max_queued_requests, retry)
+    Channel::create_handle_and_task(addr, max_queued_requests, retry, decode)
 }

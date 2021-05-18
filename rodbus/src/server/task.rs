@@ -1,44 +1,51 @@
+use crate::common::phys::PhysLayer;
+use crate::decode::PduDecodeLevel;
 use crate::tokio;
-use crate::tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
 
 use crate::common::cursor::ReadCursor;
-use crate::common::frame::{Frame, FrameFormatter, FrameHeader, FramedReader};
+use crate::common::frame::{Frame, FrameFormatter, FrameHeader, FrameParser, FramedReader};
 use crate::common::function::FunctionCode;
 use crate::error::details::ExceptionCode;
 use crate::error::*;
 use crate::server::handler::{RequestHandler, ServerHandlerMap};
-use crate::server::request::Request;
+use crate::server::request::{Request, RequestDisplay};
 use crate::server::response::ErrorResponse;
-use crate::tcp::frame::{MbapFormatter, MbapParser};
 
-pub(crate) struct SessionTask<T, U>
+pub(crate) struct SessionTask<T, F, P>
 where
     T: RequestHandler,
-    U: AsyncRead + AsyncWrite + Unpin,
+    F: FrameFormatter,
+    P: FrameParser,
 {
-    io: U,
+    io: PhysLayer,
     handlers: ServerHandlerMap<T>,
     shutdown: tokio::sync::mpsc::Receiver<()>,
-    reader: FramedReader<MbapParser>,
-    writer: MbapFormatter,
+    writer: F,
+    reader: FramedReader<P>,
+    decode: PduDecodeLevel,
 }
 
-impl<T, U> SessionTask<T, U>
+impl<T, F, P> SessionTask<T, F, P>
 where
     T: RequestHandler,
-    U: AsyncRead + AsyncWrite + Unpin,
+    F: FrameFormatter,
+    P: FrameParser,
 {
     pub(crate) fn new(
-        io: U,
+        io: PhysLayer,
         handlers: ServerHandlerMap<T>,
+        formatter: F,
+        parser: P,
         shutdown: tokio::sync::mpsc::Receiver<()>,
+        decode: PduDecodeLevel,
     ) -> Self {
         Self {
             io,
             handlers,
             shutdown,
-            reader: FramedReader::new(MbapParser::new()),
-            writer: MbapFormatter::new(),
+            writer: formatter,
+            reader: FramedReader::new(parser),
+            decode,
         }
     }
 
@@ -48,7 +55,7 @@ where
         err: ErrorResponse,
     ) -> Result<(), Error> {
         let bytes = self.writer.error(header, err)?;
-        self.io.write_all(bytes).await?;
+        self.io.write(bytes).await?;
         Ok(())
     }
 
@@ -109,10 +116,14 @@ where
                     function,
                     ExceptionCode::IllegalDataValue,
                 )?;
-                self.io.write_all(reply).await?;
+                self.io.write(reply).await?;
                 return Ok(());
             }
         };
+
+        if self.decode.enabled() {
+            tracing::info!("PDU RX - {}", RequestDisplay::new(self.decode, &request));
+        }
 
         // get the reply data (or exception reply)
         let reply_frame: &[u8] = {
@@ -121,7 +132,7 @@ where
         };
 
         // reply with the bytes
-        self.io.write_all(reply_frame).await?;
+        self.io.write(reply_frame).await?;
         Ok(())
     }
 }

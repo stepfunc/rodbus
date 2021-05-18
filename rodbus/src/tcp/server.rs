@@ -1,6 +1,9 @@
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 
+use crate::common::phys::PhysLayer;
+use crate::decode::DecodeLevel;
+use crate::tcp::frame::{MbapFormatter, MbapParser};
 use crate::tokio;
 use crate::tokio::net::TcpListener;
 use std::net::SocketAddr;
@@ -58,6 +61,7 @@ pub(crate) struct ServerTask<T: RequestHandler> {
     listener: TcpListener,
     handlers: ServerHandlerMap<T>,
     tracker: SessionTrackerWrapper,
+    decode: DecodeLevel,
 }
 
 impl<T> ServerTask<T>
@@ -68,11 +72,13 @@ where
         max_sessions: usize,
         listener: TcpListener,
         handlers: ServerHandlerMap<T>,
+        decode: DecodeLevel,
     ) -> Self {
         Self {
             listener,
             handlers,
             tracker: SessionTracker::wrapped(max_sessions),
+            decode,
         }
     }
 
@@ -99,6 +105,8 @@ where
     }
 
     async fn handle(&self, socket: tokio::net::TcpStream, addr: SocketAddr) {
+        let phys = PhysLayer::new_tcp(socket, self.decode.physical);
+        let decode = self.decode;
         let handlers = self.handlers.clone();
         let tracker = self.tracker.clone();
         let (tx, rx) = tokio::sync::mpsc::channel(1);
@@ -108,7 +116,7 @@ where
         tracing::info!("accepted connection {} from: {}", id, addr);
 
         tokio::spawn(async move {
-            crate::server::task::SessionTask::new(socket, handlers, rx)
+            crate::server::task::SessionTask::new(phys, handlers, MbapFormatter::new(decode.adu), MbapParser::new(decode.adu), rx, decode.pdu)
                 .run()
                 .await
                 .ok();

@@ -1,5 +1,9 @@
+use std::fmt::Display;
+
 use crate::client::message::Promise;
 use crate::common::cursor::{ReadCursor, WriteCursor};
+use crate::common::function::FunctionCode;
+use crate::decode::PduDecodeLevel;
 use crate::error::details::AduParseError;
 use crate::error::Error;
 use crate::types::{coil_from_u16, coil_to_u16, Indexed};
@@ -11,15 +15,38 @@ pub(crate) trait SingleWriteOperation: Sized + PartialEq {
 
 pub(crate) struct SingleWrite<T>
 where
-    T: SingleWriteOperation,
+    T: SingleWriteOperation + Display,
 {
-    request: T,
+    pub(crate) request: T,
     promise: Promise<T>,
+}
+
+pub(crate) struct SingleWriteDisplay<'a, T>
+where T: SingleWriteOperation + Display {
+    request: &'a T,
+    level: PduDecodeLevel,
+}
+
+impl<'a, T> SingleWriteDisplay<'a, T>
+where T: SingleWriteOperation + Display {
+    pub(crate) fn new(level: PduDecodeLevel, request: &'a T) -> Self {
+        Self { level, request }
+    }
+}
+
+impl<T> Display for SingleWriteDisplay<'_, T>
+where T: SingleWriteOperation + Display {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        if self.level.data_headers() {
+            write!(f, "{}", self.request)?;
+        }
+        Ok(())
+    }
 }
 
 impl<T> SingleWrite<T>
 where
-    T: SingleWriteOperation,
+    T: SingleWriteOperation + Display,
 {
     pub(crate) fn new(request: T, promise: Promise<T>) -> Self {
         Self { request, promise }
@@ -33,8 +60,21 @@ where
         self.promise.failure(err)
     }
 
-    pub(crate) fn handle_response(self, cursor: ReadCursor) {
+    pub(crate) fn handle_response(self, cursor: ReadCursor, function: FunctionCode, decode: PduDecodeLevel) {
         let result = self.parse_all(cursor);
+
+        match &result {
+            Ok(response) => {
+                if decode.enabled() {
+                    tracing::info!("PDU RX - {} {}", function, SingleWriteDisplay::new(decode, response));
+                }
+            }
+            Err(err) => {
+                // TODO: check if this is how we want to log it
+                tracing::warn!("{}", err);
+            }
+        }
+
         self.promise.complete(result)
     }
 

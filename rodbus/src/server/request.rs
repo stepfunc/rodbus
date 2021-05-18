@@ -2,11 +2,11 @@ use crate::common::cursor::ReadCursor;
 use crate::common::frame::{FrameFormatter, FrameHeader};
 use crate::common::function::FunctionCode;
 use crate::common::traits::{Parse, Serialize};
+use crate::decode::PduDecodeLevel;
 use crate::error::details::ExceptionCode;
 use crate::error::Error;
 use crate::server::handler::RequestHandler;
 use crate::server::response::{BitWriter, RegisterWriter};
-use crate::tcp::frame::MbapFormatter;
 use crate::types::*;
 
 pub(crate) enum Request<'a> {
@@ -34,23 +34,25 @@ impl<'a> Request<'a> {
         }
     }
 
-    pub(crate) fn get_reply<'b, T>(
+    pub(crate) fn get_reply<'b, T, F>(
         self,
         header: FrameHeader,
         handler: &mut T,
-        writer: &'b mut MbapFormatter,
+        writer: &'b mut F,
     ) -> Result<&'b [u8], Error>
     where
         T: RequestHandler,
+        F: FrameFormatter,
     {
-        fn serialize_result<T>(
+        fn serialize_result<T, F>(
             function: FunctionCode,
             header: FrameHeader,
-            writer: &mut MbapFormatter,
+            writer: &mut F,
             result: Result<T, ExceptionCode>,
         ) -> Result<&[u8], Error>
         where
             T: Serialize,
+            F: FrameFormatter,
         {
             match result {
                 Ok(data) => writer.format(header, function, &data),
@@ -159,6 +161,56 @@ impl<'a> Request<'a> {
                 )))
             }
         }
+    }
+}
+
+pub(crate) struct RequestDisplay<'a, 'b> {
+    request: &'a Request<'b>,
+    level: PduDecodeLevel,
+}
+
+impl<'a, 'b> RequestDisplay<'a, 'b> {
+    pub(crate) fn new(level: PduDecodeLevel, request: &'a Request<'b>) -> Self {
+        Self {
+            request, level,
+        }
+    }
+}
+
+impl std::fmt::Display for RequestDisplay<'_, '_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.request.get_function())?;
+
+        if self.level.data_headers() {
+            match self.request {
+                Request::ReadCoils(range) => {
+                    write!(f, " {}", range.inner)?;
+                }
+                Request::ReadDiscreteInputs(range) => {
+                    write!(f, " {}", range.inner)?;
+                }
+                Request::ReadHoldingRegisters(range) => {
+                    write!(f, " {}", range.inner)?;
+                }
+                Request::ReadInputRegisters(range) => {
+                    write!(f, " {}", range.inner)?;
+                }
+                Request::WriteSingleCoil(request) => {
+                    write!(f, " {}", request)?;
+                }
+                Request::WriteSingleRegister(request) => {
+                    write!(f, " {}", request)?;
+                }
+                Request::WriteMultipleCoils(items) => {
+                    write!(f, " {}", BitIteratorDisplay::new(self.level, &items.iterator))?;
+                }
+                Request::WriteMultipleRegisters(items) => {
+                    write!(f, " {}", RegisterIteratorDisplay::new(self.level, &items.iterator))?;
+                }
+            }
+        }
+
+        Ok(())
     }
 }
 

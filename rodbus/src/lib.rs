@@ -185,6 +185,8 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 pub mod client;
 /// public constant values related to the Modbus specification
 pub mod constants;
+/// types used to control decoding in the log
+pub mod decode;
 /// error types associated with making requests
 pub mod error;
 /// prelude used to include all of the API types

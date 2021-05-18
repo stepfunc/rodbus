@@ -1,5 +1,6 @@
 use std::convert::TryFrom;
 
+use crate::decode::PduDecodeLevel;
 use crate::error::details::{AduParseError, InvalidRange, InvalidRequest};
 
 use crate::common::cursor::ReadCursor;
@@ -67,12 +68,28 @@ pub struct BitIterator<'a> {
     pos: u16,
 }
 
+pub(crate) struct BitIteratorDisplay<'a, 'b> {
+    iterator: &'a BitIterator<'b>,
+    level: PduDecodeLevel,
+}
+
 /// zero-copy type used to iterate over a collection of registers without allocating
 #[derive(Copy, Clone)]
 pub struct RegisterIterator<'a> {
     bytes: &'a [u8],
     range: AddressRange,
     pos: u16,
+}
+
+pub(crate) struct RegisterIteratorDisplay<'a, 'b> {
+    iterator: &'a RegisterIterator<'b>,
+    level: PduDecodeLevel,
+}
+
+impl std::fmt::Display for UnitId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:#04X}", self.value)
+    }
 }
 
 impl<'a> BitIterator<'a> {
@@ -90,6 +107,27 @@ impl<'a> BitIterator<'a> {
     }
 }
 
+impl<'a, 'b> BitIteratorDisplay<'a, 'b> {
+    pub(crate) fn new(level: PduDecodeLevel, iterator: &'a BitIterator<'b>) -> Self {
+        Self { level, iterator }
+    }
+}
+
+impl std::fmt::Display for BitIteratorDisplay<'_, '_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{}", self.iterator.range)?;
+
+        if self.level.data_values() {
+            // This clone is lightweigth
+            for x in self.iterator.clone() {
+                write!(f, "\n{}", x)?;
+            }
+        }
+
+        Ok(())
+    }
+}
+
 impl<'a> RegisterIterator<'a> {
     pub(crate) fn parse_all(
         range: AddressRange,
@@ -102,6 +140,27 @@ impl<'a> RegisterIterator<'a> {
             range,
             pos: 0,
         })
+    }
+}
+
+impl<'a, 'b> RegisterIteratorDisplay<'a, 'b> {
+    pub(crate) fn new(level: PduDecodeLevel, iterator: &'a RegisterIterator<'b>) -> Self {
+        Self { level, iterator }
+    }
+}
+
+impl std::fmt::Display for RegisterIteratorDisplay<'_, '_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{}", self.iterator.range)?;
+
+        if self.level.data_values() {
+            // This clone is lightweigth
+            for x in self.iterator.clone() {
+                write!(f, "\n{}", x)?;
+            }
+        }
+
+        Ok(())
     }
 }
 
@@ -209,6 +268,12 @@ pub struct WriteMultiple<T> {
     pub(crate) values: Vec<T>,
 }
 
+pub(crate) struct WriteMultipleIterator<'a, T> {
+    range: AddressRange,
+    pos: u16,
+    iter: std::slice::Iter<'a, T>,
+}
+
 impl<T> WriteMultiple<T> {
     /// Create new collection of values
     pub fn from(start: u16, values: Vec<T>) -> Result<Self, InvalidRequest> {
@@ -218,6 +283,45 @@ impl<T> WriteMultiple<T> {
         };
         let range = AddressRange::try_from(start, count)?;
         Ok(Self { range, values })
+    }
+
+    pub(crate) fn iter(&self) -> WriteMultipleIterator<'_, T> {
+        WriteMultipleIterator::new(self.range, self.values.iter())
+    }
+}
+
+impl<'a, T> WriteMultipleIterator<'a, T> {
+    fn new(range: AddressRange, iter: std::slice::Iter<'a, T>) -> Self {
+        Self {
+            range,
+            pos: 0,
+            iter,
+        }
+    }
+}
+
+impl<T> Iterator for WriteMultipleIterator<'_, T>
+where T: Copy
+{
+    type Item = Indexed<T>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let next = self.iter.next();
+
+        match next {
+            Some(next) => {
+                let result = Indexed::new(self.range.start + self.pos, *next);
+                self.pos += 1;
+                Some(result)
+            }
+            None => None
+        }
+    }
+
+    // implementing this allows collect to optimize the vector capacity
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let remaining = (self.range.count - self.pos) as usize;
+        (remaining, Some(remaining))
     }
 }
 
@@ -284,6 +388,12 @@ impl AddressRange {
     }
 }
 
+impl std::fmt::Display for AddressRange {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "start: {:#06X} qty: {}", self.start, self.count)
+    }
+}
+
 pub(crate) struct AddressIterator {
     pub(crate) current: u16,
     pub(crate) remain: u16,
@@ -315,6 +425,18 @@ impl<T> Indexed<T> {
     /// Create a new indexed value
     pub fn new(index: u16, value: T) -> Self {
         Indexed { index, value }
+    }
+}
+
+impl std::fmt::Display for Indexed<bool> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "idx: {:#06X} value: {}", self.index, self.value as i32)
+    }
+}
+
+impl std::fmt::Display for Indexed<u16> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "idx: {:#06X} value: {:#06X}", self.index, self.value)
     }
 }
 

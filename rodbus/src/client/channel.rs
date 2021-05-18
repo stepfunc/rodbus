@@ -3,6 +3,7 @@ use std::time::Duration;
 
 use crate::client::message::Request;
 use crate::client::session::AsyncSession;
+use crate::decode::DecodeLevel;
 use crate::tcp::client::TcpChannelTask;
 use crate::tokio;
 use crate::types::UnitId;
@@ -72,8 +73,9 @@ impl Channel {
         addr: SocketAddr,
         max_queued_requests: usize,
         connect_retry: Box<dyn ReconnectStrategy + Send>,
+        decode: DecodeLevel,
     ) -> Self {
-        let (handle, task) = Self::create_handle_and_task(addr, max_queued_requests, connect_retry);
+        let (handle, task) = Self::create_handle_and_task(addr, max_queued_requests, connect_retry, decode);
         tokio::spawn(task);
         handle
     }
@@ -82,9 +84,10 @@ impl Channel {
         addr: SocketAddr,
         max_queued_requests: usize,
         connect_retry: Box<dyn ReconnectStrategy + Send>,
+        decode: DecodeLevel,
     ) -> (Self, impl std::future::Future<Output = ()>) {
         let (tx, rx) = tokio::sync::mpsc::channel(max_queued_requests);
-        let task = async move { TcpChannelTask::new(addr, rx, connect_retry).run().await };
+        let task = async move { TcpChannelTask::new(addr, rx, connect_retry, decode).run().await };
         (Channel { tx }, task)
     }
 

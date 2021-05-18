@@ -1,8 +1,10 @@
 use crate::common::cursor::{ReadCursor, WriteCursor};
+use crate::common::function::FunctionCode;
 use crate::common::traits::Serialize;
+use crate::decode::PduDecodeLevel;
 use crate::error::Error;
 use crate::tokio;
-use crate::types::{AddressRange, BitIterator, Indexed, ReadBitsRange};
+use crate::types::{AddressRange, BitIterator, BitIteratorDisplay, Indexed, ReadBitsRange};
 
 pub(crate) enum Promise {
     Channel(tokio::sync::oneshot::Sender<Result<Vec<Indexed<bool>>, Error>>),
@@ -25,7 +27,7 @@ impl Promise {
 }
 
 pub(crate) struct ReadBits {
-    request: ReadBitsRange,
+    pub(crate)request: ReadBitsRange,
     promise: Promise,
 }
 
@@ -42,9 +44,23 @@ impl ReadBits {
         self.promise.failure(err)
     }
 
-    pub(crate) fn handle_response(self, mut cursor: ReadCursor) {
+    pub(crate) fn handle_response(self, mut cursor: ReadCursor, function: FunctionCode, decode: PduDecodeLevel) {
+        let result = Self::parse_bits_response(self.request.inner, &mut cursor);
+
+        match &result {
+            Ok(response) => {
+                if decode.enabled() {
+                    tracing::info!("PDU RX - {} {}", function, BitIteratorDisplay::new(decode, response));
+                }
+            }
+            Err(err) => {
+                // TODO: check if this is how we want to log it
+                tracing::warn!("{}", err);
+            }
+        }
+
         self.promise
-            .complete(Self::parse_bits_response(self.request.inner, &mut cursor))
+            .complete(result)
     }
 
     fn parse_bits_response<'a>(

@@ -1,4 +1,4 @@
-use crate::tokio::io::{AsyncRead, AsyncReadExt};
+use crate::common::phys::PhysLayer;
 
 #[cfg(feature = "no-panic")]
 use no_panic::no_panic;
@@ -72,9 +72,9 @@ impl ReadBuffer {
         Ok((b1 << 8) | b2)
     }
 
-    pub(crate) async fn read_some<T: AsyncRead + Unpin>(
+    pub(crate) async fn read_some(
         &mut self,
-        io: &mut T,
+        io: &mut PhysLayer,
     ) -> Result<usize, std::io::Error> {
         // before we read any data, check to see if the buffer is empty and adjust the indices
         // this allows use to make the biggest read possible, and avoids subsequent buffer shifting later
@@ -104,6 +104,7 @@ impl ReadBuffer {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::decode::PhysDecodeLevel;
     use crate::tokio::test::*;
 
     #[test]
@@ -123,17 +124,18 @@ mod tests {
     fn shifts_contents_when_buffer_at_capacity() {
         let mut buffer = ReadBuffer::new(3);
 
-        let (mut io, mut io_handle) = io::mock();
+        let (io, mut io_handle) = io::mock();
+        let mut phys = PhysLayer::new_mock(io, PhysDecodeLevel::Nothing);
 
         {
             let buf_ref = &mut buffer;
-            let mut task = spawn(async { buf_ref.read_some(&mut io).await.unwrap() });
+            let mut task = spawn(async { buf_ref.read_some(&mut phys).await.unwrap() });
             assert_pending!(task.poll());
         }
 
         {
             let buf_ref = &mut buffer;
-            let mut task = spawn(async { buf_ref.read_some(&mut io).await.unwrap() });
+            let mut task = spawn(async { buf_ref.read_some(&mut phys).await.unwrap() });
             io_handle.read(&[0x01, 0x02, 0x03]);
             assert_ready_eq!(task.poll(), 3);
         }
@@ -143,7 +145,7 @@ mod tests {
 
         {
             let buf_ref = &mut buffer;
-            let mut task = spawn(async { buf_ref.read_some(&mut io).await.unwrap() });
+            let mut task = spawn(async { buf_ref.read_some(&mut phys).await.unwrap() });
             io_handle.read(&[0x04, 0x05]);
             assert_ready_eq!(task.poll(), 2);
         }
