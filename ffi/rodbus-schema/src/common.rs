@@ -8,6 +8,7 @@ use oo_bindgen::{BindingError, LibraryBuilder};
 
 pub(crate) struct CommonDefinitions {
     pub(crate) error_type: ErrorType,
+    pub(crate) decode_level: NativeStructHandle,
     pub(crate) runtime_handle: ClassHandle,
     pub(crate) error_info: NativeStructHandle,
     pub(crate) address_range: NativeStructHandle,
@@ -22,13 +23,14 @@ pub(crate) struct CommonDefinitions {
 impl CommonDefinitions {
     pub(crate) fn build(lib: &mut LibraryBuilder) -> Result<CommonDefinitions, BindingError> {
         let error_type = build_error_type(lib)?;
-        crate::logging::define(lib, error_type.clone())?;
+        let decode_level = crate::logging::define(lib, error_type.clone())?;
         let bit = build_bit(lib)?;
         let register = build_register(lib)?;
         let exception = crate::enums::define_exception(lib)?;
 
         Ok(Self {
             error_type: error_type.clone(),
+            decode_level,
             runtime_handle: crate::runtime::build_runtime_class(lib, error_type)?,
             error_info: build_error_info(lib, &exception)?,
             address_range: build_address_range(lib)?,

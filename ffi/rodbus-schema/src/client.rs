@@ -27,6 +27,11 @@ pub(crate) fn build(
             Type::Uint16,
             "Maximum number of requests to queue before failing the next request",
         )?
+        .param(
+            "decode_level",
+            Type::Struct(common.decode_level.clone()),
+            "Decode levels for this client",
+        )?
         .return_type(ReturnType::Type(
             Type::ClassRef(channel.clone()),
             "pointer to the created channel or NULL if an error occurred".into(),

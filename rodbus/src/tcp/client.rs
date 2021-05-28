@@ -27,8 +27,13 @@ impl TcpChannelTask {
         Self {
             addr,
             connect_retry,
-            client_loop: ClientLoop::new(rx, MbapFormatter::new(decode.adu), MbapParser::new(decode.adu), decode.pdu),
-            decode: decode,
+            client_loop: ClientLoop::new(
+                rx,
+                MbapFormatter::new(decode.adu),
+                MbapParser::new(decode.adu),
+                decode.pdu,
+            ),
+            decode,
         }
     }
 

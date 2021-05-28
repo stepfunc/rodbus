@@ -10,6 +10,7 @@ pub(crate) unsafe fn create_tcp_client(
     runtime: *mut crate::Runtime,
     address: &std::ffi::CStr,
     max_queued_requests: u16,
+    decode_level: ffi::DecodeLevel,
 ) -> Result<*mut crate::Channel, ffi::ParamError> {
     let runtime = runtime.as_ref().ok_or(ffi::ParamError::NullParameter)?;
     let address = address.to_string_lossy().parse()?;
@@ -18,6 +19,7 @@ pub(crate) unsafe fn create_tcp_client(
         address,
         max_queued_requests as usize,
         rodbus::client::channel::strategy::default(),
+        decode_level.into(),
     );
 
     runtime.inner.spawn(task);

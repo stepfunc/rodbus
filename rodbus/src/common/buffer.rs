@@ -72,10 +72,7 @@ impl ReadBuffer {
         Ok((b1 << 8) | b2)
     }
 
-    pub(crate) async fn read_some(
-        &mut self,
-        io: &mut PhysLayer,
-    ) -> Result<usize, std::io::Error> {
+    pub(crate) async fn read_some(&mut self, io: &mut PhysLayer) -> Result<usize, std::io::Error> {
         // before we read any data, check to see if the buffer is empty and adjust the indices
         // this allows use to make the biggest read possible, and avoids subsequent buffer shifting later
         if self.is_empty() {

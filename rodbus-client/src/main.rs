@@ -67,7 +67,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 async fn run() -> Result<(), Error> {
     let args = parse_args()?;
-    let channel = spawn_tcp_client_task(args.address, 1, strategy::default(), PduDecodeLevel::DataValues.into());
+    let channel = spawn_tcp_client_task(
+        args.address,
+        1,
+        strategy::default(),
+        PduDecodeLevel::DataValues.into(),
+    );
     let mut session = channel.create_session(args.id, Duration::from_secs(1));
 
     match args.period {

@@ -56,16 +56,8 @@ impl DecodeLevel {
     }
 
     /// construct a `DecodeLevel` from its fields
-    pub fn new(
-        pdu: PduDecodeLevel,
-        adu: AduDecodeLevel,
-        physical: PhysDecodeLevel,
-    ) -> Self {
-        DecodeLevel {
-            pdu,
-            adu,
-            physical,
-        }
+    pub fn new(pdu: PduDecodeLevel, adu: AduDecodeLevel, physical: PhysDecodeLevel) -> Self {
+        DecodeLevel { pdu, adu, physical }
     }
 }
 

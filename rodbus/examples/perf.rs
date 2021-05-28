@@ -55,15 +55,28 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         num_sessions,
         listener,
         ServerHandlerMap::single(UnitId::new(1), handler),
-        DecodeLevel::new(PduDecodeLevel::DataValues, AduDecodeLevel::Nothing, PhysDecodeLevel::Nothing),
+        DecodeLevel::new(
+            PduDecodeLevel::DataValues,
+            AduDecodeLevel::Nothing,
+            PhysDecodeLevel::Nothing,
+        ),
     );
 
     // now spawn a bunch of clients
     let mut sessions: Vec<AsyncSession> = Vec::new();
     for _ in 0..num_sessions {
         sessions.push(
-            spawn_tcp_client_task(addr, 10, strategy::default(), DecodeLevel::new(PduDecodeLevel::Nothing, AduDecodeLevel::Nothing, PhysDecodeLevel::Nothing))
-                .create_session(UnitId::new(1), Duration::from_secs(1)),
+            spawn_tcp_client_task(
+                addr,
+                10,
+                strategy::default(),
+                DecodeLevel::new(
+                    PduDecodeLevel::Nothing,
+                    AduDecodeLevel::Nothing,
+                    PhysDecodeLevel::Nothing,
+                ),
+            )
+            .create_session(UnitId::new(1), Duration::from_secs(1)),
         );
     }
 

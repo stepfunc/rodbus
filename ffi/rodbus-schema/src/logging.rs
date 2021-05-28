@@ -112,35 +112,24 @@ pub fn define(
         .doc("Provides a static method for configuring logging")?
         .build()?;
 
-    let app_decode_level_enum = lib
-        .define_native_enum("AppDecodeLevel")?
+    let pdu_decode_level_enum = lib
+        .define_native_enum("PduDecodeLevel")?
         .push("Nothing", "Decode nothing")?
-        .push("Header", " Decode the header-only")?
-        .push("ObjectHeaders", "Decode the header and the object headers")?
+        .push("FunctionCode", "Decode the function code only")?
+        .push("DataHeaders", "Decode the function code and the general description of the data")?
         .push(
-            "ObjectValues",
-            "Decode the header, the object headers, and the object values",
+            "DataValues",
+            "Decode the function code, the general description of the data and the actual data values",
         )?
-        .doc("Controls how transmitted and received application-layer fragments are decoded at the INFO log level")?
+        .doc("Controls how transmitted and received Protocol Data Units (PDUs) are decoded at the INFO log level")?
         .build()?;
 
-    let transport_decode_level_enum = lib
-        .define_native_enum("TransportDecodeLevel")?
+    let adu_decode_level_enum = lib
+        .define_native_enum("AduDecodeLevel")?
         .push("Nothing", "Decode nothing")?
         .push("Header", " Decode the header")?
         .push("Payload", "Decode the header and the raw payload as hexadecimal")?
-        .doc("Controls how transmitted and received transport segments are decoded at the INFO log level")?
-        .build()?;
-
-    let link_decode_level_enum = lib
-        .define_native_enum("LinkDecodeLevel")?
-        .push("Nothing", "Decode nothing")?
-        .push("Header", " Decode the header")?
-        .push(
-            "Payload",
-            "Decode the header and the raw payload as hexadecimal",
-        )?
-        .doc("Controls how transmitted and received link frames are decoded at the INFO log level")?
+        .doc(doc("Controls how transmitted and received transport segments are decoded at the INFO log level").details("On TCP, this is the MBAP decoding. On serial, this controls the serial line PDU."))?
         .build()?;
 
     let phys_decode_level_enum = lib
@@ -159,11 +148,10 @@ pub fn define(
 
     let decode_level_struct = lib.declare_native_struct("DecodeLevel")?;
     let decode_level_struct = lib.define_native_struct(&decode_level_struct)?
-        .add("application", StructElementType::Enum(app_decode_level_enum, Some("Nothing".to_string())), "Controls application fragment decoding")?
-        .add("transport", StructElementType::Enum(transport_decode_level_enum, Some("Nothing".to_string())), "Controls transport segment layer decoding")?
-        .add("link", StructElementType::Enum(link_decode_level_enum, Some("Nothing".to_string())), "Controls link frame decoding")?
+        .add("pdu", StructElementType::Enum(pdu_decode_level_enum, Some("Nothing".to_string())), "Controls the protocol data unit decoding")?
+        .add("adu", StructElementType::Enum(adu_decode_level_enum, Some("Nothing".to_string())), "Controls the application data unit decoding")?
         .add("physical", StructElementType::Enum(phys_decode_level_enum, Some("Nothing".to_string())), "Controls the logging of physical layer read/write")?
-        .doc("Controls the decoding of transmitted and received data at the application, transport, link, and physical layers")?
+        .doc("Controls the decoding of transmitted and received data at the application, transport, and link layer")?
         .build()?;
 
     Ok(decode_level_struct)

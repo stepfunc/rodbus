@@ -114,7 +114,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         1,
         TcpListener::bind(SocketAddr::from_str(address)?).await?,
         map,
-        DecodeLevel::new(PduDecodeLevel::DataHeaders, AduDecodeLevel::Nothing, PhysDecodeLevel::Nothing)
+        DecodeLevel::new(
+            PduDecodeLevel::FunctionCode,
+            AduDecodeLevel::Nothing,
+            PhysDecodeLevel::Nothing,
+        ),
     );
 
     let mut next = tokio::time::Instant::now();

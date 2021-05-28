@@ -1,4 +1,5 @@
 use crate::common::function::FunctionCode;
+use crate::common::traits::Loggable;
 use crate::decode::PduDecodeLevel;
 use crate::error::details::{AduParseError, ExceptionCode};
 use crate::error::*;
@@ -47,43 +48,50 @@ impl Request {
             Ok(x) => x,
             Err(err) => {
                 tracing::warn!("unable to read function code");
-                return self.details.fail(err.into())
-            },
+                return self.details.fail(err.into());
+            }
         };
 
-        match FunctionCode::get(function) {
-            Some(code) => {
-                if code != expected_function {
-                    return self.details.fail(Self::get_error_for(function, expected_function, cursor));
-                }
-            }
-            None => {
-                return self.details.fail(Self::get_error_for(function, expected_function, cursor));
-            }
-        };
+        if function != expected_function.get_value() {
+            return self
+                .details
+                .fail(Self::get_error_for(function, expected_function, cursor));
+        }
 
         // If we made it this far, then everything's alright
         // call the request-specific response handler
         self.details.handle_response(cursor, decode)
     }
 
-    fn get_error_for(function: u8, expected_function: FunctionCode, mut cursor: ReadCursor) -> Error {
+    fn get_error_for(
+        function: u8,
+        expected_function: FunctionCode,
+        mut cursor: ReadCursor,
+    ) -> Error {
         if function == expected_function.as_error() {
             match cursor.read_u8() {
                 Ok(x) => {
                     let exception = ExceptionCode::from(x);
                     if cursor.is_empty() {
-                        tracing::warn!("modbus exception {:?} ({:#04X})", exception, u8::from(exception));
+                        tracing::warn!(
+                            "PDU RX - Modbus exception {:?} ({:#04X})",
+                            exception,
+                            u8::from(exception)
+                        );
                         Error::Exception(exception)
                     } else {
-                        tracing::warn!("function code {:#04X} does not match the expected {:#04X}", function, expected_function.get_value());
+                        tracing::warn!("invalid modbus exception");
                         Error::BadResponse(AduParseError::TrailingBytes(cursor.len()))
                     }
                 }
                 Err(err) => err.into(),
             }
         } else {
-            tracing::warn!("invalid function code {:#04X}", function);
+            tracing::warn!(
+                "function code {:#04X} does not match the expected {:#04X}",
+                function,
+                expected_function.get_value()
+            );
             Error::BadResponse(AduParseError::UnknownResponseFunction(
                 function,
                 expected_function.get_value(),
@@ -130,7 +138,9 @@ impl RequestDetails {
             RequestDetails::WriteSingleCoil(x) => x.handle_response(cursor, function, decode),
             RequestDetails::WriteSingleRegister(x) => x.handle_response(cursor, function, decode),
             RequestDetails::WriteMultipleCoils(x) => x.handle_response(cursor, function, decode),
-            RequestDetails::WriteMultipleRegisters(x) => x.handle_response(cursor, function, decode),
+            RequestDetails::WriteMultipleRegisters(x) => {
+                x.handle_response(cursor, function, decode)
+            }
         }
     }
 }
@@ -150,6 +160,17 @@ impl Serialize for RequestDetails {
     }
 }
 
+impl Loggable for RequestDetails {
+    fn log(
+        &self,
+        _payload: &[u8],
+        level: PduDecodeLevel,
+        f: &mut std::fmt::Formatter,
+    ) -> std::fmt::Result {
+        write!(f, "{}", RequestDetailsDisplay::new(level, self))
+    }
+}
+
 pub(crate) struct RequestDetailsDisplay<'a> {
     request: &'a RequestDetails,
     level: PduDecodeLevel,
@@ -157,38 +178,34 @@ pub(crate) struct RequestDetailsDisplay<'a> {
 
 impl<'a> RequestDetailsDisplay<'a> {
     pub(crate) fn new(level: PduDecodeLevel, request: &'a RequestDetails) -> Self {
-        Self {
-            request, level,
-        }
+        Self { request, level }
     }
 }
 
 impl std::fmt::Display for RequestDetailsDisplay<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.request.function())?;
-
         if self.level.data_headers() {
             match self.request {
                 RequestDetails::ReadCoils(details) => {
-                    write!(f, " {}", details.request.inner)?;
+                    write!(f, "{}", details.request.inner)?;
                 }
                 RequestDetails::ReadDiscreteInputs(details) => {
-                    write!(f, " {}", details.request.inner)?;
+                    write!(f, "{}", details.request.inner)?;
                 }
                 RequestDetails::ReadHoldingRegisters(details) => {
-                    write!(f, " {}", details.request.inner)?;
+                    write!(f, "{}", details.request.inner)?;
                 }
                 RequestDetails::ReadInputRegisters(details) => {
-                    write!(f, " {}", details.request.inner)?;
+                    write!(f, "{}", details.request.inner)?;
                 }
                 RequestDetails::WriteSingleCoil(details) => {
-                    write!(f, " {}", details.request)?;
+                    write!(f, "{}", details.request)?;
                 }
                 RequestDetails::WriteSingleRegister(details) => {
-                    write!(f, " {}", details.request)?;
+                    write!(f, "{}", details.request)?;
                 }
                 RequestDetails::WriteMultipleCoils(details) => {
-                    write!(f, " {}", details.request.range)?;
+                    write!(f, "{}", details.request.range)?;
                     if self.level.data_values() {
                         for x in details.request.iter() {
                             write!(f, "\n{}", x)?;
@@ -196,7 +213,7 @@ impl std::fmt::Display for RequestDetailsDisplay<'_> {
                     }
                 }
                 RequestDetails::WriteMultipleRegisters(details) => {
-                    write!(f, " {}", details.request.range)?;
+                    write!(f, "{}", details.request.range)?;
                     if self.level.data_values() {
                         for x in details.request.iter() {
                             write!(f, "\n{}", x)?;

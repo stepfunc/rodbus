@@ -13,7 +13,12 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .init();
 
     // Create a channel
-    let channel = spawn_tcp_client_task("127.0.0.1:502".parse().unwrap(), 1, strategy::default(), DecodeLevel::default());
+    let channel = spawn_tcp_client_task(
+        "127.0.0.1:502".parse().unwrap(),
+        1,
+        strategy::default(),
+        DecodeLevel::default(),
+    );
 
     // Create a session
     let mut session = channel.create_session(UnitId::new(1), Duration::from_secs(1));

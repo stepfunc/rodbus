@@ -1,11 +1,17 @@
 use std::convert::TryFrom;
 
+use crate::common::cursor::ReadCursor;
 use crate::common::cursor::WriteCursor;
+use crate::common::traits::Loggable;
+use crate::common::traits::Parse;
 use crate::common::traits::Serialize;
 use crate::error::details;
 use crate::error::*;
 use crate::server::response::{BitWriter, RegisterWriter};
-use crate::types::{coil_to_u16, AddressRange, Indexed, WriteMultiple};
+use crate::types::{
+    coil_from_u16, coil_to_u16, AddressRange, BitIterator, BitIteratorDisplay, Indexed,
+    RegisterIterator, RegisterIteratorDisplay, WriteMultiple,
+};
 
 pub(crate) fn calc_bytes_for_bits(num_bits: usize) -> Result<u8, details::InternalError> {
     let div_8 = num_bits / 8;
@@ -28,6 +34,24 @@ impl Serialize for AddressRange {
     }
 }
 
+impl Loggable for AddressRange {
+    fn log(
+        &self,
+        payload: &[u8],
+        level: crate::decode::PduDecodeLevel,
+        f: &mut std::fmt::Formatter,
+    ) -> std::fmt::Result {
+        if level.data_headers() {
+            let mut cursor = ReadCursor::new(payload);
+
+            let value = AddressRange::parse(&mut cursor).unwrap();
+            write!(f, "{}", value)?;
+        }
+
+        Ok(())
+    }
+}
+
 impl Serialize for details::ExceptionCode {
     fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), Error> {
         cursor.write_u8((*self).into())?;
@@ -43,10 +67,49 @@ impl Serialize for Indexed<bool> {
     }
 }
 
+impl Loggable for Indexed<bool> {
+    fn log(
+        &self,
+        payload: &[u8],
+        level: crate::decode::PduDecodeLevel,
+        f: &mut std::fmt::Formatter,
+    ) -> std::fmt::Result {
+        if level.data_headers() {
+            let mut cursor = ReadCursor::new(payload);
+
+            let value = Indexed::new(
+                cursor.read_u16_be().unwrap(),
+                coil_from_u16(cursor.read_u16_be().unwrap()).unwrap(),
+            );
+            write!(f, "{}", value)?;
+        }
+
+        Ok(())
+    }
+}
+
 impl Serialize for Indexed<u16> {
     fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), Error> {
         cursor.write_u16_be(self.index)?;
         cursor.write_u16_be(self.value)?;
+        Ok(())
+    }
+}
+
+impl Loggable for Indexed<u16> {
+    fn log(
+        &self,
+        payload: &[u8],
+        level: crate::decode::PduDecodeLevel,
+        f: &mut std::fmt::Formatter,
+    ) -> std::fmt::Result {
+        if level.data_headers() {
+            let mut cursor = ReadCursor::new(payload);
+
+            let value = Indexed::new(cursor.read_u16_be().unwrap(), cursor.read_u16_be().unwrap());
+            write!(f, "{}", value)?;
+        }
+
         Ok(())
     }
 }
@@ -109,6 +172,28 @@ where
     }
 }
 
+impl<T> Loggable for BitWriter<T>
+where
+    T: Fn(u16) -> Result<bool, details::ExceptionCode>,
+{
+    fn log(
+        &self,
+        payload: &[u8],
+        level: crate::decode::PduDecodeLevel,
+        f: &mut std::fmt::Formatter,
+    ) -> std::fmt::Result {
+        if level.data_headers() {
+            let mut cursor = ReadCursor::new(payload);
+            cursor.read_u8().unwrap(); // ignore the byte count
+            let iterator = BitIterator::parse_all(self.range.inner, &mut cursor).unwrap();
+
+            write!(f, "{}", BitIteratorDisplay::new(level, &iterator))?;
+        }
+
+        Ok(())
+    }
+}
+
 impl<T> Serialize for RegisterWriter<T>
 where
     T: Fn(u16) -> Result<u16, details::ExceptionCode>,
@@ -122,6 +207,28 @@ where
         for address in self.range.inner.iter() {
             let value = (self.getter)(address)?;
             cursor.write_u16_be(value)?;
+        }
+
+        Ok(())
+    }
+}
+
+impl<T> Loggable for RegisterWriter<T>
+where
+    T: Fn(u16) -> Result<u16, details::ExceptionCode>,
+{
+    fn log(
+        &self,
+        payload: &[u8],
+        level: crate::decode::PduDecodeLevel,
+        f: &mut std::fmt::Formatter,
+    ) -> std::fmt::Result {
+        if level.data_headers() {
+            let mut cursor = ReadCursor::new(payload);
+            cursor.read_u8().unwrap(); // ignore the byte count
+            let iterator = RegisterIterator::parse_all(self.range.inner, &mut cursor).unwrap();
+
+            write!(f, "{}", RegisterIteratorDisplay::new(level, &iterator))?;
         }
 
         Ok(())

@@ -96,7 +96,8 @@ int main()
         goto cleanup;
     }
 
-    err = rodbus_create_tcp_client(runtime, "127.0.0.1:502", 100, &channel);
+    rodbus_decode_level_t decode_level = rodbus_decode_level_init();
+    err = rodbus_create_tcp_client(runtime, "127.0.0.1:502", 100, decode_level, &channel);
     if (!channel) {
         printf("Unable to initialize channel \n");
         goto cleanup;

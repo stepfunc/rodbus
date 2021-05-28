@@ -29,7 +29,7 @@ pub fn spawn_tcp_client_task(
     addr: SocketAddr,
     max_queued_requests: usize,
     retry: Box<dyn ReconnectStrategy + Send>,
-    decode: DecodeLevel
+    decode: DecodeLevel,
 ) -> Channel {
     Channel::new(addr, max_queued_requests, retry, decode)
 }
@@ -51,7 +51,7 @@ pub fn create_handle_and_task(
     addr: SocketAddr,
     max_queued_requests: usize,
     retry: Box<dyn ReconnectStrategy + Send>,
-    decode: DecodeLevel
+    decode: DecodeLevel,
 ) -> (Channel, impl std::future::Future<Output = ()>) {
     Channel::create_handle_and_task(addr, max_queued_requests, retry, decode)
 }

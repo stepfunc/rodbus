@@ -75,7 +75,8 @@ impl Channel {
         connect_retry: Box<dyn ReconnectStrategy + Send>,
         decode: DecodeLevel,
     ) -> Self {
-        let (handle, task) = Self::create_handle_and_task(addr, max_queued_requests, connect_retry, decode);
+        let (handle, task) =
+            Self::create_handle_and_task(addr, max_queued_requests, connect_retry, decode);
         tokio::spawn(task);
         handle
     }
@@ -87,7 +88,11 @@ impl Channel {
         decode: DecodeLevel,
     ) -> (Self, impl std::future::Future<Output = ()>) {
         let (tx, rx) = tokio::sync::mpsc::channel(max_queued_requests);
-        let task = async move { TcpChannelTask::new(addr, rx, connect_retry, decode).run().await };
+        let task = async move {
+            TcpChannelTask::new(addr, rx, connect_retry, decode)
+                .run()
+                .await
+        };
         (Channel { tx }, task)
     }
 

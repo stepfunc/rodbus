@@ -33,7 +33,10 @@ impl PhysLayer {
     }
 
     #[cfg(test)]
-    pub(crate) fn new_mock(mock: tokio_mock::mock::test::io::MockIO, level: PhysDecodeLevel) -> Self {
+    pub(crate) fn new_mock(
+        mock: tokio_mock::mock::test::io::MockIO,
+        level: PhysDecodeLevel,
+    ) -> Self {
         Self {
             layer: PhysLayerImpl::Mock(mock),
             level,
@@ -106,4 +109,3 @@ pub(crate) fn format_bytes(f: &mut std::fmt::Formatter, bytes: &[u8]) -> std::fm
     }
     Ok(())
 }
-

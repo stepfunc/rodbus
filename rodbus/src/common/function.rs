@@ -28,13 +28,27 @@ impl Display for FunctionCode {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
         match self {
             FunctionCode::ReadCoils => write!(f, "READ COILS ({:#04X})", self.get_value()),
-            FunctionCode::ReadDiscreteInputs => write!(f, "READ DISCRETE INPUTS ({:#04X})", self.get_value()),
-            FunctionCode::ReadHoldingRegisters => write!(f, "READ HOLDING REGISTERS ({:#04X})", self.get_value()),
-            FunctionCode::ReadInputRegisters => write!(f, "READ INPUT REGISTERS ({:#04X})", self.get_value()),
-            FunctionCode::WriteSingleCoil => write!(f, "WRITE SINGLE COIL ({:#04X})", self.get_value()),
-            FunctionCode::WriteSingleRegister => write!(f, "WRITE SINGLE REGISTER ({:#04X})", self.get_value()),
-            FunctionCode::WriteMultipleCoils => write!(f, "WRITE MULTIPLE COILS ({:#04X})", self.get_value()),
-            FunctionCode::WriteMultipleRegisters => write!(f, "WRITE MULTIPLE REGISTERS ({:#04X})", self.get_value()),
+            FunctionCode::ReadDiscreteInputs => {
+                write!(f, "READ DISCRETE INPUTS ({:#04X})", self.get_value())
+            }
+            FunctionCode::ReadHoldingRegisters => {
+                write!(f, "READ HOLDING REGISTERS ({:#04X})", self.get_value())
+            }
+            FunctionCode::ReadInputRegisters => {
+                write!(f, "READ INPUT REGISTERS ({:#04X})", self.get_value())
+            }
+            FunctionCode::WriteSingleCoil => {
+                write!(f, "WRITE SINGLE COIL ({:#04X})", self.get_value())
+            }
+            FunctionCode::WriteSingleRegister => {
+                write!(f, "WRITE SINGLE REGISTER ({:#04X})", self.get_value())
+            }
+            FunctionCode::WriteMultipleCoils => {
+                write!(f, "WRITE MULTIPLE COILS ({:#04X})", self.get_value())
+            }
+            FunctionCode::WriteMultipleRegisters => {
+                write!(f, "WRITE MULTIPLE REGISTERS ({:#04X})", self.get_value())
+            }
         }
     }
 }

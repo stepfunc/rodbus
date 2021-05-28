@@ -1,5 +1,6 @@
 use std::ffi::CString;
 
+use rodbus::decode::{AduDecodeLevel, DecodeLevel, PduDecodeLevel, PhysDecodeLevel};
 use tracing::span::{Attributes, Record};
 use tracing::{Event, Id, Metadata};
 use tracing_subscriber::fmt::time::{ChronoUtc, SystemTime};
@@ -149,6 +150,29 @@ impl From<ffi::LogLevel> for tracing::Level {
             ffi::LogLevel::Info => tracing::Level::INFO,
             ffi::LogLevel::Warn => tracing::Level::WARN,
             ffi::LogLevel::Error => tracing::Level::ERROR,
+        }
+    }
+}
+
+impl From<ffi::DecodeLevel> for DecodeLevel {
+    fn from(level: ffi::DecodeLevel) -> Self {
+        DecodeLevel {
+            pdu: match level.pdu() {
+                ffi::PduDecodeLevel::Nothing => PduDecodeLevel::Nothing,
+                ffi::PduDecodeLevel::FunctionCode => PduDecodeLevel::FunctionCode,
+                ffi::PduDecodeLevel::DataHeaders => PduDecodeLevel::DataHeaders,
+                ffi::PduDecodeLevel::DataValues => PduDecodeLevel::DataValues,
+            },
+            adu: match level.adu() {
+                ffi::AduDecodeLevel::Nothing => AduDecodeLevel::Nothing,
+                ffi::AduDecodeLevel::Header => AduDecodeLevel::Header,
+                ffi::AduDecodeLevel::Payload => AduDecodeLevel::Payload,
+            },
+            physical: match level.physical() {
+                ffi::PhysDecodeLevel::Nothing => PhysDecodeLevel::Nothing,
+                ffi::PhysDecodeLevel::Length => PhysDecodeLevel::Length,
+                ffi::PhysDecodeLevel::Data => PhysDecodeLevel::Data,
+            },
         }
     }
 }

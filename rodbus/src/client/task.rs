@@ -5,7 +5,7 @@ use crate::decode::PduDecodeLevel;
 use crate::tokio;
 use crate::tokio::time::Instant;
 
-use crate::client::message::{Request, RequestDetailsDisplay};
+use crate::client::message::Request;
 use crate::common::frame::{FrameFormatter, FrameHeader, FrameParser, FramedReader, TxId};
 use crate::error::*;
 
@@ -34,8 +34,9 @@ impl SessionError {
 }
 
 pub(crate) struct ClientLoop<F, P>
-where F: FrameFormatter,
-      P: FrameParser
+where
+    F: FrameFormatter,
+    P: FrameParser,
 {
     rx: tokio::sync::mpsc::Receiver<Request>,
     formatter: F,
@@ -45,10 +46,16 @@ where F: FrameFormatter,
 }
 
 impl<F, P> ClientLoop<F, P>
-where F: FrameFormatter,
-      P: FrameParser
+where
+    F: FrameFormatter,
+    P: FrameParser,
 {
-    pub(crate) fn new(rx: tokio::sync::mpsc::Receiver<Request>, formatter: F, parser: P, decode: PduDecodeLevel) -> Self {
+    pub(crate) fn new(
+        rx: tokio::sync::mpsc::Receiver<Request>,
+        formatter: F,
+        parser: P,
+        decode: PduDecodeLevel,
+    ) -> Self {
         Self {
             rx,
             formatter,
@@ -58,8 +65,7 @@ where F: FrameFormatter,
         }
     }
 
-    pub(crate) async fn run(&mut self, mut io: PhysLayer) -> SessionError
-    {
+    pub(crate) async fn run(&mut self, mut io: PhysLayer) -> SessionError {
         while let Some(request) = self.rx.recv().await {
             if let Some(err) = self.run_one_request(&mut io, request).await {
                 return err;
@@ -68,8 +74,11 @@ where F: FrameFormatter,
         SessionError::Shutdown
     }
 
-    async fn run_one_request(&mut self, io: &mut PhysLayer, request: Request) -> Option<SessionError>
-    {
+    async fn run_one_request(
+        &mut self,
+        io: &mut PhysLayer,
+        request: Request,
+    ) -> Option<SessionError> {
         let result = self.execute_request(io, request).await;
 
         if let Err(e) = &result {
@@ -85,11 +94,8 @@ where F: FrameFormatter,
             FrameHeader::new(request.id, tx_id),
             request.details.function(),
             &request.details,
+            self.decode,
         )?;
-
-        if self.decode.enabled() {
-            tracing::info!("PDU TX - {}", RequestDetailsDisplay::new(self.decode, &request.details));
-        }
 
         io.write(bytes).await?;
 

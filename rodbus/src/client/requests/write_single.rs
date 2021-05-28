@@ -21,29 +21,6 @@ where
     promise: Promise<T>,
 }
 
-pub(crate) struct SingleWriteDisplay<'a, T>
-where T: SingleWriteOperation + Display {
-    request: &'a T,
-    level: PduDecodeLevel,
-}
-
-impl<'a, T> SingleWriteDisplay<'a, T>
-where T: SingleWriteOperation + Display {
-    pub(crate) fn new(level: PduDecodeLevel, request: &'a T) -> Self {
-        Self { level, request }
-    }
-}
-
-impl<T> Display for SingleWriteDisplay<'_, T>
-where T: SingleWriteOperation + Display {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        if self.level.data_headers() {
-            write!(f, "{}", self.request)?;
-        }
-        Ok(())
-    }
-}
-
 impl<T> SingleWrite<T>
 where
     T: SingleWriteOperation + Display,
@@ -60,13 +37,20 @@ where
         self.promise.failure(err)
     }
 
-    pub(crate) fn handle_response(self, cursor: ReadCursor, function: FunctionCode, decode: PduDecodeLevel) {
+    pub(crate) fn handle_response(
+        self,
+        cursor: ReadCursor,
+        function: FunctionCode,
+        decode: PduDecodeLevel,
+    ) {
         let result = self.parse_all(cursor);
 
         match &result {
             Ok(response) => {
-                if decode.enabled() {
-                    tracing::info!("PDU RX - {} {}", function, SingleWriteDisplay::new(decode, response));
+                if decode.data_headers() {
+                    tracing::info!("PDU RX - {} {}", function, response);
+                } else if decode.header() {
+                    tracing::info!("PDU RX - {}", function);
                 }
             }
             Err(err) => {

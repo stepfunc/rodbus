@@ -27,7 +27,7 @@ impl Promise {
 }
 
 pub(crate) struct ReadBits {
-    pub(crate)request: ReadBitsRange,
+    pub(crate) request: ReadBitsRange,
     promise: Promise,
 }
 
@@ -44,13 +44,22 @@ impl ReadBits {
         self.promise.failure(err)
     }
 
-    pub(crate) fn handle_response(self, mut cursor: ReadCursor, function: FunctionCode, decode: PduDecodeLevel) {
+    pub(crate) fn handle_response(
+        self,
+        mut cursor: ReadCursor,
+        function: FunctionCode,
+        decode: PduDecodeLevel,
+    ) {
         let result = Self::parse_bits_response(self.request.inner, &mut cursor);
 
         match &result {
             Ok(response) => {
                 if decode.enabled() {
-                    tracing::info!("PDU RX - {} {}", function, BitIteratorDisplay::new(decode, response));
+                    tracing::info!(
+                        "PDU RX - {} {}",
+                        function,
+                        BitIteratorDisplay::new(decode, response)
+                    );
                 }
             }
             Err(err) => {
@@ -59,8 +68,7 @@ impl ReadBits {
             }
         }
 
-        self.promise
-            .complete(result)
+        self.promise.complete(result)
     }
 
     fn parse_bits_response<'a>(
@@ -69,7 +77,7 @@ impl ReadBits {
     ) -> Result<BitIterator<'a>, Error> {
         // there's a byte-count here that we don't actually need
         cursor.read_u8()?;
-        // the reset is a sequence of bits
+        // the rest is a sequence of bits
         BitIterator::parse_all(range, cursor)
     }
 }

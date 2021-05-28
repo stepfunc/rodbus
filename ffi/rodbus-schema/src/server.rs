@@ -54,6 +54,7 @@ pub(crate) fn build_server(
             Type::ClassRef(handler_map.declaration.clone()),
             "map of endpoints which is emptied upon passing to this function",
         )?
+        .param("decode_level", Type::Struct(common.decode_level.clone()), "Decode levels for this server")?
         .return_type(ReturnType::Type(
             Type::ClassRef(server.clone()),
             "handle to the server".into(),

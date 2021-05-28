@@ -115,6 +115,7 @@ where
                     frame.header,
                     function,
                     ExceptionCode::IllegalDataValue,
+                    self.decode,
                 )?;
                 self.io.write(reply).await?;
                 return Ok(());
@@ -128,7 +129,7 @@ where
         // get the reply data (or exception reply)
         let reply_frame: &[u8] = {
             let mut lock = handler.lock().unwrap();
-            request.get_reply(frame.header, lock.as_mut(), &mut self.writer)?
+            request.get_reply(frame.header, lock.as_mut(), &mut self.writer, self.decode)?
         };
 
         // reply with the bytes

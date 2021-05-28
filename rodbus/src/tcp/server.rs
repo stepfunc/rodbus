@@ -116,10 +116,17 @@ where
         tracing::info!("accepted connection {} from: {}", id, addr);
 
         tokio::spawn(async move {
-            crate::server::task::SessionTask::new(phys, handlers, MbapFormatter::new(decode.adu), MbapParser::new(decode.adu), rx, decode.pdu)
-                .run()
-                .await
-                .ok();
+            crate::server::task::SessionTask::new(
+                phys,
+                handlers,
+                MbapFormatter::new(decode.adu),
+                MbapParser::new(decode.adu),
+                rx,
+                decode.pdu,
+            )
+            .run()
+            .await
+            .ok();
             tracing::info!("shutdown session: {}", id);
             tracker.lock().unwrap().remove(id);
         });

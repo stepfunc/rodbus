@@ -49,7 +49,8 @@
 //!    let channel = spawn_tcp_client_task(
 //!        SocketAddr::from_str("127.0.0.1:502")?,
 //!        10,
-//!        strategy::default()
+//!        strategy::default(),
+//!        DecodeLevel::default(),
 //!    );
 //!
 //!    let mut session = channel.create_session(
@@ -114,6 +115,7 @@
 //!        1,
 //!        TcpListener::bind(SocketAddr::from_str("127.0.0.1:502")?).await?,
 //!        map,
+//!        DecodeLevel::default(),
 //!    );
 //!
 //!    let mut next = tokio::time::Instant::now();

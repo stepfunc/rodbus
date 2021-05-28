@@ -167,6 +167,7 @@ pub(crate) unsafe fn create_tcp_server(
     address: &std::ffi::CStr,
     max_sessions: u16,
     endpoints: *mut crate::DeviceMap,
+    decode_level: ffi::DecodeLevel,
 ) -> Result<*mut crate::Server, ffi::ParamError> {
     let runtime = runtime.as_ref().ok_or(ffi::ParamError::NullParameter)?;
     let address = address.to_string_lossy().parse::<SocketAddr>()?;
@@ -185,6 +186,7 @@ pub(crate) unsafe fn create_tcp_server(
         max_sessions as usize,
         listener,
         handler_map.clone(),
+        decode_level.into(),
     );
     let join_handle = runtime.inner.spawn(task);
 

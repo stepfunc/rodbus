@@ -109,7 +109,10 @@ impl FrameParser for MbapParser {
                 self.state = ParseState::Begin;
 
                 if self.decode.enabled() {
-                    tracing::info!("MBAP RX - {}", MbapDisplay::new(self.decode, header, frame.payload()));
+                    tracing::info!(
+                        "MBAP RX - {}",
+                        MbapDisplay::new(self.decode, header, frame.payload())
+                    );
                 }
 
                 Ok(Some(frame))
@@ -160,14 +163,21 @@ impl FrameFormatter for MbapFormatter {
                 adu_length,
                 unit_id: header.unit_id,
             };
-            tracing::info!("MBAP TX - {}", MbapDisplay::new(self.decode, header, &self.buffer[start..total_length]));
+            tracing::info!(
+                "MBAP TX - {}",
+                MbapDisplay::new(self.decode, header, &self.buffer[start..total_length])
+            );
         }
 
         Ok(total_length)
     }
 
-    fn get_option_impl(&self, size: usize) -> Option<&[u8]> {
+    fn get_full_buffer_impl(&self, size: usize) -> Option<&[u8]> {
         self.buffer.get(..size)
+    }
+
+    fn get_payload_impl(&self, size: usize) -> Option<&[u8]> {
+        self.buffer.get(7..size)
     }
 }
 
@@ -179,13 +189,21 @@ struct MbapDisplay<'a> {
 
 impl<'a> MbapDisplay<'a> {
     fn new(level: AduDecodeLevel, header: MbapHeader, data: &'a [u8]) -> Self {
-        MbapDisplay { level, header, data }
+        MbapDisplay {
+            level,
+            header,
+            data,
+        }
     }
 }
 
 impl<'a> std::fmt::Display for MbapDisplay<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "tx_id: {} unit: {} (len = {})", self.header.tx_id, self.header.unit_id, self.header.adu_length)?;
+        write!(
+            f,
+            "tx_id: {} unit: {} (len = {})",
+            self.header.tx_id, self.header.unit_id, self.header.adu_length
+        )?;
         if self.level.payload_enabled() {
             crate::common::phys::format_bytes(f, self.data)?;
         }

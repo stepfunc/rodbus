@@ -109,7 +109,7 @@ impl<'a> BitIterator<'a> {
 
 impl<'a, 'b> BitIteratorDisplay<'a, 'b> {
     pub(crate) fn new(level: PduDecodeLevel, iterator: &'a BitIterator<'b>) -> Self {
-        Self { level, iterator }
+        Self { iterator, level }
     }
 }
 
@@ -119,7 +119,7 @@ impl std::fmt::Display for BitIteratorDisplay<'_, '_> {
 
         if self.level.data_values() {
             // This clone is lightweigth
-            for x in self.iterator.clone() {
+            for x in *self.iterator {
                 write!(f, "\n{}", x)?;
             }
         }
@@ -145,7 +145,7 @@ impl<'a> RegisterIterator<'a> {
 
 impl<'a, 'b> RegisterIteratorDisplay<'a, 'b> {
     pub(crate) fn new(level: PduDecodeLevel, iterator: &'a RegisterIterator<'b>) -> Self {
-        Self { level, iterator }
+        Self { iterator, level }
     }
 }
 
@@ -155,7 +155,7 @@ impl std::fmt::Display for RegisterIteratorDisplay<'_, '_> {
 
         if self.level.data_values() {
             // This clone is lightweigth
-            for x in self.iterator.clone() {
+            for x in *self.iterator {
                 write!(f, "\n{}", x)?;
             }
         }
@@ -301,7 +301,8 @@ impl<'a, T> WriteMultipleIterator<'a, T> {
 }
 
 impl<T> Iterator for WriteMultipleIterator<'_, T>
-where T: Copy
+where
+    T: Copy,
 {
     type Item = Indexed<T>;
 
@@ -314,7 +315,7 @@ where T: Copy
                 self.pos += 1;
                 Some(result)
             }
-            None => None
+            None => None,
         }
     }
 

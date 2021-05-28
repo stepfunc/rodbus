@@ -31,7 +31,12 @@ where
         self.promise.failure(err)
     }
 
-    pub(crate) fn handle_response(self, cursor: ReadCursor, function: FunctionCode, decode: PduDecodeLevel) {
+    pub(crate) fn handle_response(
+        self,
+        cursor: ReadCursor,
+        function: FunctionCode,
+        decode: PduDecodeLevel,
+    ) {
         let result = self.parse_all(cursor);
 
         match &result {

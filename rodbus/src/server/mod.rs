@@ -31,7 +31,13 @@ pub fn spawn_tcp_server_task<T: RequestHandler>(
     decode: DecodeLevel,
 ) -> TaskHandle {
     let (tx, rx) = tokio::sync::mpsc::channel(1);
-    let handle = tokio::spawn(create_tcp_server_task(rx, max_sessions, listener, handlers, decode));
+    let handle = tokio::spawn(create_tcp_server_task(
+        rx,
+        max_sessions,
+        listener,
+        handlers,
+        decode,
+    ));
     TaskHandle::new(tx, handle)
 }
 
