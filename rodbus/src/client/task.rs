@@ -65,9 +65,9 @@ where
         }
     }
 
-    pub(crate) async fn run(&mut self, mut io: PhysLayer) -> SessionError {
+    pub(crate) async fn run(&mut self, io: &mut PhysLayer) -> SessionError {
         while let Some(request) = self.rx.recv().await {
-            if let Some(err) = self.run_one_request(&mut io, request).await {
+            if let Some(err) = self.run_one_request(io, request).await {
                 return err;
             }
         }
@@ -157,8 +157,6 @@ where
     }
 }
 
-// TODO: revive this
-/*
 #[cfg(test)]
 mod tests {
     use std::task::Poll;
@@ -167,14 +165,19 @@ mod tests {
     use crate::client::message::RequestDetails;
     use crate::client::requests::read_bits::ReadBits;
     use crate::common::function::FunctionCode;
-    use crate::common::traits::Serialize;
-    use crate::error::details::FrameParseError;
+    use crate::common::traits::{Loggable, Serialize};
+    use crate::decode::AduDecodeLevel;
+    use crate::decode::PhysDecodeLevel;
+    use crate::error::details::{ExceptionCode, FrameParseError};
+    use crate::server::response::BitWriter;
+    use crate::tcp::frame::MbapFormatter;
+    use crate::tcp::frame::MbapParser;
     use crate::tokio::test::*;
-    use crate::types::{AddressRange, Indexed, UnitId};
+    use crate::types::{AddressRange, Indexed, ReadBitsRange, UnitId};
 
     struct ClientFixture {
-        client: ClientLoop,
-        io: io::MockIO,
+        client: ClientLoop<MbapFormatter, MbapParser>,
+        io: PhysLayer,
         io_handle: io::Handle,
     }
 
@@ -184,8 +187,13 @@ mod tests {
             let (io, io_handle) = io::mock();
             (
                 Self {
-                    client: ClientLoop::new(rx),
-                    io,
+                    client: ClientLoop::new(
+                        rx,
+                        MbapFormatter::new(AduDecodeLevel::Nothing),
+                        MbapParser::new(AduDecodeLevel::Nothing),
+                        PduDecodeLevel::Nothing,
+                    ),
+                    io: PhysLayer::new_mock(io, PhysDecodeLevel::Nothing),
                     io_handle,
                 },
                 tx,
@@ -232,11 +240,13 @@ mod tests {
 
     fn get_framed_adu<T>(function: FunctionCode, payload: &T) -> Vec<u8>
     where
-        T: Serialize + Sized,
+        T: Serialize + Loggable + Sized,
     {
-        let mut fmt = MbapFormatter::new();
+        let mut fmt = MbapFormatter::new(AduDecodeLevel::Nothing);
         let header = FrameHeader::new(UnitId::new(1), TxId::new(0));
-        let bytes = fmt.format(header, function, payload).unwrap();
+        let bytes = fmt
+            .format(header, function, payload, PduDecodeLevel::Nothing)
+            .unwrap();
         Vec::from(bytes)
     }
 
@@ -303,7 +313,14 @@ mod tests {
         let range = AddressRange::try_from(7, 2).unwrap();
 
         let request = get_framed_adu(FunctionCode::ReadCoils, &range);
-        let response = get_framed_adu(FunctionCode::ReadCoils, &[true, false].as_ref());
+        let response = get_framed_adu(
+            FunctionCode::ReadCoils,
+            &BitWriter::new(ReadBitsRange { inner: range }, |idx| match idx {
+                7 => Ok(true),
+                8 => Ok(false),
+                _ => Err(ExceptionCode::IllegalDataAddress),
+            }),
+        );
 
         fixture.io_handle.write(&request);
         fixture.io_handle.read(&response);
@@ -319,4 +336,3 @@ mod tests {
         );
     }
 }
-*/

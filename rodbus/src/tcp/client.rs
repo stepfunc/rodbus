@@ -50,9 +50,9 @@ impl TcpChannelTask {
                     }
                 }
                 Ok(socket) => {
-                    let phys = PhysLayer::new_tcp(socket, self.decode.physical);
+                    let mut phys = PhysLayer::new_tcp(socket, self.decode.physical);
                     tracing::info!("connected to: {}", self.addr);
-                    match self.client_loop.run(phys).await {
+                    match self.client_loop.run(&mut phys).await {
                         // the mpsc was closed, end the task
                         SessionError::Shutdown => return,
                         // re-establish the connection
