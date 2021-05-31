@@ -115,7 +115,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         TcpListener::bind(SocketAddr::from_str(address)?).await?,
         map,
         DecodeLevel::new(
-            PduDecodeLevel::FunctionCode,
+            PduDecodeLevel::DataValues,
             AduDecodeLevel::Nothing,
             PhysDecodeLevel::Nothing,
         ),

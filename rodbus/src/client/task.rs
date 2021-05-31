@@ -1,5 +1,7 @@
 use std::time::Duration;
 
+use tracing::Instrument;
+
 use crate::common::phys::PhysLayer;
 use crate::decode::PduDecodeLevel;
 use crate::tokio;
@@ -79,7 +81,11 @@ where
         io: &mut PhysLayer,
         request: Request,
     ) -> Option<SessionError> {
-        let result = self.execute_request(io, request).await;
+        let tx_id = self.tx_id.next();
+        let result = self
+            .execute_request(io, request, tx_id)
+            .instrument(tracing::info_span!("Transaction", tx_id = %tx_id))
+            .await;
 
         if let Err(e) = &result {
             tracing::warn!("error occurred making request: {}", e);
@@ -88,8 +94,12 @@ where
         result.as_ref().err().and_then(|e| SessionError::from(e))
     }
 
-    async fn execute_request(&mut self, io: &mut PhysLayer, request: Request) -> Result<(), Error> {
-        let tx_id = self.tx_id.next();
+    async fn execute_request(
+        &mut self,
+        io: &mut PhysLayer,
+        request: Request,
+        tx_id: TxId,
+    ) -> Result<(), Error> {
         let bytes = self.formatter.format(
             FrameHeader::new(request.id, tx_id),
             request.details.function(),

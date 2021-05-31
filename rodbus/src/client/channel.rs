@@ -1,6 +1,8 @@
 use std::net::SocketAddr;
 use std::time::Duration;
 
+use tracing::Instrument;
+
 use crate::client::message::Request;
 use crate::client::session::AsyncSession;
 use crate::decode::DecodeLevel;
@@ -91,6 +93,7 @@ impl Channel {
         let task = async move {
             TcpChannelTask::new(addr, rx, connect_retry, decode)
                 .run()
+                .instrument(tracing::info_span!("Modbus - Client - TCP"))
                 .await
         };
         (Channel { tx }, task)

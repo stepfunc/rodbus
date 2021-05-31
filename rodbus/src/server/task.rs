@@ -68,7 +68,7 @@ where
     async fn run_one(&mut self) -> Result<(), Error> {
         crate::tokio::select! {
             frame = self.reader.next_frame(&mut self.io) => {
-               self.reply_to_request(frame?).await
+               self.handle_frame(frame?).await
             }
             _ = self.shutdown.recv() => {
                Err(crate::error::Error::Shutdown)
@@ -76,7 +76,7 @@ where
         }
     }
 
-    async fn reply_to_request(&mut self, frame: Frame) -> Result<(), Error> {
+    async fn handle_frame(&mut self, frame: Frame) -> Result<(), Error> {
         let mut cursor = ReadCursor::new(frame.payload());
 
         // if no addresses match, then don't respond

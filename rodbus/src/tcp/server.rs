@@ -1,6 +1,8 @@
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 
+use tracing::Instrument;
+
 use crate::common::phys::PhysLayer;
 use crate::decode::DecodeLevel;
 use crate::tcp::frame::{MbapFormatter, MbapParser};
@@ -96,7 +98,8 @@ where
                             return;
                         }
                         Ok((socket, addr)) => {
-                            self.handle(socket, addr).await
+                            self.handle(socket, addr)
+                                .await
                         }
                    }
                }
@@ -125,6 +128,7 @@ where
                 decode.pdu,
             )
             .run()
+            .instrument(tracing::info_span!("Session", "remote" = ?addr))
             .await
             .ok();
             tracing::info!("shutdown session: {}", id);

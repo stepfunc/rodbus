@@ -1,3 +1,5 @@
+use tracing::Instrument;
+
 use crate::decode::DecodeLevel;
 use crate::tokio;
 use crate::tokio::net::TcpListener;
@@ -63,5 +65,6 @@ pub async fn create_tcp_server_task<T: RequestHandler>(
 ) {
     ServerTask::new(max_sessions, listener, handlers, decode)
         .run(rx)
+        .instrument(tracing::info_span!("Modbus-Server-TCP"))
         .await
 }
