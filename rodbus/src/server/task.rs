@@ -1,3 +1,5 @@
+use tracing::Instrument;
+
 use crate::common::phys::PhysLayer;
 use crate::decode::PduDecodeLevel;
 use crate::tokio;
@@ -68,7 +70,11 @@ where
     async fn run_one(&mut self) -> Result<(), Error> {
         crate::tokio::select! {
             frame = self.reader.next_frame(&mut self.io) => {
-               self.handle_frame(frame?).await
+                let frame = frame?;
+                let tx_id = frame.header.tx_id;
+                self.handle_frame(frame)
+                    .instrument(tracing::info_span!("Transaction", tx_id=%tx_id))
+                    .await
             }
             _ = self.shutdown.recv() => {
                Err(crate::error::Error::Shutdown)

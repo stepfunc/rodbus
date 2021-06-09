@@ -3,7 +3,6 @@ use std::str::FromStr;
 use std::time::Duration;
 
 use rodbus::decode::{AduDecodeLevel, DecodeLevel, PduDecodeLevel, PhysDecodeLevel};
-use tokio::net::TcpListener;
 
 use rodbus::error::details::ExceptionCode;
 use rodbus::prelude::*;
@@ -49,18 +48,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         coils: [false; 100],
     }
     .wrap();
-    let listener = TcpListener::bind(addr).await?;
 
     let _handle = spawn_tcp_server_task(
         num_sessions,
-        listener,
+        addr,
         ServerHandlerMap::single(UnitId::new(1), handler),
         DecodeLevel::new(
             PduDecodeLevel::DataValues,
             AduDecodeLevel::Nothing,
             PhysDecodeLevel::Nothing,
         ),
-    );
+    )
+    .await?;
 
     // now spawn a bunch of clients
     let mut sessions: Vec<AsyncSession> = Vec::new();

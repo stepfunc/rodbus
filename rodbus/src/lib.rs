@@ -113,10 +113,10 @@
 //!    // if the handle _server is dropped, the server shuts down
 //!    let _server = rodbus::server::spawn_tcp_server_task(
 //!        1,
-//!        TcpListener::bind(SocketAddr::from_str("127.0.0.1:502")?).await?,
+//!        SocketAddr::from_str("127.0.0.1:502")?,
 //!        map,
 //!        DecodeLevel::default(),
-//!    );
+//!    ).await?;
 //!
 //!    let mut next = tokio::time::Instant::now();
 //!

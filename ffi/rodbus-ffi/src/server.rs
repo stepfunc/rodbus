@@ -6,7 +6,6 @@ use rodbus::shutdown::TaskHandle;
 use rodbus::types::{Indexed, UnitId, WriteCoils, WriteRegisters};
 use std::collections::HashMap;
 use std::net::SocketAddr;
-use tokio::net::TcpListener;
 
 struct RequestHandlerWrapper {
     database: Database,
@@ -173,21 +172,19 @@ pub(crate) unsafe fn create_tcp_server(
     let address = address.to_string_lossy().parse::<SocketAddr>()?;
     let endpoints = endpoints.as_mut().ok_or(ffi::ParamError::NullParameter)?;
 
-    let listener = runtime
-        .inner
-        .block_on(TcpListener::bind(address))
-        .map_err(|_| ffi::ParamError::ServerBindError)?;
-
     let (tx, rx) = tokio::sync::mpsc::channel(1);
 
     let handler_map = endpoints.drain_and_convert();
-    let task = rodbus::server::create_tcp_server_task(
-        rx,
-        max_sessions as usize,
-        listener,
-        handler_map.clone(),
-        decode_level.into(),
-    );
+    let task = runtime
+        .inner
+        .block_on(rodbus::server::create_tcp_server_task(
+            rx,
+            max_sessions as usize,
+            address,
+            handler_map.clone(),
+            decode_level.into(),
+        ))
+        .map_err(|_| ffi::ParamError::ServerBindError)?;
     let join_handle = runtime.inner.spawn(task);
 
     let server_handle = Server {

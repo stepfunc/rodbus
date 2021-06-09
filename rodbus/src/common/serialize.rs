@@ -44,8 +44,9 @@ impl Loggable for AddressRange {
         if level.data_headers() {
             let mut cursor = ReadCursor::new(payload);
 
-            let value = AddressRange::parse(&mut cursor).unwrap();
-            write!(f, "{}", value)?;
+            if let Ok(value) = AddressRange::parse(&mut cursor) {
+                write!(f, "{}", value)?;
+            }
         }
 
         Ok(())
@@ -77,10 +78,20 @@ impl Loggable for Indexed<bool> {
         if level.data_headers() {
             let mut cursor = ReadCursor::new(payload);
 
-            let value = Indexed::new(
-                cursor.read_u16_be().unwrap(),
-                coil_from_u16(cursor.read_u16_be().unwrap()).unwrap(),
-            );
+            let index = match cursor.read_u16_be() {
+                Ok(idx) => idx,
+                Err(_) => return Ok(()),
+            };
+            let coil_raw_value = match cursor.read_u16_be() {
+                Ok(value) => value,
+                Err(_) => return Ok(()),
+            };
+            let coil_value = match coil_from_u16(coil_raw_value) {
+                Ok(value) => value,
+                Err(_) => return Ok(()),
+            };
+            let value = Indexed::new(index, coil_value);
+
             write!(f, "{}", value)?;
         }
 
@@ -106,7 +117,16 @@ impl Loggable for Indexed<u16> {
         if level.data_headers() {
             let mut cursor = ReadCursor::new(payload);
 
-            let value = Indexed::new(cursor.read_u16_be().unwrap(), cursor.read_u16_be().unwrap());
+            let index = match cursor.read_u16_be() {
+                Ok(idx) => idx,
+                Err(_) => return Ok(()),
+            };
+            let raw_value = match cursor.read_u16_be() {
+                Ok(value) => value,
+                Err(_) => return Ok(()),
+            };
+            let value = Indexed::new(index, raw_value);
+
             write!(f, "{}", value)?;
         }
 
@@ -184,8 +204,12 @@ where
     ) -> std::fmt::Result {
         if level.data_headers() {
             let mut cursor = ReadCursor::new(payload);
-            cursor.read_u8().unwrap(); // ignore the byte count
-            let iterator = BitIterator::parse_all(self.range.inner, &mut cursor).unwrap();
+            let _ = cursor.read_u8(); // ignore the byte count
+
+            let iterator = match BitIterator::parse_all(self.range.inner, &mut cursor) {
+                Ok(it) => it,
+                Err(_) => return Ok(()),
+            };
 
             write!(f, "{}", BitIteratorDisplay::new(level, &iterator))?;
         }
@@ -225,8 +249,12 @@ where
     ) -> std::fmt::Result {
         if level.data_headers() {
             let mut cursor = ReadCursor::new(payload);
-            cursor.read_u8().unwrap(); // ignore the byte count
-            let iterator = RegisterIterator::parse_all(self.range.inner, &mut cursor).unwrap();
+            let _ = cursor.read_u8(); // ignore the byte count
+
+            let iterator = match RegisterIterator::parse_all(self.range.inner, &mut cursor) {
+                Ok(it) => it,
+                Err(_) => return Ok(()),
+            };
 
             write!(f, "{}", RegisterIteratorDisplay::new(level, &iterator))?;
         }

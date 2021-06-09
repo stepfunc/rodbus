@@ -2,7 +2,6 @@ use std::net::SocketAddr;
 use std::str::FromStr;
 
 use rodbus::decode::*;
-use tokio::net::TcpListener;
 
 use rodbus::prelude::*;
 
@@ -112,14 +111,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // along with all of its active sessions
     let _server = rodbus::server::spawn_tcp_server_task(
         1,
-        TcpListener::bind(SocketAddr::from_str(address)?).await?,
+        SocketAddr::from_str(address)?,
         map,
         DecodeLevel::new(
             PduDecodeLevel::DataValues,
             AduDecodeLevel::Nothing,
             PhysDecodeLevel::Nothing,
         ),
-    );
+    )
+    .await?;
 
     let mut next = tokio::time::Instant::now();
 

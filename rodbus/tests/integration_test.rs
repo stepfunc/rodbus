@@ -5,7 +5,6 @@ use rodbus::prelude::*;
 use std::net::SocketAddr;
 use std::str::FromStr;
 
-use tokio::net::TcpListener;
 use tokio::runtime::Runtime;
 
 use rodbus::error::details::ExceptionCode;
@@ -108,10 +107,12 @@ async fn test_requests_and_responses() {
 
     let _server = spawn_tcp_server_task(
         1,
-        TcpListener::bind(addr).await.unwrap(),
+        addr,
         ServerHandlerMap::single(UnitId::new(1), handler.clone()),
         DecodeLevel::default(),
-    );
+    )
+    .await
+    .unwrap();
 
     let mut session = spawn_tcp_client_task(addr, 10, strategy::default(), DecodeLevel::default())
         .create_session(UnitId::new(0x01), Duration::from_secs(1));

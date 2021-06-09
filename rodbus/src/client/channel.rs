@@ -93,7 +93,7 @@ impl Channel {
         let task = async move {
             TcpChannelTask::new(addr, rx, connect_retry, decode)
                 .run()
-                .instrument(tracing::info_span!("Modbus - Client - TCP"))
+                .instrument(tracing::info_span!("Modbus-Client-TCP", endpoint = ?addr))
                 .await
         };
         (Channel { tx }, task)

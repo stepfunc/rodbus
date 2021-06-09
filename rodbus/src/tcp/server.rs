@@ -117,6 +117,7 @@ where
         let id = self.tracker.lock().unwrap().add(tx);
 
         tracing::info!("accepted connection {} from: {}", id, addr);
+        let span = tracing::span::Span::current();
 
         tokio::spawn(async move {
             crate::server::task::SessionTask::new(
@@ -128,7 +129,7 @@ where
                 decode.pdu,
             )
             .run()
-            .instrument(tracing::info_span!("Session", "remote" = ?addr))
+            .instrument(tracing::info_span!(parent: &span, "Session", "remote" = ?addr))
             .await
             .ok();
             tracing::info!("shutdown session: {}", id);

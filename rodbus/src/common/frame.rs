@@ -68,7 +68,7 @@ impl FrameHeader {
 pub(crate) struct Frame {
     pub(crate) header: FrameHeader,
     length: usize,
-    adu: [u8; constants::MAX_ADU_LENGTH],
+    pdu: [u8; constants::MAX_ADU_LENGTH],
 }
 
 impl Frame {
@@ -76,22 +76,22 @@ impl Frame {
         Frame {
             header,
             length: 0,
-            adu: [0; constants::MAX_ADU_LENGTH],
+            pdu: [0; constants::MAX_ADU_LENGTH],
         }
     }
 
     pub(crate) fn set(&mut self, src: &[u8]) -> bool {
-        if src.len() > self.adu.len() {
+        if src.len() > self.pdu.len() {
             return false;
         }
 
-        self.adu[0..src.len()].copy_from_slice(src);
+        self.pdu[0..src.len()].copy_from_slice(src);
         self.length = src.len();
         true
     }
 
     pub(crate) fn payload(&self) -> &[u8] {
-        &self.adu[0..self.length]
+        &self.pdu[0..self.length]
     }
 }
 
