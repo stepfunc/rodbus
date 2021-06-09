@@ -7,11 +7,11 @@ license = "GPL-3.0-only"
 description = "FFI for Rodbus"
 keywords = ["ffi", "c", "modbus", "ics", "industrial", "plc", "security"]
 categories = ["network-programming"]
-repository = "https://www.github.com/stepfunc/rodbus"
+repository = "https://github.com/stepfunc/rodbus"
 readme = "../README.md"
 
 [lib]
-crate-type = ["rlib", "cdylib"]
+crate-type = ["rlib", "staticlib", "cdylib"]
 
 [dependencies]
 tracing = "0.1"
@@ -22,4 +22,4 @@ num_cpus = "1"
 
 [build-dependencies]
 rodbus-schema = { path = "../rodbus-schema" }
-rust-oo-bindgen = { git = "https://git@github.com/grid-io/oo_bindgen.git", tag = "0.1.0" }
+rust-oo-bindgen = { git = "https://github.com/grid-io/oo_bindgen.git", tag = "0.1.1" }

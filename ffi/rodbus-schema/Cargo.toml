@@ -7,9 +7,9 @@ license = "GPL-3.0-only"
 description = "oobindgen schema for Rodbus"
 keywords = ["ffi", "c", "modbus", "ics", "industrial", "plc", "security"]
 categories = ["network-programming"]
-repository = "https://www.github.com/stepfunc/rodbus"
+repository = "https://github.com/stepfunc/rodbus"
 readme = "../README.md"
 
 [dependencies]
-oo-bindgen = { git = "https://git@github.com/grid-io/oo_bindgen.git", tag = "0.1.0" }
+oo-bindgen = { git = "https://github.com/grid-io/oo_bindgen.git", tag = "0.1.1" }
 rodbus = { path = "../../rodbus" }

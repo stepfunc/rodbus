@@ -10,28 +10,18 @@ elseif(UNIX)
 endif()
 find_package(rodbus REQUIRED)
 
-# You probably don't need do this, just pick either the dynamic or the static
-# one if you are on Linux. Here we do CMake trickery to make it work on the CI.
-if(TARGET rodbus)
-    set(rodbus_target rodbus)
-else()
-    set(rodbus_target rodbus_static)
-endif()
-
 # Client example
 add_executable(client_example ./client_example.c)
-target_link_libraries(client_example PRIVATE ${rodbus_target})
+target_link_libraries(client_example PRIVATE rodbus)
 
 # Server example
 add_executable(server_example server_example.c)
-target_link_libraries(server_example PRIVATE ${rodbus_target})
+target_link_libraries(server_example PRIVATE rodbus)
 
-if(${rodbus_target} STREQUAL "rodbus")
-    # Copy the DLL after build
-    add_custom_command(TARGET client_example POST_BUILD 
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:rodbus> $<TARGET_FILE_DIR:client_example>
-    )
-    add_custom_command(TARGET server_example POST_BUILD 
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:rodbus> $<TARGET_FILE_DIR:server_example>
-    )
-endif()
+# Copy the DLL after build
+add_custom_command(TARGET client_example POST_BUILD 
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:rodbus> $<TARGET_FILE_DIR:client_example>
+)
+add_custom_command(TARGET server_example POST_BUILD 
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:rodbus> $<TARGET_FILE_DIR:server_example>
+)

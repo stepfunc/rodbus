@@ -2,6 +2,7 @@ use std::path::Path;
 
 pub fn main() {
     let builder_settings = ci_script::BindingBuilderSettings {
+        ffi_target_name: "rodbus-ffi",
         ffi_name: "rodbus_ffi",
         ffi_path: Path::new("ffi/rodbus-ffi"),
         java_group_id: "io.stepfunc",

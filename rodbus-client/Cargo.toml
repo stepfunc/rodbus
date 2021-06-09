@@ -7,7 +7,7 @@ license = "GPL-3.0-only"
 description = "A command line program for making Modbus client requests using the Rodbus crate"
 keywords = ["modbus", "ics", "industrial", "plc", "security"]
 categories = ["network-programming"]
-repository = "https://www.github.com/automatak/rodbus"
+repository = "https://github.com/stepfunc/rodbus"
 readme = "README.md"
 
 [[bin]]
