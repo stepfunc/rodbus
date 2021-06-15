@@ -56,7 +56,7 @@ pub(crate) fn build(
     let result_only_callback = build_result_only_callback(lib, common)?;
 
     let read_coils_fn = build_async_read_fn(
-        "channel_read_coils_async",
+        "channel_read_coils",
         lib,
         common,
         &channel,
@@ -65,7 +65,7 @@ pub(crate) fn build(
     )?;
 
     let read_discrete_inputs_fn = build_async_read_fn(
-        "channel_read_discrete_inputs_async",
+        "channel_read_discrete_inputs",
         lib,
         common,
         &channel,
@@ -74,7 +74,7 @@ pub(crate) fn build(
     )?;
 
     let read_holding_registers_fn = build_async_read_fn(
-        "channel_read_holding_registers_async",
+        "channel_read_holding_registers",
         lib,
         common,
         &channel,
@@ -83,7 +83,7 @@ pub(crate) fn build(
     )?;
 
     let read_input_registers_fn = build_async_read_fn(
-        "channel_read_input_registers_async",
+        "channel_read_input_registers",
         lib,
         common,
         &channel,
@@ -92,7 +92,7 @@ pub(crate) fn build(
     )?;
 
     let write_single_coil_fn = build_async_write_single_fn(
-        "channel_write_single_coil_async",
+        "channel_write_single_coil",
         lib,
         common,
         &channel,
@@ -102,7 +102,7 @@ pub(crate) fn build(
     )?;
 
     let write_single_register_fn = build_async_write_single_fn(
-        "channel_write_single_register_async",
+        "channel_write_single_register",
         lib,
         common,
         &channel,
@@ -113,7 +113,7 @@ pub(crate) fn build(
 
     let list_of_bit = build_list(lib, "Bit", Type::Bool)?;
     let write_multiple_coils_fn = build_async_write_multiple_fn(
-        "channel_write_multiple_coils_async",
+        "channel_write_multiple_coils",
         lib,
         common,
         &channel,
@@ -124,7 +124,7 @@ pub(crate) fn build(
 
     let list_of_register = build_list(lib, "Register", Type::Uint16)?;
     let write_multiple_registers_fn = build_async_write_multiple_fn(
-        "channel_write_multiple_registers_async",
+        "channel_write_multiple_registers",
         lib,
         common,
         &channel,
@@ -206,7 +206,7 @@ fn build_async_write_multiple_fn(
             Type::ClassRef(channel.clone()),
             "channel on which to perform the write operation",
         )?
-        .param("start", Type::Uint16, "Starting address")?
+        .param("start", Type::Uint16, "starting address")?
         .param(
             "items",
             Type::Collection(list_type.clone()),

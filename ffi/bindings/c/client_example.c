@@ -1,27 +1,11 @@
+#include "rodbus.h"
+
+#include <inttypes.h>
+#include <stddef.h>
 #include <stdio.h>
+#include <string.h>
 
-#include <rodbus.h>
-
-#ifdef __unix__
-#include <unistd.h>
-#elif defined _WIN32
-#include <windows.h>
-#define sleep(x) Sleep(1000 * (x))
-#endif
-
-void on_log_message(rodbus_log_level_t level, const char *message, void *ctx) { printf("%s \n", message); }
-
-rodbus_logger_t get_logger()
-{
-    return (rodbus_logger_t){
-        // function pointer where log messages will be sent
-        .on_message = &on_log_message,
-        // no context to free
-        .on_destroy = NULL,
-        // optional context argument applied to all log callbacks
-        .ctx = NULL,
-    };
-}
+void on_log_message(rodbus_log_level_t level, const char *message, void *ctx) { printf("%s\n", message); }
 
 void on_read_bits_complete(rodbus_bit_read_result_t bits, void *ctx)
 {
@@ -29,8 +13,8 @@ void on_read_bits_complete(rodbus_bit_read_result_t bits, void *ctx)
     case (RODBUS_STATUS_OK): {
         printf("success!\n");
         rodbus_bit_t *bit = NULL;
-        while (bit = rodbus_next_bit(bits.iterator)) {
-            printf("value: %d index: %d\n", bit->value, bit->index);
+        while ((bit = rodbus_next_bit(bits.iterator))) {
+            printf("index: %d value: %d\n", bit->index, bit->value);
         }
         break;
     }
@@ -48,9 +32,9 @@ void on_read_registers_complete(rodbus_register_read_result_t registers, void *c
     switch (registers.result.summary) {
     case (RODBUS_STATUS_OK): {
         printf("success!\n");
-        rodbus_register_t *bit = NULL;
-        while (bit = rodbus_next_register(registers.iterator)) {
-            printf("value: %d index: %d\n", bit->value, bit->index);
+        rodbus_register_t *reg = NULL;
+        while ((reg = rodbus_next_register(registers.iterator))) {
+            printf("index: %d value: %d\n", reg->index, reg->value);
         }
         break;
     }
@@ -82,82 +66,98 @@ void on_write_complete(rodbus_error_info_t result, void *ctx)
 int main()
 {
     // initialize logging with the default configuration
-    rodbus_configure_logging(rodbus_logging_config_init(), get_logger());
+    rodbus_logger_t logger = rodbus_logger_init(&on_log_message, NULL, NULL);
+    rodbus_configure_logging(rodbus_logging_config_init(), logger);
 
     rodbus_runtime_t *runtime = NULL;
     rodbus_channel_t *channel = NULL;
     rodbus_param_error_t err = RODBUS_PARAM_ERROR_OK;
 
+    // initialize the runtime
     rodbus_runtime_config_t runtime_config = rodbus_runtime_config_init();
     runtime_config.num_core_threads = 4;
     err = rodbus_runtime_new(runtime_config, &runtime);
-    if (!err) {
-        printf("Unable to initialize runtime \n");
+    if (err) {
+        printf("Unable to initialize runtime: %s\n", rodbus_param_error_to_string(err));
         goto cleanup;
     }
 
+    // initialize a Modbus TCP client channel
     rodbus_decode_level_t decode_level = rodbus_decode_level_init();
     err = rodbus_create_tcp_client(runtime, "127.0.0.1:502", 100, decode_level, &channel);
-    if (!channel) {
-        printf("Unable to initialize channel \n");
+    if (err) {
+        printf("Unable to initialize channel: %s\n", rodbus_param_error_to_string(err));
         goto cleanup;
     }
 
-    rodbus_request_param_t params = {
-        .unit_id = 1,
-        .timeout_ms = 1000,
-    };
+    // request param that we will be reusing
+    rodbus_request_param_t param = rodbus_request_param_init(1,   // Unit ID
+                                                             1000 // Timeout in ms
+    );
 
-    for (int i = 0; i < 3; ++i) {
-        rodbus_bit_read_callback_t bit_callback = {
-            .on_complete = on_read_bits_complete,
-            .ctx = NULL,
-        };
-        rodbus_register_read_callback_t register_callback = {
-            .on_complete = on_read_registers_complete,
-            .ctx = NULL,
-        };
-        rodbus_result_callback_t result_callback = {
-            .on_complete = on_write_complete,
-            .ctx = NULL,
-        };
+    // address range that we will be reusing
+    rodbus_address_range_t range = rodbus_address_range_init(0, // start
+                                                             5  // count
+    );
 
-        rodbus_address_range_t range = {
-            .start = 0,
-            .count = 5,
-        };
+    rodbus_bit_read_callback_t bit_callback = rodbus_bit_read_callback_init(on_read_bits_complete, NULL, NULL);
+    rodbus_register_read_callback_t register_callback = rodbus_register_read_callback_init(on_read_registers_complete, NULL, NULL);
+    rodbus_result_callback_t result_callback = rodbus_result_callback_init(on_write_complete, NULL, NULL);
 
-        /*
-                printf("reading coils\n");
-                channel_read_coils_async(channel, range, params, bit_callback);
-                sleep(1);
+    char cbuf[10];
+    while (true) {
+        fgets(cbuf, 10, stdin);
 
-                printf("reading discrete inputs\n");
-                channel_read_discrete_inputs_async(channel, range, params, bit_callback);
-                sleep(1);
+        if (strcmp(cbuf, "x\n") == 0) {
+            goto cleanup;
+        }
+        else if (strcmp(cbuf, "rc\n") == 0) {
+            rodbus_channel_read_coils(channel, range, param, bit_callback);
+        }
+        else if (strcmp(cbuf, "rdi\n") == 0) {
+            rodbus_channel_read_discrete_inputs(channel, range, param, bit_callback);
+        }
+        else if (strcmp(cbuf, "rhr\n") == 0) {
+            rodbus_channel_read_holding_registers(channel, range, param, register_callback);
+        }
+        else if (strcmp(cbuf, "rir\n") == 0) {
+            rodbus_channel_read_input_registers(channel, range, param, register_callback);
+        }
+        else if (strcmp(cbuf, "wsc\n") == 0) {
+            rodbus_bit_t bit_value = rodbus_bit_init(0, true);
+            rodbus_channel_write_single_coil(channel, bit_value, param, result_callback);
+        }
+        else if (strcmp(cbuf, "wsr\n") == 0) {
+            rodbus_register_t register_value = rodbus_register_init(0, 76);
+            rodbus_channel_write_single_register(channel, register_value, param, result_callback);
+        }
+        else if (strcmp(cbuf, "wmc\n") == 0) {
+            // create the bitlist
+            rodbus_bit_list_t *bit_list = rodbus_bit_list_create(2);
+            rodbus_bit_list_add(bit_list, true);
+            rodbus_bit_list_add(bit_list, false);
 
+            // send the request
+            rodbus_channel_write_multiple_coils(channel, 0, bit_list, param, result_callback);
 
-                printf("reading holding registers\n");
-                channel_read_holding_registers_async(channel, range, params, register_callback);
-                sleep(1);
+            // destroy the bitlist
+            rodbus_bit_list_destroy(bit_list);
+        }
+        else if (strcmp(cbuf, "wmr\n") == 0) {
+            // create the register list
+            rodbus_register_list_t *register_list = rodbus_register_list_create(2);
+            rodbus_register_list_add(register_list, 0xCA);
+            rodbus_register_list_add(register_list, 0xFE);
 
-                printf("reading input registers\n");
-                channel_read_input_registers_async(channel, range, params, register_callback);
-                sleep(1);
+            // send the request
+            rodbus_channel_write_multiple_registers(channel, 0, register_list, param, result_callback);
 
-                printf("writing single coil\n");
-                bit_t bit = { .index = 0, .value = true };
-                channel_write_single_coil_async(channel, bit, params, result_callback);
-                sleep(1);
-                */
-
-        printf("writing multiple coils\n");
-        rodbus_bit_list_t *bits = rodbus_bit_list_create(0);
-        rodbus_bit_list_add(bits, true);
-        rodbus_bit_list_add(bits, false);
-        rodbus_channel_write_multiple_coils_async(channel, 0, bits, params, result_callback);
-        rodbus_bit_list_destroy(bits);
-        sleep(1);
+            // destroy the register list
+            rodbus_register_list_destroy(register_list);
+        }
+        else {
+            printf("Unknown command\n");
+        }
     }
 
 cleanup:

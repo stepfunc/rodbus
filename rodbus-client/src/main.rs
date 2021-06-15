@@ -334,26 +334,6 @@ fn parse_args() -> Result<Args, Error> {
                 ),
         )
         .subcommand(
-            SubCommand::with_name("wsr")
-                .about("write single register")
-                .arg(
-                    Arg::with_name("index")
-                        .short("i")
-                        .long("index")
-                        .required(true)
-                        .takes_value(true)
-                        .help("the address of the register"),
-                )
-                .arg(
-                    Arg::with_name("value")
-                        .short("v")
-                        .long("value")
-                        .required(true)
-                        .takes_value(true)
-                        .help("the value of the register"),
-                ),
-        )
-        .subcommand(
             SubCommand::with_name("wsc")
                 .about("write single coil")
                 .arg(
@@ -371,6 +351,26 @@ fn parse_args() -> Result<Args, Error> {
                         .required(true)
                         .takes_value(true)
                         .help("the value of the coil (ON or OFF)"),
+                ),
+        )
+        .subcommand(
+            SubCommand::with_name("wsr")
+                .about("write single register")
+                .arg(
+                    Arg::with_name("index")
+                        .short("i")
+                        .long("index")
+                        .required(true)
+                        .takes_value(true)
+                        .help("the address of the register"),
+                )
+                .arg(
+                    Arg::with_name("value")
+                        .short("v")
+                        .long("value")
+                        .required(true)
+                        .takes_value(true)
+                        .help("the value of the register"),
                 ),
         )
         .subcommand(

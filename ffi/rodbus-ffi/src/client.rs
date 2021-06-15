@@ -36,7 +36,7 @@ pub(crate) unsafe fn channel_destroy(channel: *mut crate::Channel) {
     };
 }
 
-pub(crate) unsafe fn channel_read_coils_async(
+pub(crate) unsafe fn channel_read_coils(
     channel: *mut crate::Channel,
     range: crate::ffi::AddressRange,
     param: crate::ffi::RequestParam,
@@ -54,7 +54,7 @@ pub(crate) unsafe fn channel_read_coils_async(
     Ok(())
 }
 
-pub(crate) unsafe fn channel_read_discrete_inputs_async(
+pub(crate) unsafe fn channel_read_discrete_inputs(
     channel: *mut crate::Channel,
     range: crate::ffi::AddressRange,
     param: crate::ffi::RequestParam,
@@ -72,7 +72,7 @@ pub(crate) unsafe fn channel_read_discrete_inputs_async(
     Ok(())
 }
 
-pub(crate) unsafe fn channel_read_holding_registers_async(
+pub(crate) unsafe fn channel_read_holding_registers(
     channel: *mut crate::Channel,
     range: crate::ffi::AddressRange,
     param: crate::ffi::RequestParam,
@@ -90,7 +90,7 @@ pub(crate) unsafe fn channel_read_holding_registers_async(
     Ok(())
 }
 
-pub(crate) unsafe fn channel_read_input_registers_async(
+pub(crate) unsafe fn channel_read_input_registers(
     channel: *mut crate::Channel,
     range: crate::ffi::AddressRange,
     param: crate::ffi::RequestParam,
@@ -108,7 +108,7 @@ pub(crate) unsafe fn channel_read_input_registers_async(
     Ok(())
 }
 
-pub(crate) unsafe fn channel_write_single_coil_async(
+pub(crate) unsafe fn channel_write_single_coil(
     channel: *mut crate::Channel,
     bit: crate::ffi::Bit,
     param: crate::ffi::RequestParam,
@@ -125,7 +125,7 @@ pub(crate) unsafe fn channel_write_single_coil_async(
     Ok(())
 }
 
-pub(crate) unsafe fn channel_write_single_register_async(
+pub(crate) unsafe fn channel_write_single_register(
     channel: *mut crate::Channel,
     register: crate::ffi::Register,
     param: crate::ffi::RequestParam,
@@ -142,7 +142,7 @@ pub(crate) unsafe fn channel_write_single_register_async(
     Ok(())
 }
 
-pub(crate) unsafe fn channel_write_multiple_coils_async(
+pub(crate) unsafe fn channel_write_multiple_coils(
     channel: *mut crate::Channel,
     start: u16,
     items: *mut crate::BitList,
@@ -162,7 +162,7 @@ pub(crate) unsafe fn channel_write_multiple_coils_async(
     Ok(())
 }
 
-pub(crate) unsafe fn channel_write_multiple_registers_async(
+pub(crate) unsafe fn channel_write_multiple_registers(
     channel: *mut crate::Channel,
     start: u16,
     items: *mut crate::RegisterList,

@@ -1,27 +1,11 @@
+#include "rodbus.h"
+
+#include <inttypes.h>
+#include <stddef.h>
 #include <stdio.h>
-
-#include <rodbus.h>
-
-#ifdef __unix__
-#include <unistd.h>
-#elif defined _WIN32
-#include <windows.h>
-#define sleep(x) Sleep(1000 * (x))
-#endif
+#include <string.h>
 
 void on_log_message(rodbus_log_level_t level, const char *message, void *ctx) { printf("%s \n", message); }
-
-rodbus_logger_t get_logger()
-{
-    return (rodbus_logger_t){
-        // function pointer where log messages will be sent
-        .on_message = &on_log_message,
-        // no context to free
-        .on_destroy = NULL,
-        // optional context argument applied to all log callbacks
-        .ctx = NULL,
-    };
-}
 
 rodbus_write_result_t on_write_single_coil(bool value, uint16_t address, rodbus_database_t *db, void *ctx)
 {
@@ -46,7 +30,7 @@ rodbus_write_result_t on_write_single_register(uint16_t value, uint16_t address,
 rodbus_write_result_t on_write_multiple_coils(uint16_t start, rodbus_bit_iterator_t *it, rodbus_database_t *db, void *ctx)
 {
     rodbus_bit_t *bit = NULL;
-    while (bit = rodbus_next_bit(it)) {
+    while ((bit = rodbus_next_bit(it))) {
         if (!rodbus_database_update_coil(db, bit->index, bit->value)) {
             return rodbus_write_result_exception(RODBUS_MODBUS_EXCEPTION_ILLEGAL_DATA_ADDRESS);
         }
@@ -57,7 +41,7 @@ rodbus_write_result_t on_write_multiple_coils(uint16_t start, rodbus_bit_iterato
 rodbus_write_result_t on_write_multiple_registers(uint16_t start, rodbus_register_iterator_t *it, rodbus_database_t *db, void *ctx)
 {
     rodbus_register_t *reg = NULL;
-    while (reg = rodbus_next_register(it)) {
+    while ((reg = rodbus_next_register(it))) {
         if (!rodbus_database_update_holding_register(db, reg->index, reg->value)) {
             return rodbus_write_result_exception(RODBUS_MODBUS_EXCEPTION_ILLEGAL_DATA_ADDRESS);
         }
@@ -65,23 +49,11 @@ rodbus_write_result_t on_write_multiple_registers(uint16_t start, rodbus_registe
     return rodbus_write_result_success();
 }
 
-rodbus_write_handler_t get_write_handler()
-{
-    rodbus_write_handler_t ret = {
-        .write_single_coil = on_write_single_coil,
-        .write_single_register = on_write_single_register,
-        .write_multiple_coils = on_write_multiple_coils,
-        .write_multiple_registers = on_write_multiple_registers,
-        .ctx = NULL,
-        .destroy = NULL,
-    };
-
-    return ret;
-}
-
 typedef struct state_t {
-    uint16_t register_value;
-    bool bit_value;
+    bool coil_value;
+    bool discrete_input_value;
+    uint16_t holding_register_value;
+    uint16_t input_register_value;
 } state_t;
 
 void configure_db(rodbus_database_t *db, void *ctx)
@@ -94,52 +66,119 @@ void configure_db(rodbus_database_t *db, void *ctx)
     }
 }
 
-void update_db(rodbus_database_t *db, void *ctx)
+void update_coil(rodbus_database_t *db, void *ctx)
 {
     state_t *state = (state_t *)ctx;
 
-    state->bit_value = !state->bit_value;
-    state->register_value = state->register_value + 1;
+    state->coil_value = !state->coil_value;
 
     for (uint16_t i = 0; i < 10; ++i) {
-        rodbus_database_update_discrete_input(db, i, state->bit_value);
-        rodbus_database_update_input_register(db, i, state->register_value);
+        rodbus_database_update_coil(db, i, state->coil_value);
+    }
+}
+
+void update_discrete_input(rodbus_database_t *db, void *ctx)
+{
+    state_t *state = (state_t *)ctx;
+
+    state->discrete_input_value = !state->discrete_input_value;
+
+    for (uint16_t i = 0; i < 10; ++i) {
+        rodbus_database_update_discrete_input(db, i, state->discrete_input_value);
+    }
+}
+
+void update_holding_register(rodbus_database_t *db, void *ctx)
+{
+    state_t *state = (state_t *)ctx;
+
+    ++state->holding_register_value;
+
+    for (uint16_t i = 0; i < 10; ++i) {
+        rodbus_database_update_holding_register(db, i, state->holding_register_value);
+    }
+}
+
+void update_input_register(rodbus_database_t *db, void *ctx)
+{
+    state_t *state = (state_t *)ctx;
+
+    ++state->input_register_value;
+
+    for (uint16_t i = 0; i < 10; ++i) {
+        rodbus_database_update_input_register(db, i, state->input_register_value);
     }
 }
 
 int main()
 {
     // initialize logging with the default configuration
-    rodbus_configure_logging(rodbus_logging_config_init(), get_logger());
+    rodbus_logger_t logger = rodbus_logger_init(&on_log_message, NULL, NULL);
+    rodbus_configure_logging(rodbus_logging_config_init(), logger);
 
     rodbus_runtime_t *runtime = NULL;
     rodbus_server_t *server = NULL;
     rodbus_param_error_t err = RODBUS_PARAM_ERROR_OK;
 
+    // initialize the runtime
     rodbus_runtime_config_t runtime_config = rodbus_runtime_config_init();
     runtime_config.num_core_threads = 4;
     err = rodbus_runtime_new(runtime_config, &runtime);
-    if (!err) {
-        printf("Unable to initialize runtime\n");
+    if (err) {
+        printf("Unable to initialize runtime: %s\n", rodbus_param_error_to_string(err));
         goto cleanup;
     }
 
+    // create the device map
+    rodbus_write_handler_t write_handler =
+        rodbus_write_handler_init(&on_write_single_coil, &on_write_single_register, &on_write_multiple_coils, &on_write_multiple_registers, NULL, NULL);
     rodbus_device_map_t *map = rodbus_device_map_new();
-    rodbus_map_add_endpoint(map, 1, get_write_handler(), (rodbus_database_callback_t){.callback = configure_db, .ctx = NULL});
+    rodbus_map_add_endpoint(map,
+                            1,                                                      // Unit ID
+                            write_handler,                                          // Handler for write requests
+                            rodbus_database_callback_init(configure_db, NULL, NULL) // Callback for the initial state of the database
+    );
+
+    // create the TCP server
     rodbus_decode_level_t decode_level = rodbus_decode_level_init();
     err = rodbus_create_tcp_server(runtime, "127.0.0.1:502", 100, map, decode_level, &server);
     rodbus_device_map_destroy(map);
 
-    if (!err) {
-        printf("Unable to initialize server\n");
+    if (err) {
+        printf("Unable to initialize server: %s\n", rodbus_param_error_to_string(err));
         goto cleanup;
     }
 
-    state_t state = {.register_value = 0, .bit_value = false};
+    // state passed to the update callbacks
+    state_t state = {
+        .coil_value = false,
+        .discrete_input_value = false,
+        .holding_register_value = 0,
+        .input_register_value = 0,
+    };
 
+    char cbuf[10];
     while (true) {
-        rodbus_server_update_database(server, 1, (rodbus_database_callback_t){.callback = update_db, .ctx = &state});
-        sleep(1);
+        fgets(cbuf, 10, stdin);
+
+        if (strcmp(cbuf, "x\n") == 0) {
+            goto cleanup;
+        }
+        else if (strcmp(cbuf, "uc\n") == 0) {
+            rodbus_server_update_database(server, 1, rodbus_database_callback_init(update_coil, NULL, &state));
+        }
+        else if (strcmp(cbuf, "udi\n") == 0) {
+            rodbus_server_update_database(server, 1, rodbus_database_callback_init(update_discrete_input, NULL, &state));
+        }
+        else if (strcmp(cbuf, "uhr\n") == 0) {
+            rodbus_server_update_database(server, 1, rodbus_database_callback_init(update_holding_register, NULL, &state));
+        }
+        else if (strcmp(cbuf, "uir\n") == 0) {
+            rodbus_server_update_database(server, 1, rodbus_database_callback_init(update_input_register, NULL, &state));
+        }
+        else {
+            printf("Unknown command\n");
+        }
     }
 
 cleanup:
