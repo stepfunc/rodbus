@@ -64,7 +64,7 @@ impl ffi::RegisterReadCallback {
     }
 }
 
-impl ffi::ResultCallback {
+impl ffi::WriteCallback {
     /// we do't care what type T is b/c we're going to ignore it
     pub(crate) fn convert_to_fn_once<T>(
         self,

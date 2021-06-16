@@ -2,6 +2,7 @@ use crate::common::CommonDefinitions;
 
 use oo_bindgen::callback::InterfaceHandle;
 use oo_bindgen::class::{ClassDeclarationHandle, ClassHandle};
+use oo_bindgen::error_type::ErrorType;
 use oo_bindgen::native_function::{NativeFunctionHandle, ReturnType, Type};
 use oo_bindgen::native_struct::NativeStructHandle;
 use oo_bindgen::{BindingError, LibraryBuilder};
@@ -18,7 +19,7 @@ pub(crate) fn build_server(
     lib: &mut LibraryBuilder,
     common: &CommonDefinitions,
 ) -> Result<ClassHandle, BindingError> {
-    let database = build_database_class(lib)?;
+    let database = build_database_class(lib, &common)?;
 
     let db_update_callback = lib
         .define_interface(
@@ -125,6 +126,35 @@ pub(crate) fn build_add_fn(
         .build()
 }
 
+pub(crate) fn build_get_fn(
+    lib: &mut LibraryBuilder,
+    db: &ClassDeclarationHandle,
+    snake_name: &str,
+    value_type: Type,
+    error_type: &ErrorType,
+) -> Result<NativeFunctionHandle, BindingError> {
+    let spaced_name = snake_name.replace("_", " ");
+
+    lib.declare_native_function(&format!("database_get_{}", snake_name))?
+        .param(
+            "database",
+            Type::ClassRef(db.clone()),
+            "database to manipulate",
+        )?
+        .param(
+            "index",
+            Type::Uint16,
+            format!("address of the {}", spaced_name).as_str(),
+        )?
+        .return_type(ReturnType::Type(
+            value_type,
+            "current value of the point".into(),
+        ))?
+        .fails_with(error_type.clone())?
+        .doc(format!("get the current {} value of the database", spaced_name).as_str())?
+        .build()
+}
+
 pub(crate) fn build_delete_fn(
     lib: &mut LibraryBuilder,
     db: &ClassDeclarationHandle,
@@ -189,13 +219,39 @@ pub(crate) fn build_update_fn(
         .build()
 }
 
-pub(crate) fn build_database_class(lib: &mut LibraryBuilder) -> Result<ClassHandle, BindingError> {
+pub(crate) fn build_database_class(
+    lib: &mut LibraryBuilder,
+    common: &CommonDefinitions,
+) -> Result<ClassHandle, BindingError> {
     let database = lib.declare_class("Database")?;
 
     let add_coil_fn = build_add_fn(lib, &database, "coil", Type::Bool)?;
     let add_discrete_input_fn = build_add_fn(lib, &database, "discrete_input", Type::Bool)?;
     let add_holding_register_fn = build_add_fn(lib, &database, "holding_register", Type::Uint16)?;
     let add_input_register_fn = build_add_fn(lib, &database, "input_register", Type::Uint16)?;
+
+    let get_coil_fn = build_get_fn(lib, &database, "coil", Type::Bool, &common.error_type)?;
+    let get_discrete_input_fn = build_get_fn(
+        lib,
+        &database,
+        "discrete_input",
+        Type::Bool,
+        &common.error_type,
+    )?;
+    let get_holding_register_fn = build_get_fn(
+        lib,
+        &database,
+        "holding_register",
+        Type::Uint16,
+        &common.error_type,
+    )?;
+    let get_input_register_fn = build_get_fn(
+        lib,
+        &database,
+        "input_register",
+        Type::Uint16,
+        &common.error_type,
+    )?;
 
     let update_coil_fn = build_update_fn(lib, &database, "coil", Type::Bool)?;
     let update_discrete_input_fn = build_update_fn(lib, &database, "discrete_input", Type::Bool)?;
@@ -214,6 +270,11 @@ pub(crate) fn build_database_class(lib: &mut LibraryBuilder) -> Result<ClassHand
         .method("add_discrete_input", &add_discrete_input_fn)?
         .method("add_holding_register", &add_holding_register_fn)?
         .method("add_input_register", &add_input_register_fn)?
+        // get methods
+        .method("get_coil", &get_coil_fn)?
+        .method("get_discrete_input", &get_discrete_input_fn)?
+        .method("get_holding_register", &get_holding_register_fn)?
+        .method("get_input_register", &get_input_register_fn)?
         // update methods
         .method("update_coil", &update_coil_fn)?
         .method("update_discrete_input", &update_discrete_input_fn)?
@@ -367,8 +428,8 @@ pub(crate) fn build_write_handler_interface(
         "write_single_coil",
         "write a single coil received from the client",
     )?
-    .param("value", Type::Bool, "Value of the coil to write")?
     .param("index", Type::Uint16, "Index of the coil")?
+    .param("value", Type::Bool, "Value of the coil to write")?
     .param(
         "database",
         Type::ClassRef(database.clone()),
@@ -384,8 +445,8 @@ pub(crate) fn build_write_handler_interface(
         "write_single_register",
         "write a single coil received from the client",
     )?
-    .param("value", Type::Uint16, "Value of the register to write")?
     .param("index", Type::Uint16, "Index of the register")?
+    .param("value", Type::Uint16, "Value of the register to write")?
     .param(
         "database",
         Type::ClassRef(database.clone()),

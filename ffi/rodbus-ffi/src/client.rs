@@ -112,7 +112,7 @@ pub(crate) unsafe fn channel_write_single_coil(
     channel: *mut crate::Channel,
     bit: crate::ffi::Bit,
     param: crate::ffi::RequestParam,
-    callback: crate::ffi::ResultCallback,
+    callback: crate::ffi::WriteCallback,
 ) -> Result<(), ffi::ParamError> {
     let channel = channel.as_ref().ok_or(ffi::ParamError::NullParameter)?;
     let callback = callback.convert_to_fn_once();
@@ -129,7 +129,7 @@ pub(crate) unsafe fn channel_write_single_register(
     channel: *mut crate::Channel,
     register: crate::ffi::Register,
     param: crate::ffi::RequestParam,
-    callback: crate::ffi::ResultCallback,
+    callback: crate::ffi::WriteCallback,
 ) -> Result<(), ffi::ParamError> {
     let channel = channel.as_ref().ok_or(ffi::ParamError::NullParameter)?;
     let callback = callback.convert_to_fn_once();
@@ -147,7 +147,7 @@ pub(crate) unsafe fn channel_write_multiple_coils(
     start: u16,
     items: *mut crate::BitList,
     param: crate::ffi::RequestParam,
-    callback: crate::ffi::ResultCallback,
+    callback: crate::ffi::WriteCallback,
 ) -> Result<(), ffi::ParamError> {
     let channel = channel.as_ref().ok_or(ffi::ParamError::NullParameter)?;
     let items = items.as_ref().ok_or(ffi::ParamError::NullParameter)?;
@@ -167,7 +167,7 @@ pub(crate) unsafe fn channel_write_multiple_registers(
     start: u16,
     items: *mut crate::RegisterList,
     param: crate::ffi::RequestParam,
-    callback: crate::ffi::ResultCallback,
+    callback: crate::ffi::WriteCallback,
 ) -> Result<(), ffi::ParamError> {
     let channel = channel.as_ref().ok_or(ffi::ParamError::NullParameter)?;
     let items = items.as_ref().ok_or(ffi::ParamError::NullParameter)?;

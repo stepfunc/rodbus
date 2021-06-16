@@ -1,6 +1,8 @@
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 
+use crate::ffi;
+
 #[derive(Clone)]
 pub struct Database {
     pub(crate) coils: HashMap<u16, bool>,
@@ -27,6 +29,12 @@ fn add_entry<T>(map: &mut HashMap<u16, T>, index: u16, value: T) -> bool {
     } else {
         false
     }
+}
+
+fn get_entry<T: Copy>(map: &mut HashMap<u16, T>, index: u16) -> Result<T, ffi::ParamError> {
+    map.get(&index)
+        .copied()
+        .ok_or(ffi::ParamError::InvalidIndex)
 }
 
 fn update_entry<T>(map: &mut HashMap<u16, T>, index: u16, value: T) -> bool {
@@ -75,6 +83,46 @@ pub unsafe fn database_add_input_register(
     match database.as_mut() {
         None => false,
         Some(database) => add_entry(&mut database.input_registers, index, value),
+    }
+}
+
+pub unsafe fn database_get_coil(
+    database: *mut crate::Database,
+    index: u16,
+) -> Result<bool, ffi::ParamError> {
+    match database.as_mut() {
+        None => Err(ffi::ParamError::NullParameter),
+        Some(database) => get_entry(&mut database.coils, index),
+    }
+}
+
+pub unsafe fn database_get_discrete_input(
+    database: *mut crate::Database,
+    index: u16,
+) -> Result<bool, ffi::ParamError> {
+    match database.as_mut() {
+        None => Err(ffi::ParamError::NullParameter),
+        Some(database) => get_entry(&mut database.discrete_input, index),
+    }
+}
+
+pub unsafe fn database_get_holding_register(
+    database: *mut crate::Database,
+    index: u16,
+) -> Result<u16, ffi::ParamError> {
+    match database.as_mut() {
+        None => Err(ffi::ParamError::NullParameter),
+        Some(database) => get_entry(&mut database.holding_registers, index),
+    }
+}
+
+pub unsafe fn database_get_input_register(
+    database: *mut crate::Database,
+    index: u16,
+) -> Result<u16, ffi::ParamError> {
+    match database.as_mut() {
+        None => Err(ffi::ParamError::NullParameter),
+        Some(database) => get_entry(&mut database.input_registers, index),
     }
 }
 

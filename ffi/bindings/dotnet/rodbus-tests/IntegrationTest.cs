@@ -8,6 +8,30 @@ namespace rodbus_tests
 {
     class WriteHandler : IWriteHandler
     {
+        public WriteResult WriteSingleCoil(ushort index, bool value, Database database)
+        {
+            if (database.UpdateCoil(index, value))
+            {
+                return WriteResult.CreateSuccess();
+            }
+            else
+            {
+                return WriteResult.CreateException(rodbus.ModbusException.IllegalDataAddress);
+            }
+        }
+
+        public WriteResult WriteSingleRegister(ushort index, ushort value, Database database)
+        {
+            if (database.UpdateHoldingRegister(index, value))
+            {
+                return WriteResult.CreateSuccess();
+            }
+            else
+            {
+                return WriteResult.CreateException(rodbus.ModbusException.IllegalDataAddress);
+            }
+        }
+
         public WriteResult WriteMultipleCoils(ushort start, ICollection<Bit> it, Database database)
         {
             foreach (var bit in it)
@@ -32,30 +56,6 @@ namespace rodbus_tests
             }
 
             return WriteResult.CreateSuccess();
-        }
-
-        public WriteResult WriteSingleCoil(bool value, ushort index, Database database)
-        {
-            if (database.UpdateCoil(index, value))
-            {
-                return WriteResult.CreateSuccess();
-            }
-            else
-            {
-                return WriteResult.CreateException(rodbus.ModbusException.IllegalDataAddress);
-            }
-        }
-
-        public WriteResult WriteSingleRegister(ushort value, ushort index, Database database)
-        {
-            if (database.UpdateHoldingRegister(index, value))
-            {
-                return WriteResult.CreateSuccess();
-            }
-            else
-            {
-                return WriteResult.CreateException(rodbus.ModbusException.IllegalDataAddress);
-            }
         }
     }
 

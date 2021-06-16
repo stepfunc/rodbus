@@ -64,6 +64,7 @@ fn build_error_type(lib: &mut LibraryBuilder) -> Result<ErrorType, BindingError>
     .add_error("InvalidSocketAddress", "Invalid socket address")?
     .add_error("InvalidRange", "Invalid Modbus address range")?
     .add_error("InvalidRequest", "Invalid Modbus request")?
+    .add_error("InvalidIndex", "Invalid index")?
     .add_error(
         "ServerBindError",
         "Server failed to bind to the specified port",

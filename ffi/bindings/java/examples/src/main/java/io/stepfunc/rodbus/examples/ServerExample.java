@@ -20,7 +20,7 @@ class TestLogger implements Logger {
 
 class ExampleWriteHandler implements WriteHandler {
     @Override
-    public WriteResult writeSingleCoil(boolean value, UShort index, Database database) {
+    public WriteResult writeSingleCoil(UShort index, boolean value, Database database) {
         if(database.updateCoil(index, value)) {
             return WriteResult.createSuccess();
         } else {
@@ -29,7 +29,7 @@ class ExampleWriteHandler implements WriteHandler {
     }
 
     @Override
-    public WriteResult writeSingleRegister(UShort value, UShort index, Database database) {
+    public WriteResult writeSingleRegister(UShort index, UShort value, Database database) {
         if(database.updateHoldingRegister(index, value)) {
             return WriteResult.createSuccess();
         } else {

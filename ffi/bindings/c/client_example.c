@@ -102,7 +102,7 @@ int main()
 
     rodbus_bit_read_callback_t bit_callback = rodbus_bit_read_callback_init(on_read_bits_complete, NULL, NULL);
     rodbus_register_read_callback_t register_callback = rodbus_register_read_callback_init(on_read_registers_complete, NULL, NULL);
-    rodbus_result_callback_t result_callback = rodbus_result_callback_init(on_write_complete, NULL, NULL);
+    rodbus_write_callback_t write_callback = rodbus_write_callback_init(on_write_complete, NULL, NULL);
 
     char cbuf[10];
     while (true) {
@@ -125,11 +125,11 @@ int main()
         }
         else if (strcmp(cbuf, "wsc\n") == 0) {
             rodbus_bit_t bit_value = rodbus_bit_init(0, true);
-            rodbus_channel_write_single_coil(channel, bit_value, param, result_callback);
+            rodbus_channel_write_single_coil(channel, bit_value, param, write_callback);
         }
         else if (strcmp(cbuf, "wsr\n") == 0) {
             rodbus_register_t register_value = rodbus_register_init(0, 76);
-            rodbus_channel_write_single_register(channel, register_value, param, result_callback);
+            rodbus_channel_write_single_register(channel, register_value, param, write_callback);
         }
         else if (strcmp(cbuf, "wmc\n") == 0) {
             // create the bitlist
@@ -138,7 +138,7 @@ int main()
             rodbus_bit_list_add(bit_list, false);
 
             // send the request
-            rodbus_channel_write_multiple_coils(channel, 0, bit_list, param, result_callback);
+            rodbus_channel_write_multiple_coils(channel, 0, bit_list, param, write_callback);
 
             // destroy the bitlist
             rodbus_bit_list_destroy(bit_list);
@@ -150,7 +150,7 @@ int main()
             rodbus_register_list_add(register_list, 0xFE);
 
             // send the request
-            rodbus_channel_write_multiple_registers(channel, 0, register_list, param, result_callback);
+            rodbus_channel_write_multiple_registers(channel, 0, register_list, param, write_callback);
 
             // destroy the register list
             rodbus_register_list_destroy(register_list);

@@ -7,9 +7,9 @@
 
 void on_log_message(rodbus_log_level_t level, const char *message, void *ctx) { printf("%s \n", message); }
 
-rodbus_write_result_t on_write_single_coil(bool value, uint16_t address, rodbus_database_t *db, void *ctx)
+rodbus_write_result_t on_write_single_coil(uint16_t index, bool value, rodbus_database_t *db, void *ctx)
 {
-    if (rodbus_database_update_coil(db, address, value)) {
+    if (rodbus_database_update_coil(db, index, value)) {
         return rodbus_write_result_success();
     }
     else {
@@ -17,9 +17,9 @@ rodbus_write_result_t on_write_single_coil(bool value, uint16_t address, rodbus_
     }
 }
 
-rodbus_write_result_t on_write_single_register(uint16_t value, uint16_t address, rodbus_database_t *db, void *ctx)
+rodbus_write_result_t on_write_single_register(uint16_t index, uint16_t value, rodbus_database_t *db, void *ctx)
 {
-    if (rodbus_database_update_holding_register(db, address, value)) {
+    if (rodbus_database_update_holding_register(db, index, value)) {
         return rodbus_write_result_success();
     }
     else {

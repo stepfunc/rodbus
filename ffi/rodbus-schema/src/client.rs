@@ -53,7 +53,7 @@ pub(crate) fn build(
 
     let bit_read_callback = build_bit_read_callback(lib, common)?;
     let register_read_callback = build_register_read_callback(lib, common)?;
-    let result_only_callback = build_result_only_callback(lib, common)?;
+    let write_callback = build_write_callback(lib, common)?;
 
     let read_coils_fn = build_async_read_fn(
         "channel_read_coils",
@@ -96,7 +96,7 @@ pub(crate) fn build(
         lib,
         common,
         &channel,
-        &result_only_callback,
+        &write_callback,
         &common.bit,
         "write a single coil",
     )?;
@@ -106,7 +106,7 @@ pub(crate) fn build(
         lib,
         common,
         &channel,
-        &result_only_callback,
+        &write_callback,
         &common.register,
         "write a single register",
     )?;
@@ -117,7 +117,7 @@ pub(crate) fn build(
         lib,
         common,
         &channel,
-        &result_only_callback,
+        &write_callback,
         &list_of_bit,
         "write multiple coils",
     )?;
@@ -128,7 +128,7 @@ pub(crate) fn build(
         lib,
         common,
         &channel,
-        &result_only_callback,
+        &write_callback,
         &list_of_register,
         "write multiple registers",
     )?;
@@ -276,7 +276,7 @@ fn build_bit_read_callback(
         )?
         .callback(
             "on_complete",
-            "Called when the operation is complete or fails",
+            "Called when the operation completes or fails",
         )?
         .param("result", Type::Struct(bit_read_result), "result")?
         .return_type(ReturnType::void())?
@@ -304,7 +304,7 @@ fn build_register_read_callback(
         )?
         .callback(
             "on_complete",
-            "Called when the operation is complete or fails",
+            "Called when the operation completes or fails",
         )?
         .param("result", Type::Struct(read_result), "result")?
         .return_type(ReturnType::void())?
@@ -315,27 +315,24 @@ fn build_register_read_callback(
     Ok(read_callback)
 }
 
-fn build_result_only_callback(
+fn build_write_callback(
     lib: &mut LibraryBuilder,
     common: &CommonDefinitions,
 ) -> Result<InterfaceHandle, BindingError> {
-    lib.define_interface(
-        "ResultCallback",
-        "Callback type for anything that doesn't return a value, e.g. write operations",
-    )?
-    .callback(
-        "on_complete",
-        "Called when the operation is complete or fails",
-    )?
-    .param(
-        "result",
-        Type::Struct(common.error_info.clone()),
-        "result of the operation",
-    )?
-    .return_type(ReturnType::void())?
-    .build()?
-    .destroy_callback("on_destroy")?
-    .build()
+    lib.define_interface("WriteCallback", "Callback type for write operations")?
+        .callback(
+            "on_complete",
+            "Called when the operation completes or fails",
+        )?
+        .param(
+            "result",
+            Type::Struct(common.error_info.clone()),
+            "result of the operation",
+        )?
+        .return_type(ReturnType::void())?
+        .build()?
+        .destroy_callback("on_destroy")?
+        .build()
 }
 
 fn build_callback_struct(

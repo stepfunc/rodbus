@@ -69,7 +69,7 @@ impl RequestHandler for RequestHandlerWrapper {
     fn write_single_coil(&mut self, value: Indexed<bool>) -> Result<(), ExceptionCode> {
         match self
             .write_handler
-            .write_single_coil(value.value, value.index, &mut self.database)
+            .write_single_coil(value.index, value.value, &mut self.database)
         {
             Some(x) => {
                 if x.success() {
@@ -85,7 +85,7 @@ impl RequestHandler for RequestHandlerWrapper {
     fn write_single_register(&mut self, value: Indexed<u16>) -> Result<(), ExceptionCode> {
         match self
             .write_handler
-            .write_single_register(value.value, value.index, &mut self.database)
+            .write_single_register(value.index, value.value, &mut self.database)
         {
             Some(x) => x.convert_to_result(),
             None => Err(ExceptionCode::IllegalFunction),

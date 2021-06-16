@@ -49,43 +49,35 @@ public class ClientExample {
                 case "x":
                     return;
                 case "rc": {
-                    BitReadResult result = channel.readCoils(range, param).toCompletableFuture().get();
-                    handleBitResult(result);
+                    channel.readCoils(range, param).thenAccept(ClientExample::handleBitResult);
                     break;
                 }
                 case "rdi": {
-                    BitReadResult result = channel.readDiscreteInputs(range, param).toCompletableFuture().get();
-                    handleBitResult(result);
+                    channel.readDiscreteInputs(range, param).thenAccept(ClientExample::handleBitResult);
                     break;
                 }
                 case "rhr": {
-                    RegisterReadResult result = channel.readHoldingRegisters(range, param).toCompletableFuture().get();
-                    handleRegisterResult(result);
+                    channel.readHoldingRegisters(range, param).thenAccept(ClientExample::handleRegisterResult);
                     break;
                 }
                 case "rir": {
-                    RegisterReadResult result = channel.readInputRegisters(range, param).toCompletableFuture().get();
-                    handleRegisterResult(result);
+                    channel.readInputRegisters(range, param).thenAccept(ClientExample::handleRegisterResult);
                     break;
                 }
                 case "wsc": {
-                    ErrorInfo result = channel.writeSingleCoil(new Bit(ushort(0), true), param).toCompletableFuture().get();
-                    handleWriteResult(result);
+                    channel.writeSingleCoil(new Bit(ushort(0), true), param).thenAccept(ClientExample::handleWriteResult);
                     break;
                 }
                 case "wsr": {
-                    ErrorInfo result = channel.writeSingleRegister(new Register(ushort(0), ushort(76)), param).toCompletableFuture().get();
-                    handleWriteResult(result);
+                    channel.writeSingleRegister(new Register(ushort(0), ushort(76)), param).thenAccept(ClientExample::handleWriteResult);
                     break;
                 }
                 case "wmc": {
-                    ErrorInfo result = channel.writeMultipleCoils(ushort(0), Arrays.asList(true, false), param).toCompletableFuture().get();
-                    handleWriteResult(result);
+                    channel.writeMultipleCoils(ushort(0), Arrays.asList(true, false), param).thenAccept(ClientExample::handleWriteResult);
                     break;
                 }
                 case "wmr": {
-                    ErrorInfo result = channel.writeMultipleRegisters(ushort(0), Arrays.asList(ushort(0xCA), ushort(0xFE)), param).toCompletableFuture().get();
-                    handleWriteResult(result);
+                    channel.writeMultipleRegisters(ushort(0), Arrays.asList(ushort(0xCA), ushort(0xFE)), param).thenAccept(ClientExample::handleWriteResult);
                     break;
                 }
                 default:
