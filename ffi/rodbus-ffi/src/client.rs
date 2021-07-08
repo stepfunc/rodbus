@@ -1,4 +1,5 @@
 use crate::ffi;
+use rodbus::client::channel::ReconnectStrategy;
 use rodbus::types::{AddressRange, WriteMultiple};
 
 pub struct Channel {
@@ -10,6 +11,7 @@ pub(crate) unsafe fn create_tcp_client(
     runtime: *mut crate::Runtime,
     address: &std::ffi::CStr,
     max_queued_requests: u16,
+    retry_strategy: ffi::RetryStrategy,
     decode_level: ffi::DecodeLevel,
 ) -> Result<*mut crate::Channel, ffi::ParamError> {
     let runtime = runtime.as_ref().ok_or(ffi::ParamError::NullParameter)?;
@@ -18,7 +20,7 @@ pub(crate) unsafe fn create_tcp_client(
     let (handle, task) = rodbus::client::create_handle_and_task(
         address,
         max_queued_requests as usize,
-        rodbus::client::channel::strategy::default(),
+        retry_strategy.into(),
         decode_level.into(),
     );
 
@@ -38,8 +40,8 @@ pub(crate) unsafe fn channel_destroy(channel: *mut crate::Channel) {
 
 pub(crate) unsafe fn channel_read_coils(
     channel: *mut crate::Channel,
-    range: crate::ffi::AddressRange,
     param: crate::ffi::RequestParam,
+    range: crate::ffi::AddressRange,
     callback: crate::ffi::BitReadCallback,
 ) -> Result<(), ffi::ParamError> {
     let channel = channel.as_ref().ok_or(ffi::ParamError::NullParameter)?;
@@ -56,8 +58,8 @@ pub(crate) unsafe fn channel_read_coils(
 
 pub(crate) unsafe fn channel_read_discrete_inputs(
     channel: *mut crate::Channel,
-    range: crate::ffi::AddressRange,
     param: crate::ffi::RequestParam,
+    range: crate::ffi::AddressRange,
     callback: crate::ffi::BitReadCallback,
 ) -> Result<(), ffi::ParamError> {
     let channel = channel.as_ref().ok_or(ffi::ParamError::NullParameter)?;
@@ -74,8 +76,8 @@ pub(crate) unsafe fn channel_read_discrete_inputs(
 
 pub(crate) unsafe fn channel_read_holding_registers(
     channel: *mut crate::Channel,
-    range: crate::ffi::AddressRange,
     param: crate::ffi::RequestParam,
+    range: crate::ffi::AddressRange,
     callback: crate::ffi::RegisterReadCallback,
 ) -> Result<(), ffi::ParamError> {
     let channel = channel.as_ref().ok_or(ffi::ParamError::NullParameter)?;
@@ -92,8 +94,8 @@ pub(crate) unsafe fn channel_read_holding_registers(
 
 pub(crate) unsafe fn channel_read_input_registers(
     channel: *mut crate::Channel,
-    range: crate::ffi::AddressRange,
     param: crate::ffi::RequestParam,
+    range: crate::ffi::AddressRange,
     callback: crate::ffi::RegisterReadCallback,
 ) -> Result<(), ffi::ParamError> {
     let channel = channel.as_ref().ok_or(ffi::ParamError::NullParameter)?;
@@ -110,8 +112,8 @@ pub(crate) unsafe fn channel_read_input_registers(
 
 pub(crate) unsafe fn channel_write_single_coil(
     channel: *mut crate::Channel,
-    bit: crate::ffi::Bit,
     param: crate::ffi::RequestParam,
+    bit: crate::ffi::Bit,
     callback: crate::ffi::WriteCallback,
 ) -> Result<(), ffi::ParamError> {
     let channel = channel.as_ref().ok_or(ffi::ParamError::NullParameter)?;
@@ -127,8 +129,8 @@ pub(crate) unsafe fn channel_write_single_coil(
 
 pub(crate) unsafe fn channel_write_single_register(
     channel: *mut crate::Channel,
-    register: crate::ffi::Register,
     param: crate::ffi::RequestParam,
+    register: crate::ffi::Register,
     callback: crate::ffi::WriteCallback,
 ) -> Result<(), ffi::ParamError> {
     let channel = channel.as_ref().ok_or(ffi::ParamError::NullParameter)?;
@@ -144,9 +146,9 @@ pub(crate) unsafe fn channel_write_single_register(
 
 pub(crate) unsafe fn channel_write_multiple_coils(
     channel: *mut crate::Channel,
+    param: crate::ffi::RequestParam,
     start: u16,
     items: *mut crate::BitList,
-    param: crate::ffi::RequestParam,
     callback: crate::ffi::WriteCallback,
 ) -> Result<(), ffi::ParamError> {
     let channel = channel.as_ref().ok_or(ffi::ParamError::NullParameter)?;
@@ -164,9 +166,9 @@ pub(crate) unsafe fn channel_write_multiple_coils(
 
 pub(crate) unsafe fn channel_write_multiple_registers(
     channel: *mut crate::Channel,
+    param: crate::ffi::RequestParam,
     start: u16,
     items: *mut crate::RegisterList,
-    param: crate::ffi::RequestParam,
     callback: crate::ffi::WriteCallback,
 ) -> Result<(), ffi::ParamError> {
     let channel = channel.as_ref().ok_or(ffi::ParamError::NullParameter)?;
@@ -180,4 +182,10 @@ pub(crate) unsafe fn channel_write_multiple_registers(
         .block_on(session.write_multiple_registers(args, callback))?;
 
     Ok(())
+}
+
+impl From<ffi::RetryStrategy> for Box<dyn ReconnectStrategy + Send> {
+    fn from(from: ffi::RetryStrategy) -> Self {
+        rodbus::client::channel::strategy::doubling(from.min_delay(), from.max_delay())
+    }
 }

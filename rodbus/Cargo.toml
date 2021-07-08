@@ -16,4 +16,6 @@ tracing = "0.1"
 
 [dev-dependencies]
 tokio = { version = "1.5", features = ["rt-multi-thread", "macros"] }
+tokio-stream = "0.1"
+tokio-util = { version = "0.6", features = ["codec"] }
 tracing-subscriber = "0.2"

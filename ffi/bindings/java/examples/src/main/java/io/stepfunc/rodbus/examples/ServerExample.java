@@ -18,6 +18,7 @@ class TestLogger implements Logger {
     }
 }
 
+// ANCHOR: write_handler
 class ExampleWriteHandler implements WriteHandler {
     @Override
     public WriteResult writeSingleCoil(UShort index, boolean value, Database database) {
@@ -39,26 +40,31 @@ class ExampleWriteHandler implements WriteHandler {
 
     @Override
     public WriteResult writeMultipleCoils(UShort start, List<Bit> it, Database database) {
+        WriteResult result = WriteResult.createSuccess();
+
         for(Bit bit : it) {
             if(!database.updateCoil(bit.index, bit.value)) {
-                return WriteResult.createException(ModbusException.ILLEGAL_DATA_ADDRESS);
+                result = WriteResult.createException(ModbusException.ILLEGAL_DATA_ADDRESS);
             }
         }
 
-        return WriteResult.createSuccess();
+        return result;
     }
 
     @Override
     public WriteResult writeMultipleRegisters(UShort start, List<Register> it, Database database) {
+        WriteResult result = WriteResult.createSuccess();
+
         for(Register reg : it) {
             if(!database.updateHoldingRegister(reg.index, reg.value)) {
-                return WriteResult.createException(ModbusException.ILLEGAL_DATA_ADDRESS);
+                result = WriteResult.createException(ModbusException.ILLEGAL_DATA_ADDRESS);
             }
         }
 
-        return WriteResult.createSuccess();
+        return result;
     }
 }
+// ANCHOR_END: write_handler
 
 public class ServerExample {
     public static void main(String[] args) throws Exception {
@@ -71,6 +77,7 @@ public class ServerExample {
         Runtime runtime = new Runtime(runtimeConfig);
 
         // create the device map
+        // ANCHOR: device_map_init
         DeviceMap map = new DeviceMap();
         map.addEndpoint(ubyte(1), new ExampleWriteHandler(), db -> {
             for(int i = 0; i < 10; i++) {
@@ -80,9 +87,12 @@ public class ServerExample {
                 db.addInputRegister(ushort(i), ushort(0));
             }
         });
+        // ANCHOR_END: device_map_init
 
+        // ANCHOR: tcp_server_create
         DecodeLevel decodeLevel = new DecodeLevel();
         Server server = Server.createTcpServer(runtime, "127.0.0.1:502", ushort(10), map, decodeLevel);
+        // ANCHOR_END: tcp_server_create
 
         try {
             run(server);
@@ -108,11 +118,13 @@ public class ServerExample {
                 {
                     coilValue = !coilValue;
                     final boolean pointValue = coilValue;
+                    // ANCHOR: update_coil
                     server.update(ubyte(1), db -> {
                         for(int i = 0; i < 10; i++) {
                             db.updateCoil(ushort(i), pointValue);
                         }
                     });
+                    // ANCHOR_END: update_coil
                     break;
                 }
                 case "udi":

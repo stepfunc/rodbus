@@ -15,6 +15,7 @@ namespace example
             }
         }
 
+        // ANCHOR: write_handler
         class WriteHandler : IWriteHandler
         {
             public WriteResult WriteSingleCoil(ushort index, bool value, Database database)
@@ -43,30 +44,35 @@ namespace example
 
             public WriteResult WriteMultipleCoils(ushort start, ICollection<Bit> it, Database database)
             {
+                var result = WriteResult.CreateSuccess();
+
                 foreach (var bit in it)
                 {
                     if (!database.UpdateCoil(bit.Index, bit.Value))
                     {
-                        return WriteResult.CreateException(rodbus.ModbusException.IllegalDataAddress);
+                        result = WriteResult.CreateException(rodbus.ModbusException.IllegalDataAddress);
                     }
                 }
 
-                return WriteResult.CreateSuccess();
+                return result;
             }
 
             public WriteResult WriteMultipleRegisters(ushort start, ICollection<Register> it, Database database)
             {
+                var result = WriteResult.CreateSuccess();
+
                 foreach (var bit in it)
                 {
                     if (!database.UpdateHoldingRegister(bit.Index, bit.Value))
                     {
-                        return WriteResult.CreateException(rodbus.ModbusException.IllegalDataAddress);
+                        result = WriteResult.CreateException(rodbus.ModbusException.IllegalDataAddress);
                     }
                 }
 
-                return WriteResult.CreateSuccess();
+                return result;
             }
         }
+        // ANCHOR_END: write_handler
 
         static void Main(string[] args)
         {
@@ -80,6 +86,7 @@ namespace example
             var runtime = new Runtime(new RuntimeConfig { NumCoreThreads = 4 });
 
             // create the device map
+            // ANCHOR: device_map_init
             var map = new DeviceMap();
             map.AddEndpoint(1, new WriteHandler(), new DatabaseCallback((db) =>
             {
@@ -91,10 +98,13 @@ namespace example
                     db.AddInputRegister(i, 0);
                 }
             }));
+            // ANCHOR_END: device_map_init
 
             // create the TCP server
+            // ANCHOR: tcp_server_create
             var decodeLevel = new DecodeLevel();
             var server = Server.CreateTcpServer(runtime, "127.0.0.1:502", 10, map, decodeLevel);
+            // ANCHOR_END: tcp_server_create
 
             try
             {
@@ -120,6 +130,7 @@ namespace example
                     case "x":
                         return;
                     case "uc":
+                        // ANCHOR: update_coil
                         server.Update(1, new DatabaseCallback((db) =>
                         {
                             coilValue = !coilValue;
@@ -128,6 +139,7 @@ namespace example
                                 db.UpdateCoil(i, coilValue);
                             }
                         }));
+                        // ANCHOR_END: update_coil
                         break;
                     case "udi":
                         server.Update(1, new DatabaseCallback((db) =>

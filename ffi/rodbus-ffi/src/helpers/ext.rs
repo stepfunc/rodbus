@@ -1,17 +1,17 @@
 use crate::ffi;
-use rodbus::client::session::CallbackSession;
+use rodbus::client::channel::{CallbackSession, RequestParam};
 use rodbus::types::UnitId;
 use std::time::Duration;
 
 impl ffi::RequestParam {
-    pub(crate) fn build_session(
-        &self,
-        channel: &crate::Channel,
-    ) -> rodbus::client::session::CallbackSession {
-        CallbackSession::new(channel.inner.create_session(
-            UnitId::new(self.unit_id),
-            Duration::from_millis(self.timeout_ms as u64),
-        ))
+    pub(crate) fn build_session(&self, channel: &crate::Channel) -> CallbackSession {
+        CallbackSession::new(
+            channel.inner.clone(),
+            RequestParam::new(
+                UnitId::new(self.unit_id),
+                Duration::from_millis(self.timeout_ms as u64),
+            ),
+        )
     }
 }
 

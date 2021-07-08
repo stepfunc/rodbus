@@ -77,7 +77,7 @@ public class IntegrationTest {
         });
 
         final Server server = Server.createTcpServer(runtime, ENDPOINT, ushort(100), deviceMap, new DecodeLevel());
-        final Channel client = Channel.createTcpClient(runtime, ENDPOINT, ushort(10), new DecodeLevel());
+        final Channel client = Channel.createTcpClient(runtime, ENDPOINT, ushort(10), new RetryStrategy(), new DecodeLevel());
 
         // Set a unique pattern to test reads
         server.update(UNIT_ID, db -> {
@@ -96,7 +96,7 @@ public class IntegrationTest {
         RequestParam param = new RequestParam(UNIT_ID, TIMEOUT_MS);
         AddressRange range = new AddressRange(ushort(2), ushort(3));
 
-        BitReadResult result = client.readDiscreteInputs(range, param).toCompletableFuture().get();
+        BitReadResult result = client.readDiscreteInputs(param, range).toCompletableFuture().get();
 
         assertThat(result.result.summary).isEqualTo(Status.OK);
         assertThat(result.iterator).hasSize(3);
@@ -111,7 +111,7 @@ public class IntegrationTest {
 
         range.start = ushort(9);
         range.count = ushort(2);
-        result = client.readDiscreteInputs(range, param).toCompletableFuture().get();
+        result = client.readDiscreteInputs(param, range).toCompletableFuture().get();
 
         assertThat(result.result.summary).isEqualTo(Status.EXCEPTION);
         assertThat(result.result.exception).isEqualTo(ModbusException.ILLEGAL_DATA_ADDRESS);
@@ -121,7 +121,7 @@ public class IntegrationTest {
         RequestParam param = new RequestParam(UNIT_ID, TIMEOUT_MS);
         AddressRange range = new AddressRange(ushort(3), ushort(3));
 
-        RegisterReadResult result = client.readInputRegisters(range, param).toCompletableFuture().get();
+        RegisterReadResult result = client.readInputRegisters(param, range).toCompletableFuture().get();
 
         assertThat(result.result.summary).isEqualTo(Status.OK);
         assertThat(result.iterator).hasSize(3);
@@ -136,7 +136,7 @@ public class IntegrationTest {
 
         range.start = ushort(10);
         range.count = ushort(1);
-        result = client.readInputRegisters(range, param).toCompletableFuture().get();
+        result = client.readInputRegisters(param, range).toCompletableFuture().get();
 
         assertThat(result.result.summary).isEqualTo(Status.EXCEPTION);
         assertThat(result.result.exception).isEqualTo(ModbusException.ILLEGAL_DATA_ADDRESS);
@@ -146,14 +146,14 @@ public class IntegrationTest {
         RequestParam param = new RequestParam(UNIT_ID, TIMEOUT_MS);
         Bit bit = new Bit(ushort(1), true);
 
-        ErrorInfo writeResult = client.writeSingleCoil(bit, param).toCompletableFuture().get();
+        ErrorInfo writeResult = client.writeSingleCoil(param, bit).toCompletableFuture().get();
         assertThat(writeResult.summary).isEqualTo(Status.OK);
 
         // ======
 
         AddressRange range = new AddressRange(ushort(0), ushort(2));
 
-        BitReadResult readResult = client.readCoils(range, param).toCompletableFuture().get();
+        BitReadResult readResult = client.readCoils(param, range).toCompletableFuture().get();
 
         assertThat(readResult.result.summary).isEqualTo(Status.OK);
         assertThat(readResult.iterator).hasSize(2);
@@ -167,14 +167,14 @@ public class IntegrationTest {
         RequestParam param = new RequestParam(UNIT_ID, TIMEOUT_MS);
         Register register = new Register(ushort(1), ushort(22));
 
-        ErrorInfo writeResult = client.writeSingleRegister(register, param).toCompletableFuture().get();
+        ErrorInfo writeResult = client.writeSingleRegister(param, register).toCompletableFuture().get();
         assertThat(writeResult.summary).isEqualTo(Status.OK);
 
         // ======
 
         AddressRange range = new AddressRange(ushort(0), ushort(2));
 
-        RegisterReadResult readResult = client.readHoldingRegisters(range, param).toCompletableFuture().get();
+        RegisterReadResult readResult = client.readHoldingRegisters(param, range).toCompletableFuture().get();
 
         assertThat(readResult.result.summary).isEqualTo(Status.OK);
         assertThat(readResult.iterator).hasSize(2);
@@ -187,14 +187,14 @@ public class IntegrationTest {
     private void testWriteMultipleCoils(Channel client) throws ExecutionException, InterruptedException {
         RequestParam param = new RequestParam(UNIT_ID, TIMEOUT_MS);
 
-        ErrorInfo writeResult = client.writeMultipleCoils(ushort(0), Arrays.asList(true, false, true), param).toCompletableFuture().get();
+        ErrorInfo writeResult = client.writeMultipleCoils(param, ushort(0), Arrays.asList(true, false, true)).toCompletableFuture().get();
         assertThat(writeResult.summary).isEqualTo(Status.OK);
 
         // ======
 
         AddressRange range = new AddressRange(ushort(0), ushort(3));
 
-        BitReadResult readResult = client.readCoils(range, param).toCompletableFuture().get();
+        BitReadResult readResult = client.readCoils(param, range).toCompletableFuture().get();
 
         assertThat(readResult.result.summary).isEqualTo(Status.OK);
         assertThat(readResult.iterator).hasSize(3);
@@ -209,14 +209,14 @@ public class IntegrationTest {
     private void testWriteMultipleRegisters(Channel client) throws ExecutionException, InterruptedException {
         RequestParam param = new RequestParam(UNIT_ID, TIMEOUT_MS);
 
-        ErrorInfo writeResult = client.writeMultipleRegisters(ushort(0), Arrays.asList(ushort(0xCAFE), ushort(21), ushort(0xFFFF)), param).toCompletableFuture().get();
+        ErrorInfo writeResult = client.writeMultipleRegisters(param, ushort(0), Arrays.asList(ushort(0xCAFE), ushort(21), ushort(0xFFFF))).toCompletableFuture().get();
         assertThat(writeResult.summary).isEqualTo(Status.OK);
 
         // ======
 
         AddressRange range = new AddressRange(ushort(0), ushort(3));
 
-        RegisterReadResult readResult = client.readHoldingRegisters(range, param).toCompletableFuture().get();
+        RegisterReadResult readResult = client.readHoldingRegisters(param, range).toCompletableFuture().get();
 
         assertThat(readResult.result.summary).isEqualTo(Status.OK);
         assertThat(readResult.iterator).hasSize(3);

@@ -3,16 +3,30 @@ use std::time::Duration;
 
 use tracing::Instrument;
 
-use crate::client::message::Request;
-use crate::client::session::AsyncSession;
+use crate::client::message::{Promise, Request, RequestDetails};
+use crate::client::requests::read_bits::ReadBits;
+use crate::client::requests::read_registers::ReadRegisters;
+use crate::client::requests::write_multiple::MultipleWrite;
+use crate::client::requests::write_single::SingleWrite;
 use crate::decode::DecodeLevel;
+use crate::error::*;
 use crate::tcp::client::TcpChannelTask;
 use crate::tokio;
-use crate::types::UnitId;
+use crate::types::{AddressRange, BitIterator, Indexed, RegisterIterator, UnitId, WriteMultiple};
 
 /// Channel from which `AsyncSession` objects can be created to make requests
+#[derive(Clone)]
 pub struct Channel {
     tx: tokio::sync::mpsc::Sender<Request>,
+}
+
+/// Request parameters to dispatch the request to the proper device
+#[derive(Debug, Clone, Copy)]
+pub struct RequestParam {
+    /// Unit ID of the target device
+    pub id: UnitId,
+    /// Response timeout
+    pub response_timeout: Duration,
 }
 
 /// Dynamic trait that controls how the channel
@@ -70,6 +84,15 @@ pub mod strategy {
     }
 }
 
+impl RequestParam {
+    pub fn new(id: UnitId, response_timeout: Duration) -> Self {
+        Self {
+            id,
+            response_timeout,
+        }
+    }
+}
+
 impl Channel {
     pub(crate) fn new(
         addr: SocketAddr,
@@ -99,8 +122,280 @@ impl Channel {
         (Channel { tx }, task)
     }
 
-    /// Create an `AsyncSession` struct that can be used to make requests
-    pub fn create_session(&self, id: UnitId, response_timeout: Duration) -> AsyncSession {
-        AsyncSession::new(id, response_timeout, self.tx.clone())
+    pub async fn read_coils(
+        &mut self,
+        param: RequestParam,
+        range: AddressRange,
+    ) -> Result<Vec<Indexed<bool>>, Error> {
+        let (tx, rx) = tokio::sync::oneshot::channel::<Result<Vec<Indexed<bool>>, Error>>();
+        let request = wrap(
+            param,
+            RequestDetails::ReadCoils(ReadBits::new(
+                range.of_read_bits()?,
+                crate::client::requests::read_bits::Promise::Channel(tx),
+            )),
+        );
+        self.tx.send(request).await?;
+        rx.await?
     }
+
+    pub async fn read_discrete_inputs(
+        &mut self,
+        param: RequestParam,
+        range: AddressRange,
+    ) -> Result<Vec<Indexed<bool>>, Error> {
+        let (tx, rx) = tokio::sync::oneshot::channel::<Result<Vec<Indexed<bool>>, Error>>();
+        let request = wrap(
+            param,
+            RequestDetails::ReadDiscreteInputs(ReadBits::new(
+                range.of_read_bits()?,
+                crate::client::requests::read_bits::Promise::Channel(tx),
+            )),
+        );
+        self.tx.send(request).await?;
+        rx.await?
+    }
+
+    pub async fn read_holding_registers(
+        &mut self,
+        param: RequestParam,
+        range: AddressRange,
+    ) -> Result<Vec<Indexed<u16>>, Error> {
+        let (tx, rx) = tokio::sync::oneshot::channel::<Result<Vec<Indexed<u16>>, Error>>();
+        let request = wrap(
+            param,
+            RequestDetails::ReadHoldingRegisters(ReadRegisters::new(
+                range.of_read_registers()?,
+                crate::client::requests::read_registers::Promise::Channel(tx),
+            )),
+        );
+        self.tx.send(request).await?;
+        rx.await?
+    }
+
+    pub async fn read_input_registers(
+        &mut self,
+        param: RequestParam,
+        range: AddressRange,
+    ) -> Result<Vec<Indexed<u16>>, Error> {
+        let (tx, rx) = tokio::sync::oneshot::channel::<Result<Vec<Indexed<u16>>, Error>>();
+        let request = wrap(
+            param,
+            RequestDetails::ReadInputRegisters(ReadRegisters::new(
+                range.of_read_registers()?,
+                crate::client::requests::read_registers::Promise::Channel(tx),
+            )),
+        );
+        self.tx.send(request).await?;
+        rx.await?
+    }
+
+    pub async fn write_single_coil(
+        &mut self,
+        param: RequestParam,
+        request: Indexed<bool>,
+    ) -> Result<Indexed<bool>, Error> {
+        let (tx, rx) = tokio::sync::oneshot::channel::<Result<Indexed<bool>, Error>>();
+        let request = wrap(
+            param,
+            RequestDetails::WriteSingleCoil(SingleWrite::new(request, Promise::Channel(tx))),
+        );
+        self.tx.send(request).await?;
+        rx.await?
+    }
+
+    pub async fn write_single_register(
+        &mut self,
+        param: RequestParam,
+        request: Indexed<u16>,
+    ) -> Result<Indexed<u16>, Error> {
+        let (tx, rx) = tokio::sync::oneshot::channel::<Result<Indexed<u16>, Error>>();
+        let request = wrap(
+            param,
+            RequestDetails::WriteSingleRegister(SingleWrite::new(request, Promise::Channel(tx))),
+        );
+        self.tx.send(request).await?;
+        rx.await?
+    }
+
+    pub async fn write_multiple_coils(
+        &mut self,
+        param: RequestParam,
+        request: WriteMultiple<bool>,
+    ) -> Result<AddressRange, Error> {
+        let (tx, rx) = tokio::sync::oneshot::channel::<Result<AddressRange, Error>>();
+        let request = wrap(
+            param,
+            RequestDetails::WriteMultipleCoils(MultipleWrite::new(request, Promise::Channel(tx))),
+        );
+        self.tx.send(request).await?;
+        rx.await?
+    }
+
+    pub async fn write_multiple_registers(
+        &mut self,
+        param: RequestParam,
+        request: WriteMultiple<u16>,
+    ) -> Result<AddressRange, Error> {
+        let (tx, rx) = tokio::sync::oneshot::channel::<Result<AddressRange, Error>>();
+        let request = wrap(
+            param,
+            RequestDetails::WriteMultipleRegisters(MultipleWrite::new(
+                request,
+                Promise::Channel(tx),
+            )),
+        );
+        self.tx.send(request).await?;
+        rx.await?
+    }
+}
+
+/// Callback-based session
+///
+/// This interface removes some allocations when returning results.
+/// Its primary use is for the bindings. Rust users should prefer
+/// interacting with the channel directly.
+#[derive(Clone)]
+pub struct CallbackSession {
+    tx: tokio::sync::mpsc::Sender<Request>,
+    param: RequestParam,
+}
+
+impl CallbackSession {
+    pub fn new(channel: Channel, param: RequestParam) -> Self {
+        CallbackSession {
+            tx: channel.tx,
+            param,
+        }
+    }
+
+    pub async fn read_coils<C>(&mut self, range: AddressRange, callback: C)
+    where
+        C: FnOnce(Result<BitIterator, Error>) + Send + Sync + 'static,
+    {
+        self.read_bits(range, callback, RequestDetails::ReadCoils)
+            .await;
+    }
+
+    pub async fn read_discrete_inputs<C>(&mut self, range: AddressRange, callback: C)
+    where
+        C: FnOnce(Result<BitIterator, Error>) + Send + Sync + 'static,
+    {
+        self.read_bits(range, callback, RequestDetails::ReadDiscreteInputs)
+            .await;
+    }
+
+    pub async fn read_holding_registers<C>(&mut self, range: AddressRange, callback: C)
+    where
+        C: FnOnce(Result<RegisterIterator, Error>) + Send + Sync + 'static,
+    {
+        self.read_registers(range, callback, RequestDetails::ReadHoldingRegisters)
+            .await;
+    }
+
+    pub async fn read_input_registers<C>(&mut self, range: AddressRange, callback: C)
+    where
+        C: FnOnce(Result<RegisterIterator, Error>) + Send + Sync + 'static,
+    {
+        self.read_registers(range, callback, RequestDetails::ReadInputRegisters)
+            .await;
+    }
+
+    pub async fn write_single_coil<C>(&mut self, value: Indexed<bool>, callback: C)
+    where
+        C: FnOnce(Result<Indexed<bool>, Error>) + Send + Sync + 'static,
+    {
+        self.send(wrap(
+            self.param,
+            RequestDetails::WriteSingleCoil(SingleWrite::new(
+                value,
+                Promise::Callback(Box::new(callback)),
+            )),
+        ))
+        .await;
+    }
+
+    pub async fn write_single_register<C>(&mut self, value: Indexed<u16>, callback: C)
+    where
+        C: FnOnce(Result<Indexed<u16>, Error>) + Send + Sync + 'static,
+    {
+        self.send(wrap(
+            self.param,
+            RequestDetails::WriteSingleRegister(SingleWrite::new(
+                value,
+                Promise::Callback(Box::new(callback)),
+            )),
+        ))
+        .await;
+    }
+
+    pub async fn write_multiple_registers<C>(&mut self, value: WriteMultiple<u16>, callback: C)
+    where
+        C: FnOnce(Result<AddressRange, Error>) + Send + Sync + 'static,
+    {
+        self.send(wrap(
+            self.param,
+            RequestDetails::WriteMultipleRegisters(MultipleWrite::new(
+                value,
+                Promise::Callback(Box::new(callback)),
+            )),
+        ))
+        .await;
+    }
+
+    pub async fn write_multiple_coils<C>(&mut self, value: WriteMultiple<bool>, callback: C)
+    where
+        C: FnOnce(Result<AddressRange, Error>) + Send + Sync + 'static,
+    {
+        self.send(wrap(
+            self.param,
+            RequestDetails::WriteMultipleCoils(MultipleWrite::new(
+                value,
+                Promise::Callback(Box::new(callback)),
+            )),
+        ))
+        .await;
+    }
+
+    async fn read_bits<C, W>(&mut self, range: AddressRange, callback: C, wrap_req: W)
+    where
+        C: FnOnce(Result<BitIterator, Error>) + Send + Sync + 'static,
+        W: Fn(ReadBits) -> RequestDetails,
+    {
+        let promise = crate::client::requests::read_bits::Promise::Callback(Box::new(callback));
+        let range = match range.of_read_bits() {
+            Ok(x) => x,
+            Err(err) => return promise.failure(err.into()),
+        };
+        self.send(wrap(self.param, wrap_req(ReadBits::new(range, promise))))
+            .await;
+    }
+
+    async fn read_registers<C, W>(&mut self, range: AddressRange, callback: C, wrap_req: W)
+    where
+        C: FnOnce(Result<RegisterIterator, Error>) + Send + Sync + 'static,
+        W: Fn(ReadRegisters) -> RequestDetails,
+    {
+        let promise =
+            crate::client::requests::read_registers::Promise::Callback(Box::new(callback));
+        let range = match range.of_read_registers() {
+            Ok(x) => x,
+            Err(err) => return promise.failure(err.into()),
+        };
+        self.send(wrap(
+            self.param,
+            wrap_req(ReadRegisters::new(range, promise)),
+        ))
+        .await;
+    }
+
+    async fn send(&mut self, request: Request) {
+        if let Err(tokio::sync::mpsc::error::SendError(x)) = self.tx.send(request).await {
+            x.details.fail(Error::Shutdown);
+        }
+    }
+}
+
+fn wrap(param: RequestParam, details: RequestDetails) -> Request {
+    Request::new(param.id, param.response_timeout, details)
 }

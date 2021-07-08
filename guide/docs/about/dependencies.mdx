@@ -1,0 +1,47 @@
+---
+id: dependencies
+title: Managing Open Source Dependencies
+sidebar_label: Dependency Licenses
+slug: /dependencies
+---
+
+import useBaseUrl from '@docusaurus/useBaseUrl';
+import sitedata from '../../sitedata.json'
+
+While Rust's package manager `cargo` makes it easy to work with external dependencies, the nature of Rust's open-source ecosystem means that the number of dependencies can quickly proliferate. Our library only depends directly on a few third-party libraries; however, those libraries pull in dozens of sub-dependencies. Here's how we manage our direct and indirect dependencies.
+
+## Automated License Checking
+
+We developed an automated tool called `complicense` to ensure that our binary distributions meet the legal requirements for third-party open source licenses. This tool performs the following tasks:
+
+* Analyzes each dependency's license against an allowed list of licenses. Our CI packaging will fail if add a dependency is added with a license that has not been pre-approved.
+* Uses the Github API to automatically retrieve the license file for each project hosted on Github. Only a few projects don't have the proper metadata; the
+license name and content for those are specified manually in the `complicense` configuration.
+* Ignores projects that are 100% copyrighted by Step Function I/O (e.g., the DNP3 library itself).
+* Produces a license report document called `dependencies.txt` that consolidates all the dependency and license information. We include this document in all of our binary distributions for transparency and to make it
+easy for you to comply with the open source licenses.
+
+## Proprietary Compatible
+
+All of our library's dependencies use licenses that are mutually compatible and compatible with commercial/proprietary products. We don't allow the incorporation of strong copyleft licenses such as the GPL. You can see a complete list of allowed licenses
+in <a href={`${sitedata.github_url}/blob/${sitedata.version}/deps-config.json`}>deps-config.json</a>.
+
+## Licenses.txt
+
+`complicense` produces a detailed report called <a href={`${sitedata.github_url}/releases/download/${sitedata.version}/dependencies.txt`}>dependencies.txt</a> that includes the following
+information for each dependency:
+
+* Unique name of the library (Rust crate)
+* Repository URL where the library is hosted
+* Authors of the library as specified on [crates.io](https://crates.io/)
+* Description of the library
+* Name of the license(s) that apply to the crate
+* Full license text, including any copyright notices present
+
+Some libraries choose to dual-license under multiple licenses and give users the choice of which license to use. In this case, the report only includes the text of the license returned by the Github API.
+
+## Disclaimer
+
+We've included this information because we take open source license compliance seriously. That said, this information and the `dependencies.txt` file are provided for your reference and do not constitute legal advice. Treat this information as a starting point so you can perform your own due diligence to ensure compliance.
+
+

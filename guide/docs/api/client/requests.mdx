@@ -1,0 +1,230 @@
+---
+id: requests
+title: Requests
+sidebar_label: Requests
+slug: /api/client/requests
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+## Request parameters
+
+All requests take a `RequestParam` structure made of the following attributes:
+
+- `UnitId`: A single Modbus channel can communicate with many devices. The 8-bit unit
+  ID identifies which device the request is for. On a serial line, this is used
+  to implement a multi-drop scheme. On TCP/IP, it is used when communicating with
+  a gateway that relays the requests to multiple devices.
+- `Timeout`: This is the maximum time to wait for a response before reporting an error.
+
+A common pattern is to create a `RequestParam` for each device you communicate with
+and reuse it on every request.
+
+## Read requests
+
+The library supports four read requests:
+
+| Request name             | Response type    |
+| ------------------------ | ---------------- |
+| `read_coils`             | Single bits      |
+| `read_discrete_inputs`   | Single bits      |
+| `read_holding_registers` | 16-bit registers |
+| `read_input_registers`   | 16-bit registers |
+
+Each read request takes an `AddressRange` parameter to specify what values are requested.
+It has a 16-bit `start` index and a 16-bit `count` value.
+
+:::warning
+Be careful that `start` + `count` **must be smaller than 65,536**. If it's not the case
+the request will fail.
+:::
+
+The async response will have an iterator of the proper type containing the reported values.
+If an error occured, the iterator will be empty.
+
+The following example showcases reading the first 5 coils of a device:
+
+<Tabs
+groupId="language"
+defaultValue="Rust"
+values={[
+{label: 'Rust', value: 'Rust'},
+{label: 'C', value: 'C'},
+{label: 'Java', value: 'Java'},
+{label: 'C#', value: 'C#'},
+]}>
+<TabItem value="Rust">
+
+```rust
+{{#include ../rodbus/examples/client.rs:request_param}}
+
+{{#include ../rodbus/examples/client.rs:read_coils}}
+```
+
+</TabItem>
+<TabItem value="C">
+
+```c
+{{#include ../ffi/bindings/c/client_example.c:bit_read_callback}}
+
+{{#include ../ffi/bindings/c/client_example.c:request_param}}
+{{#include ../ffi/bindings/c/client_example.c:address_range}}
+{{#include ../ffi/bindings/c/client_example.c:bit_read_callback_init}}
+
+{{#include ../ffi/bindings/c/client_example.c:read_coils}}
+```
+
+</TabItem>
+<TabItem value="Java">
+
+```java
+{{#include ../ffi/bindings/java/examples/src/main/java/io/stepfunc/rodbus/examples/ClientExample.java:handle_bit_result}}
+
+{{#include ../ffi/bindings/java/examples/src/main/java/io/stepfunc/rodbus/examples/ClientExample.java:request_param}}
+{{#include ../ffi/bindings/java/examples/src/main/java/io/stepfunc/rodbus/examples/ClientExample.java:address_range}}
+
+{{#include ../ffi/bindings/java/examples/src/main/java/io/stepfunc/rodbus/examples/ClientExample.java:read_coils}}
+```
+
+</TabItem>
+<TabItem value="C#">
+
+```csharp
+{{#include ../ffi/bindings/dotnet/examples/client/Program.cs:request_param}}
+{{#include ../ffi/bindings/dotnet/examples/client/Program.cs:address_range}}
+
+{{#include ../ffi/bindings/dotnet/examples/client/Program.cs:read_coils}}
+{{#include ../ffi/bindings/dotnet/examples/client/Program.cs:handle_bit_result}}
+```
+
+</TabItem>
+</Tabs>
+
+## Write requests
+
+The library supports four write requests:
+
+- `write_single_coil`
+- `write_single_register`
+- `write_multiple_coils`
+- `write_multiple_registers`
+
+:::note
+The "register" that are written using the `write_single_register` and `write_multiple_registers`
+are actually holding registers.
+:::
+
+The "single" requests, as their name suggests, supports writing a single point at a time.
+The "multiple" requests supports writing multiple **contiguous** points of the same type
+at a time.
+
+In order to write discontiguous points, you need to issue multiple requests. Modbus does
+not have a transaction mechanism. Therefore, you must keep in mind that the device state
+might change in between requests.
+
+The following example showcases writing the value of a coil:
+
+<Tabs
+groupId="language"
+defaultValue="Rust"
+values={[
+{label: 'Rust', value: 'Rust'},
+{label: 'C', value: 'C'},
+{label: 'Java', value: 'Java'},
+{label: 'C#', value: 'C#'},
+]}>
+<TabItem value="Rust">
+
+```rust
+{{#include ../rodbus/examples/client.rs:request_param}}
+
+{{#include ../rodbus/examples/client.rs:write_single_coil}}
+```
+
+</TabItem>
+<TabItem value="C">
+
+```c
+{{#include ../ffi/bindings/c/client_example.c:write_callback}}
+
+{{#include ../ffi/bindings/c/client_example.c:request_param}}
+{{#include ../ffi/bindings/c/client_example.c:write_callback_init}}
+{{#include ../ffi/bindings/c/client_example.c:write_single_coil}}
+```
+
+</TabItem>
+<TabItem value="Java">
+
+```java
+{{#include ../ffi/bindings/java/examples/src/main/java/io/stepfunc/rodbus/examples/ClientExample.java:handle_write_result}}
+
+{{#include ../ffi/bindings/java/examples/src/main/java/io/stepfunc/rodbus/examples/ClientExample.java:request_param}}
+{{#include ../ffi/bindings/java/examples/src/main/java/io/stepfunc/rodbus/examples/ClientExample.java:write_single_coil}}
+```
+
+</TabItem>
+<TabItem value="C#">
+
+```csharp
+{{#include ../ffi/bindings/dotnet/examples/client/Program.cs:request_param}}
+{{#include ../ffi/bindings/dotnet/examples/client/Program.cs:write_single_coil}}
+
+{{#include ../ffi/bindings/dotnet/examples/client/Program.cs:handle_write_result}}
+```
+
+</TabItem>
+</Tabs>
+
+The following example showcases writing the multiple registers:
+
+<Tabs
+groupId="language"
+defaultValue="Rust"
+values={[
+{label: 'Rust', value: 'Rust'},
+{label: 'C', value: 'C'},
+{label: 'Java', value: 'Java'},
+{label: 'C#', value: 'C#'},
+]}>
+<TabItem value="Rust">
+
+```rust
+{{#include ../rodbus/examples/client.rs:request_param}}
+
+{{#include ../rodbus/examples/client.rs:write_multiple_registers}}
+```
+
+</TabItem>
+<TabItem value="C">
+
+```c
+{{#include ../ffi/bindings/c/client_example.c:write_callback}}
+
+{{#include ../ffi/bindings/c/client_example.c:request_param}}
+{{#include ../ffi/bindings/c/client_example.c:write_callback_init}}
+{{#include ../ffi/bindings/c/client_example.c:write_multiple_registers}}
+```
+
+</TabItem>
+<TabItem value="Java">
+
+```java
+{{#include ../ffi/bindings/java/examples/src/main/java/io/stepfunc/rodbus/examples/ClientExample.java:handle_write_result}}
+
+{{#include ../ffi/bindings/java/examples/src/main/java/io/stepfunc/rodbus/examples/ClientExample.java:request_param}}
+{{#include ../ffi/bindings/java/examples/src/main/java/io/stepfunc/rodbus/examples/ClientExample.java:write_multiple_registers}}
+```
+
+</TabItem>
+<TabItem value="C#">
+
+```csharp
+{{#include ../ffi/bindings/dotnet/examples/client/Program.cs:request_param}}
+{{#include ../ffi/bindings/dotnet/examples/client/Program.cs:write_multiple_registers}}
+
+{{#include ../ffi/bindings/dotnet/examples/client/Program.cs:handle_write_result}}
+```
+
+</TabItem>
+</Tabs>

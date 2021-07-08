@@ -6,9 +6,6 @@ use crate::decode::DecodeLevel;
 /// persistent communication channel such as a TCP connection
 pub mod channel;
 
-/// API used to communicate with the server
-pub mod session;
-
 pub(crate) mod message;
 pub(crate) mod requests;
 pub(crate) mod task;

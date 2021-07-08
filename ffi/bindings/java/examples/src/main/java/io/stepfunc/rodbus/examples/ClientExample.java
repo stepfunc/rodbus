@@ -9,37 +9,51 @@ import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.util.Arrays;
 
+// ANCHOR: logging_interface
 class ConsoleLogger implements Logger {
     @Override
     public void onMessage(LogLevel level, String message) {
         System.out.print(message);
     }
 }
+// ANCHOR_END: logging_interface
 
 public class ClientExample {
     public static void main(String[] args) throws Exception {
+        // ANCHOR: logging_init
         // initialize logging with the default configuration
         Logging.configure(new LoggingConfig(), new ConsoleLogger());
+        // ANCHOR_END: logging_init
 
         // initialize the runtime
+        // ANCHOR: runtime_init
         RuntimeConfig runtimeConfig = new RuntimeConfig();
         runtimeConfig.numCoreThreads = ushort(4);
         Runtime runtime = new Runtime(runtimeConfig);
+        // ANCHOR_END: runtime_init
 
         // initialize a Modbus TCP client channel
+        // ANCHOR: create_tcp_channel
         DecodeLevel decodeLevel = new DecodeLevel();
-        Channel channel = Channel.createTcpClient(runtime, "127.0.0.1:502", ushort(100), decodeLevel);
+        Channel channel = Channel.createTcpClient(runtime, "127.0.0.1:502", ushort(100), new RetryStrategy(), decodeLevel);
+        // ANCHOR_END: create_tcp_channel
 
         try {
             run(channel);
         } finally {
+            // ANCHOR: runtime_shutdown
             runtime.shutdown();
+            // ANCHOR_END: runtime_shutdown
         }
     }
 
     private static void run(Channel channel) throws Exception {
+        // ANCHOR: request_param
         final RequestParam param = new RequestParam(ubyte(1), uint(1000));
+        // ANCHOR_END: request_param
+        // ANCHOR: address_range
         final AddressRange range = new AddressRange(ushort(0), ushort(5));
+        // ANCHOR_END: address_range
 
         // Handle user input
         BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
@@ -49,35 +63,41 @@ public class ClientExample {
                 case "x":
                     return;
                 case "rc": {
-                    channel.readCoils(range, param).thenAccept(ClientExample::handleBitResult);
+                    // ANCHOR: read_coils
+                    channel.readCoils(param, range).thenAccept(ClientExample::handleBitResult);
+                    // ANCHOR_END: read_coils
                     break;
                 }
                 case "rdi": {
-                    channel.readDiscreteInputs(range, param).thenAccept(ClientExample::handleBitResult);
+                    channel.readDiscreteInputs(param, range).thenAccept(ClientExample::handleBitResult);
                     break;
                 }
                 case "rhr": {
-                    channel.readHoldingRegisters(range, param).thenAccept(ClientExample::handleRegisterResult);
+                    channel.readHoldingRegisters(param, range).thenAccept(ClientExample::handleRegisterResult);
                     break;
                 }
                 case "rir": {
-                    channel.readInputRegisters(range, param).thenAccept(ClientExample::handleRegisterResult);
+                    channel.readInputRegisters(param, range).thenAccept(ClientExample::handleRegisterResult);
                     break;
                 }
                 case "wsc": {
-                    channel.writeSingleCoil(new Bit(ushort(0), true), param).thenAccept(ClientExample::handleWriteResult);
+                    /// ANCHOR: write_single_coil
+                    channel.writeSingleCoil(param, new Bit(ushort(0), true)).thenAccept(ClientExample::handleWriteResult);
+                    /// ANCHOR_END: write_single_coil
                     break;
                 }
                 case "wsr": {
-                    channel.writeSingleRegister(new Register(ushort(0), ushort(76)), param).thenAccept(ClientExample::handleWriteResult);
+                    channel.writeSingleRegister(param, new Register(ushort(0), ushort(76))).thenAccept(ClientExample::handleWriteResult);
                     break;
                 }
                 case "wmc": {
-                    channel.writeMultipleCoils(ushort(0), Arrays.asList(true, false), param).thenAccept(ClientExample::handleWriteResult);
+                    channel.writeMultipleCoils(param, ushort(0), Arrays.asList(true, false)).thenAccept(ClientExample::handleWriteResult);
                     break;
                 }
                 case "wmr": {
-                    channel.writeMultipleRegisters(ushort(0), Arrays.asList(ushort(0xCA), ushort(0xFE)), param).thenAccept(ClientExample::handleWriteResult);
+                    // ANCHOR: write_multiple_registers
+                    channel.writeMultipleRegisters(param, ushort(0), Arrays.asList(ushort(0xCA), ushort(0xFE))).thenAccept(ClientExample::handleWriteResult);
+                    // ANCHOR_END: write_multiple_registers
                     break;
                 }
                 default:
@@ -87,6 +107,7 @@ public class ClientExample {
         }
     }
 
+    // ANCHOR: handle_bit_result
     private static void handleBitResult(BitReadResult result) {
         if (result.result.summary == Status.OK) {
             System.out.println("success!");
@@ -99,8 +120,10 @@ public class ClientExample {
             System.out.println("error: " + result.result.summary);
         }
     }
+    // ANCHOR_END: handle_bit_result
 
     private static void handleRegisterResult(RegisterReadResult result) {
+        // ANCHOR: error_handling
         if (result.result.summary == Status.OK) {
             System.out.println("success!");
             for(Register register : result.iterator) {
@@ -111,8 +134,10 @@ public class ClientExample {
         } else {
             System.out.println("error: " + result.result.summary);
         }
+        // ANCHOR_END: error_handling
     }
 
+    // ANCHOR: handle_write_result
     private static void handleWriteResult(ErrorInfo result) {
         if (result.summary == Status.OK) {
             System.out.println("success!");
@@ -122,4 +147,5 @@ public class ClientExample {
             System.out.println("error: " + result.summary);
         }
     }
+    /// ANCHOR_END: handle_write_result
 }

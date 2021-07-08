@@ -19,7 +19,7 @@ pub(crate) fn build_server(
     lib: &mut LibraryBuilder,
     common: &CommonDefinitions,
 ) -> Result<ClassHandle, BindingError> {
-    let database = build_database_class(lib, &common)?;
+    let database = build_database_class(lib, common)?;
 
     let db_update_callback = lib
         .define_interface(

@@ -1,9 +1,9 @@
 use oo_bindgen::callback::InterfaceHandle;
 use oo_bindgen::class::ClassDeclarationHandle;
 use oo_bindgen::iterator::IteratorHandle;
-use oo_bindgen::native_function::{NativeFunctionHandle, ReturnType, Type};
-use oo_bindgen::native_struct::NativeStructHandle;
-use oo_bindgen::{BindingError, LibraryBuilder};
+use oo_bindgen::native_function::{DurationMapping, NativeFunctionHandle, ReturnType, Type};
+use oo_bindgen::native_struct::{NativeStructHandle, StructElementType};
+use oo_bindgen::{doc, BindingError, LibraryBuilder};
 
 use crate::common::CommonDefinitions;
 use oo_bindgen::collection::CollectionHandle;
@@ -13,6 +13,8 @@ pub(crate) fn build(
     common: &CommonDefinitions,
 ) -> Result<(), BindingError> {
     let channel = lib.declare_class("Channel")?;
+
+    let retry_strategy = build_retry_strategy(lib)?;
 
     let create_tcp_client_fn = lib.declare_native_function("create_tcp_client")?;
     let create_tcp_client_fn = create_tcp_client_fn
@@ -26,6 +28,11 @@ pub(crate) fn build(
             "max_queued_requests",
             Type::Uint16,
             "Maximum number of requests to queue before failing the next request",
+        )?
+        .param(
+            "retry_strategy",
+            Type::Struct(retry_strategy),
+            "Reconnection timing strategy",
         )?
         .param(
             "decode_level",
@@ -171,14 +178,14 @@ fn build_async_write_single_fn(
             "channel on which to perform the write operation",
         )?
         .param(
-            "value",
-            Type::Struct(write_type.clone()),
-            "Address and value to write",
-        )?
-        .param(
             "param",
             Type::Struct(common.request_param.clone()),
             "parameters for the request",
+        )?
+        .param(
+            "value",
+            Type::Struct(write_type.clone()),
+            "Address and value to write",
         )?
         .param(
             "callback",
@@ -206,16 +213,16 @@ fn build_async_write_multiple_fn(
             Type::ClassRef(channel.clone()),
             "channel on which to perform the write operation",
         )?
+        .param(
+            "param",
+            Type::Struct(common.request_param.clone()),
+            "parameters for the request",
+        )?
         .param("start", Type::Uint16, "starting address")?
         .param(
             "items",
             Type::Collection(list_type.clone()),
             "list of items to write",
-        )?
-        .param(
-            "param",
-            Type::Struct(common.request_param.clone()),
-            "parameters for the request",
         )?
         .param(
             "callback",
@@ -243,14 +250,14 @@ fn build_async_read_fn(
             "channel on which to perform the read",
         )?
         .param(
-            "range",
-            Type::Struct(common.address_range.clone()),
-            "range of addresses to read",
-        )?
-        .param(
             "param",
             Type::Struct(common.request_param.clone()),
             "parameters for the request",
+        )?
+        .param(
+            "range",
+            Type::Struct(common.address_range.clone()),
+            "range of addresses to read",
         )?
         .param(
             "callback",
@@ -406,4 +413,29 @@ fn build_list(
         .build()?;
 
     lib.define_collection(&create_fn, &destroy_fn, &add_fn)
+}
+
+fn build_retry_strategy(lib: &mut LibraryBuilder) -> Result<NativeStructHandle, BindingError> {
+    let retry_strategy = lib.declare_native_struct("RetryStrategy")?;
+    lib.define_native_struct(&retry_strategy)?
+        .add(
+            "min_delay",
+            StructElementType::Duration(
+                DurationMapping::Milliseconds,
+                Some(std::time::Duration::from_secs(1)),
+            ),
+            "Minimum delay between two retries",
+        )?
+        .add(
+            "max_delay",
+            StructElementType::Duration(
+                DurationMapping::Milliseconds,
+                Some(std::time::Duration::from_secs(10)),
+            ),
+            "Maximum delay between two retries",
+        )?
+        .doc(doc("Retry strategy configuration.").details(
+            "The strategy uses an exponential back-off with a minimum and maximum value.",
+        ))?
+        .build()
 }

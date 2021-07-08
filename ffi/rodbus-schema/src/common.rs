@@ -169,5 +169,5 @@ fn build_iterator(
         .doc("advance the iterator")?
         .build()?;
 
-    lib.define_iterator_with_lifetime(&iterator_next_fn, &value_type)
+    lib.define_iterator_with_lifetime(&iterator_next_fn, value_type)
 }

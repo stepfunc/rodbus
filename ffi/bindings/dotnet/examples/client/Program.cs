@@ -8,6 +8,7 @@ namespace example
 {
     class Program
     {
+        // ANCHOR: logging_interface
         class ConsoleLogger : ILogger
         {
             public void OnMessage(LogLevel level, string message)
@@ -15,21 +16,28 @@ namespace example
                 Console.Write($"{level}: {message}");
             }
         }
+        // ANCHOR_END: logging_interface
 
         static void Main(string[] args)
         {
+            // ANCHOR: logging_init
             // initialize logging with the default configuration
             Logging.Configure(
                 new LoggingConfig(),
                 new ConsoleLogger()
             );
+            // ANCHOR_END: logging_init
 
             // initialize the runtime
+            // ANCHOR: runtime_init
             var runtime = new Runtime(new RuntimeConfig { NumCoreThreads = 4 });
+            // ANCHOR_END: runtime_init
 
             // initialize a Modbus TCP client channel
+            // ANCHOR: create_tcp_channel
             var decodeLevel = new DecodeLevel();
-            var channel = Channel.CreateTcpClient(runtime, "127.0.0.1:502", 100, decodeLevel);
+            var channel = Channel.CreateTcpClient(runtime, "127.0.0.1:502", 100, new RetryStrategy(), decodeLevel);
+            // ANCHOR_END: create_tcp_channel
 
             try
             {
@@ -37,14 +45,20 @@ namespace example
             }
             finally
             {
+                // ANCHOR: runtime_shutdown
                 runtime.Shutdown();
+                // ANCHOR_END: runtime_shutdown
             }
         }
 
         private static async Task RunChannel(Channel channel)
         {
+            // ANCHOR: request_param
             var param = new RequestParam(1, 1000);
+            // ANCHOR_END: request_param
+            // ANCHOR: address_range
             var range = new AddressRange(0, 5);
+            // ANCHOR_END: address_range
 
             while (true)
             {
@@ -54,49 +68,55 @@ namespace example
                         return;
                     case "rc":
                         {
-                            var result = await channel.ReadCoils(range, param);
+                            // ANCHOR: read_coils
+                            var result = await channel.ReadCoils(param, range);
+                            // ANCHOR_END: read_coils
                             HandleBitResult(result);
                             break;
                         }
                     case "rdi":
                         {
-                            var result = await channel.ReadDiscreteInputs(range, param);
+                            var result = await channel.ReadDiscreteInputs(param, range);
                             HandleBitResult(result);
                             break;
                         }
                     case "rhr":
                         {
-                            var result = await channel.ReadHoldingRegisters(range, param);
+                            var result = await channel.ReadHoldingRegisters(param, range);
                             HandleRegisterResult(result);
                             break;
                         }
                     case "rir":
                         {
-                            var result = await channel.ReadInputRegisters(range, param);
+                            var result = await channel.ReadInputRegisters(param, range);
                             HandleRegisterResult(result);
                             break;
                         }
                     case "wsc":
                         {
-                            var result = await channel.WriteSingleCoil(new Bit(0, true), param);
+                            /// ANCHOR: write_single_coil
+                            var result = await channel.WriteSingleCoil(param, new Bit(0, true));
+                            /// ANCHOR_END: write_single_coil
                             HandleWriteResult(result);
                             break;
                         }
                     case "wsr":
                         {
-                            var result = await channel.WriteSingleRegister(new Register(0, 76), param);
+                            var result = await channel.WriteSingleRegister(param, new Register(0, 76));
                             HandleWriteResult(result);
                             break;
                         }
                     case "wmc":
                         {
-                            var result = await channel.WriteMultipleCoils(0, new List<bool>() { true, false }, param);
+                            var result = await channel.WriteMultipleCoils(param, 0, new List<bool>() { true, false });
                             HandleWriteResult(result);
                             break;
                         }
                     case "wmr":
                         {
-                            var result = await channel.WriteMultipleRegisters(0, new List<ushort>() { 0xCA, 0xFE }, param);
+                            // ANCHOR: write_multiple_registers
+                            var result = await channel.WriteMultipleRegisters(param, 0, new List<ushort>() { 0xCA, 0xFE });
+                            // ANCHOR_END: write_multiple_registers
                             HandleWriteResult(result);
                             break;
                         }
@@ -109,6 +129,7 @@ namespace example
 
         private static void HandleBitResult(BitReadResult result)
         {
+            // ANCHOR: handle_bit_result
             if (result.Result.Summary == Status.Ok)
             {
                 Console.WriteLine("success!");
@@ -125,10 +146,12 @@ namespace example
             {
                 Console.WriteLine($"error: {result.Result.Summary}");
             }
+            // ANCHOR_END: handle_bit_result
         }
 
         private static void HandleRegisterResult(RegisterReadResult result)
         {
+            // ANCHOR: error_handling
             if (result.Result.Summary == Status.Ok)
             {
                 Console.WriteLine("success!");
@@ -145,10 +168,12 @@ namespace example
             {
                 Console.WriteLine($"error: {result.Result.Summary}");
             }
+            // ANCHOR_END: error_handling
         }
 
         private static void HandleWriteResult(ErrorInfo result)
         {
+            /// ANCHOR: handle_write_result
             if (result.Summary == Status.Ok)
             {
                 Console.WriteLine("success!");
@@ -161,6 +186,7 @@ namespace example
             {
                 Console.WriteLine($"error: {result.Summary}");
             }
+            /// ANCHOR_END: handle_write_result
         }
 
         private static Task<string> GetInputAsync()

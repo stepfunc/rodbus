@@ -46,21 +46,21 @@
 //!#[tokio::main(flavor = "multi_thread")]
 //!async fn main() -> Result<(), Box<dyn std::error::Error>> {
 //!
-//!    let channel = spawn_tcp_client_task(
+//!    let mut channel = spawn_tcp_client_task(
 //!        SocketAddr::from_str("127.0.0.1:502")?,
 //!        10,
 //!        strategy::default(),
 //!        DecodeLevel::default(),
 //!    );
 //!
-//!    let mut session = channel.create_session(
+//!    let param = RequestParam::new(
 //!        UnitId::new(0x02),
-//!        Duration::from_secs(1)
+//!        Duration::from_secs(1),
 //!    );
 //!
 //!    // try to poll for some coils every 3 seconds
 //!    loop {
-//!        match session.read_coils(AddressRange::try_from(0, 5).unwrap()).await {
+//!        match channel.read_coils(param, AddressRange::try_from(0, 5).unwrap()).await {
 //!            Ok(values) => {
 //!                for x in values {
 //!                    println!("index: {} value: {}", x.index, x.value)

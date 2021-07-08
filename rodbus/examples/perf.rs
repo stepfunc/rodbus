@@ -62,21 +62,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     .await?;
 
     // now spawn a bunch of clients
-    let mut sessions: Vec<AsyncSession> = Vec::new();
+    let mut channels: Vec<(Channel, RequestParam)> = Vec::new();
     for _ in 0..num_sessions {
-        sessions.push(
-            spawn_tcp_client_task(
-                addr,
-                10,
-                strategy::default(),
-                DecodeLevel::new(
-                    PduDecodeLevel::Nothing,
-                    AduDecodeLevel::Nothing,
-                    PhysDecodeLevel::Nothing,
-                ),
-            )
-            .create_session(UnitId::new(1), Duration::from_secs(1)),
+        let channel = spawn_tcp_client_task(
+            addr,
+            10,
+            strategy::default(),
+            DecodeLevel::new(
+                PduDecodeLevel::Nothing,
+                AduDecodeLevel::Nothing,
+                PhysDecodeLevel::Nothing,
+            ),
         );
+        let params = RequestParam::new(UnitId::new(1), Duration::from_secs(1));
+
+        channels.push((channel, params));
     }
 
     let mut query_tasks: Vec<tokio::task::JoinHandle<Result<(), Error>>> = Vec::new();
@@ -84,11 +84,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let start = std::time::Instant::now();
 
     // spawn tasks that make a query 1000 times
-    for mut session in sessions {
+    for (mut channel, params) in channels {
         let handle: tokio::task::JoinHandle<Result<(), Error>> = tokio::spawn(async move {
             for _ in 0..num_requests {
-                if let Err(err) = session
-                    .read_coils(AddressRange::try_from(0, 100).unwrap())
+                if let Err(err) = channel
+                    .read_coils(params, AddressRange::try_from(0, 100).unwrap())
                     .await
                 {
                     println!("failure: {}", err);
