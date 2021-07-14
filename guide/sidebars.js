@@ -22,9 +22,9 @@ module.exports = {
         'api/runtime',
         {
             Client: [
+                'api/client/tcp_client',
                 'api/client/requests',
                 'api/client/error',
-                'api/client/tcp_client',
             ]
         },
         {

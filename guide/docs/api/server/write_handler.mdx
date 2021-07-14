@@ -8,7 +8,7 @@ slug: /api/outstation/write_handler
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
-The `WriteHandler` interface lets application code receive write requests. Each callback receives a `Database`
+The `WriteHandler` interface allows you to process write requests in your application code. Each callback receives a `Database`
 object on which changes can be applied. Generally, when a value is written, it should be reflected back in
 the internal database.
 
@@ -17,7 +17,7 @@ In Rust, the `WriteHandler` does not exist, it is merged with the `RequestHandle
 :::
 
 :::warning
-The callback functions should be as short as possible and **should never block**.
+The callback functions **should never block** as they are being made from a `Runtime` thread.
 :::
 
 ## Return value
@@ -25,9 +25,11 @@ The callback functions should be as short as possible and **should never block**
 The return value of each callback function determines what is returned by the server. Here are the most common use cases:
 
 - The received index and value are valid, the database is updated and a success value is returned.
-- If the index points to a non-existent point, then a `ILLEGAL_DATA_ADDRESS` Modbus exception is returned.
-- If the value is not a supported value for this point, then a `ILLEGAL_DATA_VALUE` Modbus exception is returned.
-- If any other reasons makes the request invalid, a proper exception is returned.
+- If the requested index doesn't exist, then an `ILLEGAL_DATA_ADDRESS` Modbus exception should be returned.
+- If the requested value is not allowed for the point, then a `ILLEGAL_DATA_VALUE` Modbus exception should be returned.
+
+The library automatically responds to improperly formatted requests such as ones containing invalid start/count combinations. Such invalid
+requests are never forwarded to your application code.
 
 To return an exception, the `WriteResult` value is used. It has three static methods to help build results. The `create_success`
 methods is used to create a success result. The `create_exception` is used to write a standard Modbus exception. The `create_raw_exception`

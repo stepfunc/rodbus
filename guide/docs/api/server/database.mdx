@@ -13,27 +13,26 @@ a thread-safe data structure in memory.
 
 :::note
 For maximum versatility, the Rust interface does not provide a database implementation. The generic `RequestHandler` trait is used to get the values to return to the client.
-However, in most cases, you will simply store these values in an in-memory structure.
+However, in most cases, you would just store the values in a `Vec` or `HashMap`.
 :::
 
 ## Transactions
 
 All modifications to the internal database are done inside a transaction. All the changes are applied atomically at the end of the
-transaction. Therefore, it is impossible for a client to read multiple multiple coils in a single request and have an inconsistent
-response.
+transaction. This makes it impossible for clients to read inconsistent state in a single request.
 
 A transaction can be started on a running server with the `update` method. Inside the transaction, any operations can be performed.
 They will be executed in sequence.
 
 :::warning
-Because the transaction mechanism implies a lock, it is important to keep each transaction as short as possible. **Do not** wait
-for a time consuming task inside the transaction.
+Because the transaction mechanism acquires a lock on a mutex, it is important to keep each transaction as short as possible. Never perform a blocking operation
+inside a database transaction.
 :::
 
 ## Database Initialization
 
-When adding a device to the `DeviceMap`, an initialization transaction can be specified. This is usually used to add the points
-to the database so that when the server is actually created, it can immediately report values.
+When adding a device to the `DeviceMap`, an initialization transaction must be specified. This is usually used to add the points
+to the database so that when the server is actually created, it can immediately report valid values.
 
 <Tabs
 groupId="language"
@@ -109,8 +108,7 @@ values={[
 
 ## Getting Point Values
 
-Some applications may wish to use the `Database` as a cache of the most recent value. Each type has a getter method to retrieve
-the most recently assigned value.
+You may also use the `Database` as a cache of the most recent value if desired. Each type has a getter method to retrieve the most recently assigned value.
 
 :::note
 Since the point may not be defined, the getters can fail. If you try to retrieve a point that doesn't exist using Java and C#, an exception will be thrown.
@@ -120,4 +118,4 @@ Since the point may not be defined, the getters can fail. If you try to retrieve
 
 Most applications don't need to remove points, but the option is there in case you want to remove points from a running server.
 There is a type-specific function for removing every point type given its index. The returned boolean indicates if the point
-was successfully removed.
+was defined prior to the call to remove it.
