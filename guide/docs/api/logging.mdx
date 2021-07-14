@@ -81,7 +81,6 @@ The logs provide a wealth of contextual metadata so you can:
 
 * Determine which communication session produced the message
 * Understand what state the software was in when the event occurred
-* 
 
 ```
 Jun 21 10:33:01.608  INFO Modbus-Server-TCP{listen=127.0.0.1:502}: accepted connection 0 from: 127.0.0.1:1143
@@ -102,7 +101,7 @@ Jun 21 10:33:01.617  INFO shutdown session: 0
 
 ## Protocol Decoding
 
-Protocol decoding is configurable on a per-communication channel basis, such as all traffic on a TCP socket or a serial port. You can specify the
+Protocol decoding is configurable on a per-communication channel basis, such as all of the traffic on a TCP socket or a serial port. You can specify the
 `DecodeLevel` when you create a client or a server. This struct controls the level of decoding (including none) that takes place for each layer of the
 protocol stack, including:
 
@@ -113,7 +112,8 @@ protocol stack, including:
 Refer to the language-specific API documentation for the meaning of each enumeration value.
 
 :::note
-Protocol decoding is always output at the *Info* log level. If left enabled, it can be too verbose in a production system. When you're debugging a communication issue, try adjusting the application-layer decoding first to gain visibility into the messages exchanged.
+Protocol decoding is always output at the *Info* log level. If left enabled, it can be too verbose in a production system. When you're debugging a communication issue,
+try adjusting the application-layer decoding first to gain visibility into the messages being exchanged on one channel at a time.
 :::
 
 
