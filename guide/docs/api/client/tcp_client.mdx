@@ -8,8 +8,8 @@ slug: /api/client/tcp_client
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
-A `Channel` presents the same interface once you create it, regardless of the underlying transport.
-You can create a TCP client channel using `create_tcp_client` method.
+The `Channel` class represents a communication channel on which you can make requests to server device. `Channel` presents the same interface once you create it,
+regardless of the underlying transport. You can create a TCP client channel using `create_tcp_client` method.
 
 :::note
 In Rust, you can use the `spawn_tcp_client_task` to create a channel and spawn the runner task in the current runtime.
@@ -39,7 +39,6 @@ values={[
 {{#include ../ffi/bindings/c/client_example.c:error_decl}}
 
 {{#include ../ffi/bindings/c/client_example.c:create_tcp_channel}}
-// check error
 ```
 
 </TabItem>
@@ -59,27 +58,26 @@ values={[
 </TabItem>
 </Tabs>
 
-## Maximum queued request
+## Maximum Queued Requests
 
 Each channel sends one request at a time and has a fixed-length buffer of requests to send. If the queue is full when demanding
 a request, this call **will block** until the queue has enough space.
 
-## Endpoint configuration
+## Endpoint Configuration
 
-The endpoint may contain endpoints consisting of a `<host>:<port>` tuple where "host" is one of the following:
+The argument for the remote endpoint is a string in format the `<host>:<port>` where "host" must be one of the following:
 
 * IPv4 address
 * IPv6 address
-* DNS name
+* DNS name (library will perform DNS name resolution internally)
 
-## Retry strategy
+## Retry Strategy
 
-A channel tries to establish and maintain a connection as soon as it is created. To avoid flooding, reconnection
-delays are introduced.
+A TCP channel tries to establish and maintain a connection as soon as it is created. To avoid flooding, reconnection delays are applied.
 
 The `RetryStrategy` controls the rate at which the client retries failed connection attempts. The client uses exponential backoff when attempting to establish
 a connection. The delay between attempts doubles from `min_delay` up to `max_delay`.
 
-## Decode level
+## Decode Level
 
 See [logging configuration page](../logging.mdx#protocol-decoding) for more details.
