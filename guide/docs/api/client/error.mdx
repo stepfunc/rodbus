@@ -9,16 +9,13 @@ import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
 :::note
-Error handling is a bit different in Rust. Look at each returned `Result<T>` types
-returned for a better understanding.
+Error works differently is Rust. Look at the returned `Result<T>` types in the rustdoc for a better understanding.
 :::
 
 ## Param error
 
-When sending a request, the request might fail immediately with a `ParamError`
-exception. This means that one of the parameter is invalid and generally indicates
-that there is a programming error. Examples are `NULL` parameters or invalid
-address.
+When sending a request, it might fail immediately with a `ParamError` exception. This means that one of the parameters is invalid.
+Examples of bad parameters include `NULL` values or invalid addresses.
 
 ## Error info
 
@@ -26,18 +23,15 @@ In every response callback, there is a `ErrorInfo` structure that contains infor
 about the status of the request. The most important field to look at is `summary`.
 It has three main values:
 
-- If it is `STATUS_OK`, it means the request was successful and if data was
+- If it is `STATUS_OK`, it means the request was successful and if a data was
   requested, it will be present and valid.
-- If it is `STATUS_EXCEPTION`, it means the server returned a Modbus exception.
-  The `exception` field will contain the actual exception code returned. Also,
-  the `raw_exception` field will contain the raw value. This can be useful if
-  the `exception` value is `UNKNOWN`.
-- If it is anything else, it means something else prevented the client to obtain
-  a proper response (e.g. unable to establish a connection, timeout occured,
-  malformed response, etc.). Look at the `Status` enum documentation for more
-  details.
+- If it is `STATUS_EXCEPTION`, it means the server returned a Modbus exception and
+  the `exception` field will then contain the exception code. Also, the `raw_exception` field will contain the raw value. This can be useful if
+  the `exception` value is `UNKNOWN`. This will occur only if the server returns an exception code not defined in the Modbus specification.
+- If it is any other value,  something else prevented the client from obtaining a proper response (e.g. unable to establish a connection, timeout occurred,
+  malformed response, etc.). Look at the `Status` enum documentation for a list of all possible errors that can occur.
 
-Here is an example of error handling:
+Here is an example of performing error handling for a request to read registers:
 
 <Tabs
 groupId="language"
