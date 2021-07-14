@@ -10,12 +10,13 @@ import TabItem from '@theme/TabItem';
 
 ## Request parameters
 
-All requests take a `RequestParam` structure made of the following attributes:
+All requests take a `RequestParam` structure with the following fields:
 
 - `UnitId`: A single Modbus channel can communicate with many devices. The 8-bit unit
-  ID identifies which device the request is for. On a serial line, this is used
+  ID specifies the device for which the request is intended. On a serial line, this is used
   to implement a multi-drop scheme. On TCP/IP, it is used when communicating with
-  a gateway that relays the requests to multiple devices.
+  a gateway that relays the requests to multiple devices, or a single device that supports
+  multiple virtual sub-devices.
 - `Timeout`: This is the maximum time to wait for a response before reporting an error.
 
 A common pattern is to create a `RequestParam` for each device you communicate with
@@ -36,14 +37,13 @@ Each read request takes an `AddressRange` parameter to specify what values are r
 It has a 16-bit `start` index and a 16-bit `count` value.
 
 :::warning
-Be careful that `start` + `count` **must be smaller than 65,536**. If it's not the case
-the request will fail.
+The sum of the `start` and `count` fields **cannot exceed 65,536**. The library will automatically fail such invalid requests
+returning an error.
 :::
 
-The async response will have an iterator of the proper type containing the reported values.
-If an error occured, the iterator will be empty.
+The asynchronous response will contain an iterator with the received values. If an error occurs, the iterator will be empty.
 
-The following example showcases reading the first 5 coils of a device:
+The following example demonstrates reading the first 5 coils from a device:
 
 <Tabs
 groupId="language"
@@ -111,19 +111,18 @@ The library supports four write requests:
 - `write_multiple_registers`
 
 :::note
-The "register" that are written using the `write_single_register` and `write_multiple_registers`
-are actually holding registers.
+The registers that are written using the `write_single_register` and `write_multiple_registers`
+are *holding registers*.
 :::
 
-The "single" requests, as their name suggests, supports writing a single point at a time.
-The "multiple" requests supports writing multiple **contiguous** points of the same type
-at a time.
+The "single" requests, as their name suggests, writes a single point at a time.
+The "multiple" requests write multiple **contiguous** points of the same type in a single message.
 
-In order to write discontiguous points, you need to issue multiple requests. Modbus does
+In order to write a set of discontinuous points, you must perform multiple requests. Modbus does
 not have a transaction mechanism. Therefore, you must keep in mind that the device state
 might change in between requests.
 
-The following example showcases writing the value of a coil:
+The following example demonstrates how to write a coil:
 
 <Tabs
 groupId="language"
@@ -176,7 +175,7 @@ values={[
 </TabItem>
 </Tabs>
 
-The following example showcases writing the multiple registers:
+The following example demonstrates writing the multiple registers:
 
 <Tabs
 groupId="language"
