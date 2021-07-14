@@ -116,9 +116,9 @@ public class ServerExample {
                     return;
                 case "uc":
                 {
+                    // ANCHOR: update_coil
                     coilValue = !coilValue;
                     final boolean pointValue = coilValue;
-                    // ANCHOR: update_coil
                     server.update(ubyte(1), db -> {
                         for(int i = 0; i < 10; i++) {
                             db.updateCoil(ushort(i), pointValue);
