@@ -1,6 +1,9 @@
 use crate::common::function::FunctionCode;
-use crate::error::details::{ADUParseError, ExceptionCode};
+use crate::common::traits::Loggable;
+use crate::decode::PduDecodeLevel;
+use crate::error::details::{AduParseError, ExceptionCode};
 use crate::error::*;
+use crate::tokio;
 
 use crate::client::requests::read_bits::ReadBits;
 use crate::client::requests::read_registers::ReadRegisters;
@@ -10,7 +13,6 @@ use crate::common::cursor::{ReadCursor, WriteCursor};
 use crate::common::traits::Serialize;
 use crate::types::{Indexed, UnitId};
 use std::time::Duration;
-use tokio::sync::oneshot;
 
 pub(crate) struct Request {
     pub(crate) id: UnitId,
@@ -39,40 +41,61 @@ impl Request {
         }
     }
 
-    pub(crate) fn handle_response(self, payload: &[u8]) {
-        let code = self.details.function();
+    pub(crate) fn handle_response(self, payload: &[u8], decode: PduDecodeLevel) {
+        let expected_function = self.details.function();
         let mut cursor = ReadCursor::new(payload);
         let function = match cursor.read_u8() {
             Ok(x) => x,
-            Err(err) => return self.details.fail(err.into()),
+            Err(err) => {
+                tracing::warn!("unable to read function code");
+                return self.details.fail(err.into());
+            }
         };
-        if function == code.get_value() {
-            // call the request-specific response handler
-            return self.details.handle_response(cursor);
+
+        if function != expected_function.get_value() {
+            return self
+                .details
+                .fail(Self::get_error_for(function, expected_function, cursor));
         }
-        // complete the promise with the correct error
-        self.details
-            .fail(Self::get_error_for(function, code, cursor));
+
+        // If we made it this far, then everything's alright
+        // call the request-specific response handler
+        self.details.handle_response(cursor, decode)
     }
 
-    fn get_error_for(function: u8, code: FunctionCode, mut cursor: ReadCursor) -> Error {
-        if function == code.as_error() {
+    fn get_error_for(
+        function: u8,
+        expected_function: FunctionCode,
+        mut cursor: ReadCursor,
+    ) -> Error {
+        if function == expected_function.as_error() {
             match cursor.read_u8() {
                 Ok(x) => {
                     let exception = ExceptionCode::from(x);
                     if cursor.is_empty() {
+                        tracing::warn!(
+                            "PDU RX - Modbus exception {:?} ({:#04X})",
+                            exception,
+                            u8::from(exception)
+                        );
                         Error::Exception(exception)
                     } else {
-                        Error::BadResponse(ADUParseError::TrailingBytes(cursor.len()))
+                        tracing::warn!("invalid modbus exception");
+                        Error::BadResponse(AduParseError::TrailingBytes(cursor.len()))
                     }
                 }
                 Err(err) => err.into(),
             }
         } else {
-            Error::BadResponse(ADUParseError::UnknownResponseFunction(
+            tracing::warn!(
+                "function code {:#04X} does not match the expected {:#04X}",
                 function,
-                code.get_value(),
-                code.as_error(),
+                expected_function.get_value()
+            );
+            Error::BadResponse(AduParseError::UnknownResponseFunction(
+                function,
+                expected_function.get_value(),
+                expected_function.as_error(),
             ))
         }
     }
@@ -105,16 +128,19 @@ impl RequestDetails {
         }
     }
 
-    fn handle_response(self, cursor: ReadCursor) {
+    fn handle_response(self, cursor: ReadCursor, decode: PduDecodeLevel) {
+        let function = self.function();
         match self {
-            RequestDetails::ReadCoils(x) => x.handle_response(cursor),
-            RequestDetails::ReadDiscreteInputs(x) => x.handle_response(cursor),
-            RequestDetails::ReadHoldingRegisters(x) => x.handle_response(cursor),
-            RequestDetails::ReadInputRegisters(x) => x.handle_response(cursor),
-            RequestDetails::WriteSingleCoil(x) => x.handle_response(cursor),
-            RequestDetails::WriteSingleRegister(x) => x.handle_response(cursor),
-            RequestDetails::WriteMultipleCoils(x) => x.handle_response(cursor),
-            RequestDetails::WriteMultipleRegisters(x) => x.handle_response(cursor),
+            RequestDetails::ReadCoils(x) => x.handle_response(cursor, function, decode),
+            RequestDetails::ReadDiscreteInputs(x) => x.handle_response(cursor, function, decode),
+            RequestDetails::ReadHoldingRegisters(x) => x.handle_response(cursor, function, decode),
+            RequestDetails::ReadInputRegisters(x) => x.handle_response(cursor, function, decode),
+            RequestDetails::WriteSingleCoil(x) => x.handle_response(cursor, function, decode),
+            RequestDetails::WriteSingleRegister(x) => x.handle_response(cursor, function, decode),
+            RequestDetails::WriteMultipleCoils(x) => x.handle_response(cursor, function, decode),
+            RequestDetails::WriteMultipleRegisters(x) => {
+                x.handle_response(cursor, function, decode)
+            }
         }
     }
 }
@@ -134,8 +160,75 @@ impl Serialize for RequestDetails {
     }
 }
 
+impl Loggable for RequestDetails {
+    fn log(
+        &self,
+        _payload: &[u8],
+        level: PduDecodeLevel,
+        f: &mut std::fmt::Formatter,
+    ) -> std::fmt::Result {
+        write!(f, "{}", RequestDetailsDisplay::new(level, self))
+    }
+}
+
+pub(crate) struct RequestDetailsDisplay<'a> {
+    request: &'a RequestDetails,
+    level: PduDecodeLevel,
+}
+
+impl<'a> RequestDetailsDisplay<'a> {
+    pub(crate) fn new(level: PduDecodeLevel, request: &'a RequestDetails) -> Self {
+        Self { request, level }
+    }
+}
+
+impl std::fmt::Display for RequestDetailsDisplay<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if self.level.data_headers() {
+            match self.request {
+                RequestDetails::ReadCoils(details) => {
+                    write!(f, "{}", details.request.inner)?;
+                }
+                RequestDetails::ReadDiscreteInputs(details) => {
+                    write!(f, "{}", details.request.inner)?;
+                }
+                RequestDetails::ReadHoldingRegisters(details) => {
+                    write!(f, "{}", details.request.inner)?;
+                }
+                RequestDetails::ReadInputRegisters(details) => {
+                    write!(f, "{}", details.request.inner)?;
+                }
+                RequestDetails::WriteSingleCoil(details) => {
+                    write!(f, "{}", details.request)?;
+                }
+                RequestDetails::WriteSingleRegister(details) => {
+                    write!(f, "{}", details.request)?;
+                }
+                RequestDetails::WriteMultipleCoils(details) => {
+                    write!(f, "{}", details.request.range)?;
+                    if self.level.data_values() {
+                        for x in details.request.iter() {
+                            write!(f, "\n{}", x)?;
+                        }
+                    }
+                }
+                RequestDetails::WriteMultipleRegisters(details) => {
+                    write!(f, "{}", details.request.range)?;
+                    if self.level.data_values() {
+                        for x in details.request.iter() {
+                            write!(f, "\n{}", x)?;
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(())
+    }
+}
+
 pub(crate) enum Promise<T> {
-    Channel(oneshot::Sender<Result<T, Error>>),
+    Channel(tokio::sync::oneshot::Sender<Result<T, Error>>),
     Callback(Box<dyn FnOnce(Result<T, Error>) + Send + Sync + 'static>),
 }
 

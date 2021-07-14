@@ -1,6 +1,10 @@
+use std::fmt::Display;
+
 use crate::client::message::Promise;
 use crate::common::cursor::{ReadCursor, WriteCursor};
-use crate::error::details::ADUParseError;
+use crate::common::function::FunctionCode;
+use crate::decode::PduDecodeLevel;
+use crate::error::details::AduParseError;
 use crate::error::Error;
 use crate::types::{coil_from_u16, coil_to_u16, Indexed};
 
@@ -11,15 +15,15 @@ pub(crate) trait SingleWriteOperation: Sized + PartialEq {
 
 pub(crate) struct SingleWrite<T>
 where
-    T: SingleWriteOperation,
+    T: SingleWriteOperation + Display,
 {
-    request: T,
+    pub(crate) request: T,
     promise: Promise<T>,
 }
 
 impl<T> SingleWrite<T>
 where
-    T: SingleWriteOperation,
+    T: SingleWriteOperation + Display,
 {
     pub(crate) fn new(request: T, promise: Promise<T>) -> Self {
         Self { request, promise }
@@ -33,8 +37,28 @@ where
         self.promise.failure(err)
     }
 
-    pub(crate) fn handle_response(self, cursor: ReadCursor) {
+    pub(crate) fn handle_response(
+        self,
+        cursor: ReadCursor,
+        function: FunctionCode,
+        decode: PduDecodeLevel,
+    ) {
         let result = self.parse_all(cursor);
+
+        match &result {
+            Ok(response) => {
+                if decode.data_headers() {
+                    tracing::info!("PDU RX - {} {}", function, response);
+                } else if decode.header() {
+                    tracing::info!("PDU RX - {}", function);
+                }
+            }
+            Err(err) => {
+                // TODO: check if this is how we want to log it
+                tracing::warn!("{}", err);
+            }
+        }
+
         self.promise.complete(result)
     }
 
@@ -42,7 +66,7 @@ where
         let response = T::parse(&mut cursor)?;
         cursor.expect_empty()?;
         if self.request != response {
-            return Err(ADUParseError::ReplyEchoMismatch.into());
+            return Err(AduParseError::ReplyEchoMismatch.into());
         }
         Ok(response)
     }

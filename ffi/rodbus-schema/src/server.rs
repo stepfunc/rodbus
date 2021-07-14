@@ -1,7 +1,8 @@
 use crate::common::CommonDefinitions;
 
-use oo_bindgen::callback::{InterfaceHandle, OneTimeCallbackHandle};
+use oo_bindgen::callback::InterfaceHandle;
 use oo_bindgen::class::{ClassDeclarationHandle, ClassHandle};
+use oo_bindgen::error_type::ErrorType;
 use oo_bindgen::native_function::{NativeFunctionHandle, ReturnType, Type};
 use oo_bindgen::native_struct::NativeStructHandle;
 use oo_bindgen::{BindingError, LibraryBuilder};
@@ -18,10 +19,10 @@ pub(crate) fn build_server(
     lib: &mut LibraryBuilder,
     common: &CommonDefinitions,
 ) -> Result<ClassHandle, BindingError> {
-    let database = build_database_class(lib)?;
+    let database = build_database_class(lib, common)?;
 
     let db_update_callback = lib
-        .define_one_time_callback(
+        .define_interface(
             "DatabaseCallback",
             "Callback used to access the internal database while it is locked",
         )?
@@ -33,6 +34,7 @@ pub(crate) fn build_server(
         )?
         .return_type(ReturnType::void())?
         .build()?
+        .destroy_callback("on_destroy")?
         .build()?;
 
     let handler_map = build_handler_map(lib, &database.declaration, &db_update_callback, common)?;
@@ -53,15 +55,17 @@ pub(crate) fn build_server(
             Type::ClassRef(handler_map.declaration.clone()),
             "map of endpoints which is emptied upon passing to this function",
         )?
+        .param("decode_level", Type::Struct(common.decode_level.clone()), "Decode levels for this server")?
         .return_type(ReturnType::Type(
             Type::ClassRef(server.clone()),
             "handle to the server".into(),
         ))?
+        .fails_with(common.error_type.clone())?
         .doc("Launch a TCP server. When the maximum number of concurrent sessions is reached, the oldest session is closed.")?
         .build()?;
 
     let destroy_fn = lib
-        .declare_native_function("destroy_server")?
+        .declare_native_function("server_destroy")?
         .param(
             "server",
             Type::ClassRef(server.clone()),
@@ -73,10 +77,11 @@ pub(crate) fn build_server(
 
     let update_fn = lib
         .declare_native_function("server_update_database")?
-        .param("server", Type::ClassRef(server.clone()), "server on which the endpoint resides")?
+        .param("server", Type::ClassRef(server.clone()), "Server on which the endpoint resides")?
         .param("unit_id", Type::Uint8, "Unit id of the database to update")?
-        .param("transaction", Type::OneTimeCallback(db_update_callback), "callback invoked when a lock has been acquired")?
-        .return_type(ReturnType::Type(Type::Bool, "true if the unit id is present, false otherwise".into()))?
+        .param("transaction", Type::Interface(db_update_callback), "callback invoked when a lock has been acquired")?
+        .return_type(ReturnType::void())?
+        .fails_with(common.error_type.clone())?
         .doc("Update the database associated with a particular unit id. If the unit id exists, lock the database and call user code to perform the transaction")?
         .build()?;
 
@@ -84,6 +89,7 @@ pub(crate) fn build_server(
         .destructor(&destroy_fn)?
         .method("update", &update_fn)?
         .static_method("create_tcp_server", &create_tcp_server_fn)?
+        .custom_destroy("Shutdown")?
         .doc("Handle to the running server. The server remains alive until this reference is destroyed")?
         .build()
 }
@@ -117,6 +123,35 @@ pub(crate) fn build_add_fn(
             "true if the value is new, false otherwise".into(),
         ))?
         .doc(format!("add a new {} to the database", spaced_name).as_str())?
+        .build()
+}
+
+pub(crate) fn build_get_fn(
+    lib: &mut LibraryBuilder,
+    db: &ClassDeclarationHandle,
+    snake_name: &str,
+    value_type: Type,
+    error_type: &ErrorType,
+) -> Result<NativeFunctionHandle, BindingError> {
+    let spaced_name = snake_name.replace("_", " ");
+
+    lib.declare_native_function(&format!("database_get_{}", snake_name))?
+        .param(
+            "database",
+            Type::ClassRef(db.clone()),
+            "database to manipulate",
+        )?
+        .param(
+            "index",
+            Type::Uint16,
+            format!("address of the {}", spaced_name).as_str(),
+        )?
+        .return_type(ReturnType::Type(
+            value_type,
+            "current value of the point".into(),
+        ))?
+        .fails_with(error_type.clone())?
+        .doc(format!("get the current {} value of the database", spaced_name).as_str())?
         .build()
 }
 
@@ -184,13 +219,39 @@ pub(crate) fn build_update_fn(
         .build()
 }
 
-pub(crate) fn build_database_class(lib: &mut LibraryBuilder) -> Result<ClassHandle, BindingError> {
+pub(crate) fn build_database_class(
+    lib: &mut LibraryBuilder,
+    common: &CommonDefinitions,
+) -> Result<ClassHandle, BindingError> {
     let database = lib.declare_class("Database")?;
 
     let add_coil_fn = build_add_fn(lib, &database, "coil", Type::Bool)?;
     let add_discrete_input_fn = build_add_fn(lib, &database, "discrete_input", Type::Bool)?;
     let add_holding_register_fn = build_add_fn(lib, &database, "holding_register", Type::Uint16)?;
     let add_input_register_fn = build_add_fn(lib, &database, "input_register", Type::Uint16)?;
+
+    let get_coil_fn = build_get_fn(lib, &database, "coil", Type::Bool, &common.error_type)?;
+    let get_discrete_input_fn = build_get_fn(
+        lib,
+        &database,
+        "discrete_input",
+        Type::Bool,
+        &common.error_type,
+    )?;
+    let get_holding_register_fn = build_get_fn(
+        lib,
+        &database,
+        "holding_register",
+        Type::Uint16,
+        &common.error_type,
+    )?;
+    let get_input_register_fn = build_get_fn(
+        lib,
+        &database,
+        "input_register",
+        Type::Uint16,
+        &common.error_type,
+    )?;
 
     let update_coil_fn = build_update_fn(lib, &database, "coil", Type::Bool)?;
     let update_discrete_input_fn = build_update_fn(lib, &database, "discrete_input", Type::Bool)?;
@@ -209,6 +270,11 @@ pub(crate) fn build_database_class(lib: &mut LibraryBuilder) -> Result<ClassHand
         .method("add_discrete_input", &add_discrete_input_fn)?
         .method("add_holding_register", &add_holding_register_fn)?
         .method("add_input_register", &add_input_register_fn)?
+        // get methods
+        .method("get_coil", &get_coil_fn)?
+        .method("get_discrete_input", &get_discrete_input_fn)?
+        .method("get_holding_register", &get_holding_register_fn)?
+        .method("get_input_register", &get_input_register_fn)?
         // update methods
         .method("update_coil", &update_coil_fn)?
         .method("update_discrete_input", &update_discrete_input_fn)?
@@ -227,7 +293,7 @@ pub(crate) fn build_database_class(lib: &mut LibraryBuilder) -> Result<ClassHand
 pub(crate) fn build_handler_map(
     lib: &mut LibraryBuilder,
     database: &ClassDeclarationHandle,
-    db_update_callback: &OneTimeCallbackHandle,
+    db_update_callback: &InterfaceHandle,
     common: &CommonDefinitions,
 ) -> Result<ClassHandle, BindingError> {
     let write_handler = build_write_handler_interface(lib, database, common)?;
@@ -235,7 +301,7 @@ pub(crate) fn build_handler_map(
     let device_map = lib.declare_class("DeviceMap")?;
 
     let create_map = lib
-        .declare_native_function("create_device_map")?
+        .declare_native_function("device_map_new")?
         .return_type(ReturnType::Type(
             Type::ClassRef(device_map.clone()),
             "Device map instance".into(),
@@ -244,7 +310,7 @@ pub(crate) fn build_handler_map(
         .build()?;
 
     let destroy_map = lib
-        .declare_native_function("destroy_device_map")?
+        .declare_native_function("device_map_destroy")?
         .param(
             "map",
             Type::ClassRef(device_map.clone()),
@@ -269,7 +335,7 @@ pub(crate) fn build_handler_map(
         )?
         .param(
             "configure",
-            Type::OneTimeCallback(db_update_callback.clone()),
+            Type::Interface(db_update_callback.clone()),
             "one-time callback interface configuring the initial state of the database",
         )?
         .return_type(ReturnType::Type(
@@ -362,8 +428,8 @@ pub(crate) fn build_write_handler_interface(
         "write_single_coil",
         "write a single coil received from the client",
     )?
-    .param("value", Type::Bool, "Value of the coil to write")?
     .param("index", Type::Uint16, "Index of the coil")?
+    .param("value", Type::Bool, "Value of the coil to write")?
     .param(
         "database",
         Type::ClassRef(database.clone()),
@@ -379,8 +445,8 @@ pub(crate) fn build_write_handler_interface(
         "write_single_register",
         "write a single coil received from the client",
     )?
-    .param("value", Type::Uint16, "Value of the register to write")?
     .param("index", Type::Uint16, "Index of the register")?
+    .param("value", Type::Uint16, "Value of the register to write")?
     .param(
         "database",
         Type::ClassRef(database.clone()),

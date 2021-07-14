@@ -4,6 +4,7 @@ use crate::common::buffer::ReadBuffer;
 use crate::common::cursor::WriteCursor;
 use crate::common::frame::{Frame, FrameFormatter, FrameHeader, FrameParser, TxId};
 use crate::common::traits::Serialize;
+use crate::decode::AduDecodeLevel;
 use crate::error::*;
 use crate::types::UnitId;
 
@@ -15,8 +16,8 @@ pub(crate) mod constants {
     pub(crate) const MAX_LENGTH_FIELD: usize = crate::common::frame::constants::MAX_ADU_LENGTH + 1;
 }
 
-#[derive(Clone, Copy)]
-struct MBAPHeader {
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct MbapHeader {
     tx_id: TxId,
     adu_length: usize,
     unit_id: UnitId,
@@ -25,33 +26,37 @@ struct MBAPHeader {
 #[derive(Clone, Copy)]
 enum ParseState {
     Begin,
-    Header(MBAPHeader),
+    Header(MbapHeader),
 }
 
-pub(crate) struct MBAPParser {
+pub(crate) struct MbapParser {
     state: ParseState,
+    decode: AduDecodeLevel,
 }
 
-pub(crate) struct MBAPFormatter {
+pub(crate) struct MbapFormatter {
     buffer: [u8; constants::MAX_FRAME_LENGTH],
+    decode: AduDecodeLevel,
 }
 
-impl MBAPFormatter {
-    pub(crate) fn new() -> Self {
+impl MbapFormatter {
+    pub(crate) fn new(decode: AduDecodeLevel) -> Self {
         Self {
             buffer: [0; constants::MAX_FRAME_LENGTH],
+            decode,
         }
     }
 }
 
-impl MBAPParser {
-    pub(crate) fn new() -> Self {
+impl MbapParser {
+    pub(crate) fn new(decode: AduDecodeLevel) -> Self {
         Self {
             state: ParseState::Begin,
+            decode,
         }
     }
 
-    fn parse_header(cursor: &mut ReadBuffer) -> Result<MBAPHeader, Error> {
+    fn parse_header(cursor: &mut ReadBuffer) -> Result<MbapHeader, Error> {
         let tx_id = TxId::new(cursor.read_u16_be()?);
         let protocol_id = cursor.read_u16_be()?;
         let length = cursor.read_u16_be()? as usize;
@@ -62,7 +67,7 @@ impl MBAPParser {
         }
 
         if length > constants::MAX_LENGTH_FIELD {
-            return Err(details::FrameParseError::MBAPLengthTooBig(
+            return Err(details::FrameParseError::MbapLengthTooBig(
                 length,
                 constants::MAX_LENGTH_FIELD,
             )
@@ -71,24 +76,24 @@ impl MBAPParser {
 
         // must be > 0 b/c the 1-byte unit identifier counts towards length
         if length == 0 {
-            return Err(details::FrameParseError::MBAPLengthZero.into());
+            return Err(details::FrameParseError::MbapLengthZero.into());
         }
 
-        Ok(MBAPHeader {
+        Ok(MbapHeader {
             tx_id,
             adu_length: length - 1,
             unit_id,
         })
     }
 
-    fn parse_body(header: &MBAPHeader, cursor: &mut ReadBuffer) -> Result<Frame, Error> {
+    fn parse_body(header: &MbapHeader, cursor: &mut ReadBuffer) -> Result<Frame, Error> {
         let mut frame = Frame::new(FrameHeader::new(header.unit_id, header.tx_id));
         frame.set(cursor.read(header.adu_length)?);
         Ok(frame)
     }
 }
 
-impl FrameParser for MBAPParser {
+impl FrameParser for MbapParser {
     fn max_frame_size(&self) -> usize {
         constants::MAX_FRAME_LENGTH
     }
@@ -100,9 +105,17 @@ impl FrameParser for MBAPParser {
                     return Ok(None);
                 }
 
-                let ret = Self::parse_body(&header, cursor)?;
+                let frame = Self::parse_body(&header, cursor)?;
                 self.state = ParseState::Begin;
-                Ok(Some(ret))
+
+                if self.decode.enabled() {
+                    tracing::info!(
+                        "MBAP RX - {}",
+                        MbapDisplay::new(self.decode, header, frame.payload())
+                    );
+                }
+
+                Ok(Some(frame))
             }
             ParseState::Begin => {
                 if cursor.len() < constants::HEADER_LENGTH {
@@ -116,16 +129,18 @@ impl FrameParser for MBAPParser {
     }
 }
 
-impl FrameFormatter for MBAPFormatter {
+impl FrameFormatter for MbapFormatter {
     fn format_impl(&mut self, header: FrameHeader, msg: &dyn Serialize) -> Result<usize, Error> {
         let mut cursor = WriteCursor::new(self.buffer.as_mut());
+
+        // Write header
         cursor.write_u16_be(header.tx_id.to_u16())?;
         cursor.write_u16_be(0)?;
         cursor.seek_from_current(2)?; // write the length later
         cursor.write_u8(header.unit_id.value)?;
 
+        let start = cursor.position();
         let adu_length: usize = {
-            let start = cursor.position();
             msg.serialize(&mut cursor)?;
             cursor.position() - start
         };
@@ -133,26 +148,76 @@ impl FrameFormatter for MBAPFormatter {
         {
             // write the resulting length
             let frame_length_value = u16::try_from(adu_length + 1)
-                .map_err(|_err| details::InternalError::ADUTooBig(adu_length))?;
+                .map_err(|_err| details::InternalError::AduTooBig(adu_length))?;
 
             cursor.seek_from_start(4)?;
             cursor.write_u16_be(frame_length_value)?;
         }
-
         let total_length = constants::HEADER_LENGTH + adu_length;
+        drop(cursor);
+
+        // Logging
+        if self.decode.enabled() {
+            let header = MbapHeader {
+                tx_id: header.tx_id,
+                adu_length,
+                unit_id: header.unit_id,
+            };
+            tracing::info!(
+                "MBAP TX - {}",
+                MbapDisplay::new(self.decode, header, &self.buffer[start..total_length])
+            );
+        }
 
         Ok(total_length)
     }
 
-    fn get_option_impl(&self, size: usize) -> Option<&[u8]> {
+    fn get_full_buffer_impl(&self, size: usize) -> Option<&[u8]> {
         self.buffer.get(..size)
+    }
+
+    fn get_payload_impl(&self, size: usize) -> Option<&[u8]> {
+        self.buffer.get(7..size)
+    }
+}
+
+struct MbapDisplay<'a> {
+    level: AduDecodeLevel,
+    header: MbapHeader,
+    data: &'a [u8],
+}
+
+impl<'a> MbapDisplay<'a> {
+    fn new(level: AduDecodeLevel, header: MbapHeader, data: &'a [u8]) -> Self {
+        MbapDisplay {
+            level,
+            header,
+            data,
+        }
+    }
+}
+
+impl<'a> std::fmt::Display for MbapDisplay<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(
+            f,
+            "tx_id: {} unit: {} (len = {})",
+            self.header.tx_id, self.header.unit_id, self.header.adu_length
+        )?;
+        if self.level.payload_enabled() {
+            crate::common::phys::format_bytes(f, self.data)?;
+        }
+        Ok(())
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use tokio_test::block_on;
-    use tokio_test::io::Builder;
+    use std::task::Poll;
+
+    use crate::common::phys::PhysLayer;
+    use crate::decode::PhysDecodeLevel;
+    use crate::tokio::test::*;
 
     use crate::common::frame::FramedReader;
     use crate::error::*;
@@ -183,37 +248,60 @@ mod tests {
 
     fn test_segmented_parse(split_at: usize) {
         let (f1, f2) = SIMPLE_FRAME.split_at(split_at);
-        let mut io = Builder::new().read(f1).read(f2).build();
-        let mut reader = FramedReader::new(MBAPParser::new());
-        let frame = block_on(reader.next_frame(&mut io)).unwrap();
+        let (io, mut io_handle) = io::mock();
+        let mut reader = FramedReader::new(MbapParser::new(AduDecodeLevel::Nothing));
+        let mut layer = PhysLayer::new_mock(io, PhysDecodeLevel::Nothing);
+        let mut task = spawn(reader.next_frame(&mut layer));
 
-        assert_equals_simple_frame(&frame);
+        assert!(task.poll().is_pending());
+        io_handle.read(f1);
+        assert!(task.poll().is_pending());
+        io_handle.read(f2);
+        if let Poll::Ready(frame) = task.poll() {
+            assert_equals_simple_frame(&frame.unwrap());
+        } else {
+            panic!("Task not ready");
+        }
     }
 
     fn test_error(input: &[u8]) -> Error {
-        let mut io = Builder::new().read(input).build();
-        let mut reader = FramedReader::new(MBAPParser::new());
-        block_on(reader.next_frame(&mut io)).err().unwrap()
+        let (io, mut io_handle) = io::mock();
+        let mut reader = FramedReader::new(MbapParser::new(AduDecodeLevel::Nothing));
+        let mut layer = PhysLayer::new_mock(io, PhysDecodeLevel::Nothing);
+        let mut task = spawn(reader.next_frame(&mut layer));
+
+        io_handle.read(input);
+        if let Poll::Ready(frame) = task.poll() {
+            return frame.err().unwrap();
+        } else {
+            panic!("Task not ready");
+        }
     }
 
     #[test]
     fn correctly_formats_frame() {
-        let mut formatter = MBAPFormatter::new();
+        let mut formatter = MbapFormatter::new(AduDecodeLevel::Nothing);
         let msg = MockMessage { a: 0x03, b: 0x04 };
         let header = FrameHeader::new(UnitId::new(42), TxId::new(7));
         let size = formatter.format_impl(header, &msg).unwrap();
-        let output = formatter.get_option_impl(size).unwrap();
+        let output = formatter.get_full_buffer_impl(size).unwrap();
 
         assert_eq!(output, SIMPLE_FRAME)
     }
 
     #[test]
     fn can_parse_frame_from_stream() {
-        let mut io = Builder::new().read(SIMPLE_FRAME).build();
-        let mut reader = FramedReader::new(MBAPParser::new());
-        let frame = block_on(reader.next_frame(&mut io)).unwrap();
+        let (io, mut io_handle) = io::mock();
+        let mut reader = FramedReader::new(MbapParser::new(AduDecodeLevel::Nothing));
+        let mut layer = PhysLayer::new_mock(io, PhysDecodeLevel::Nothing);
+        let mut task = spawn(reader.next_frame(&mut layer));
 
-        assert_equals_simple_frame(&frame);
+        io_handle.read(SIMPLE_FRAME);
+        if let Poll::Ready(frame) = task.poll() {
+            assert_equals_simple_frame(&frame.unwrap());
+        } else {
+            panic!("Task not ready");
+        }
     }
 
     #[test]
@@ -222,11 +310,24 @@ mod tests {
         let header = &[0x00, 0x07, 0x00, 0x00, 0x00, 0xFE, 0x2A];
         let payload = &[0xCC; 253];
 
-        let mut io = Builder::new().read(header).read(payload).build();
-        let mut reader = FramedReader::new(MBAPParser::new());
-        let frame = block_on(reader.next_frame(&mut io)).unwrap();
+        let (io, mut io_handle) = io::mock();
+        let mut reader = FramedReader::new(MbapParser::new(AduDecodeLevel::Nothing));
+        let mut task = spawn(async {
+            assert_eq!(
+                reader
+                    .next_frame(&mut PhysLayer::new_mock(io, PhysDecodeLevel::Nothing))
+                    .await
+                    .unwrap()
+                    .payload(),
+                payload.as_ref()
+            );
+        });
 
-        assert_eq!(frame.payload(), payload.as_ref());
+        assert_pending!(task.poll());
+        io_handle.read(header);
+        assert_pending!(task.poll());
+        io_handle.read(payload);
+        assert_ready!(task.poll());
     }
 
     #[test]
@@ -253,7 +354,7 @@ mod tests {
         let frame = &[0x00, 0x07, 0x00, 0x00, 0x00, 0x00, 0x2A];
         assert_eq!(
             test_error(frame),
-            Error::BadFrame(details::FrameParseError::MBAPLengthZero)
+            Error::BadFrame(details::FrameParseError::MbapLengthZero)
         );
     }
 
@@ -262,7 +363,7 @@ mod tests {
         let frame = &[0x00, 0x07, 0x00, 0x00, 0x00, 0xFF, 0x2A];
         assert_eq!(
             test_error(frame),
-            Error::BadFrame(details::FrameParseError::MBAPLengthTooBig(
+            Error::BadFrame(details::FrameParseError::MbapLengthTooBig(
                 0xFF,
                 constants::MAX_LENGTH_FIELD,
             ))

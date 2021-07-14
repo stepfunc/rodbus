@@ -1,4 +1,4 @@
-use crate::error::details::ADUParseError;
+use crate::error::details::AduParseError;
 use crate::error::*;
 
 #[cfg(feature = "no-panic")]
@@ -32,40 +32,40 @@ impl<'a> ReadCursor<'a> {
     }
 
     #[cfg_attr(feature = "no-panic", no_panic)]
-    pub(crate) fn expect_empty(&self) -> Result<(), ADUParseError> {
+    pub(crate) fn expect_empty(&self) -> Result<(), AduParseError> {
         if self.is_empty() {
             Ok(())
         } else {
-            Err(ADUParseError::TrailingBytes(self.len()))
+            Err(AduParseError::TrailingBytes(self.len()))
         }
     }
 
     #[cfg_attr(feature = "no-panic", no_panic)]
-    pub(crate) fn read_u8(&mut self) -> Result<u8, ADUParseError> {
+    pub(crate) fn read_u8(&mut self) -> Result<u8, AduParseError> {
         match self.src.split_first() {
             Some((first, rest)) => {
                 self.src = rest;
                 Ok(*first)
             }
-            None => Err(ADUParseError::InsufficientBytes),
+            None => Err(AduParseError::InsufficientBytes),
         }
     }
 
     #[cfg_attr(feature = "no-panic", no_panic)]
-    pub(crate) fn read_u16_be(&mut self) -> Result<u16, ADUParseError> {
+    pub(crate) fn read_u16_be(&mut self) -> Result<u16, AduParseError> {
         let high = self.read_u8()?;
         let low = self.read_u8()?;
         Ok((high as u16) << 8 | (low as u16))
     }
 
     #[cfg_attr(feature = "no-panic", no_panic)]
-    pub(crate) fn read_bytes(&mut self, count: usize) -> Result<&'a [u8], ADUParseError> {
+    pub(crate) fn read_bytes(&mut self, count: usize) -> Result<&'a [u8], AduParseError> {
         match (self.src.get(0..count), self.src.get(count..)) {
             (Some(first), Some(rest)) => {
                 self.src = rest;
                 Ok(first)
             }
-            _ => Err(ADUParseError::InsufficientBytes),
+            _ => Err(AduParseError::InsufficientBytes),
         }
     }
 }

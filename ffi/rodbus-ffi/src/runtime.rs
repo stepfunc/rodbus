@@ -1,25 +1,81 @@
-pub use tokio::runtime::Runtime;
+use std::future::Future;
 
-pub(crate) unsafe fn runtime_new(
-    config: Option<&crate::ffi::RuntimeConfig>,
-) -> *mut tokio::runtime::Runtime {
-    let mut builder = tokio::runtime::Builder::new();
+use crate::ffi;
+use tokio::runtime::Handle;
 
-    builder.enable_all().threaded_scheduler();
+pub struct Runtime {
+    pub(crate) inner: std::sync::Arc<tokio::runtime::Runtime>,
+}
 
-    if let Some(x) = config.as_ref() {
-        if x.num_core_threads > 0 {
-            builder.core_threads(x.num_core_threads as usize);
+impl Runtime {
+    fn new(inner: tokio::runtime::Runtime) -> Self {
+        Self {
+            inner: std::sync::Arc::new(inner),
         }
     }
 
-    match builder.build() {
-        Ok(r) => Box::into_raw(Box::new(r)),
-        Err(_) => std::ptr::null_mut(),
+    pub(crate) fn handle(&self) -> RuntimeHandle {
+        RuntimeHandle {
+            inner: std::sync::Arc::downgrade(&self.inner),
+        }
     }
 }
 
-pub(crate) unsafe fn runtime_destroy(runtime: *mut crate::Runtime) {
+#[derive(Clone)]
+pub(crate) struct RuntimeHandle {
+    inner: std::sync::Weak<tokio::runtime::Runtime>,
+}
+
+impl RuntimeHandle {
+    pub(crate) fn block_on<F: Future>(&self, future: F) -> Result<F::Output, ffi::ParamError> {
+        let inner = self
+            .inner
+            .upgrade()
+            .ok_or(ffi::ParamError::RuntimeDestroyed)?;
+        if Handle::try_current().is_ok() {
+            return Err(ffi::ParamError::RuntimeCannotBlockWithinAsync);
+        }
+        Ok(inner.block_on(future))
+    }
+
+    /*pub(crate) fn spawn<F>(&self, future: F) -> Result<(), ffi::ParamError>
+    where
+        F: Future + Send + 'static,
+        F::Output: Send + 'static,
+    {
+        let inner = self
+            .inner
+            .upgrade()
+            .ok_or(ffi::ParamError::RuntimeDestroyed)?;
+        inner.spawn(future);
+        Ok(())
+    }*/
+}
+
+fn build_runtime<F>(f: F) -> std::result::Result<tokio::runtime::Runtime, std::io::Error>
+where
+    F: Fn(&mut tokio::runtime::Builder) -> &mut tokio::runtime::Builder,
+{
+    let mut builder = tokio::runtime::Builder::new_multi_thread();
+    f(&mut builder).enable_all().build()
+}
+
+pub(crate) unsafe fn runtime_new(
+    config: ffi::RuntimeConfig,
+) -> Result<*mut crate::runtime::Runtime, ffi::ParamError> {
+    let num_threads = if config.num_core_threads == 0 {
+        num_cpus::get()
+    } else {
+        config.num_core_threads as usize
+    };
+
+    tracing::info!("creating runtime with {} threads", num_threads);
+    let runtime = build_runtime(|r| r.worker_threads(num_threads as usize))
+        .map_err(|_| ffi::ParamError::RuntimeCreationFailure)?;
+    Ok(Box::into_raw(Box::new(Runtime::new(runtime))))
+}
+
+pub(crate) unsafe fn runtime_destroy(runtime: *mut crate::runtime::Runtime) {
     if !runtime.is_null() {
         Box::from_raw(runtime);
     };

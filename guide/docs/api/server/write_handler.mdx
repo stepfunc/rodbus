@@ -1,0 +1,77 @@
+---
+id: write_handler
+title: WriteHandler Interface
+sidebar_label: WriteHandler
+slug: /api/outstation/write_handler
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+The `WriteHandler` interface allows you to process write requests in your application code. Each callback receives a `Database`
+object on which changes can be applied. Generally, when a value is written, it should be reflected back in
+the internal database.
+
+:::note
+In Rust, the `WriteHandler` does not exist, it is merged with the `RequestHandler` trait.
+:::
+
+:::warning
+The callback functions **should never block** as they are being made from a `Runtime` thread.
+:::
+
+## Return value
+
+The return value of each callback function determines what is returned by the server. Here are the most common use cases:
+
+- The received index and value are valid, the database is updated and a success value is returned.
+- If the requested index doesn't exist, then an `ILLEGAL_DATA_ADDRESS` Modbus exception should be returned.
+- If the requested value is not allowed for the point, then a `ILLEGAL_DATA_VALUE` Modbus exception should be returned.
+
+The library automatically responds to improperly formatted requests such as ones containing invalid start/count combinations. Such invalid
+requests are never forwarded to your application code.
+
+To return an exception, the `WriteResult` value is used. It has three static methods to help build results. The `create_success`
+methods is used to create a success result. The `create_exception` is used to write a standard Modbus exception. The `create_raw_exception`
+is used to create a non-standard Modbus exception.
+
+## Example
+
+<Tabs
+groupId="language"
+defaultValue="Rust"
+values={[
+{label: 'Rust', value: 'Rust'},
+{label: 'C', value: 'C'},
+{label: 'Java', value: 'Java'},
+{label: 'C#', value: 'C#'},
+]}>
+<TabItem value="Rust">
+
+```rust
+{{#include ../rodbus/examples/server.rs:request_handler}}
+```
+
+</TabItem>
+<TabItem value="C">
+
+```c
+{{#include ../ffi/bindings/c/server_example.c:write_handler}}
+```
+
+</TabItem>
+<TabItem value="Java">
+
+```java
+{{#include ../ffi/bindings/java/examples/src/main/java/io/stepfunc/rodbus/examples/ServerExample.java:write_handler}}
+```
+
+</TabItem>
+<TabItem value="C#">
+
+```csharp
+{{#include ../ffi/bindings/dotnet/examples/server/Program.cs:write_handler}}
+```
+
+</TabItem>
+</Tabs>

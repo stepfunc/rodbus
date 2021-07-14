@@ -27,14 +27,28 @@ pub(crate) enum FunctionCode {
 impl Display for FunctionCode {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
         match self {
-            FunctionCode::ReadCoils => f.write_str("READ COILS"),
-            FunctionCode::ReadDiscreteInputs => f.write_str("READ DISCRETE INPUTS"),
-            FunctionCode::ReadHoldingRegisters => f.write_str("READ HOLDING REGISTERS"),
-            FunctionCode::ReadInputRegisters => f.write_str("READ INPUT REGISTERS"),
-            FunctionCode::WriteSingleCoil => f.write_str("WRITE SINGLE COIL"),
-            FunctionCode::WriteSingleRegister => f.write_str("WRITE SINGLE REGISTERS"),
-            FunctionCode::WriteMultipleCoils => f.write_str("WRITE MULTIPLE COILS"),
-            FunctionCode::WriteMultipleRegisters => f.write_str("WRITE MULTIPLE REGISTERS"),
+            FunctionCode::ReadCoils => write!(f, "READ COILS ({:#04X})", self.get_value()),
+            FunctionCode::ReadDiscreteInputs => {
+                write!(f, "READ DISCRETE INPUTS ({:#04X})", self.get_value())
+            }
+            FunctionCode::ReadHoldingRegisters => {
+                write!(f, "READ HOLDING REGISTERS ({:#04X})", self.get_value())
+            }
+            FunctionCode::ReadInputRegisters => {
+                write!(f, "READ INPUT REGISTERS ({:#04X})", self.get_value())
+            }
+            FunctionCode::WriteSingleCoil => {
+                write!(f, "WRITE SINGLE COIL ({:#04X})", self.get_value())
+            }
+            FunctionCode::WriteSingleRegister => {
+                write!(f, "WRITE SINGLE REGISTER ({:#04X})", self.get_value())
+            }
+            FunctionCode::WriteMultipleCoils => {
+                write!(f, "WRITE MULTIPLE COILS ({:#04X})", self.get_value())
+            }
+            FunctionCode::WriteMultipleRegisters => {
+                write!(f, "WRITE MULTIPLE REGISTERS ({:#04X})", self.get_value())
+            }
         }
     }
 }

@@ -1,0 +1,44 @@
+---
+id: bindings
+title: API Model
+sidebar_label: API Model
+slug: /bindings
+---
+
+import useBaseUrl from '@docusaurus/useBaseUrl';
+
+We wrote our core library in idiomatic Rust without any concern for how it would be bound into other languages. Consequently, keep in mind that the Rust API won't always
+correlate 100% with the various binding APIs. This guide is still helpful for Rust users, but you should be aware that the guide is primarily written from
+the perspective of the bindings.
+
+## Generic Terminology
+
+The guide use generic terms like `struct`, `interface`, and `class`. Because these terms don't map directly to all languages, please refer to our language-specific pages for how these abstract concepts map to language-specific implementations.
+
+:::note
+For example, Rust doesn't support inheritance, which means it lacks an interface concept like C# and Java. Rust users can assume that we're talking about a boxed trait object whenever we talk about an interface.
+:::
+
+
+## Model
+
+We use a binding generator called [oo_bindgen](https://github.com/stepfunc/oo_bindgen/) to produce idiomatic bindings for all of our protocol libraries. You can read more about our approach to binding generation in this [blog post](https://stepfunc.io/blog/bindings/).
+
+Using a Rust API, we model the following constructs and their documentation:
+
+* Native functions
+* Native structs
+* Constants
+* Abstract interfaces
+* Iterators
+* Classes
+   * Constructor/destructor
+   * Static methods
+   * Instance methods
+   * Asynchronous methods
+
+Language-specific code generators consume the model produced by this API to produce idiomatic bindings for each language.
+
+## Diagram
+
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 320"><path fill="#fff" d="M0 0h420v320H0z" fill-rule="evenodd"></path><g transform="translate(20 19)" fill="none" fill-rule="evenodd"><rect rx="5" height="39" width="78" y="1" x="1" fill="#e4f3ff" stroke-width="2" stroke="#1787e0"></rect><text fill="#1787e0" letter-spacing=".183" font-weight="500" font-size="11" font-family="Poppins-SemiBold, Poppins"><tspan y="24.5" x="25.966">Java</tspan></text></g><rect rx="6.964" height="38.65" width="80.781" y="260.175" x="21.175" fill="#e4f3ff" stroke-width="2.35" stroke="#1787e0" fill-rule="evenodd"></rect><text fill="#1787e0" letter-spacing=".183" font-weight="500" font-size="11" font-family="Poppins-SemiBold, Poppins" x="31.565" y="258.391" fill-rule="evenodd"><tspan y="282.891" x="50.741">TCP</tspan></text><g fill="none" fill-rule="evenodd"><path stroke="#1787e0" d="M301 22h9.418c5.2 0 9.417 4.215 9.417 9.421V97.58c0 5.202-4.215 9.42-9.417 9.42H301"></path><path d="M303 25v-6l-3 3zM303 110v-6l-3 3z" fill="#1787e0"></path></g><g fill="none" fill-rule="evenodd"><path stroke="#1787e0" d="M300 122h9.664a9.662 9.662 0 019.666 9.665v154.67a9.665 9.665 0 01-9.665 9.665h-9.666"></path><path d="M301.999 125v-6l-3 3zM301.999 299v-6l-3 3z" fill="#1787e0"></path></g><g transform="translate(110 19)" fill="none" fill-rule="evenodd"><rect rx="5" height="39" width="78" y="1" x="1" fill="#e4f3ff" stroke-width="2" stroke="#1787e0"></rect><text fill="#1787e0" letter-spacing=".183" font-weight="500" font-size="11" font-family="Poppins-SemiBold, Poppins"><tspan y="24.5" x="28.523">.NET</tspan></text></g><g transform="translate(200 18)" fill="none" fill-rule="evenodd"><rect rx="5" height="39" width="88" y="1" x="1" fill="#e4f3ff" stroke-width="2" stroke="#1787e0"></rect><text fill="#1787e0" letter-spacing=".183" font-weight="500" font-size="11" font-family="Poppins-SemiBold, Poppins"><tspan y="24.5" x="34.324">C++</tspan></text></g><g transform="translate(20 69)" fill="none" fill-rule="evenodd"><rect rx="5" height="39" width="268" y="1" x="1" fill="#e4f3ff" stroke-width="2" stroke="#1787e0"></rect><text fill="#1787e0" letter-spacing=".183" font-weight="500" font-size="11" font-family="Poppins-SemiBold, Poppins"><tspan y="24.5" x="120.511">C API</tspan></text></g><text y="18" x="20" fill="#1787e0" letter-spacing=".183" font-weight="500" font-size="11" font-family="Poppins-SemiBold, Poppins" fill-rule="evenodd"><tspan y="60" x="330">Generated</tspan><tspan y="76" x="330">from model</tspan></text><text y="18" x="20" fill="#1787e0" letter-spacing=".183" font-weight="500" font-size="11" font-family="Poppins-SemiBold, Poppins" fill-rule="evenodd"><tspan y="205" x="330">Rust</tspan></text><g transform="translate(20 119)" fill="none" fill-rule="evenodd"><rect rx="5" height="78" width="268" y="1" x="1" fill="#e4f3ff" stroke-width="2" stroke="#1787e0"></rect><text fill="#1787e0" letter-spacing=".183" font-weight="500" font-size="11" font-family="Poppins-SemiBold, Poppins"><tspan y="44" x="120.042">Modbus</tspan></text></g><g transform="translate(20 209)" fill="none" fill-rule="evenodd"><rect rx="5" height="38" width="268" y="1" x="1" fill="#e4f3ff" stroke-width="2" stroke="#1787e0"></rect><text fill="#1787e0" letter-spacing=".183" font-weight="500" font-size="11" font-family="Poppins-SemiBold, Poppins"><tspan y="24" x="91.882">Async Runtime</tspan></text></g><rect stroke="#1787e0" stroke-width="2" x="10" y="11" width="400" height="299" rx="2" fill="none"></rect><rect stroke="#1787e0" stroke-width="2.35" fill="#e4f3ff" x="115.262" y="260.675" width="80.781" height="38.65" rx="6.964" fill-rule="evenodd"></rect><rect stroke="#1787e0" stroke-width="2.35" fill="#e4f3ff" x="207.349" y="259.631" width="80.781" height="38.65" rx="6.964" fill-rule="evenodd"></rect><text y="259.064" x="125.747" font-family="Poppins-SemiBold, Poppins" font-size="11" font-weight="500" letter-spacing=".183" fill="#1787e0" fill-rule="evenodd"><tspan x="144.923" y="283.564">TLS</tspan></text><text y="257.673" x="212.008" font-family="Poppins-SemiBold, Poppins" font-size="11" font-weight="500" letter-spacing=".183" fill="#1787e0" fill-rule="evenodd"><tspan x="231.184" y="282.173">Serial</tspan></text></svg>

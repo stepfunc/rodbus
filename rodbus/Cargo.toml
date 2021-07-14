@@ -7,18 +7,15 @@ license = "GPL-3.0-only"
 description = "A high-performance implementation of the Modbus protocol using Tokio and async/await"
 keywords = ["modbus", "ics", "industrial", "plc", "security"]
 categories = ["network-programming"]
-repository = "https://www.github.com/automatak/rodbus"
+repository = "https://github.com/stepfunc/rodbus"
 readme = "../README.md"
 
-[badges]
-codecov = { repository = "automatak/rodbus", branch = "master", service = "github" }
-maintenance = { status = "actively-developed" }
-
 [dependencies]
-tokio = { version = "^0.2.20", features = ["tcp", "sync", "io-util", "time", "rt-core", "rt-threaded", "macros"]}
-log = "0.4"
-no-panic = { version = "0.1", optional = true }
+tokio-mock = { git = "https://github.com/stepfunc/tokio-mock.git", branch="master" }
+tracing = "0.1"
 
 [dev-dependencies]
-tokio-test = "0.2"
-simple_logger = "1.9"
+tokio = { version = "1.5", features = ["rt-multi-thread", "macros"] }
+tokio-stream = "0.1"
+tokio-util = { version = "0.6", features = ["codec"] }
+tracing-subscriber = "0.2"

@@ -1,4 +1,4 @@
-use tokio::io::{AsyncRead, AsyncReadExt};
+use crate::common::phys::PhysLayer;
 
 #[cfg(feature = "no-panic")]
 use no_panic::no_panic;
@@ -72,10 +72,7 @@ impl ReadBuffer {
         Ok((b1 << 8) | b2)
     }
 
-    pub(crate) async fn read_some<T: AsyncRead + Unpin>(
-        &mut self,
-        io: &mut T,
-    ) -> Result<usize, std::io::Error> {
+    pub(crate) async fn read_some(&mut self, io: &mut PhysLayer) -> Result<usize, std::io::Error> {
         // before we read any data, check to see if the buffer is empty and adjust the indices
         // this allows use to make the biggest read possible, and avoids subsequent buffer shifting later
         if self.is_empty() {
@@ -104,7 +101,8 @@ impl ReadBuffer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tokio_test::*;
+    use crate::decode::PhysDecodeLevel;
+    use crate::tokio::test::*;
 
     #[test]
     fn errors_when_reading_to_many_bytes() {
@@ -122,13 +120,33 @@ mod tests {
     #[test]
     fn shifts_contents_when_buffer_at_capacity() {
         let mut buffer = ReadBuffer::new(3);
-        let mut io = io::Builder::new()
-            .read(&[0x01, 0x02, 0x03])
-            .read(&[0x04, 0x05])
-            .build();
-        assert_eq!(block_on(buffer.read_some(&mut io)).unwrap(), 3);
+
+        let (io, mut io_handle) = io::mock();
+        let mut phys = PhysLayer::new_mock(io, PhysDecodeLevel::Nothing);
+
+        {
+            let buf_ref = &mut buffer;
+            let mut task = spawn(async { buf_ref.read_some(&mut phys).await.unwrap() });
+            assert_pending!(task.poll());
+        }
+
+        {
+            let buf_ref = &mut buffer;
+            let mut task = spawn(async { buf_ref.read_some(&mut phys).await.unwrap() });
+            io_handle.read(&[0x01, 0x02, 0x03]);
+            assert_ready_eq!(task.poll(), 3);
+        }
+
+        assert!(io_handle.all_done());
         assert_eq!(buffer.read(2).unwrap(), &[0x01, 0x02]);
-        assert_eq!(block_on(buffer.read_some(&mut io)).unwrap(), 2);
+
+        {
+            let buf_ref = &mut buffer;
+            let mut task = spawn(async { buf_ref.read_some(&mut phys).await.unwrap() });
+            io_handle.read(&[0x04, 0x05]);
+            assert_ready_eq!(task.poll(), 2);
+        }
+
         assert_eq!(buffer.read(3).unwrap(), &[0x03, 0x04, 0x05]);
     }
 }

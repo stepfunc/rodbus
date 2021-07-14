@@ -1,0 +1,5 @@
+{
+    "ignore": ["rodbus", "tokio-mock"],
+    "allowed_licenses": ["Apache-2.0 OR MIT", "MIT", "MIT OR Unlicense"],
+    "crates": {}
+}

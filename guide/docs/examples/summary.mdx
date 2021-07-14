@@ -1,0 +1,31 @@
+---
+id: summary
+title: Example Programs
+sidebar_label: Links
+slug: /examples/summary
+---
+
+import sitedata from '../../sitedata.json'
+
+The source repository contains example programs that you can compile and run interactively. Each program demonstrates the usage of various API features by reading console input from the user.
+
+As you read through the examples, you may notice blocks of code surrounded by `ANCHOR` tags.
+
+```c
+// ANCHOR: logging
+
+code that configures the logging ...
+
+// ANCHOR_END: logging
+```
+
+We pull these code blocks from the example programs when we generate this guide. This ensures that all the snippets you encounter when reading the documentation are syntactically valid and up to date.
+
+## Links
+
+The following links redirect to language-specific examples for the current version on Github:
+
+* <a href={`${sitedata.github_url}/tree/${sitedata.version}/rodbus/examples`}>Rust</a>
+* <a href={`${sitedata.github_url}/tree/${sitedata.version}/ffi/bindings/c`}>C</a>
+* <a href={`${sitedata.github_url}/tree/${sitedata.version}/ffi/bindings/dotnet/examples`}>C#</a>
+* <a href={`${sitedata.github_url}/tree/${sitedata.version}/ffi/bindings/java/examples/src/main/java/io/stepfunc/rodbus/examples`}>Java</a>

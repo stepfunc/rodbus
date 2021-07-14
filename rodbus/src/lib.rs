@@ -43,25 +43,24 @@
 //!use std::str::FromStr;
 //!
 //!
-//!use tokio::time::delay_for;
-//!
-//!#[tokio::main]
+//!#[tokio::main(flavor = "multi_thread")]
 //!async fn main() -> Result<(), Box<dyn std::error::Error>> {
 //!
-//!    let channel = spawn_tcp_client_task(
+//!    let mut channel = spawn_tcp_client_task(
 //!        SocketAddr::from_str("127.0.0.1:502")?,
 //!        10,
-//!        strategy::default()
+//!        strategy::default(),
+//!        DecodeLevel::default(),
 //!    );
 //!
-//!    let mut session = channel.create_session(
+//!    let param = RequestParam::new(
 //!        UnitId::new(0x02),
-//!        Duration::from_secs(1)
+//!        Duration::from_secs(1),
 //!    );
 //!
 //!    // try to poll for some coils every 3 seconds
 //!    loop {
-//!        match session.read_coils(AddressRange::try_from(0, 5).unwrap()).await {
+//!        match channel.read_coils(param, AddressRange::try_from(0, 5).unwrap()).await {
 //!            Ok(values) => {
 //!                for x in values {
 //!                    println!("index: {} value: {}", x.index, x.value)
@@ -70,7 +69,7 @@
 //!            Err(err) => println!("Error: {:?}", err)
 //!        }
 //!
-//!        delay_for(std::time::Duration::from_secs(3)).await
+//!        tokio::time::sleep(std::time::Duration::from_secs(3)).await
 //!    }
 //!}
 //! ```
@@ -102,7 +101,7 @@
 //!    }
 //! }
 //!
-//! #[tokio::main(threaded_scheduler)]
+//! #[tokio::main(flavor = "multi_thread")]
 //! async fn main() -> Result<(), Box<dyn std::error::Error>> {
 //!
 //!    let handler = CoilsOnlyHandler::new().wrap();
@@ -114,9 +113,10 @@
 //!    // if the handle _server is dropped, the server shuts down
 //!    let _server = rodbus::server::spawn_tcp_server_task(
 //!        1,
-//!        TcpListener::bind(SocketAddr::from_str("127.0.0.1:502")?).await?,
+//!        SocketAddr::from_str("127.0.0.1:502")?,
 //!        map,
-//!    );
+//!        DecodeLevel::default(),
+//!    ).await?;
 //!
 //!    let mut next = tokio::time::Instant::now();
 //!
@@ -124,12 +124,12 @@
 //!    loop {
 //!        next += tokio::time::Duration::from_secs(2);
 //!        {
-//!            let mut guard = handler.lock().await;
+//!            let mut guard = handler.lock().unwrap();
 //!            for c in &mut guard.coils {
 //!                *c = !*c;
 //!            }
 //!        }
-//!        tokio::time::delay_until(next).await;
+//!        tokio::time::sleep_until(next).await;
 //!    }
 //!}
 //!```
@@ -175,15 +175,20 @@ clippy::all
 #![forbid(
     unsafe_code,
     //intra_doc_link_resolution_failure,
-    safe_packed_borrows,
+    unaligned_references,
     while_true,
     bare_trait_objects
 )]
+
+/// Current version of the library
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// client API
 pub mod client;
 /// public constant values related to the Modbus specification
 pub mod constants;
+/// types used to control decoding in the log
+pub mod decode;
 /// error types associated with making requests
 pub mod error;
 /// prelude used to include all of the API types
@@ -198,3 +203,4 @@ pub mod types;
 // internal modules
 mod common;
 mod tcp;
+mod tokio;

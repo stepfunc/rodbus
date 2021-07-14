@@ -1,0 +1,119 @@
+---
+id: logging
+title: Logging
+sidebar_label: Logging
+slug: /api/logging
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+The library provides highly-contextual logging using the [tracing](https://crates.io/crates/tracing) crate. If you're using Rust, refer to the
+tracing documentation for details.
+
+In comparison, the bindings use a rigid logging interface with a single callback method to record a message. Configurable options include:
+
+* `LogLevel` that controls which messages are generated
+* How and if to print the time as part of the message
+* Line or JSON based output
+
+:::note
+The LogLevel is set to Info by default. This will record Info, Warn, and Error messages. The Debug and Trace levels are generally only useful if debugging an issue with the underlying runtime.
+
+Protocol decoding is always logged at the Info level and is configured separately on a per channel basis.
+:::
+
+## Configuration
+
+<Tabs
+groupId="language"
+defaultValue="Rust"
+values={[
+{label: 'Rust', value: 'Rust'},
+{label: 'C', value: 'C'},
+{label: 'Java', value: 'Java'},
+{label: 'C#', value: 'C#'},
+]}>
+<TabItem value="Rust">
+
+```rust
+{{#include ../rodbus/examples/client.rs:logging}}
+```
+
+</TabItem>
+<TabItem value="C">
+
+```c
+{{#include ../ffi/bindings/c/client_example.c:logging_callback}}
+
+{{#include ../ffi/bindings/c/client_example.c:logging_init}}
+```
+
+</TabItem>
+<TabItem value="Java">
+
+```java
+{{#include ../ffi/bindings/java/examples/src/main/java/io/stepfunc/rodbus/examples/ClientExample.java:logging_interface}}
+
+{{#include ../ffi/bindings/java/examples/src/main/java/io/stepfunc/rodbus/examples/ClientExample.java:logging_init}}
+```
+
+</TabItem>
+<TabItem value="C#">
+
+```csharp
+{{#include ../ffi/bindings/dotnet/examples/client/Program.cs:logging_interface}}
+
+{{#include ../ffi/bindings/dotnet/examples/client/Program.cs:logging_init}}
+```
+
+</TabItem>
+</Tabs>
+
+:::note
+The bindings use the [tracing_subscriber](https://crates.io/crates/tracing-subscriber) crate internally. If you use Rust, you can pick which tracing backend to
+use.
+:::
+
+## Example Output
+
+The logs provide a wealth of contextual metadata so you can:
+
+* Determine which communication session produced the message
+* Understand what state the software was in when the event occurred
+
+```
+Jun 21 10:33:01.608  INFO Modbus-Server-TCP{listen=127.0.0.1:502}: accepted connection 0 from: 127.0.0.1:1143
+Jun 21 10:33:01.610  INFO Modbus-Server-TCP{listen=127.0.0.1:502}:Session{remote=127.0.0.1:1143}:Transaction{tx_id=0x00}: PDU RX - READ DISCRETE INPUTS (0x02) start: 0x0000 qty: 10
+Jun 21 10:33:01.611  INFO Modbus-Server-TCP{listen=127.0.0.1:502}:Session{remote=127.0.0.1:1143}:Transaction{tx_id=0x00}: PDU TX - READ DISCRETE INPUTS (0x02) start: 0x0000 qty: 10
+idx: 0x0000 value: 0
+idx: 0x0001 value: 0
+idx: 0x0002 value: 0
+idx: 0x0003 value: 0
+idx: 0x0004 value: 0
+idx: 0x0005 value: 0
+idx: 0x0006 value: 0
+idx: 0x0007 value: 0
+idx: 0x0008 value: 0
+idx: 0x0009 value: 0
+Jun 21 10:33:01.617  INFO shutdown session: 0
+```
+
+## Protocol Decoding
+
+Protocol decoding is configurable on a per-communication channel basis, such as all of the traffic on a TCP socket or a serial port. You can specify the
+`DecodeLevel` when you create a client or a server. This struct controls the level of decoding (including none) that takes place for each layer of the
+protocol stack, including:
+
+* Protocol Data Unit (PDU) function code, data headers, and data values
+* Application Data Unit (ADU) transport-dependent logging. On TCP channels, this controls the MBAP decoding
+* Physical-layer length and data bytes
+
+Refer to the language-specific API documentation for the meaning of each enumeration value.
+
+:::note
+Protocol decoding is always output at the *Info* log level. If left enabled, it can be too verbose in a production system. When you're debugging a communication issue,
+try adjusting the application-layer decoding first to gain visibility into the messages being exchanged on one channel at a time.
+:::
+
+

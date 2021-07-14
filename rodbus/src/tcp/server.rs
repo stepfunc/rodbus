@@ -1,9 +1,14 @@
 use std::collections::BTreeMap;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
+use tracing::Instrument;
+
+use crate::common::phys::PhysLayer;
+use crate::decode::DecodeLevel;
+use crate::tcp::frame::{MbapFormatter, MbapParser};
+use crate::tokio;
+use crate::tokio::net::TcpListener;
 use std::net::SocketAddr;
-use tokio::net::TcpListener;
-use tokio::sync::Mutex;
 
 use crate::server::handler::{RequestHandler, ServerHandlerMap};
 
@@ -38,7 +43,7 @@ impl SessionTracker {
         // TODO - this is so ugly. there's a nightly API on BTreeMap that has a remove_first
         if !self.sessions.is_empty() && self.sessions.len() >= self.max {
             let id = *self.sessions.keys().next().unwrap();
-            log::warn!("exceeded max connections, closing oldest session: {}", id);
+            tracing::warn!("exceeded max connections, closing oldest session: {}", id);
             // when the record drops, and there are no more senders,
             // the other end will stop the task
             self.sessions.remove(&id).unwrap();
@@ -58,6 +63,7 @@ pub(crate) struct ServerTask<T: RequestHandler> {
     listener: TcpListener,
     handlers: ServerHandlerMap<T>,
     tracker: SessionTrackerWrapper,
+    decode: DecodeLevel,
 }
 
 impl<T> ServerTask<T>
@@ -68,11 +74,13 @@ where
         max_sessions: usize,
         listener: TcpListener,
         handlers: ServerHandlerMap<T>,
+        decode: DecodeLevel,
     ) -> Self {
         Self {
             listener,
             handlers,
             tracker: SessionTracker::wrapped(max_sessions),
+            decode,
         }
     }
 
@@ -80,17 +88,18 @@ where
         loop {
             tokio::select! {
                _ = shutdown.recv() => {
-                    log::info!("server shutdown");
+                    tracing::info!("server shutdown");
                     return; // shutdown signal
                }
                result = self.listener.accept() => {
                    match result {
                         Err(err) => {
-                            log::error!("error accepting connection: {}", err);
+                            tracing::error!("error accepting connection: {}", err);
                             return;
                         }
                         Ok((socket, addr)) => {
-                            self.handle(socket, addr).await
+                            self.handle(socket, addr)
+                                .await
                         }
                    }
                }
@@ -99,21 +108,32 @@ where
     }
 
     async fn handle(&self, socket: tokio::net::TcpStream, addr: SocketAddr) {
+        let phys = PhysLayer::new_tcp(socket, self.decode.physical);
+        let decode = self.decode;
         let handlers = self.handlers.clone();
         let tracker = self.tracker.clone();
         let (tx, rx) = tokio::sync::mpsc::channel(1);
 
-        let id = self.tracker.lock().await.add(tx);
+        let id = self.tracker.lock().unwrap().add(tx);
 
-        log::info!("accepted connection {} from: {}", id, addr);
+        tracing::info!("accepted connection {} from: {}", id, addr);
+        let span = tracing::span::Span::current();
 
         tokio::spawn(async move {
-            crate::server::task::SessionTask::new(socket, handlers, rx)
-                .run()
-                .await
-                .ok();
-            log::info!("shutdown session: {}", id);
-            tracker.lock().await.remove(id);
+            crate::server::task::SessionTask::new(
+                phys,
+                handlers,
+                MbapFormatter::new(decode.adu),
+                MbapParser::new(decode.adu),
+                rx,
+                decode.pdu,
+            )
+            .run()
+            .instrument(tracing::info_span!(parent: &span, "Session", "remote" = ?addr))
+            .await
+            .ok();
+            tracing::info!("shutdown session: {}", id);
+            tracker.lock().unwrap().remove(id);
         });
     }
 }

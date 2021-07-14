@@ -1,0 +1,43 @@
+---
+id: c_sharp
+title: C# Bindings
+sidebar_label: C#
+slug: /c_sharp
+---
+
+import useBaseUrl from '@docusaurus/useBaseUrl';
+
+We distribute the C# bindings as a [Nuget package](https://www.nuget.org/packages/rodbus). Internally, the C API is called using [P/Invoke](https://docs.microsoft.com/en-us/dotnet/standard/native-interop/pinvoke)
+The bindings are .NET Standard 2.0 compatible and include platform-specific shared libraries for 64-bit Windows and Linux. They are automatically loaded by the .NET runtime.
+
+## Mapping
+
+C# is an object-oriented language that supports all the abstract patterns modeled in the code generator. Here's what you need to know.
+
+### Errors
+
+C API errors are transformed into exceptions that contain the error `enum`.
+
+:::warning
+Uncaught exceptions thrown in callbacks will terminate the program. Your code should always wrap callback logic with `try/catch` syntax if there's a chance that the callback will throw.
+:::
+
+### Iterators
+
+The code generator transforms iterators into `ICollection<T>`. This means that the collections returned by callbacks may be used outside the callback. For example, you can send them to another thread for processing.
+
+### Structs
+
+Native structs are mapped to C# classes. They have public member visibility, and the constructor ensures that all values are initialized.
+
+### Classes
+
+Abstract classes are mapped to C# classes. They have a private pointer to the underlying native resource. There are two types of generated classes in C#:
+* Generated classes that only have a private finalizer: These are automatically garbage collected, while native resources are deallocated in the class's finalize method. These
+types of classes are typically builder objects such as `Commands`, `Request`, and `AddressFilter`.
+* Generated classes that also provide a public `Shutdown` method: These represent long-lived resources such as `Runtime`, `Master`, or `TCPServer`. They map to an asynchronous
+Rust task executing on the Tokio runtime. The `Shutdown` method lets you precisely control when the resource/task will stop.
+
+### Asynchronous Methods
+
+Abstract asynchronous methods are transformed into methods that return `Task<T>`. You can block on the task or `await` it in an async method.

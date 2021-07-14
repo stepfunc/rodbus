@@ -1,14 +1,19 @@
-/rodbus/target
-/rodbus/Cargo.lock
 /target
-/Cargo.lock
-/.idea
+Cargo.lock
+dependencies.json
+dependencies.txt
 
 # IDES
 .vscode
-.vs
 .idea
+.vs
 *.iml
+
+# this is where criterion puts the benchmark report
+rodbus/target
+
+# Cargo config
+/.cargo/config.toml
 
 # generated c lib
 /ffi/bindings/c/build
@@ -18,10 +23,10 @@
 /ffi/bindings/dotnet/rodbus
 /ffi/bindings/dotnet/**/bin
 /ffi/bindings/dotnet/**/obj
+ffi/bindings/dotnet/nupkg
 
 # Generated Java lib
 /ffi/bindings/java/.idea
 /ffi/bindings/java/rodbus
 /ffi/bindings/java/rodbus-jni
-/ffi/bindings/java/**/target
-
+ffi/bindings/java/**/target
