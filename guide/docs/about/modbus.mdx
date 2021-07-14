@@ -7,13 +7,16 @@ slug: /modbus
 
 import useBaseUrl from '@docusaurus/useBaseUrl';
 
-Modbus is an established communication protocol used to communicating with various industrial electronic devices, notably PLCs. Its simplicity and versatility makes it very popular 
-in numerous applications. It is openly published and royalty-free by the [Modbus Organization](https://modbus.org/). It supports both TCP/IP and serial communication.
-Modbus is sometimes referred to as "Modicon Modbus" or just "Modicon" for historical reasons.
+Modbus is a ubiquitous communication protocol used to communicate with various industrial devices, most notably PLCs. Its simplicity and versatility makes
+it very popular in numerous applications. The standard itself is freely available from the [Modbus Organization](https://modbus.org/). It supports both TCP/IP
+and serial communication, and more recently, has been defined for secure operation over TLS. Modbus is sometimes referred to as "Modicon Modbus" or just
+"Modicon" for historical reasons.
 
-Modbus is a simple request-response protocol, meaning there is no complex internal state machines or buffers. This simplicity however sometimes means that the application has more
-responsibilities than stateful protocols such as DNP3 (IEEE-1815). A client issues a request to the server, then the server performs the action and returns a response or an exception code.
-Clients and servers are sometimes known as "masters" and "slaves" in older documents.
+Modbus is a simple request-response protocol, and the server component is completely stateless. This simplicity however frequently means that the application
+has more responsibilities than stateful protocols such as DNP3 (IEEE-1815).
+
+A client issues a request to the server, then the server performs the action and returns the matching response or an exception code. Clients and servers are
+sometimes known as "masters" and "slaves" in older documents.
 
 ```mermaid
 sequenceDiagram
@@ -31,28 +34,43 @@ The Modbus data model consists of four point types described in the following ta
 
 | Point type name  | Type        | R/W        |
 | ---------------- | ----------- | ---------- |
-| Coil             | Single bit  | Read-write |
-| Discrete input   | Single bit  | Read-only  |
-| Holding register | 16-bit word | Read-write |
-| Input register   | 16-bit word | Read-only  |
+| Coil             | Single bit  | read/write |
+| Discrete input   | Single bit  | read-only  |
+| Holding register | 16-bit word | read/write |
+| Input register   | 16-bit word | read-only  |
 
 Each object type is addressed with a 16-bit index. The indices are not shared between the types.
-In other words, your application can have up to 65,536 points of each type for a total of 262,144 points.
+In other words, a Modbus device may provide up to 65,536 points of each type.
+
+:::tip
+On the wire, all types are addressed with indices from 0 to 65535. However, you will frequently encounter a convention in product documentation where addresses
+are prefixed with an *entity type* identifier and begin addressing from 1 instead of zero:
+
+* Coils might be identified as running from **0**0001 to **0**9999
+* Discrete inputs might be identified as running from **1**0001 to **1**9999
+* Input registers might be identified as running from **3**0001 to **3**9999
+* Holding registers might be identified as running from **4**0001 to **4**9999
+
+This convention is often confusing and purely artificial. This library only uses the raw 16-bit addressing. To convert the entity convention above to raw indices,
+remove the leading entity type and subtract 1.
+:::
 
 ### Point interpretation
 
-Due to its limited point types, the Modbus data model is often extended to represent more complex values. You will need to thoroughly read the device documentation
-to interpret the data appropriately. For example, applications often use multiple points to represent a single data.
+Due to the limited point types available in Modbus, the data model is often extended to represent more complex values. You will need to read device
+documentation to interpret the data appropriately. For example, applications often use multiple registers to represent a single physical value.
 
 Here are some examples of common point interpretations:
 
-- Considering the first bit of a register as a sign bit making the range -32,768 to 32,767 instead of 0 to 65,535
-- Using two register to represent a 32-bit value
+- Interpreting the first bit of a register as a sign bit making the range -32,768 to 32,767 instead of 0 to 65,535
+- Using different bits within one or more registers to represent distinct states (aka bitfields)
+- Using two registers to represent a 32-bit value
 - Using four registers to represent a 64-bit value
 - Using two registers to represent single precision IEEE-754 floating point value
 - Using four registers to represent a double precision IEEE-754 floating point value
-- Using one or more register to represent a bitmask
-- Using a coil as an heartbeat where the user needs to periodically flip it to advertise that the device is still running
+- Using a coil or holding register as a heartbeat that the client must periodically write to advertise to maintain a certain state
+
+The endianness of how compound values are laid out in registers may also vary from device to device.
 
 ## Function codes
 
@@ -60,32 +78,36 @@ The following table illustrates the Modbus public function code and their suppor
 
 | Code | Description                   | Support |
 | ---- | ----------------------------- | ------- |
-| 0x01 | Read coils                    | **Yes** |
-| 0x02 | Read discrete inputs          | **Yes** |
-| 0x03 | Read holding registers        | **Yes** |
-| 0x04 | Read input registers          | **Yes** |
-| 0x05 | Write single coil             | **Yes** |
-| 0x06 | Write single register         | **Yes** |
-| 0x07 | Read exception status         | No      |
-| 0x08 | Diagnostic                    | No      |
-| 0x11 | Get com event counter         | No      |
-| 0x12 | Get com event log             | No      |
-| 0x15 | Write multiple coils          | **Yes** |
-| 0x16 | Write multiple registers      | **Yes** |
-| 0x17 | Report server ID              | No      |
-| 0x20 | Read file record              | No      |
-| 0x21 | Write file record             | No      |
-| 0x22 | Mask write register           | No      |
-| 0x23 | Read/write multiple registers | No      |
-| 0x24 | Read FIFO queue               | No      |
-| 0x43 | Read device ID                | No      |
+| 0x01 | Read coils                    | ✔️    |
+| 0x02 | Read discrete inputs          | ✔️    |
+| 0x03 | Read holding registers        | ✔️    |
+| 0x04 | Read input registers          | ✔️    |
+| 0x05 | Write single coil             | ✔️    |
+| 0x06 | Write single register         | ✔️    |
+| 0x07 | Read exception status         | ❌       |
+| 0x08 | Diagnostic                    | ❌       |
+| 0x11 | Get com event counter         | ❌       |
+| 0x12 | Get com event log             | ❌       |
+| 0x15 | Write multiple coils          | ✔️    |
+| 0x16 | Write multiple registers      | ✔️    |
+| 0x17 | Report server ID              | ❌       |
+| 0x20 | Read file record              | ❌       |
+| 0x21 | Write file record             | ❌       |
+| 0x22 | Mask write register           | ❌       |
+| 0x23 | Read/write multiple registers | ❌       |
+| 0x24 | Read FIFO queue               | ❌       |
+| 0x43 | Read device ID                | ❌       |
 
-Modbus also user-defined function codes in the ranges 65 to 72 and 100 to 110. However, our library
-does not support those.
+The supported function codes are all that is required by the vast majority of applications using Modbus. We would consider adding support for additional
+functions codes if requested by a potential customer.
+
+
+Modbus also allows user-defined function codes in the range 65 to 72 and 100 to 110. This library does not support adding user defined functions at this time,
+but this could also be added if desired.
 
 ## Exceptions
 
-Modbus servers can return exception code when the request cannot be fulfilled. Here's the complete list:
+Modbus servers return an exception code when the request cannot be fulfilled. Here's the complete list of possible exceptions:
 
 | Code | Name                                    | Description                                                                     |
 | ---- | --------------------------------------- | ------------------------------------------------------------------------------- |
