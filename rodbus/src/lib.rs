@@ -7,8 +7,8 @@
 //! * Focus on maximal correctness and compliance to the specification
 //! * Automatic connection management with configurable reconnect strategy
 //! * Scalable performance using Tokio's multi-threaded executor
-//! * async (futures), callbacks, and synchronous API modes
-//! * Idiomatic C API for integration with legacy codebases
+//! * async (futures) and callback based API modes
+//! * Automatically generated bindings for C, Java, and .NET
 //!
 //! # Supported modes
 //!
