@@ -44,8 +44,8 @@ impl From<rodbus::error::Error> for ffi::ErrorInfo {
     }
 }
 
-impl<'a> From<rodbus::error::details::ExceptionCode> for ffi::ErrorInfo {
-    fn from(x: rodbus::error::details::ExceptionCode) -> Self {
+impl<'a> From<rodbus::exception::ExceptionCode> for ffi::ErrorInfo {
+    fn from(x: rodbus::exception::ExceptionCode) -> Self {
         fn from_exception(exception: ffi::ModbusException, raw_exception: u8) -> ffi::ErrorInfo {
             ffi::ErrorInfoFields {
                 summary: ffi::Status::Exception,
@@ -56,37 +56,37 @@ impl<'a> From<rodbus::error::details::ExceptionCode> for ffi::ErrorInfo {
         }
 
         match x {
-            rodbus::error::details::ExceptionCode::Acknowledge => {
+            rodbus::exception::ExceptionCode::Acknowledge => {
                 from_exception(ffi::ModbusException::Acknowledge, x.into())
             }
-            rodbus::error::details::ExceptionCode::GatewayPathUnavailable => {
+            rodbus::exception::ExceptionCode::GatewayPathUnavailable => {
                 from_exception(ffi::ModbusException::GatewayPathUnavailable, x.into())
             }
-            rodbus::error::details::ExceptionCode::GatewayTargetDeviceFailedToRespond => {
+            rodbus::exception::ExceptionCode::GatewayTargetDeviceFailedToRespond => {
                 from_exception(
                     ffi::ModbusException::GatewayTargetDeviceFailedToRespond,
                     x.into(),
                 )
             }
-            rodbus::error::details::ExceptionCode::IllegalDataAddress => {
+            rodbus::exception::ExceptionCode::IllegalDataAddress => {
                 from_exception(ffi::ModbusException::IllegalDataAddress, x.into())
             }
-            rodbus::error::details::ExceptionCode::IllegalDataValue => {
+            rodbus::exception::ExceptionCode::IllegalDataValue => {
                 from_exception(ffi::ModbusException::IllegalDataValue, x.into())
             }
-            rodbus::error::details::ExceptionCode::IllegalFunction => {
+            rodbus::exception::ExceptionCode::IllegalFunction => {
                 from_exception(ffi::ModbusException::IllegalFunction, x.into())
             }
-            rodbus::error::details::ExceptionCode::MemoryParityError => {
+            rodbus::exception::ExceptionCode::MemoryParityError => {
                 from_exception(ffi::ModbusException::MemoryParityError, x.into())
             }
-            rodbus::error::details::ExceptionCode::ServerDeviceBusy => {
+            rodbus::exception::ExceptionCode::ServerDeviceBusy => {
                 from_exception(ffi::ModbusException::ServerDeviceBusy, x.into())
             }
-            rodbus::error::details::ExceptionCode::ServerDeviceFailure => {
+            rodbus::exception::ExceptionCode::ServerDeviceFailure => {
                 from_exception(ffi::ModbusException::ServerDeviceFailure, x.into())
             }
-            rodbus::error::details::ExceptionCode::Unknown(x) => {
+            rodbus::exception::ExceptionCode::Unknown(x) => {
                 from_exception(ffi::ModbusException::Unknown, x)
             }
         }

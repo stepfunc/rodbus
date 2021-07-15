@@ -7,7 +7,7 @@ use crate::tokio;
 use crate::common::cursor::ReadCursor;
 use crate::common::frame::{Frame, FrameFormatter, FrameHeader, FrameParser, FramedReader};
 use crate::common::function::FunctionCode;
-use crate::error::details::ExceptionCode;
+use crate::exception::ExceptionCode;
 use crate::error::*;
 use crate::server::handler::{RequestHandler, ServerHandlerMap};
 use crate::server::request::{Request, RequestDisplay};

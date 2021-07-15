@@ -92,38 +92,38 @@ impl ffi::ErrorInfo {
 }
 
 impl ffi::WriteResult {
-    pub(crate) fn convert_to_result(self) -> Result<(), rodbus::error::details::ExceptionCode> {
+    pub(crate) fn convert_to_result(self) -> Result<(), rodbus::exception::ExceptionCode> {
         if self.success() {
             return Ok(());
         }
         let ex = match self.exception() {
-            ffi::ModbusException::Acknowledge => rodbus::error::details::ExceptionCode::Acknowledge,
+            ffi::ModbusException::Acknowledge => rodbus::exception::ExceptionCode::Acknowledge,
             ffi::ModbusException::GatewayPathUnavailable => {
-                rodbus::error::details::ExceptionCode::GatewayPathUnavailable
+                rodbus::exception::ExceptionCode::GatewayPathUnavailable
             }
             ffi::ModbusException::GatewayTargetDeviceFailedToRespond => {
-                rodbus::error::details::ExceptionCode::GatewayTargetDeviceFailedToRespond
+                rodbus::exception::ExceptionCode::GatewayTargetDeviceFailedToRespond
             }
             ffi::ModbusException::IllegalDataAddress => {
-                rodbus::error::details::ExceptionCode::IllegalDataAddress
+                rodbus::exception::ExceptionCode::IllegalDataAddress
             }
             ffi::ModbusException::IllegalDataValue => {
-                rodbus::error::details::ExceptionCode::IllegalDataValue
+                rodbus::exception::ExceptionCode::IllegalDataValue
             }
             ffi::ModbusException::IllegalFunction => {
-                rodbus::error::details::ExceptionCode::IllegalFunction
+                rodbus::exception::ExceptionCode::IllegalFunction
             }
             ffi::ModbusException::MemoryParityError => {
-                rodbus::error::details::ExceptionCode::MemoryParityError
+                rodbus::exception::ExceptionCode::MemoryParityError
             }
             ffi::ModbusException::ServerDeviceBusy => {
-                rodbus::error::details::ExceptionCode::ServerDeviceBusy
+                rodbus::exception::ExceptionCode::ServerDeviceBusy
             }
             ffi::ModbusException::ServerDeviceFailure => {
-                rodbus::error::details::ExceptionCode::ServerDeviceFailure
+                rodbus::exception::ExceptionCode::ServerDeviceFailure
             }
             ffi::ModbusException::Unknown => {
-                rodbus::error::details::ExceptionCode::Unknown(self.raw_exception())
+                rodbus::exception::ExceptionCode::Unknown(self.raw_exception())
             }
         };
 

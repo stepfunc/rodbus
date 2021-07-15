@@ -1,7 +1,7 @@
 use crate::common::cursor::WriteCursor;
 use crate::common::function::FunctionCode;
 use crate::common::traits::Serialize;
-use crate::error::details::ExceptionCode;
+use crate::exception::ExceptionCode;
 use crate::error::Error;
 use crate::types::{ReadBitsRange, ReadRegistersRange};
 

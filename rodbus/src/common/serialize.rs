@@ -53,7 +53,7 @@ impl Loggable for AddressRange {
     }
 }
 
-impl Serialize for details::ExceptionCode {
+impl Serialize for crate::exception::ExceptionCode {
     fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), Error> {
         cursor.write_u8((*self).into())?;
         Ok(())
@@ -157,7 +157,7 @@ impl Serialize for &[bool] {
 
 impl<T> Serialize for BitWriter<T>
 where
-    T: Fn(u16) -> Result<bool, details::ExceptionCode>,
+    T: Fn(u16) -> Result<bool, crate::exception::ExceptionCode>,
 {
     fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), Error> {
         let range = self.range.get();
@@ -194,7 +194,7 @@ where
 
 impl<T> Loggable for BitWriter<T>
 where
-    T: Fn(u16) -> Result<bool, details::ExceptionCode>,
+    T: Fn(u16) -> Result<bool, crate::exception::ExceptionCode>,
 {
     fn log(
         &self,
@@ -220,7 +220,7 @@ where
 
 impl<T> Serialize for RegisterWriter<T>
 where
-    T: Fn(u16) -> Result<u16, details::ExceptionCode>,
+    T: Fn(u16) -> Result<u16, crate::exception::ExceptionCode>,
 {
     fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), Error> {
         // write the number of bytes that follow
@@ -239,7 +239,7 @@ where
 
 impl<T> Loggable for RegisterWriter<T>
 where
-    T: Fn(u16) -> Result<u16, details::ExceptionCode>,
+    T: Fn(u16) -> Result<u16, crate::exception::ExceptionCode>,
 {
     fn log(
         &self,

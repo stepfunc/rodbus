@@ -3,7 +3,7 @@ use crate::common::frame::{FrameFormatter, FrameHeader};
 use crate::common::function::FunctionCode;
 use crate::common::traits::{Loggable, Parse, Serialize};
 use crate::decode::PduDecodeLevel;
-use crate::error::details::ExceptionCode;
+use crate::exception::ExceptionCode;
 use crate::error::Error;
 use crate::server::handler::RequestHandler;
 use crate::server::response::{BitWriter, RegisterWriter};

@@ -5,7 +5,7 @@ use crate::common::function::FunctionCode;
 use crate::common::traits::Serialize;
 use crate::common::traits::{Loggable, LoggableDisplay};
 use crate::decode::PduDecodeLevel;
-use crate::error::details::ExceptionCode;
+use crate::exception::ExceptionCode;
 use crate::error::details::InternalError;
 use crate::error::Error;
 use crate::server::response::{ErrorResponse, Response};

@@ -1,6 +1,6 @@
 use crate::ffi;
 use crate::Database;
-use rodbus::error::details::ExceptionCode;
+use rodbus::exception::ExceptionCode;
 use rodbus::server::handler::{RequestHandler, ServerHandlerMap};
 use rodbus::shutdown::TaskHandle;
 use rodbus::types::{Indexed, UnitId, WriteCoils, WriteRegisters};

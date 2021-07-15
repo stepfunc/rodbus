@@ -1,8 +1,9 @@
 use crate::common::function::FunctionCode;
 use crate::common::traits::Loggable;
 use crate::decode::PduDecodeLevel;
-use crate::error::details::{AduParseError, ExceptionCode};
+use crate::error::details::AduParseError;
 use crate::error::*;
+use crate::exception::ExceptionCode;
 use crate::tokio;
 
 use crate::client::requests::read_bits::ReadBits;
