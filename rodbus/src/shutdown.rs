@@ -8,13 +8,12 @@ pub struct TaskHandle {
 }
 
 impl TaskHandle {
+
+    /// Construct a [TaskHandle] from its fields
+    ///
+    /// This function is only required for the C bindings
     pub fn new(tx: tokio::sync::mpsc::Sender<()>, handle: tokio::task::JoinHandle<()>) -> Self {
         TaskHandle { tx, handle }
     }
 
-    pub async fn shutdown(self) -> Result<(), tokio::task::JoinError> {
-        // the task is waiting on the other end of the mpsc, so dropping the sender will kill the task
-        drop(self.tx);
-        self.handle.await
-    }
 }

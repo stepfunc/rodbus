@@ -3,11 +3,19 @@ use crate::tokio;
 /// Top level error type for the client API
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Error {
+    /// An I/O error occurred
     Io(::std::io::ErrorKind),
+    /// A Modbus exception was returned by the server
     Exception(details::ExceptionCode),
+    /// Request was not performed because it is invalid
     BadRequest(details::InvalidRequest),
+    /// Unable to parse a frame from the server
     BadFrame(details::FrameParseError),
+    /// Response ADU was invalid
     BadResponse(details::AduParseError),
+    /// An internal error occurred in the library itself
+    ///
+    /// These errors should never happen, but are trapped here for reporting purposes in case they ever do occur
     Internal(details::InternalError),
     /// timeout occurred before receiving a response from the server
     ResponseTimeout,
@@ -360,6 +368,7 @@ pub mod details {
     /// errors that result because of bad request parameter
     #[derive(Clone, Copy, Debug, PartialEq)]
     pub enum InvalidRequest {
+        /// Request contained an invalid range
         BadRange(InvalidRange),
         /// Count is too big to fit in a u16
         CountTooBigForU16(usize),

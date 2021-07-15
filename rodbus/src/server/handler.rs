@@ -65,6 +65,9 @@ pub trait RequestHandler: Send + 'static {
         Err(ExceptionCode::IllegalFunction)
     }
 
+    /// Helper function to convert an Option<T> to Result<T, ExceptionCode::IllegalDataAddress>
+    ///
+    /// This is useful when looking up requested values in a map where the value may not be present
     fn convert<T>(x: Option<&T>) -> Result<T, ExceptionCode>
     where
         T: Copy,

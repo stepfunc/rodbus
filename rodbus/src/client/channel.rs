@@ -85,6 +85,7 @@ pub mod strategy {
 }
 
 impl RequestParam {
+    /// create a new `RequestParam` from both of its fields
     pub fn new(id: UnitId, response_timeout: Duration) -> Self {
         Self {
             id,
@@ -122,6 +123,7 @@ impl Channel {
         (Channel { tx }, task)
     }
 
+    /// Read coils from the server
     pub async fn read_coils(
         &mut self,
         param: RequestParam,
@@ -139,6 +141,7 @@ impl Channel {
         rx.await?
     }
 
+    /// Read discrete inputs from the server
     pub async fn read_discrete_inputs(
         &mut self,
         param: RequestParam,
@@ -156,6 +159,7 @@ impl Channel {
         rx.await?
     }
 
+    /// Read holding registers from the server
     pub async fn read_holding_registers(
         &mut self,
         param: RequestParam,
@@ -173,6 +177,7 @@ impl Channel {
         rx.await?
     }
 
+    /// Read input registers from the server
     pub async fn read_input_registers(
         &mut self,
         param: RequestParam,
@@ -190,6 +195,7 @@ impl Channel {
         rx.await?
     }
 
+    /// Write a single coil on the server
     pub async fn write_single_coil(
         &mut self,
         param: RequestParam,
@@ -204,6 +210,7 @@ impl Channel {
         rx.await?
     }
 
+    /// Write a single register on the server
     pub async fn write_single_register(
         &mut self,
         param: RequestParam,
@@ -218,6 +225,7 @@ impl Channel {
         rx.await?
     }
 
+    /// Write multiple contiguous coils on the server
     pub async fn write_multiple_coils(
         &mut self,
         param: RequestParam,
@@ -232,6 +240,7 @@ impl Channel {
         rx.await?
     }
 
+    /// Write multiple contiguous registers on the server
     pub async fn write_multiple_registers(
         &mut self,
         param: RequestParam,
@@ -262,6 +271,7 @@ pub struct CallbackSession {
 }
 
 impl CallbackSession {
+    /// Create a [CallbackSession] from a [Channel] and the specified [RequestParam]
     pub fn new(channel: Channel, param: RequestParam) -> Self {
         CallbackSession {
             tx: channel.tx,
@@ -269,6 +279,7 @@ impl CallbackSession {
         }
     }
 
+    /// Read coils from the server
     pub async fn read_coils<C>(&mut self, range: AddressRange, callback: C)
     where
         C: FnOnce(Result<BitIterator, Error>) + Send + Sync + 'static,
@@ -277,6 +288,7 @@ impl CallbackSession {
             .await;
     }
 
+    /// Read discrete inputs from the server
     pub async fn read_discrete_inputs<C>(&mut self, range: AddressRange, callback: C)
     where
         C: FnOnce(Result<BitIterator, Error>) + Send + Sync + 'static,
@@ -285,6 +297,7 @@ impl CallbackSession {
             .await;
     }
 
+    /// Read holding registers from the server
     pub async fn read_holding_registers<C>(&mut self, range: AddressRange, callback: C)
     where
         C: FnOnce(Result<RegisterIterator, Error>) + Send + Sync + 'static,
@@ -293,6 +306,7 @@ impl CallbackSession {
             .await;
     }
 
+    /// Read input registers from the server
     pub async fn read_input_registers<C>(&mut self, range: AddressRange, callback: C)
     where
         C: FnOnce(Result<RegisterIterator, Error>) + Send + Sync + 'static,
@@ -301,6 +315,7 @@ impl CallbackSession {
             .await;
     }
 
+    /// Write a single coil to the server
     pub async fn write_single_coil<C>(&mut self, value: Indexed<bool>, callback: C)
     where
         C: FnOnce(Result<Indexed<bool>, Error>) + Send + Sync + 'static,
@@ -315,6 +330,7 @@ impl CallbackSession {
         .await;
     }
 
+    /// Write a single registers to the server
     pub async fn write_single_register<C>(&mut self, value: Indexed<u16>, callback: C)
     where
         C: FnOnce(Result<Indexed<u16>, Error>) + Send + Sync + 'static,
@@ -329,6 +345,7 @@ impl CallbackSession {
         .await;
     }
 
+    /// Write multiple contiguous registers to the server
     pub async fn write_multiple_registers<C>(&mut self, value: WriteMultiple<u16>, callback: C)
     where
         C: FnOnce(Result<AddressRange, Error>) + Send + Sync + 'static,
@@ -343,6 +360,7 @@ impl CallbackSession {
         .await;
     }
 
+    /// Write multiple contiguous coils to the server
     pub async fn write_multiple_coils<C>(&mut self, value: WriteMultiple<bool>, callback: C)
     where
         C: FnOnce(Result<AddressRange, Error>) + Send + Sync + 'static,
