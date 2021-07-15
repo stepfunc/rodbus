@@ -15,7 +15,7 @@ use crate::tokio;
 use crate::types::{AddressRange, BitIterator, Indexed, RegisterIterator, UnitId, WriteMultiple};
 
 /// Channel from which `AsyncSession` objects can be created to make requests
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct Channel {
     tx: tokio::sync::mpsc::Sender<Request>,
 }
@@ -255,7 +255,7 @@ impl Channel {
 /// This interface removes some allocations when returning results.
 /// Its primary use is for the bindings. Rust users should prefer
 /// interacting with the channel directly.
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct CallbackSession {
     tx: tokio::sync::mpsc::Sender<Request>,
     param: RequestParam,

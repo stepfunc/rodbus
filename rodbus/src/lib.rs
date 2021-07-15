@@ -135,10 +135,10 @@
 //!```
 
 #![deny(
-// dead_code,
-// arithmetic_overflow,
+dead_code,
+arithmetic_overflow,
 invalid_type_param_default,
-// missing_fragment_specifier,
+missing_fragment_specifier,
 mutable_transmutes,
 no_mangle_const_items,
 overflowing_literals,
@@ -164,7 +164,7 @@ unused_comparisons,
 unreachable_pub,
 anonymous_parameters,
 missing_copy_implementations,
-// missing_debug_implementations,
+missing_debug_implementations,
 // missing_docs,
 trivial_casts,
 trivial_numeric_casts,
@@ -174,7 +174,7 @@ clippy::all
 )]
 #![forbid(
     unsafe_code,
-    //intra_doc_link_resolution_failure,
+    broken_intra_doc_links,
     unaligned_references,
     while_true,
     bare_trait_objects

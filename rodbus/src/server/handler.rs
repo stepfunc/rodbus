@@ -83,7 +83,7 @@ type ServerHandlerType<T> = Arc<Mutex<Box<T>>>;
 ///
 /// [`ServerHandler`]: trait.ServerHandler.html
 /// [`UnitId`]: ../../types/struct.UnitId.html
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct ServerHandlerMap<T: RequestHandler> {
     handlers: BTreeMap<UnitId, ServerHandlerType<T>>,
 }

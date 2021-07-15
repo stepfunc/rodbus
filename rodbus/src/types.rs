@@ -61,7 +61,7 @@ pub struct Indexed<T> {
 }
 
 /// zero-copy type used to iterate over a collection of bits without allocating
-#[derive(Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct BitIterator<'a> {
     bytes: &'a [u8],
     range: AddressRange,
@@ -74,7 +74,7 @@ pub(crate) struct BitIteratorDisplay<'a, 'b> {
 }
 
 /// zero-copy type used to iterate over a collection of registers without allocating
-#[derive(Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct RegisterIterator<'a> {
     bytes: &'a [u8],
     range: AddressRange,
@@ -223,7 +223,7 @@ impl<'a> Iterator for RegisterIterator<'a> {
     }
 }
 
-#[derive(Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct WriteCoils<'a> {
     pub range: AddressRange,
     pub iterator: BitIterator<'a>,
@@ -235,7 +235,7 @@ impl<'a> WriteCoils<'a> {
     }
 }
 
-#[derive(Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct WriteRegisters<'a> {
     pub range: AddressRange,
     pub iterator: RegisterIterator<'a>,
