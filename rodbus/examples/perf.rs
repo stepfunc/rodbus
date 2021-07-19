@@ -4,9 +4,11 @@ use std::time::Duration;
 
 use rodbus::decode::{AduDecodeLevel, DecodeLevel, PduDecodeLevel, PhysDecodeLevel};
 
-use rodbus::error::details::ExceptionCode;
-use rodbus::prelude::*;
-use rodbus::server::spawn_tcp_server_task;
+use rodbus::ExceptionCode;
+use rodbus::server::*;
+use rodbus::client::*;
+use rodbus::types::*;
+use rodbus::error::Error;
 
 struct Handler {
     coils: [bool; 100],
@@ -67,7 +69,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let channel = spawn_tcp_client_task(
             addr,
             10,
-            strategy::default(),
+            default_reconnect_strategy(),
             DecodeLevel::new(
                 PduDecodeLevel::Nothing,
                 AduDecodeLevel::Nothing,

@@ -39,19 +39,19 @@ pub trait ReconnectStrategy {
 }
 
 /// Helper functions for returning instances of `Box<dyn ReconnectStrategy>`
-pub mod strategy {
+pub(crate) mod strategy {
     use std::time::Duration;
 
     use super::ReconnectStrategy;
 
     /// return the default ReconnectStrategy
-    pub fn default() -> Box<dyn ReconnectStrategy + Send> {
-        doubling(Duration::from_millis(100), Duration::from_secs(5))
+    pub fn default_reconnect_strategy() -> Box<dyn ReconnectStrategy + Send> {
+        doubling_reconnect_strategy(Duration::from_millis(100), Duration::from_secs(5))
     }
 
     /// return a ReconnectStrategy that doubles on failure up to a
     /// maximum value
-    pub fn doubling(min: Duration, max: Duration) -> Box<dyn ReconnectStrategy + Send> {
+    pub fn doubling_reconnect_strategy(min: Duration, max: Duration) -> Box<dyn ReconnectStrategy + Send> {
         Doubling::create(min, max)
     }
 

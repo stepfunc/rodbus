@@ -1,9 +1,9 @@
 use crate::ffi;
-use rodbus::client::channel::ReconnectStrategy;
+use rodbus::client::ReconnectStrategy;
 use rodbus::types::{AddressRange, WriteMultiple};
 
 pub struct Channel {
-    pub(crate) inner: rodbus::client::channel::Channel,
+    pub(crate) inner: rodbus::client::Channel,
     pub(crate) runtime: crate::RuntimeHandle,
 }
 
@@ -186,6 +186,6 @@ pub(crate) unsafe fn channel_write_multiple_registers(
 
 impl From<ffi::RetryStrategy> for Box<dyn ReconnectStrategy + Send> {
     fn from(from: ffi::RetryStrategy) -> Self {
-        rodbus::client::channel::strategy::doubling(from.min_delay(), from.max_delay())
+        rodbus::client::doubling_reconnect_strategy(from.min_delay(), from.max_delay())
     }
 }

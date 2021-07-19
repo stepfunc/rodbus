@@ -6,9 +6,10 @@ use std::time::Duration;
 
 use clap::{App, Arg, ArgMatches, SubCommand};
 
-use rodbus::decode::PduDecodeLevel;
+use rodbus::decode::*;
 use rodbus::error::details::{InvalidRange, InvalidRequest};
-use rodbus::prelude::*;
+use rodbus::client::*;
+use rodbus::types::*;
 
 #[derive(Debug)]
 enum Error {
@@ -70,7 +71,7 @@ async fn run() -> Result<(), Error> {
     let mut channel = spawn_tcp_client_task(
         args.address,
         1,
-        strategy::default(),
+        default_reconnect_strategy(),
         PduDecodeLevel::DataValues.into(),
     );
     let params = RequestParam::new(args.id, Duration::from_secs(1));

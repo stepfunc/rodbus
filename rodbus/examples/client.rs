@@ -1,10 +1,12 @@
 use std::error::Error;
 use std::time::Duration;
 
-use rodbus::decode::DecodeLevel;
-use rodbus::prelude::*;
 use tokio_stream::StreamExt;
 use tokio_util::codec::{FramedRead, LinesCodec};
+
+use rodbus::decode::DecodeLevel;
+use rodbus::client::*;
+use rodbus::types::*;
 
 // ANCHOR: runtime_init
 #[tokio::main(flavor = "multi_thread")]
@@ -24,7 +26,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let mut channel = spawn_tcp_client_task(
         "127.0.0.1:502".parse()?,
         1,
-        strategy::default(),
+        default_reconnect_strategy(),
         DecodeLevel::default(),
     );
     // ANCHOR_END: create_tcp_channel

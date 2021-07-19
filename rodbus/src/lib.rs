@@ -191,8 +191,6 @@ pub mod constants;
 pub mod decode;
 /// error types associated with making requests
 pub mod error;
-/// prelude used to include all of the API types
-pub mod prelude;
 /// server API
 pub mod server;
 /// types used to shutdown async tasks

@@ -1,5 +1,5 @@
 use crate::ffi;
-use rodbus::client::channel::{CallbackSession, RequestParam};
+use rodbus::client::{CallbackSession, RequestParam};
 use rodbus::types::UnitId;
 use std::time::Duration;
 

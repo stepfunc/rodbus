@@ -1,14 +1,15 @@
 use std::net::SocketAddr;
 
-use crate::client::channel::{Channel, ReconnectStrategy};
 use crate::decode::DecodeLevel;
 
 /// persistent communication channel such as a TCP connection
-pub mod channel;
-
+pub(crate) mod channel;
 pub(crate) mod message;
 pub(crate) mod requests;
 pub(crate) mod task;
+
+pub use crate::client::channel::*;
+pub use crate::client::channel::strategy::*;
 
 /// Spawns a channel task onto the runtime that maintains a TCP connection and processes
 /// requests from an mpsc request queue. The task completes when the returned channel handle

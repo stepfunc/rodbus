@@ -1,6 +1,6 @@
 use crate::tokio;
 
-/// A handle to an async task that can be used to shut it down
+/// A handle to an async task. The task is shutdown when the handle is dropped.
 #[derive(Debug)]
 pub struct TaskHandle {
     tx: tokio::sync::mpsc::Sender<()>,

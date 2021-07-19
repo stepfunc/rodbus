@@ -1,11 +1,13 @@
 use crate::ffi;
 use crate::Database;
 use rodbus::ExceptionCode;
-use rodbus::server::handler::{RequestHandler, ServerHandlerMap};
 use rodbus::shutdown::TaskHandle;
-use rodbus::types::{Indexed, UnitId, WriteCoils, WriteRegisters};
+use rodbus::types::{Indexed, UnitId};
 use std::collections::HashMap;
 use std::net::SocketAddr;
+
+use rodbus::server::*;
+use rodbus::server::{RequestHandler, ServerHandlerMap};
 
 struct RequestHandlerWrapper {
     database: Database,
@@ -28,8 +30,8 @@ pub struct DeviceMap {
 impl DeviceMap {
     fn drain_and_convert(
         &mut self,
-    ) -> rodbus::server::handler::ServerHandlerMap<RequestHandlerWrapper> {
-        let mut handlers = rodbus::server::handler::ServerHandlerMap::new();
+    ) -> rodbus::server::ServerHandlerMap<RequestHandlerWrapper> {
+        let mut handlers = rodbus::server::ServerHandlerMap::new();
         for (key, value) in self.inner.drain() {
             handlers.add(UnitId::new(key), value.wrap());
         }

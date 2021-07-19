@@ -1,6 +1,11 @@
-use rodbus::prelude::*;
+
 use tokio_stream::StreamExt;
 use tokio_util::codec::{FramedRead, LinesCodec};
+
+use rodbus::*;
+use rodbus::types::*;
+use rodbus::server::*;
+use rodbus::decode::*;
 
 struct SimpleHandler {
     coils: Vec<bool>,
@@ -43,23 +48,23 @@ impl SimpleHandler {
 
 // ANCHOR: request_handler
 impl RequestHandler for SimpleHandler {
-    fn read_coil(&self, address: u16) -> Result<bool, details::ExceptionCode> {
+    fn read_coil(&self, address: u16) -> Result<bool, ExceptionCode> {
         Self::convert(self.coils.get(address as usize))
     }
 
-    fn read_discrete_input(&self, address: u16) -> Result<bool, details::ExceptionCode> {
+    fn read_discrete_input(&self, address: u16) -> Result<bool, ExceptionCode> {
         Self::convert(self.discrete_inputs.get(address as usize))
     }
 
-    fn read_holding_register(&self, address: u16) -> Result<u16, details::ExceptionCode> {
+    fn read_holding_register(&self, address: u16) -> Result<u16, ExceptionCode> {
         Self::convert(self.holding_registers.get(address as usize))
     }
 
-    fn read_input_register(&self, address: u16) -> Result<u16, details::ExceptionCode> {
+    fn read_input_register(&self, address: u16) -> Result<u16, ExceptionCode> {
         Self::convert(self.input_registers.get(address as usize))
     }
 
-    fn write_single_coil(&mut self, value: Indexed<bool>) -> Result<(), details::ExceptionCode> {
+    fn write_single_coil(&mut self, value: Indexed<bool>) -> Result<(), ExceptionCode> {
         tracing::info!(
             "write single coil, index: {} value: {}",
             value.index,
@@ -74,7 +79,7 @@ impl RequestHandler for SimpleHandler {
         }
     }
 
-    fn write_single_register(&mut self, value: Indexed<u16>) -> Result<(), details::ExceptionCode> {
+    fn write_single_register(&mut self, value: Indexed<u16>) -> Result<(), ExceptionCode> {
         tracing::info!(
             "write single register, index: {} value: {}",
             value.index,
@@ -89,7 +94,7 @@ impl RequestHandler for SimpleHandler {
         }
     }
 
-    fn write_multiple_coils(&mut self, values: WriteCoils) -> Result<(), details::ExceptionCode> {
+    fn write_multiple_coils(&mut self, values: WriteCoils) -> Result<(), ExceptionCode> {
         tracing::info!("write multiple coils {:?}", values.range);
 
         let mut result = Ok(());
@@ -108,7 +113,7 @@ impl RequestHandler for SimpleHandler {
     fn write_multiple_registers(
         &mut self,
         values: WriteRegisters,
-    ) -> Result<(), details::ExceptionCode> {
+    ) -> Result<(), ExceptionCode> {
         tracing::info!("write multiple registers {:?}", values.range);
 
         let mut result = Ok(());
