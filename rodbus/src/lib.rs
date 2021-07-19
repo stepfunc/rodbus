@@ -187,8 +187,6 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 pub mod client;
 /// public constant values related to the Modbus specification
 pub mod constants;
-/// Modbus exception codes
-pub mod exception;
 /// types used to control decoding in the log
 pub mod decode;
 /// error types associated with making requests
@@ -201,6 +199,13 @@ pub mod server;
 pub mod shutdown;
 /// types used in requests and responses
 pub mod types;
+
+
+// modules that are re-exported
+pub(crate) mod exception;
+
+// re-exports
+pub use crate::exception::*;
 
 // internal modules
 mod common;

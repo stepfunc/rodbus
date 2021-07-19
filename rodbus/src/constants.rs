@@ -20,7 +20,7 @@ pub mod limits {
 
 /// Modbus exception codes
 pub mod exceptions {
-    /// Constant value corresponding to [crate::error::details::ExceptionCode::IllegalFunction]
+    /// Constant value corresponding to [crate::exception::ExceptionCode::IllegalFunction]
     pub const ILLEGAL_FUNCTION: u8 = 0x01;
     /// Data address received in the request is not valid for the server
     pub const ILLEGAL_DATA_ADDRESS: u8 = 0x02;

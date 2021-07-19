@@ -92,38 +92,38 @@ impl ffi::ErrorInfo {
 }
 
 impl ffi::WriteResult {
-    pub(crate) fn convert_to_result(self) -> Result<(), rodbus::exception::ExceptionCode> {
+    pub(crate) fn convert_to_result(self) -> Result<(), rodbus::ExceptionCode> {
         if self.success() {
             return Ok(());
         }
         let ex = match self.exception() {
-            ffi::ModbusException::Acknowledge => rodbus::exception::ExceptionCode::Acknowledge,
+            ffi::ModbusException::Acknowledge => rodbus::ExceptionCode::Acknowledge,
             ffi::ModbusException::GatewayPathUnavailable => {
-                rodbus::exception::ExceptionCode::GatewayPathUnavailable
+                rodbus::ExceptionCode::GatewayPathUnavailable
             }
             ffi::ModbusException::GatewayTargetDeviceFailedToRespond => {
-                rodbus::exception::ExceptionCode::GatewayTargetDeviceFailedToRespond
+                rodbus::ExceptionCode::GatewayTargetDeviceFailedToRespond
             }
             ffi::ModbusException::IllegalDataAddress => {
-                rodbus::exception::ExceptionCode::IllegalDataAddress
+                rodbus::ExceptionCode::IllegalDataAddress
             }
             ffi::ModbusException::IllegalDataValue => {
-                rodbus::exception::ExceptionCode::IllegalDataValue
+                rodbus::ExceptionCode::IllegalDataValue
             }
             ffi::ModbusException::IllegalFunction => {
-                rodbus::exception::ExceptionCode::IllegalFunction
+                rodbus::ExceptionCode::IllegalFunction
             }
             ffi::ModbusException::MemoryParityError => {
-                rodbus::exception::ExceptionCode::MemoryParityError
+                rodbus::ExceptionCode::MemoryParityError
             }
             ffi::ModbusException::ServerDeviceBusy => {
-                rodbus::exception::ExceptionCode::ServerDeviceBusy
+                rodbus::ExceptionCode::ServerDeviceBusy
             }
             ffi::ModbusException::ServerDeviceFailure => {
-                rodbus::exception::ExceptionCode::ServerDeviceFailure
+                rodbus::ExceptionCode::ServerDeviceFailure
             }
             ffi::ModbusException::Unknown => {
-                rodbus::exception::ExceptionCode::Unknown(self.raw_exception())
+                rodbus::ExceptionCode::Unknown(self.raw_exception())
             }
         };
 
