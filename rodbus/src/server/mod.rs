@@ -29,8 +29,6 @@ pub use types::*;
 /// * `addr` - A socket address to bound to
 /// * `handlers` - A map of handlers keyed by a unit id
 /// * `decode` - Decode log level
-///
-/// [`create_tcp_server_task`]: fn.create_tcp_server_task.html
 pub async fn spawn_tcp_server_task<T: RequestHandler>(
     max_sessions: usize,
     addr: SocketAddr,
@@ -63,8 +61,6 @@ pub async fn spawn_tcp_server_task<T: RequestHandler>(
 /// * `addr` - A socket address to bound to
 /// * `handlers` - A map of handlers keyed by a unit id
 /// * `decode` - Decode log level
-///
-/// [`spawn_tcp_server_task`]: fn.spawn_tcp_server_task.html
 pub async fn create_tcp_server_task<T: RequestHandler>(
     rx: tokio::sync::mpsc::Receiver<()>,
     max_sessions: usize,

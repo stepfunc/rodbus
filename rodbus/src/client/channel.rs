@@ -14,7 +14,7 @@ use crate::tcp::client::TcpChannelTask;
 use crate::tokio;
 use crate::types::{AddressRange, BitIterator, Indexed, RegisterIterator, UnitId, WriteMultiple};
 
-/// Channel from which `AsyncSession` objects can be created to make requests
+/// Async channel used to make requests
 #[derive(Debug, Clone)]
 pub struct Channel {
     tx: tokio::sync::mpsc::Sender<Request>,
@@ -44,13 +44,12 @@ pub(crate) mod strategy {
 
     use super::ReconnectStrategy;
 
-    /// return the default ReconnectStrategy
+    /// return the default [`ReconnectStrategy`]
     pub fn default_reconnect_strategy() -> Box<dyn ReconnectStrategy + Send> {
         doubling_reconnect_strategy(Duration::from_millis(100), Duration::from_secs(5))
     }
 
-    /// return a ReconnectStrategy that doubles on failure up to a
-    /// maximum value
+    /// return a [`ReconnectStrategy`] that doubles on failure up to a maximum value
     pub fn doubling_reconnect_strategy(
         min: Duration,
         max: Duration,

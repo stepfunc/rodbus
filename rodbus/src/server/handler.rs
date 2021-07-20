@@ -13,9 +13,6 @@ use crate::types::*;
 ///
 /// If an implementation returns a slice smaller than the requested range, this will result
 /// in [`ExceptionCode::ServerDeviceFailure`] being returned to the client.
-///
-/// [`ExceptionCode::IllegalDataAddress`]: ../../error/details/enum.ExceptionCode.html#variant.IllegalDataAddress
-/// [`ExceptionCode::ServerDeviceFailure`]: ../../error/details/enum.ExceptionCode.html#variant.ServerDeviceFailure
 pub trait RequestHandler: Send + 'static {
     /// Moves a server handler implementation into a `Arc<Mutex<Box<ServerHandler>>>`
     /// suitable for passing to the server
@@ -83,10 +80,7 @@ pub trait RequestHandler: Send + 'static {
 type ServerHandlerType<T> = Arc<Mutex<Box<T>>>;
 
 /// A type that hides the underlying map implementation
-/// and allows lookups of a [`ServerHandler`] from a [`UnitId`]
-///
-/// [`ServerHandler`]: trait.ServerHandler.html
-/// [`UnitId`]: ../../types/struct.UnitId.html
+/// and allows lookups of a [`RequestHandler`] from a [`UnitId`]
 #[derive(Debug, Default)]
 pub struct ServerHandlerMap<T: RequestHandler> {
     handlers: BTreeMap<UnitId, ServerHandlerType<T>>,
@@ -123,7 +117,7 @@ where
         Self { handlers: map }
     }
 
-    /// Retrieve a mutable reference to a [`ServerHandler`](trait.ServerHandler.html)
+    /// Retrieve a mutable reference to a [`RequestHandler`]
     pub fn get(&mut self, id: UnitId) -> Option<&mut ServerHandlerType<T>> {
         self.handlers.get_mut(&id)
     }
