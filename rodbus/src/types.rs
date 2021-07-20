@@ -62,7 +62,7 @@ pub struct Indexed<T> {
     pub value: T,
 }
 
-/// zero-copy type used to iterate over a collection of bits without allocating
+/// Zero-copy type used to iterate over a collection of bits
 #[derive(Debug, Copy, Clone)]
 pub struct BitIterator<'a> {
     bytes: &'a [u8],
@@ -75,7 +75,7 @@ pub(crate) struct BitIteratorDisplay<'a, 'b> {
     level: PduDecodeLevel,
 }
 
-/// zero-copy type used to iterate over a collection of registers without allocating
+/// Zero-copy type used to iterate over a collection of registers
 #[derive(Debug, Copy, Clone)]
 pub struct RegisterIterator<'a> {
     bytes: &'a [u8],

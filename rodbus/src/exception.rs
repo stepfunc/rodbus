@@ -1,4 +1,4 @@
-/// exception codes defined in the Modbus specification
+/// Exception codes defined in the Modbus specification
 #[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Ord, Eq)]
 pub enum ExceptionCode {
     /// The function code received in the query is not an allowable action for the server

@@ -6,7 +6,7 @@ pub(crate) mod coil {
     pub(crate) const OFF: u16 = 0x0000;
 }
 
-/// limits of request sizes
+/// Limits of request sizes
 pub mod limits {
     /// Maximum count allowed in a read coils/discrete inputs request
     pub const MAX_READ_COILS_COUNT: u16 = 0x07D0;

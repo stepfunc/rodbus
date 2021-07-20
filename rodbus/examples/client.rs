@@ -4,8 +4,8 @@ use std::time::Duration;
 use tokio_stream::StreamExt;
 use tokio_util::codec::{FramedRead, LinesCodec};
 
+use rodbus::*;
 use rodbus::client::*;
-use rodbus::decode::DecodeLevel;
 use rodbus::types::*;
 
 // ANCHOR: runtime_init

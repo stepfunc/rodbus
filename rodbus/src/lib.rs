@@ -38,7 +38,6 @@
 //! ```no_run
 //!use rodbus::*;
 //!use rodbus::client::*;
-//!use rodbus::decode::*;
 //!use rodbus::types::*;
 //!
 //!use std::net::SocketAddr;
@@ -81,7 +80,6 @@
 //!
 //! ```no_run
 //! use rodbus::*;
-//! use rodbus::decode::*;
 //! use rodbus::types::*;
 //! use rodbus::server::*;
 //!
@@ -190,26 +188,27 @@
 /// Current version of the library
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
-/// client API
+/// Client API
 pub mod client;
-/// public constant values related to the Modbus specification
+/// Public constant values related to the Modbus specification
 pub mod constants;
-/// types used to control decoding in the log
-pub mod decode;
-/// error types associated with making requests
+
+/// Error types associated with making requests
 pub mod error;
-/// server API
+/// Server API
 pub mod server;
-/// types used to shutdown async tasks
+/// Types used to shutdown async tasks
 pub mod shutdown;
-/// types used in requests and responses
+/// Types used in requests and responses
 pub mod types;
 
 // modules that are re-exported
 pub(crate) mod exception;
+pub(crate) mod decode;
 
 // re-exports
 pub use crate::exception::*;
+pub use crate::decode::*;
 
 // internal modules
 mod common;
