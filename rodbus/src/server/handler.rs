@@ -2,8 +2,8 @@ use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 
 use crate::exception::ExceptionCode;
-use crate::types::*;
 use crate::server::{WriteCoils, WriteRegisters};
+use crate::types::*;
 
 /// Trait implemented by the user to process requests received from the client
 ///

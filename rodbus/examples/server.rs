@@ -1,11 +1,10 @@
-
 use tokio_stream::StreamExt;
 use tokio_util::codec::{FramedRead, LinesCodec};
 
-use rodbus::*;
-use rodbus::types::*;
-use rodbus::server::*;
 use rodbus::decode::*;
+use rodbus::server::*;
+use rodbus::types::*;
+use rodbus::*;
 
 struct SimpleHandler {
     coils: Vec<bool>,
@@ -110,10 +109,7 @@ impl RequestHandler for SimpleHandler {
         result
     }
 
-    fn write_multiple_registers(
-        &mut self,
-        values: WriteRegisters,
-    ) -> Result<(), ExceptionCode> {
+    fn write_multiple_registers(&mut self, values: WriteRegisters) -> Result<(), ExceptionCode> {
         tracing::info!("write multiple registers {:?}", values.range);
 
         let mut result = Ok(());

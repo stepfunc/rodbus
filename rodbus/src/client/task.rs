@@ -176,9 +176,10 @@ mod tests {
     use crate::client::requests::read_bits::ReadBits;
     use crate::common::function::FunctionCode;
     use crate::common::traits::{Loggable, Serialize};
-    use crate::decode::AduDecodeLevel;
-    use crate::decode::PhysDecodeLevel;
-    use crate::error::details::{ExceptionCode, FrameParseError};
+    use crate::decode::*;
+    use crate::*;
+
+    use crate::error::details::FrameParseError;
     use crate::server::response::BitWriter;
     use crate::tcp::frame::MbapFormatter;
     use crate::tcp::frame::MbapParser;

@@ -1,8 +1,8 @@
 use crate::common::cursor::WriteCursor;
 use crate::common::function::FunctionCode;
 use crate::common::traits::Serialize;
-use crate::exception::ExceptionCode;
 use crate::error::Error;
+use crate::exception::ExceptionCode;
 use crate::types::{ReadBitsRange, ReadRegistersRange};
 
 pub(crate) struct BitWriter<T>

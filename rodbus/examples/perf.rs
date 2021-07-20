@@ -4,11 +4,11 @@ use std::time::Duration;
 
 use rodbus::decode::{AduDecodeLevel, DecodeLevel, PduDecodeLevel, PhysDecodeLevel};
 
-use rodbus::ExceptionCode;
-use rodbus::server::*;
 use rodbus::client::*;
-use rodbus::types::*;
 use rodbus::error::Error;
+use rodbus::server::*;
+use rodbus::types::*;
+use rodbus::ExceptionCode;
 
 struct Handler {
     coils: [bool; 100],

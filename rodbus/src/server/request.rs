@@ -3,11 +3,11 @@ use crate::common::frame::{FrameFormatter, FrameHeader};
 use crate::common::function::FunctionCode;
 use crate::common::traits::{Loggable, Parse, Serialize};
 use crate::decode::PduDecodeLevel;
-use crate::exception::ExceptionCode;
 use crate::error::Error;
-use crate::server::*;
+use crate::exception::ExceptionCode;
 use crate::server::handler::RequestHandler;
 use crate::server::response::{BitWriter, RegisterWriter};
+use crate::server::*;
 use crate::types::*;
 
 pub(crate) enum Request<'a> {

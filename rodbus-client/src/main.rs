@@ -6,9 +6,9 @@ use std::time::Duration;
 
 use clap::{App, Arg, ArgMatches, SubCommand};
 
+use rodbus::client::*;
 use rodbus::decode::*;
 use rodbus::error::details::{InvalidRange, InvalidRequest};
-use rodbus::client::*;
 use rodbus::types::*;
 
 #[derive(Debug)]

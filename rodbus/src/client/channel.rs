@@ -51,7 +51,10 @@ pub(crate) mod strategy {
 
     /// return a ReconnectStrategy that doubles on failure up to a
     /// maximum value
-    pub fn doubling_reconnect_strategy(min: Duration, max: Duration) -> Box<dyn ReconnectStrategy + Send> {
+    pub fn doubling_reconnect_strategy(
+        min: Duration,
+        max: Duration,
+    ) -> Box<dyn ReconnectStrategy + Send> {
         Doubling::create(min, max)
     }
 

@@ -42,18 +42,14 @@ impl From<u8> for ExceptionCode {
     fn from(value: u8) -> Self {
         match value {
             crate::constants::exceptions::ILLEGAL_FUNCTION => ExceptionCode::IllegalFunction,
-            crate::constants::exceptions::ILLEGAL_DATA_ADDRESS => {
-                ExceptionCode::IllegalDataAddress
-            }
+            crate::constants::exceptions::ILLEGAL_DATA_ADDRESS => ExceptionCode::IllegalDataAddress,
             crate::constants::exceptions::ILLEGAL_DATA_VALUE => ExceptionCode::IllegalDataValue,
             crate::constants::exceptions::SERVER_DEVICE_FAILURE => {
                 ExceptionCode::ServerDeviceFailure
             }
             crate::constants::exceptions::ACKNOWLEDGE => ExceptionCode::Acknowledge,
             crate::constants::exceptions::SERVER_DEVICE_BUSY => ExceptionCode::ServerDeviceBusy,
-            crate::constants::exceptions::MEMORY_PARITY_ERROR => {
-                ExceptionCode::MemoryParityError
-            }
+            crate::constants::exceptions::MEMORY_PARITY_ERROR => ExceptionCode::MemoryParityError,
             crate::constants::exceptions::GATEWAY_PATH_UNAVAILABLE => {
                 ExceptionCode::GatewayPathUnavailable
             }
@@ -69,18 +65,14 @@ impl From<ExceptionCode> for u8 {
     fn from(ex: ExceptionCode) -> Self {
         match ex {
             ExceptionCode::IllegalFunction => crate::constants::exceptions::ILLEGAL_FUNCTION,
-            ExceptionCode::IllegalDataAddress => {
-                crate::constants::exceptions::ILLEGAL_DATA_ADDRESS
-            }
+            ExceptionCode::IllegalDataAddress => crate::constants::exceptions::ILLEGAL_DATA_ADDRESS,
             ExceptionCode::IllegalDataValue => crate::constants::exceptions::ILLEGAL_DATA_VALUE,
             ExceptionCode::ServerDeviceFailure => {
                 crate::constants::exceptions::SERVER_DEVICE_FAILURE
             }
             ExceptionCode::Acknowledge => crate::constants::exceptions::ACKNOWLEDGE,
             ExceptionCode::ServerDeviceBusy => crate::constants::exceptions::SERVER_DEVICE_BUSY,
-            ExceptionCode::MemoryParityError => {
-                crate::constants::exceptions::MEMORY_PARITY_ERROR
-            }
+            ExceptionCode::MemoryParityError => crate::constants::exceptions::MEMORY_PARITY_ERROR,
             ExceptionCode::GatewayPathUnavailable => {
                 crate::constants::exceptions::GATEWAY_PATH_UNAVAILABLE
             }

@@ -225,8 +225,6 @@ impl<'a> Iterator for RegisterIterator<'a> {
     }
 }
 
-
-
 impl<T> From<(u16, T)> for Indexed<T>
 where
     T: Copy,

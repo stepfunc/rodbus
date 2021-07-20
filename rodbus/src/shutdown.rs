@@ -8,12 +8,10 @@ pub struct TaskHandle {
 }
 
 impl TaskHandle {
-
     /// Construct a [TaskHandle] from its fields
     ///
     /// This function is only required for the C bindings
     pub fn new(tx: tokio::sync::mpsc::Sender<()>, handle: tokio::task::JoinHandle<()>) -> Self {
         TaskHandle { tx, handle }
     }
-
 }
