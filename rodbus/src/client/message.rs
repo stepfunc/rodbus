@@ -68,7 +68,7 @@ impl Request {
         function: u8,
         expected_function: FunctionCode,
         mut cursor: ReadCursor,
-    ) -> Error {
+    ) -> RequestError {
         if function == expected_function.as_error() {
             match cursor.read_u8() {
                 Ok(x) => {
@@ -79,10 +79,10 @@ impl Request {
                             exception,
                             u8::from(exception)
                         );
-                        Error::Exception(exception)
+                        RequestError::Exception(exception)
                     } else {
                         tracing::warn!("invalid modbus exception");
-                        Error::BadResponse(AduParseError::TrailingBytes(cursor.len()))
+                        RequestError::BadResponse(AduParseError::TrailingBytes(cursor.len()))
                     }
                 }
                 Err(err) => err.into(),
@@ -93,7 +93,7 @@ impl Request {
                 function,
                 expected_function.get_value()
             );
-            Error::BadResponse(AduParseError::UnknownResponseFunction(
+            RequestError::BadResponse(AduParseError::UnknownResponseFunction(
                 function,
                 expected_function.get_value(),
                 expected_function.as_error(),
@@ -116,7 +116,7 @@ impl RequestDetails {
         }
     }
 
-    pub(crate) fn fail(self, err: Error) {
+    pub(crate) fn fail(self, err: RequestError) {
         match self {
             RequestDetails::ReadCoils(x) => x.failure(err),
             RequestDetails::ReadDiscreteInputs(x) => x.failure(err),
@@ -147,7 +147,7 @@ impl RequestDetails {
 }
 
 impl Serialize for RequestDetails {
-    fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), Error> {
+    fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
         match self {
             RequestDetails::ReadCoils(x) => x.serialize(cursor),
             RequestDetails::ReadDiscreteInputs(x) => x.serialize(cursor),
@@ -229,16 +229,16 @@ impl std::fmt::Display for RequestDetailsDisplay<'_> {
 }
 
 pub(crate) enum Promise<T> {
-    Channel(tokio::sync::oneshot::Sender<Result<T, Error>>),
-    Callback(Box<dyn FnOnce(Result<T, Error>) + Send + Sync + 'static>),
+    Channel(tokio::sync::oneshot::Sender<Result<T, RequestError>>),
+    Callback(Box<dyn FnOnce(Result<T, RequestError>) + Send + Sync + 'static>),
 }
 
 impl<T> Promise<T> {
-    pub(crate) fn failure(self, err: Error) {
+    pub(crate) fn failure(self, err: RequestError) {
         self.complete(Err(err))
     }
 
-    pub(crate) fn complete(self, x: Result<T, Error>) {
+    pub(crate) fn complete(self, x: Result<T, RequestError>) {
         match self {
             Promise::Channel(sender) => {
                 sender.send(x).ok();
@@ -251,5 +251,5 @@ impl<T> Promise<T> {
 }
 
 trait Callback<U> {
-    fn complete(self, result: Result<U, Error>);
+    fn complete(self, result: Result<U, RequestError>);
 }

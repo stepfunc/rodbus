@@ -25,10 +25,10 @@ pub(crate) enum SessionError {
 }
 
 impl SessionError {
-    pub(crate) fn from(err: &Error) -> Option<Self> {
+    pub(crate) fn from(err: &RequestError) -> Option<Self> {
         match err {
-            Error::Io(_) => Some(SessionError::IoError),
-            Error::BadFrame(_) => Some(SessionError::BadFrame),
+            RequestError::Io(_) => Some(SessionError::IoError),
+            RequestError::BadFrame(_) => Some(SessionError::BadFrame),
             // all other errors don't kill the loop
             _ => None,
         }
@@ -99,7 +99,7 @@ where
         io: &mut PhysLayer,
         request: Request,
         tx_id: TxId,
-    ) -> Result<(), Error> {
+    ) -> Result<(), RequestError> {
         let bytes = self.formatter.format(
             FrameHeader::new(request.id, tx_id),
             request.details.function(),
@@ -115,7 +115,7 @@ where
         let response = loop {
             let frame = tokio::select! {
                 _ = tokio::time::sleep_until(deadline) => {
-                    request.details.fail(Error::ResponseTimeout);
+                    request.details.fail(RequestError::ResponseTimeout);
                     return Ok(());
                 }
                 x = self.reader.next_frame(io) => match x {
@@ -155,7 +155,7 @@ where
                 x = self.rx.recv() => match x {
                     Some(request) => {
                         // fail request, do another iteration
-                        request.details.fail(Error::NoConnection)
+                        request.details.fail(RequestError::NoConnection)
                     }
                     None => {
                         // channel was closed
@@ -216,7 +216,7 @@ mod tests {
             tx: &mut tokio::sync::mpsc::Sender<Request>,
             range: AddressRange,
             timeout: Duration,
-        ) -> tokio::sync::oneshot::Receiver<Result<Vec<Indexed<bool>>, Error>> {
+        ) -> tokio::sync::oneshot::Receiver<Result<Vec<Indexed<bool>>, RequestError>> {
             let (response_tx, response_rx) = tokio::sync::oneshot::channel();
             let details = RequestDetails::ReadCoils(ReadBits::new(
                 range.of_read_bits().unwrap(),
@@ -289,7 +289,7 @@ mod tests {
 
         fixture.assert_run(SessionError::Shutdown);
 
-        assert_ready_eq!(spawn(rx).poll(), Ok(Err(Error::ResponseTimeout)));
+        assert_ready_eq!(spawn(rx).poll(), Ok(Err(RequestError::ResponseTimeout)));
     }
 
     #[test]
@@ -311,7 +311,7 @@ mod tests {
 
         assert_ready_eq!(
             spawn(rx).poll(),
-            Ok(Err(Error::BadFrame(FrameParseError::UnknownProtocolId(
+            Ok(Err(RequestError::BadFrame(FrameParseError::UnknownProtocolId(
                 0xCAFE
             ))))
         );

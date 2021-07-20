@@ -4,7 +4,7 @@ use crate::decode::PduDecodeLevel;
 use crate::error::details::{AduParseError, InvalidRange, InvalidRequest};
 
 use crate::common::cursor::ReadCursor;
-use crate::error::Error;
+use crate::error::RequestError;
 #[cfg(feature = "no-panic")]
 use no_panic::no_panic;
 
@@ -98,7 +98,7 @@ impl<'a> BitIterator<'a> {
     pub(crate) fn parse_all(
         range: AddressRange,
         cursor: &'a mut ReadCursor,
-    ) -> Result<Self, Error> {
+    ) -> Result<Self, RequestError> {
         let bytes = cursor.read_bytes(crate::common::bits::num_bytes_for_bits(range.count))?;
         cursor.expect_empty()?;
         Ok(Self {
@@ -134,7 +134,7 @@ impl<'a> RegisterIterator<'a> {
     pub(crate) fn parse_all(
         range: AddressRange,
         cursor: &'a mut ReadCursor,
-    ) -> Result<Self, Error> {
+    ) -> Result<Self, RequestError> {
         let bytes = cursor.read_bytes(2 * (range.count as usize))?;
         cursor.expect_empty()?;
         Ok(Self {

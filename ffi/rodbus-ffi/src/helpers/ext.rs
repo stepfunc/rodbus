@@ -18,8 +18,8 @@ impl ffi::RequestParam {
 impl ffi::BitReadCallback {
     pub(crate) fn convert_to_fn_once(
         self,
-    ) -> impl FnOnce(std::result::Result<rodbus::types::BitIterator, rodbus::error::Error>) {
-        move |result: std::result::Result<rodbus::types::BitIterator, rodbus::error::Error>| {
+    ) -> impl FnOnce(std::result::Result<rodbus::types::BitIterator, rodbus::error::RequestError>) {
+        move |result: std::result::Result<rodbus::types::BitIterator, rodbus::error::RequestError>| {
             match result {
                 Err(err) => {
                     self.on_complete(err.into());
@@ -42,9 +42,9 @@ impl ffi::BitReadCallback {
 impl ffi::RegisterReadCallback {
     pub(crate) fn convert_to_fn_once(
         self,
-    ) -> impl FnOnce(std::result::Result<rodbus::types::RegisterIterator, rodbus::error::Error>)
+    ) -> impl FnOnce(std::result::Result<rodbus::types::RegisterIterator, rodbus::error::RequestError>)
     {
-        move |result: std::result::Result<rodbus::types::RegisterIterator, rodbus::error::Error>| {
+        move |result: std::result::Result<rodbus::types::RegisterIterator, rodbus::error::RequestError>| {
             match result {
                 Err(err) => {
                     self.on_complete(err.into());
@@ -68,8 +68,8 @@ impl ffi::WriteCallback {
     /// we do't care what type T is b/c we're going to ignore it
     pub(crate) fn convert_to_fn_once<T>(
         self,
-    ) -> impl FnOnce(std::result::Result<T, rodbus::error::Error>) {
-        move |result: std::result::Result<T, rodbus::error::Error>| match result {
+    ) -> impl FnOnce(std::result::Result<T, rodbus::error::RequestError>) {
+        move |result: std::result::Result<T, rodbus::error::RequestError>| match result {
             Err(err) => {
                 self.on_complete(err.into());
             }

@@ -56,7 +56,7 @@ impl MbapParser {
         }
     }
 
-    fn parse_header(cursor: &mut ReadBuffer) -> Result<MbapHeader, Error> {
+    fn parse_header(cursor: &mut ReadBuffer) -> Result<MbapHeader, RequestError> {
         let tx_id = TxId::new(cursor.read_u16_be()?);
         let protocol_id = cursor.read_u16_be()?;
         let length = cursor.read_u16_be()? as usize;
@@ -86,7 +86,7 @@ impl MbapParser {
         })
     }
 
-    fn parse_body(header: &MbapHeader, cursor: &mut ReadBuffer) -> Result<Frame, Error> {
+    fn parse_body(header: &MbapHeader, cursor: &mut ReadBuffer) -> Result<Frame, RequestError> {
         let mut frame = Frame::new(FrameHeader::new(header.unit_id, header.tx_id));
         frame.set(cursor.read(header.adu_length)?);
         Ok(frame)
@@ -98,7 +98,7 @@ impl FrameParser for MbapParser {
         constants::MAX_FRAME_LENGTH
     }
 
-    fn parse(&mut self, cursor: &mut ReadBuffer) -> Result<Option<Frame>, Error> {
+    fn parse(&mut self, cursor: &mut ReadBuffer) -> Result<Option<Frame>, RequestError> {
         match self.state {
             ParseState::Header(header) => {
                 if cursor.len() < header.adu_length {
@@ -130,7 +130,7 @@ impl FrameParser for MbapParser {
 }
 
 impl FrameFormatter for MbapFormatter {
-    fn format_impl(&mut self, header: FrameHeader, msg: &dyn Serialize) -> Result<usize, Error> {
+    fn format_impl(&mut self, header: FrameHeader, msg: &dyn Serialize) -> Result<usize, RequestError> {
         let mut cursor = WriteCursor::new(self.buffer.as_mut());
 
         // Write header
@@ -233,7 +233,7 @@ mod tests {
     }
 
     impl Serialize for MockMessage {
-        fn serialize(self: &Self, cursor: &mut WriteCursor) -> Result<(), Error> {
+        fn serialize(self: &Self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
             cursor.write_u8(self.a)?;
             cursor.write_u8(self.b)?;
             Ok(())
@@ -264,7 +264,7 @@ mod tests {
         }
     }
 
-    fn test_error(input: &[u8]) -> Error {
+    fn test_error(input: &[u8]) -> RequestError {
         let (io, mut io_handle) = io::mock();
         let mut reader = FramedReader::new(MbapParser::new(AduDecodeLevel::Nothing));
         let mut layer = PhysLayer::new_mock(io, PhysDecodeLevel::Nothing);
@@ -345,7 +345,7 @@ mod tests {
         let frame = &[0x00, 0x07, 0xCA, 0xFE, 0x00, 0x01, 0x2A];
         assert_eq!(
             test_error(frame),
-            Error::BadFrame(details::FrameParseError::UnknownProtocolId(0xCAFE)),
+            RequestError::BadFrame(details::FrameParseError::UnknownProtocolId(0xCAFE)),
         );
     }
 
@@ -354,7 +354,7 @@ mod tests {
         let frame = &[0x00, 0x07, 0x00, 0x00, 0x00, 0x00, 0x2A];
         assert_eq!(
             test_error(frame),
-            Error::BadFrame(details::FrameParseError::MbapLengthZero)
+            RequestError::BadFrame(details::FrameParseError::MbapLengthZero)
         );
     }
 
@@ -363,7 +363,7 @@ mod tests {
         let frame = &[0x00, 0x07, 0x00, 0x00, 0x00, 0xFF, 0x2A];
         assert_eq!(
             test_error(frame),
-            Error::BadFrame(details::FrameParseError::MbapLengthTooBig(
+            RequestError::BadFrame(details::FrameParseError::MbapLengthTooBig(
                 0xFF,
                 constants::MAX_LENGTH_FIELD,
             ))

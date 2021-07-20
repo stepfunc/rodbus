@@ -27,7 +27,7 @@ pub(crate) fn calc_bytes_for_registers(num_registers: usize) -> Result<u8, detai
 }
 
 impl Serialize for AddressRange {
-    fn serialize(&self, cur: &mut WriteCursor) -> Result<(), Error> {
+    fn serialize(&self, cur: &mut WriteCursor) -> Result<(), RequestError> {
         cur.write_u16_be(self.start)?;
         cur.write_u16_be(self.count)?;
         Ok(())
@@ -54,14 +54,14 @@ impl Loggable for AddressRange {
 }
 
 impl Serialize for crate::exception::ExceptionCode {
-    fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), Error> {
+    fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
         cursor.write_u8((*self).into())?;
         Ok(())
     }
 }
 
 impl Serialize for Indexed<bool> {
-    fn serialize(&self, cur: &mut WriteCursor) -> Result<(), Error> {
+    fn serialize(&self, cur: &mut WriteCursor) -> Result<(), RequestError> {
         cur.write_u16_be(self.index)?;
         cur.write_u16_be(coil_to_u16(self.value))?;
         Ok(())
@@ -100,7 +100,7 @@ impl Loggable for Indexed<bool> {
 }
 
 impl Serialize for Indexed<u16> {
-    fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), Error> {
+    fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
         cursor.write_u16_be(self.index)?;
         cursor.write_u16_be(self.value)?;
         Ok(())
@@ -135,7 +135,7 @@ impl Loggable for Indexed<u16> {
 }
 
 impl Serialize for &[bool] {
-    fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), Error> {
+    fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
         // how many bytes should we have?
         let num_bytes = calc_bytes_for_bits(self.len())?;
 
@@ -159,7 +159,7 @@ impl<T> Serialize for BitWriter<T>
 where
     T: Fn(u16) -> Result<bool, crate::exception::ExceptionCode>,
 {
-    fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), Error> {
+    fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
         let range = self.range.get();
         // write the number of bytes that follow
         let num_bytes = calc_bytes_for_bits(range.count as usize)?;
@@ -222,7 +222,7 @@ impl<T> Serialize for RegisterWriter<T>
 where
     T: Fn(u16) -> Result<u16, crate::exception::ExceptionCode>,
 {
-    fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), Error> {
+    fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
         // write the number of bytes that follow
         let num_bytes = calc_bytes_for_registers(self.range.inner.count as usize)?;
         cursor.write_u8(num_bytes)?;
@@ -264,7 +264,7 @@ where
 }
 
 impl Serialize for &[u16] {
-    fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), Error> {
+    fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
         let num_bytes = calc_bytes_for_registers(self.len())?;
         cursor.write_u8(num_bytes)?;
 
@@ -277,14 +277,14 @@ impl Serialize for &[u16] {
 }
 
 impl Serialize for WriteMultiple<bool> {
-    fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), Error> {
+    fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
         self.range.serialize(cursor)?;
         self.values.as_slice().serialize(cursor)
     }
 }
 
 impl Serialize for WriteMultiple<u16> {
-    fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), Error> {
+    fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
         self.range.serialize(cursor)?;
         self.values.as_slice().serialize(cursor)
     }

@@ -2,21 +2,21 @@ use crate::common::cursor::{ReadCursor, WriteCursor};
 use crate::common::function::FunctionCode;
 use crate::common::traits::Serialize;
 use crate::decode::PduDecodeLevel;
-use crate::error::Error;
+use crate::error::RequestError;
 use crate::tokio;
 use crate::types::{AddressRange, BitIterator, BitIteratorDisplay, Indexed, ReadBitsRange};
 
 pub(crate) enum Promise {
-    Channel(tokio::sync::oneshot::Sender<Result<Vec<Indexed<bool>>, Error>>),
-    Callback(Box<dyn FnOnce(Result<BitIterator, Error>) + Send + Sync + 'static>),
+    Channel(tokio::sync::oneshot::Sender<Result<Vec<Indexed<bool>>, RequestError>>),
+    Callback(Box<dyn FnOnce(Result<BitIterator, RequestError>) + Send + Sync + 'static>),
 }
 
 impl Promise {
-    pub(crate) fn failure(self, err: Error) {
+    pub(crate) fn failure(self, err: RequestError) {
         self.complete(Err(err))
     }
 
-    pub(crate) fn complete(self, x: Result<BitIterator, Error>) {
+    pub(crate) fn complete(self, x: Result<BitIterator, RequestError>) {
         match self {
             Promise::Channel(sender) => {
                 sender.send(x.map(|y| y.collect())).ok();
@@ -36,11 +36,11 @@ impl ReadBits {
         Self { request, promise }
     }
 
-    pub(crate) fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), Error> {
+    pub(crate) fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
         self.request.inner.serialize(cursor)
     }
 
-    pub(crate) fn failure(self, err: Error) {
+    pub(crate) fn failure(self, err: RequestError) {
         self.promise.failure(err)
     }
 
@@ -74,7 +74,7 @@ impl ReadBits {
     fn parse_bits_response<'a>(
         range: AddressRange,
         cursor: &'a mut ReadCursor,
-    ) -> Result<BitIterator<'a>, Error> {
+    ) -> Result<BitIterator<'a>, RequestError> {
         // there's a byte-count here that we don't actually need
         cursor.read_u8()?;
         // the rest is a sequence of bits

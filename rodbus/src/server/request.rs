@@ -3,7 +3,7 @@ use crate::common::frame::{FrameFormatter, FrameHeader};
 use crate::common::function::FunctionCode;
 use crate::common::traits::{Loggable, Parse, Serialize};
 use crate::decode::PduDecodeLevel;
-use crate::error::Error;
+use crate::error::RequestError;
 use crate::exception::ExceptionCode;
 use crate::server::handler::RequestHandler;
 use crate::server::response::{BitWriter, RegisterWriter};
@@ -41,7 +41,7 @@ impl<'a> Request<'a> {
         handler: &mut T,
         writer: &'b mut F,
         level: PduDecodeLevel,
-    ) -> Result<&'b [u8], Error>
+    ) -> Result<&'b [u8], RequestError>
     where
         T: RequestHandler,
         F: FrameFormatter,
@@ -52,7 +52,7 @@ impl<'a> Request<'a> {
             writer: &mut F,
             result: Result<T, ExceptionCode>,
             level: PduDecodeLevel,
-        ) -> Result<&[u8], Error>
+        ) -> Result<&[u8], RequestError>
         where
             T: Serialize + Loggable,
             F: FrameFormatter,
@@ -114,7 +114,7 @@ impl<'a> Request<'a> {
         }
     }
 
-    pub(crate) fn parse(function: FunctionCode, cursor: &'a mut ReadCursor) -> Result<Self, Error> {
+    pub(crate) fn parse(function: FunctionCode, cursor: &'a mut ReadCursor) -> Result<Self, RequestError> {
         match function {
             FunctionCode::ReadCoils => {
                 let x = Request::ReadCoils(AddressRange::parse(cursor)?.of_read_bits()?);

@@ -130,8 +130,8 @@ impl Channel {
         &mut self,
         param: RequestParam,
         range: AddressRange,
-    ) -> Result<Vec<Indexed<bool>>, Error> {
-        let (tx, rx) = tokio::sync::oneshot::channel::<Result<Vec<Indexed<bool>>, Error>>();
+    ) -> Result<Vec<Indexed<bool>>, RequestError> {
+        let (tx, rx) = tokio::sync::oneshot::channel::<Result<Vec<Indexed<bool>>, RequestError>>();
         let request = wrap(
             param,
             RequestDetails::ReadCoils(ReadBits::new(
@@ -148,8 +148,8 @@ impl Channel {
         &mut self,
         param: RequestParam,
         range: AddressRange,
-    ) -> Result<Vec<Indexed<bool>>, Error> {
-        let (tx, rx) = tokio::sync::oneshot::channel::<Result<Vec<Indexed<bool>>, Error>>();
+    ) -> Result<Vec<Indexed<bool>>, RequestError> {
+        let (tx, rx) = tokio::sync::oneshot::channel::<Result<Vec<Indexed<bool>>, RequestError>>();
         let request = wrap(
             param,
             RequestDetails::ReadDiscreteInputs(ReadBits::new(
@@ -166,8 +166,8 @@ impl Channel {
         &mut self,
         param: RequestParam,
         range: AddressRange,
-    ) -> Result<Vec<Indexed<u16>>, Error> {
-        let (tx, rx) = tokio::sync::oneshot::channel::<Result<Vec<Indexed<u16>>, Error>>();
+    ) -> Result<Vec<Indexed<u16>>, RequestError> {
+        let (tx, rx) = tokio::sync::oneshot::channel::<Result<Vec<Indexed<u16>>, RequestError>>();
         let request = wrap(
             param,
             RequestDetails::ReadHoldingRegisters(ReadRegisters::new(
@@ -184,8 +184,8 @@ impl Channel {
         &mut self,
         param: RequestParam,
         range: AddressRange,
-    ) -> Result<Vec<Indexed<u16>>, Error> {
-        let (tx, rx) = tokio::sync::oneshot::channel::<Result<Vec<Indexed<u16>>, Error>>();
+    ) -> Result<Vec<Indexed<u16>>, RequestError> {
+        let (tx, rx) = tokio::sync::oneshot::channel::<Result<Vec<Indexed<u16>>, RequestError>>();
         let request = wrap(
             param,
             RequestDetails::ReadInputRegisters(ReadRegisters::new(
@@ -202,8 +202,8 @@ impl Channel {
         &mut self,
         param: RequestParam,
         request: Indexed<bool>,
-    ) -> Result<Indexed<bool>, Error> {
-        let (tx, rx) = tokio::sync::oneshot::channel::<Result<Indexed<bool>, Error>>();
+    ) -> Result<Indexed<bool>, RequestError> {
+        let (tx, rx) = tokio::sync::oneshot::channel::<Result<Indexed<bool>, RequestError>>();
         let request = wrap(
             param,
             RequestDetails::WriteSingleCoil(SingleWrite::new(request, Promise::Channel(tx))),
@@ -217,8 +217,8 @@ impl Channel {
         &mut self,
         param: RequestParam,
         request: Indexed<u16>,
-    ) -> Result<Indexed<u16>, Error> {
-        let (tx, rx) = tokio::sync::oneshot::channel::<Result<Indexed<u16>, Error>>();
+    ) -> Result<Indexed<u16>, RequestError> {
+        let (tx, rx) = tokio::sync::oneshot::channel::<Result<Indexed<u16>, RequestError>>();
         let request = wrap(
             param,
             RequestDetails::WriteSingleRegister(SingleWrite::new(request, Promise::Channel(tx))),
@@ -232,8 +232,8 @@ impl Channel {
         &mut self,
         param: RequestParam,
         request: WriteMultiple<bool>,
-    ) -> Result<AddressRange, Error> {
-        let (tx, rx) = tokio::sync::oneshot::channel::<Result<AddressRange, Error>>();
+    ) -> Result<AddressRange, RequestError> {
+        let (tx, rx) = tokio::sync::oneshot::channel::<Result<AddressRange, RequestError>>();
         let request = wrap(
             param,
             RequestDetails::WriteMultipleCoils(MultipleWrite::new(request, Promise::Channel(tx))),
@@ -247,8 +247,8 @@ impl Channel {
         &mut self,
         param: RequestParam,
         request: WriteMultiple<u16>,
-    ) -> Result<AddressRange, Error> {
-        let (tx, rx) = tokio::sync::oneshot::channel::<Result<AddressRange, Error>>();
+    ) -> Result<AddressRange, RequestError> {
+        let (tx, rx) = tokio::sync::oneshot::channel::<Result<AddressRange, RequestError>>();
         let request = wrap(
             param,
             RequestDetails::WriteMultipleRegisters(MultipleWrite::new(
@@ -284,7 +284,7 @@ impl CallbackSession {
     /// Read coils from the server
     pub async fn read_coils<C>(&mut self, range: AddressRange, callback: C)
     where
-        C: FnOnce(Result<BitIterator, Error>) + Send + Sync + 'static,
+        C: FnOnce(Result<BitIterator, RequestError>) + Send + Sync + 'static,
     {
         self.read_bits(range, callback, RequestDetails::ReadCoils)
             .await;
@@ -293,7 +293,7 @@ impl CallbackSession {
     /// Read discrete inputs from the server
     pub async fn read_discrete_inputs<C>(&mut self, range: AddressRange, callback: C)
     where
-        C: FnOnce(Result<BitIterator, Error>) + Send + Sync + 'static,
+        C: FnOnce(Result<BitIterator, RequestError>) + Send + Sync + 'static,
     {
         self.read_bits(range, callback, RequestDetails::ReadDiscreteInputs)
             .await;
@@ -302,7 +302,7 @@ impl CallbackSession {
     /// Read holding registers from the server
     pub async fn read_holding_registers<C>(&mut self, range: AddressRange, callback: C)
     where
-        C: FnOnce(Result<RegisterIterator, Error>) + Send + Sync + 'static,
+        C: FnOnce(Result<RegisterIterator, RequestError>) + Send + Sync + 'static,
     {
         self.read_registers(range, callback, RequestDetails::ReadHoldingRegisters)
             .await;
@@ -311,7 +311,7 @@ impl CallbackSession {
     /// Read input registers from the server
     pub async fn read_input_registers<C>(&mut self, range: AddressRange, callback: C)
     where
-        C: FnOnce(Result<RegisterIterator, Error>) + Send + Sync + 'static,
+        C: FnOnce(Result<RegisterIterator, RequestError>) + Send + Sync + 'static,
     {
         self.read_registers(range, callback, RequestDetails::ReadInputRegisters)
             .await;
@@ -320,7 +320,7 @@ impl CallbackSession {
     /// Write a single coil to the server
     pub async fn write_single_coil<C>(&mut self, value: Indexed<bool>, callback: C)
     where
-        C: FnOnce(Result<Indexed<bool>, Error>) + Send + Sync + 'static,
+        C: FnOnce(Result<Indexed<bool>, RequestError>) + Send + Sync + 'static,
     {
         self.send(wrap(
             self.param,
@@ -335,7 +335,7 @@ impl CallbackSession {
     /// Write a single registers to the server
     pub async fn write_single_register<C>(&mut self, value: Indexed<u16>, callback: C)
     where
-        C: FnOnce(Result<Indexed<u16>, Error>) + Send + Sync + 'static,
+        C: FnOnce(Result<Indexed<u16>, RequestError>) + Send + Sync + 'static,
     {
         self.send(wrap(
             self.param,
@@ -350,7 +350,7 @@ impl CallbackSession {
     /// Write multiple contiguous registers to the server
     pub async fn write_multiple_registers<C>(&mut self, value: WriteMultiple<u16>, callback: C)
     where
-        C: FnOnce(Result<AddressRange, Error>) + Send + Sync + 'static,
+        C: FnOnce(Result<AddressRange, RequestError>) + Send + Sync + 'static,
     {
         self.send(wrap(
             self.param,
@@ -365,7 +365,7 @@ impl CallbackSession {
     /// Write multiple contiguous coils to the server
     pub async fn write_multiple_coils<C>(&mut self, value: WriteMultiple<bool>, callback: C)
     where
-        C: FnOnce(Result<AddressRange, Error>) + Send + Sync + 'static,
+        C: FnOnce(Result<AddressRange, RequestError>) + Send + Sync + 'static,
     {
         self.send(wrap(
             self.param,
@@ -379,7 +379,7 @@ impl CallbackSession {
 
     async fn read_bits<C, W>(&mut self, range: AddressRange, callback: C, wrap_req: W)
     where
-        C: FnOnce(Result<BitIterator, Error>) + Send + Sync + 'static,
+        C: FnOnce(Result<BitIterator, RequestError>) + Send + Sync + 'static,
         W: Fn(ReadBits) -> RequestDetails,
     {
         let promise = crate::client::requests::read_bits::Promise::Callback(Box::new(callback));
@@ -393,7 +393,7 @@ impl CallbackSession {
 
     async fn read_registers<C, W>(&mut self, range: AddressRange, callback: C, wrap_req: W)
     where
-        C: FnOnce(Result<RegisterIterator, Error>) + Send + Sync + 'static,
+        C: FnOnce(Result<RegisterIterator, RequestError>) + Send + Sync + 'static,
         W: Fn(ReadRegisters) -> RequestDetails,
     {
         let promise =
@@ -411,7 +411,7 @@ impl CallbackSession {
 
     async fn send(&mut self, request: Request) {
         if let Err(tokio::sync::mpsc::error::SendError(x)) = self.tx.send(request).await {
-            x.details.fail(Error::Shutdown);
+            x.details.fail(RequestError::Shutdown);
         }
     }
 }

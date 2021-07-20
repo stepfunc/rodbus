@@ -4,7 +4,7 @@ use crate::error::*;
 use crate::types::{coil_from_u16, AddressRange, Indexed};
 
 impl Parse for AddressRange {
-    fn parse(cursor: &mut ReadCursor) -> Result<Self, Error> {
+    fn parse(cursor: &mut ReadCursor) -> Result<Self, RequestError> {
         Ok(AddressRange::try_from(
             cursor.read_u16_be()?,
             cursor.read_u16_be()?,
@@ -13,7 +13,7 @@ impl Parse for AddressRange {
 }
 
 impl Parse for Indexed<bool> {
-    fn parse(cursor: &mut ReadCursor) -> Result<Self, Error> {
+    fn parse(cursor: &mut ReadCursor) -> Result<Self, RequestError> {
         Ok(Indexed::new(
             cursor.read_u16_be()?,
             coil_from_u16(cursor.read_u16_be()?)?,
@@ -22,7 +22,7 @@ impl Parse for Indexed<bool> {
 }
 
 impl Parse for Indexed<u16> {
-    fn parse(cursor: &mut ReadCursor) -> Result<Self, Error> {
+    fn parse(cursor: &mut ReadCursor) -> Result<Self, RequestError> {
         Ok(Indexed::new(cursor.read_u16_be()?, cursor.read_u16_be()?))
     }
 }

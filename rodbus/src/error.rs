@@ -2,7 +2,7 @@ use crate::tokio;
 
 /// Top level error type for the client API
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub enum Error {
+pub enum RequestError {
     /// An I/O error occurred
     Io(::std::io::ErrorKind),
     /// A Modbus exception was returned by the server
@@ -25,57 +25,57 @@ pub enum Error {
     Shutdown,
 }
 
-impl std::error::Error for Error {}
+impl std::error::Error for RequestError {}
 
-impl std::fmt::Display for Error {
+impl std::fmt::Display for RequestError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
         match self {
-            Error::Io(kind) => std::io::Error::from(*kind).fmt(f),
-            Error::Exception(err) => err.fmt(f),
-            Error::BadRequest(err) => err.fmt(f),
-            Error::BadFrame(err) => err.fmt(f),
-            Error::BadResponse(err) => err.fmt(f),
-            Error::Internal(err) => err.fmt(f),
-            Error::ResponseTimeout => f.write_str("response timeout"),
-            Error::NoConnection => f.write_str("no connection to server"),
-            Error::Shutdown => f.write_str("channel shutdown"),
+            RequestError::Io(kind) => std::io::Error::from(*kind).fmt(f),
+            RequestError::Exception(err) => err.fmt(f),
+            RequestError::BadRequest(err) => err.fmt(f),
+            RequestError::BadFrame(err) => err.fmt(f),
+            RequestError::BadResponse(err) => err.fmt(f),
+            RequestError::Internal(err) => err.fmt(f),
+            RequestError::ResponseTimeout => f.write_str("response timeout"),
+            RequestError::NoConnection => f.write_str("no connection to server"),
+            RequestError::Shutdown => f.write_str("channel shutdown"),
         }
     }
 }
 
-impl From<std::io::Error> for Error {
+impl From<std::io::Error> for RequestError {
     fn from(err: std::io::Error) -> Self {
-        Error::Io(err.kind())
+        RequestError::Io(err.kind())
     }
 }
 
-impl From<details::InvalidRequest> for Error {
+impl From<details::InvalidRequest> for RequestError {
     fn from(err: details::InvalidRequest) -> Self {
-        Error::BadRequest(err)
+        RequestError::BadRequest(err)
     }
 }
 
-impl From<details::InternalError> for Error {
+impl From<details::InternalError> for RequestError {
     fn from(err: details::InternalError) -> Self {
-        Error::Internal(err)
+        RequestError::Internal(err)
     }
 }
 
-impl From<details::AduParseError> for Error {
+impl From<details::AduParseError> for RequestError {
     fn from(err: details::AduParseError) -> Self {
-        Error::BadResponse(err)
+        RequestError::BadResponse(err)
     }
 }
 
-impl From<crate::exception::ExceptionCode> for Error {
+impl From<crate::exception::ExceptionCode> for RequestError {
     fn from(err: crate::exception::ExceptionCode) -> Self {
-        Error::Exception(err)
+        RequestError::Exception(err)
     }
 }
 
-impl From<details::FrameParseError> for Error {
+impl From<details::FrameParseError> for RequestError {
     fn from(err: details::FrameParseError) -> Self {
-        Error::BadFrame(err)
+        RequestError::BadFrame(err)
     }
 }
 
@@ -85,21 +85,21 @@ impl From<details::InvalidRange> for details::InvalidRequest {
     }
 }
 
-impl<T> From<tokio::sync::mpsc::error::SendError<T>> for Error {
+impl<T> From<tokio::sync::mpsc::error::SendError<T>> for RequestError {
     fn from(_: tokio::sync::mpsc::error::SendError<T>) -> Self {
-        Error::Shutdown
+        RequestError::Shutdown
     }
 }
 
-impl From<tokio::sync::oneshot::error::RecvError> for Error {
+impl From<tokio::sync::oneshot::error::RecvError> for RequestError {
     fn from(_: tokio::sync::oneshot::error::RecvError) -> Self {
-        Error::Shutdown
+        RequestError::Shutdown
     }
 }
 
-impl From<details::InvalidRange> for Error {
+impl From<details::InvalidRange> for RequestError {
     fn from(x: details::InvalidRange) -> Self {
-        Error::BadRequest(x.into())
+        RequestError::BadRequest(x.into())
     }
 }
 

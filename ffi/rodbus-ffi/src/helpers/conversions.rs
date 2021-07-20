@@ -1,8 +1,8 @@
 use crate::ffi;
 use std::ptr::null_mut;
 
-impl<'a> std::convert::From<rodbus::error::Error> for ffi::RegisterReadResult<'a> {
-    fn from(err: rodbus::error::Error) -> Self {
+impl<'a> std::convert::From<rodbus::error::RequestError> for ffi::RegisterReadResult<'a> {
+    fn from(err: rodbus::error::RequestError) -> Self {
         Self {
             result: err.into(),
             iterator: null_mut(),
@@ -10,8 +10,8 @@ impl<'a> std::convert::From<rodbus::error::Error> for ffi::RegisterReadResult<'a
     }
 }
 
-impl<'a> std::convert::From<rodbus::error::Error> for ffi::BitReadResult<'a> {
-    fn from(err: rodbus::error::Error) -> Self {
+impl<'a> std::convert::From<rodbus::error::RequestError> for ffi::BitReadResult<'a> {
+    fn from(err: rodbus::error::RequestError) -> Self {
         Self {
             result: err.into(),
             iterator: null_mut(),
@@ -19,8 +19,8 @@ impl<'a> std::convert::From<rodbus::error::Error> for ffi::BitReadResult<'a> {
     }
 }
 
-impl From<rodbus::error::Error> for ffi::ErrorInfo {
-    fn from(err: rodbus::error::Error) -> Self {
+impl From<rodbus::error::RequestError> for ffi::ErrorInfo {
+    fn from(err: rodbus::error::RequestError) -> Self {
         fn from_status(status: ffi::Status) -> ffi::ErrorInfo {
             ffi::ErrorInfoFields {
                 summary: status,
@@ -31,15 +31,15 @@ impl From<rodbus::error::Error> for ffi::ErrorInfo {
         }
 
         match err {
-            rodbus::error::Error::Internal(_) => from_status(ffi::Status::InternalError),
-            rodbus::error::Error::NoConnection => from_status(ffi::Status::NoConnection),
-            rodbus::error::Error::BadFrame(_) => from_status(ffi::Status::BadFraming),
-            rodbus::error::Error::Shutdown => from_status(ffi::Status::Shutdown),
-            rodbus::error::Error::ResponseTimeout => from_status(ffi::Status::ResponseTimeout),
-            rodbus::error::Error::BadRequest(_) => from_status(ffi::Status::BadRequest),
-            rodbus::error::Error::Exception(ex) => ex.into(),
-            rodbus::error::Error::Io(_) => from_status(ffi::Status::IoError),
-            rodbus::error::Error::BadResponse(_) => from_status(ffi::Status::BadResponse),
+            rodbus::error::RequestError::Internal(_) => from_status(ffi::Status::InternalError),
+            rodbus::error::RequestError::NoConnection => from_status(ffi::Status::NoConnection),
+            rodbus::error::RequestError::BadFrame(_) => from_status(ffi::Status::BadFraming),
+            rodbus::error::RequestError::Shutdown => from_status(ffi::Status::Shutdown),
+            rodbus::error::RequestError::ResponseTimeout => from_status(ffi::Status::ResponseTimeout),
+            rodbus::error::RequestError::BadRequest(_) => from_status(ffi::Status::BadRequest),
+            rodbus::error::RequestError::Exception(ex) => ex.into(),
+            rodbus::error::RequestError::Io(_) => from_status(ffi::Status::IoError),
+            rodbus::error::RequestError::BadResponse(_) => from_status(ffi::Status::BadResponse),
         }
     }
 }

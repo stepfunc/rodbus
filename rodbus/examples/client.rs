@@ -51,7 +51,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                             println!("index: {} value: {}", bit.index, bit.value);
                         }
                     }
-                    Err(rodbus::error::Error::Exception(exception)) => {
+                    Err(rodbus::error::RequestError::Exception(exception)) => {
                         println!("Modbus exception: {}", exception);
                     }
                     Err(err) => println!("error: {}", err),
@@ -69,7 +69,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                             println!("index: {} value: {}", bit.index, bit.value);
                         }
                     }
-                    Err(rodbus::error::Error::Exception(exception)) => {
+                    Err(rodbus::error::RequestError::Exception(exception)) => {
                         println!("Modbus exception: {}", exception);
                     }
                     Err(err) => println!("error: {}", err),
@@ -87,7 +87,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                             println!("index: {} value: {}", bit.index, bit.value);
                         }
                     }
-                    Err(rodbus::error::Error::Exception(exception)) => {
+                    Err(rodbus::error::RequestError::Exception(exception)) => {
                         println!("Modbus exception: {}", exception);
                     }
                     Err(err) => println!("error: {}", err),
@@ -105,7 +105,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                             println!("index: {} value: {}", bit.index, bit.value);
                         }
                     }
-                    Err(rodbus::error::Error::Exception(exception)) => {
+                    Err(rodbus::error::RequestError::Exception(exception)) => {
                         println!("Modbus exception: {}", exception);
                     }
                     Err(err) => println!("error: {}", err),
@@ -119,7 +119,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
                 match result {
                     Ok(_) => println!("success"),
-                    Err(rodbus::error::Error::Exception(exception)) => {
+                    Err(rodbus::error::RequestError::Exception(exception)) => {
                         println!("Modbus exception: {}", exception);
                     }
                     Err(err) => println!("error: {}", err),
@@ -133,7 +133,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
                 match result {
                     Ok(_) => println!("success"),
-                    Err(rodbus::error::Error::Exception(exception)) => {
+                    Err(rodbus::error::RequestError::Exception(exception)) => {
                         println!("Modbus exception: {}", exception);
                     }
                     Err(err) => println!("error: {}", err),
@@ -149,7 +149,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
                 match result {
                     Ok(_) => println!("success"),
-                    Err(rodbus::error::Error::Exception(exception)) => {
+                    Err(rodbus::error::RequestError::Exception(exception)) => {
                         println!("Modbus exception: {}", exception);
                     }
                     Err(err) => println!("error: {}", err),
@@ -166,7 +166,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
                 match result {
                     Ok(_) => println!("success"),
-                    Err(rodbus::error::Error::Exception(exception)) => {
+                    Err(rodbus::error::RequestError::Exception(exception)) => {
                         println!("Modbus exception: {}", exception);
                     }
                     Err(err) => println!("error: {}", err),

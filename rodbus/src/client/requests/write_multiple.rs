@@ -4,7 +4,7 @@ use crate::common::function::FunctionCode;
 use crate::common::traits::{Parse, Serialize};
 use crate::decode::PduDecodeLevel;
 use crate::error::details::AduParseError;
-use crate::error::Error;
+use crate::error::RequestError;
 use crate::types::{AddressRange, WriteMultiple};
 
 pub(crate) struct MultipleWrite<T>
@@ -23,11 +23,11 @@ where
         Self { request, promise }
     }
 
-    pub(crate) fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), Error> {
+    pub(crate) fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
         self.request.serialize(cursor)
     }
 
-    pub(crate) fn failure(self, err: Error) {
+    pub(crate) fn failure(self, err: RequestError) {
         self.promise.failure(err)
     }
 
@@ -56,10 +56,10 @@ where
         self.promise.complete(result)
     }
 
-    fn parse_all(&self, mut cursor: ReadCursor) -> Result<AddressRange, Error> {
+    fn parse_all(&self, mut cursor: ReadCursor) -> Result<AddressRange, RequestError> {
         let range = AddressRange::parse(&mut cursor)?;
         if range != self.request.range {
-            return Err(Error::BadResponse(AduParseError::ReplyEchoMismatch));
+            return Err(RequestError::BadResponse(AduParseError::ReplyEchoMismatch));
         }
         cursor.expect_empty()?;
         Ok(range)

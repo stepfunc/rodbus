@@ -3,7 +3,7 @@ use crate::decode::PduDecodeLevel;
 use crate::error::*;
 
 pub(crate) trait Serialize {
-    fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), Error>;
+    fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError>;
 }
 
 pub(crate) trait Loggable: Serialize {
@@ -38,5 +38,5 @@ impl<T: Loggable> std::fmt::Display for LoggableDisplay<'_, '_, T> {
 }
 
 pub(crate) trait Parse: Sized {
-    fn parse(cursor: &mut ReadCursor) -> Result<Self, Error>;
+    fn parse(cursor: &mut ReadCursor) -> Result<Self, RequestError>;
 }

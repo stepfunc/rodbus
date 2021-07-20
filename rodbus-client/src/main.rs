@@ -18,7 +18,7 @@ enum Error {
     BadInt(std::num::ParseIntError),
     BadBool(std::str::ParseBoolError),
     BadCharInBitString(char),
-    Request(rodbus::error::Error),
+    Request(rodbus::error::RequestError),
     MissingSubCommand,
 }
 
@@ -449,8 +449,8 @@ impl std::fmt::Display for Error {
     }
 }
 
-impl From<rodbus::error::Error> for Error {
-    fn from(err: rodbus::error::Error) -> Self {
+impl From<rodbus::error::RequestError> for Error {
+    fn from(err: rodbus::error::RequestError) -> Self {
         Error::Request(err)
     }
 }

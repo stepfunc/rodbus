@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use rodbus::*;
 use rodbus::client::*;
-use rodbus::error::Error;
+use rodbus::error::RequestError;
 use rodbus::server::*;
 use rodbus::types::*;
 
@@ -79,13 +79,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         channels.push((channel, params));
     }
 
-    let mut query_tasks: Vec<tokio::task::JoinHandle<Result<(), Error>>> = Vec::new();
+    let mut query_tasks: Vec<tokio::task::JoinHandle<Result<(), RequestError>>> = Vec::new();
 
     let start = std::time::Instant::now();
 
     // spawn tasks that make a query 1000 times
     for (mut channel, params) in channels {
-        let handle: tokio::task::JoinHandle<Result<(), Error>> = tokio::spawn(async move {
+        let handle: tokio::task::JoinHandle<Result<(), RequestError>> = tokio::spawn(async move {
             for _ in 0..num_requests {
                 if let Err(err) = channel
                     .read_coils(params, AddressRange::try_from(0, 100).unwrap())
