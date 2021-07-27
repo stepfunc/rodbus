@@ -1,7 +1,5 @@
-use std::convert::TryFrom;
-
 use crate::decode::PduDecodeLevel;
-use crate::error::details::{AduParseError, InvalidRange, InvalidRequest};
+use crate::error::{AduParseError, InvalidRange};
 
 use crate::common::cursor::ReadCursor;
 use crate::error::RequestError;
@@ -28,13 +26,13 @@ pub struct AddressRange {
 /// Specialized wrapper around an address
 /// range only valid for ReadCoils / ReadDiscreteInputs
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub struct ReadBitsRange {
+pub(crate) struct ReadBitsRange {
     pub(crate) inner: AddressRange,
 }
 
 impl ReadBitsRange {
     /// retrieve the underlying [AddressRange]
-    pub fn get(self) -> AddressRange {
+    pub(crate) fn get(self) -> AddressRange {
         self.inner
     }
 }
@@ -42,13 +40,13 @@ impl ReadBitsRange {
 /// Specialized wrapper around an `AddressRange`
 /// only valid for ReadHoldingRegisters / ReadInputRegisters
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub struct ReadRegistersRange {
+pub(crate) struct ReadRegistersRange {
     pub(crate) inner: AddressRange,
 }
 
 impl ReadRegistersRange {
     /// retrieve the underlying [AddressRange]
-    pub fn get(self) -> AddressRange {
+    pub(crate) fn get(self) -> AddressRange {
         self.inner
     }
 }
@@ -235,75 +233,6 @@ where
     }
 }
 
-/// Collection of values and starting address
-///
-/// Used when making write multiple coil/register requests
-#[derive(Debug, Clone)]
-pub struct WriteMultiple<T> {
-    /// starting address
-    pub(crate) range: AddressRange,
-    /// vector of values
-    pub(crate) values: Vec<T>,
-}
-
-pub(crate) struct WriteMultipleIterator<'a, T> {
-    range: AddressRange,
-    pos: u16,
-    iter: std::slice::Iter<'a, T>,
-}
-
-impl<T> WriteMultiple<T> {
-    /// Create new collection of values
-    pub fn from(start: u16, values: Vec<T>) -> Result<Self, InvalidRequest> {
-        let count = match u16::try_from(values.len()) {
-            Ok(x) => x,
-            Err(_) => return Err(InvalidRequest::CountTooBigForU16(values.len())),
-        };
-        let range = AddressRange::try_from(start, count)?;
-        Ok(Self { range, values })
-    }
-
-    pub(crate) fn iter(&self) -> WriteMultipleIterator<'_, T> {
-        WriteMultipleIterator::new(self.range, self.values.iter())
-    }
-}
-
-impl<'a, T> WriteMultipleIterator<'a, T> {
-    fn new(range: AddressRange, iter: std::slice::Iter<'a, T>) -> Self {
-        Self {
-            range,
-            pos: 0,
-            iter,
-        }
-    }
-}
-
-impl<T> Iterator for WriteMultipleIterator<'_, T>
-where
-    T: Copy,
-{
-    type Item = Indexed<T>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let next = self.iter.next();
-
-        match next {
-            Some(next) => {
-                let result = Indexed::new(self.range.start + self.pos, *next);
-                self.pos += 1;
-                Some(result)
-            }
-            None => None,
-        }
-    }
-
-    // implementing this allows collect to optimize the vector capacity
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        let remaining = (self.range.count - self.pos) as usize;
-        (remaining, Some(remaining))
-    }
-}
-
 pub(crate) fn coil_from_u16(value: u16) -> Result<bool, AduParseError> {
     match value {
         crate::constants::coil::ON => Ok(true),
@@ -433,7 +362,7 @@ impl UnitId {
 
 #[cfg(test)]
 mod tests {
-    use crate::error::details::*;
+    use crate::error::*;
 
     use super::*;
 

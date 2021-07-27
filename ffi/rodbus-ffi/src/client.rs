@@ -1,6 +1,6 @@
 use crate::ffi;
-use rodbus::client::ReconnectStrategy;
-use rodbus::types::{AddressRange, WriteMultiple};
+use rodbus::client::{ReconnectStrategy, WriteMultiple};
+use rodbus::AddressRange;
 
 pub struct Channel {
     pub(crate) inner: rodbus::client::Channel,

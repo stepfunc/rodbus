@@ -1,29 +1,29 @@
 use std::convert::TryFrom;
 
+use crate::client::WriteMultiple;
 use crate::common::cursor::ReadCursor;
 use crate::common::cursor::WriteCursor;
 use crate::common::traits::Loggable;
 use crate::common::traits::Parse;
 use crate::common::traits::Serialize;
-use crate::error::details;
-use crate::error::*;
+use crate::error::{InternalError, RequestError};
 use crate::server::response::{BitWriter, RegisterWriter};
 use crate::types::{
     coil_from_u16, coil_to_u16, AddressRange, BitIterator, BitIteratorDisplay, Indexed,
-    RegisterIterator, RegisterIteratorDisplay, WriteMultiple,
+    RegisterIterator, RegisterIteratorDisplay,
 };
 
-pub(crate) fn calc_bytes_for_bits(num_bits: usize) -> Result<u8, details::InternalError> {
+pub(crate) fn calc_bytes_for_bits(num_bits: usize) -> Result<u8, InternalError> {
     let div_8 = num_bits / 8;
 
     let count = if num_bits % 8 == 0 { div_8 } else { div_8 + 1 };
 
-    u8::try_from(count).map_err(|_| details::InternalError::BadByteCount(count))
+    u8::try_from(count).map_err(|_| InternalError::BadByteCount(count))
 }
 
-pub(crate) fn calc_bytes_for_registers(num_registers: usize) -> Result<u8, details::InternalError> {
+pub(crate) fn calc_bytes_for_registers(num_registers: usize) -> Result<u8, InternalError> {
     let count = 2 * num_registers;
-    u8::try_from(count).map_err(|_| details::InternalError::BadByteCount(count))
+    u8::try_from(count).map_err(|_| InternalError::BadByteCount(count))
 }
 
 impl Serialize for AddressRange {
@@ -169,7 +169,7 @@ where
         let mut num_bits: usize = 0;
 
         // iterate over all the addresses, accumulating bits in the byte
-        for address in self.range.inner.iter() {
+        for address in self.range.get().iter() {
             if (self.getter)(address)? {
                 // merge the bit into the byte
                 acc |= 1 << num_bits;
@@ -206,7 +206,7 @@ where
             let mut cursor = ReadCursor::new(payload);
             let _ = cursor.read_u8(); // ignore the byte count
 
-            let iterator = match BitIterator::parse_all(self.range.inner, &mut cursor) {
+            let iterator = match BitIterator::parse_all(self.range.get(), &mut cursor) {
                 Ok(it) => it,
                 Err(_) => return Ok(()),
             };
@@ -224,11 +224,11 @@ where
 {
     fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
         // write the number of bytes that follow
-        let num_bytes = calc_bytes_for_registers(self.range.inner.count as usize)?;
+        let num_bytes = calc_bytes_for_registers(self.range.get().count as usize)?;
         cursor.write_u8(num_bytes)?;
 
         // iterate over all the addresses, accumulating the registers
-        for address in self.range.inner.iter() {
+        for address in self.range.get().iter() {
             let value = (self.getter)(address)?;
             cursor.write_u16_be(value)?;
         }
@@ -251,7 +251,7 @@ where
             let mut cursor = ReadCursor::new(payload);
             let _ = cursor.read_u8(); // ignore the byte count
 
-            let iterator = match RegisterIterator::parse_all(self.range.inner, &mut cursor) {
+            let iterator = match RegisterIterator::parse_all(self.range.get(), &mut cursor) {
                 Ok(it) => it,
                 Err(_) => return Ok(()),
             };

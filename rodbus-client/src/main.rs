@@ -6,10 +6,9 @@ use std::time::Duration;
 
 use clap::{App, Arg, ArgMatches, SubCommand};
 
-use rodbus::*;
 use rodbus::client::*;
-use rodbus::error::details::{InvalidRange, InvalidRequest};
-use rodbus::types::*;
+use rodbus::error::{InvalidRange, InvalidRequest};
+use rodbus::*;
 
 #[derive(Debug)]
 enum Error {

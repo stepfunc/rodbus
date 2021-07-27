@@ -6,13 +6,13 @@ use tracing::Instrument;
 use crate::client::message::{Promise, Request, RequestDetails};
 use crate::client::requests::read_bits::ReadBits;
 use crate::client::requests::read_registers::ReadRegisters;
-use crate::client::requests::write_multiple::MultipleWrite;
+use crate::client::requests::write_multiple::{MultipleWriteRequest, WriteMultiple};
 use crate::client::requests::write_single::SingleWrite;
 use crate::decode::DecodeLevel;
 use crate::error::*;
 use crate::tcp::client::TcpChannelTask;
 use crate::tokio;
-use crate::types::{AddressRange, BitIterator, Indexed, RegisterIterator, UnitId, WriteMultiple};
+use crate::types::{AddressRange, BitIterator, Indexed, RegisterIterator, UnitId};
 
 /// Async channel used to make requests
 #[derive(Debug, Clone)]
@@ -236,7 +236,10 @@ impl Channel {
         let (tx, rx) = tokio::sync::oneshot::channel::<Result<AddressRange, RequestError>>();
         let request = wrap(
             param,
-            RequestDetails::WriteMultipleCoils(MultipleWrite::new(request, Promise::Channel(tx))),
+            RequestDetails::WriteMultipleCoils(MultipleWriteRequest::new(
+                request,
+                Promise::Channel(tx),
+            )),
         );
         self.tx.send(request).await?;
         rx.await?
@@ -251,7 +254,7 @@ impl Channel {
         let (tx, rx) = tokio::sync::oneshot::channel::<Result<AddressRange, RequestError>>();
         let request = wrap(
             param,
-            RequestDetails::WriteMultipleRegisters(MultipleWrite::new(
+            RequestDetails::WriteMultipleRegisters(MultipleWriteRequest::new(
                 request,
                 Promise::Channel(tx),
             )),
@@ -354,7 +357,7 @@ impl CallbackSession {
     {
         self.send(wrap(
             self.param,
-            RequestDetails::WriteMultipleRegisters(MultipleWrite::new(
+            RequestDetails::WriteMultipleRegisters(MultipleWriteRequest::new(
                 value,
                 Promise::Callback(Box::new(callback)),
             )),
@@ -369,7 +372,7 @@ impl CallbackSession {
     {
         self.send(wrap(
             self.param,
-            RequestDetails::WriteMultipleCoils(MultipleWrite::new(
+            RequestDetails::WriteMultipleCoils(MultipleWriteRequest::new(
                 value,
                 Promise::Callback(Box::new(callback)),
             )),

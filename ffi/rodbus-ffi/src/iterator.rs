@@ -1,10 +1,10 @@
 pub struct BitIterator<'a> {
-    inner: rodbus::types::BitIterator<'a>,
+    inner: rodbus::BitIterator<'a>,
     current: crate::ffi::Bit,
 }
 
 impl<'a> BitIterator<'a> {
-    pub(crate) fn new(inner: rodbus::types::BitIterator<'a>) -> Self {
+    pub(crate) fn new(inner: rodbus::BitIterator<'a>) -> Self {
         Self {
             inner,
             current: crate::ffi::Bit {
@@ -16,12 +16,12 @@ impl<'a> BitIterator<'a> {
 }
 
 pub struct RegisterIterator<'a> {
-    inner: rodbus::types::RegisterIterator<'a>,
+    inner: rodbus::RegisterIterator<'a>,
     current: crate::ffi::Register,
 }
 
 impl<'a> RegisterIterator<'a> {
-    pub(crate) fn new(inner: rodbus::types::RegisterIterator<'a>) -> Self {
+    pub(crate) fn new(inner: rodbus::RegisterIterator<'a>) -> Self {
         Self {
             inner,
             current: crate::ffi::Register { index: 0, value: 0 },

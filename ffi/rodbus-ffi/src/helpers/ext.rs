@@ -1,6 +1,6 @@
 use crate::ffi;
+use rodbus::UnitId;
 use rodbus::client::{CallbackSession, RequestParam};
-use rodbus::types::UnitId;
 use std::time::Duration;
 
 impl ffi::RequestParam {
@@ -18,8 +18,8 @@ impl ffi::RequestParam {
 impl ffi::BitReadCallback {
     pub(crate) fn convert_to_fn_once(
         self,
-    ) -> impl FnOnce(std::result::Result<rodbus::types::BitIterator, rodbus::error::RequestError>) {
-        move |result: std::result::Result<rodbus::types::BitIterator, rodbus::error::RequestError>| {
+    ) -> impl FnOnce(std::result::Result<rodbus::BitIterator, rodbus::error::RequestError>) {
+        move |result: std::result::Result<rodbus::BitIterator, rodbus::error::RequestError>| {
             match result {
                 Err(err) => {
                     self.on_complete(err.into());
@@ -42,9 +42,9 @@ impl ffi::BitReadCallback {
 impl ffi::RegisterReadCallback {
     pub(crate) fn convert_to_fn_once(
         self,
-    ) -> impl FnOnce(std::result::Result<rodbus::types::RegisterIterator, rodbus::error::RequestError>)
+    ) -> impl FnOnce(std::result::Result<rodbus::RegisterIterator, rodbus::error::RequestError>)
     {
-        move |result: std::result::Result<rodbus::types::RegisterIterator, rodbus::error::RequestError>| {
+        move |result: std::result::Result<rodbus::RegisterIterator, rodbus::error::RequestError>| {
             match result {
                 Err(err) => {
                     self.on_complete(err.into());

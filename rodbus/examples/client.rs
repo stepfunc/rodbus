@@ -4,9 +4,8 @@ use std::time::Duration;
 use tokio_stream::StreamExt;
 use tokio_util::codec::{FramedRead, LinesCodec};
 
-use rodbus::*;
 use rodbus::client::*;
-use rodbus::types::*;
+use rodbus::*;
 
 // ANCHOR: runtime_init
 #[tokio::main(flavor = "multi_thread")]

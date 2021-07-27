@@ -37,7 +37,7 @@ impl ReadBits {
     }
 
     pub(crate) fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
-        self.request.inner.serialize(cursor)
+        self.request.get().serialize(cursor)
     }
 
     pub(crate) fn failure(self, err: RequestError) {
@@ -50,7 +50,7 @@ impl ReadBits {
         function: FunctionCode,
         decode: PduDecodeLevel,
     ) {
-        let result = Self::parse_bits_response(self.request.inner, &mut cursor);
+        let result = Self::parse_bits_response(self.request.get(), &mut cursor);
 
         match &result {
             Ok(response) => {

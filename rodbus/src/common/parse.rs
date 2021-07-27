@@ -31,7 +31,7 @@ impl Parse for Indexed<u16> {
 mod coils {
     use crate::common::cursor::ReadCursor;
     use crate::common::traits::Parse;
-    use crate::error::details::AduParseError;
+    use crate::error::AduParseError;
     use crate::types::Indexed;
 
     #[test]

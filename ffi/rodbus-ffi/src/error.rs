@@ -1,4 +1,4 @@
-use rodbus::error::details::{InvalidRange, InvalidRequest};
+use rodbus::error::{InvalidRange, InvalidRequest};
 use std::net::AddrParseError;
 
 use crate::ffi;

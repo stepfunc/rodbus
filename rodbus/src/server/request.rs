@@ -114,7 +114,10 @@ impl<'a> Request<'a> {
         }
     }
 
-    pub(crate) fn parse(function: FunctionCode, cursor: &'a mut ReadCursor) -> Result<Self, RequestError> {
+    pub(crate) fn parse(
+        function: FunctionCode,
+        cursor: &'a mut ReadCursor,
+    ) -> Result<Self, RequestError> {
         match function {
             FunctionCode::ReadCoils => {
                 let x = Request::ReadCoils(AddressRange::parse(cursor)?.of_read_bits()?);
@@ -189,16 +192,16 @@ impl std::fmt::Display for RequestDisplay<'_, '_> {
         if self.level.data_headers() {
             match self.request {
                 Request::ReadCoils(range) => {
-                    write!(f, " {}", range.inner)?;
+                    write!(f, " {}", range.get())?;
                 }
                 Request::ReadDiscreteInputs(range) => {
-                    write!(f, " {}", range.inner)?;
+                    write!(f, " {}", range.get())?;
                 }
                 Request::ReadHoldingRegisters(range) => {
-                    write!(f, " {}", range.inner)?;
+                    write!(f, " {}", range.get())?;
                 }
                 Request::ReadInputRegisters(range) => {
-                    write!(f, " {}", range.inner)?;
+                    write!(f, " {}", range.get())?;
                 }
                 Request::WriteSingleCoil(request) => {
                     write!(f, " {}", request)?;
@@ -229,13 +232,11 @@ impl std::fmt::Display for RequestDisplay<'_, '_> {
 
 #[cfg(test)]
 mod tests {
-
-    #[cfg(test)]
     mod coils {
         use crate::common::cursor::ReadCursor;
 
         use super::super::*;
-        use crate::error::details::AduParseError;
+        use crate::error::AduParseError;
         use crate::types::Indexed;
 
         #[test]
@@ -295,12 +296,11 @@ mod tests {
         }
     }
 
-    #[cfg(test)]
     mod registers {
         use crate::common::cursor::ReadCursor;
 
         use super::super::*;
-        use crate::error::details::AduParseError;
+        use crate::error::AduParseError;
         use crate::types::Indexed;
 
         #[test]

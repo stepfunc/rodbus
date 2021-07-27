@@ -3,10 +3,8 @@ use std::net::SocketAddr;
 use tracing::Instrument;
 
 use crate::decode::DecodeLevel;
-use crate::tokio;
-
-use crate::shutdown::TaskHandle;
 use crate::tcp::server::ServerTask;
+use crate::tokio;
 
 /// server handling
 pub(crate) mod handler;
@@ -18,6 +16,22 @@ pub(crate) mod types;
 // re-export to the public API
 pub use handler::*;
 pub use types::*;
+
+/// A handle to the server async task. The task is shutdown when the handle is dropped.
+#[derive(Debug)]
+pub struct ServerHandle {
+    tx: tokio::sync::mpsc::Sender<()>,
+    handle: tokio::task::JoinHandle<()>,
+}
+
+impl ServerHandle {
+    /// Construct a [ServerHandle] from its fields
+    ///
+    /// This function is only required for the C bindings
+    pub fn new(tx: tokio::sync::mpsc::Sender<()>, handle: tokio::task::JoinHandle<()>) -> Self {
+        ServerHandle { tx, handle }
+    }
+}
 
 /// Spawns a TCP server task onto the runtime. This method can only
 /// be called from within the runtime context. Use [`create_tcp_server_task`]
@@ -34,7 +48,7 @@ pub async fn spawn_tcp_server_task<T: RequestHandler>(
     addr: SocketAddr,
     handlers: ServerHandlerMap<T>,
     decode: DecodeLevel,
-) -> Result<TaskHandle, crate::tokio::io::Error> {
+) -> Result<ServerHandle, crate::tokio::io::Error> {
     let listener = crate::tokio::net::TcpListener::bind(addr).await?;
 
     let (tx, rx) = tokio::sync::mpsc::channel(1);
@@ -47,7 +61,7 @@ pub async fn spawn_tcp_server_task<T: RequestHandler>(
         decode,
     ));
 
-    Ok(TaskHandle::new(tx, handle))
+    Ok(ServerHandle::new(tx, handle))
 }
 
 /// Creates a TCP server task that can then be spawned onto the runtime manually.

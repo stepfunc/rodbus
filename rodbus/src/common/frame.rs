@@ -5,8 +5,7 @@ use crate::common::function::FunctionCode;
 use crate::common::traits::Serialize;
 use crate::common::traits::{Loggable, LoggableDisplay};
 use crate::decode::PduDecodeLevel;
-use crate::error::details::InternalError;
-use crate::error::RequestError;
+use crate::error::{InternalError, RequestError};
 use crate::exception::ExceptionCode;
 use crate::server::response::{ErrorResponse, Response};
 use crate::types::UnitId;
@@ -114,7 +113,11 @@ pub(crate) trait FrameParser {
 
 pub(crate) trait FrameFormatter {
     // internal only
-    fn format_impl(&mut self, header: FrameHeader, msg: &dyn Serialize) -> Result<usize, RequestError>;
+    fn format_impl(
+        &mut self,
+        header: FrameHeader,
+        msg: &dyn Serialize,
+    ) -> Result<usize, RequestError>;
     fn get_full_buffer_impl(&self, size: usize) -> Option<&[u8]>;
     fn get_payload_impl(&self, size: usize) -> Option<&[u8]>;
 
@@ -186,13 +189,21 @@ pub(crate) trait FrameFormatter {
     }
 
     // make a single effort to serialize an exception response
-    fn error(&mut self, header: FrameHeader, response: ErrorResponse) -> Result<&[u8], RequestError> {
+    fn error(
+        &mut self,
+        header: FrameHeader,
+        response: ErrorResponse,
+    ) -> Result<&[u8], RequestError> {
         let len = self.format_impl(header, &response)?;
         self.get_full_buffer(len)
     }
 
     // make a single effort to serialize an exception response
-    fn unknown_function(&mut self, header: FrameHeader, unknown: u8) -> Result<&[u8], RequestError> {
+    fn unknown_function(
+        &mut self,
+        header: FrameHeader,
+        unknown: u8,
+    ) -> Result<&[u8], RequestError> {
         let response = ErrorResponse::unknown_function(unknown);
         let len = self.format_impl(header, &response)?;
         self.get_full_buffer(len)

@@ -1,9 +1,8 @@
 use tokio_stream::StreamExt;
 use tokio_util::codec::{FramedRead, LinesCodec};
 
-use rodbus::*;
 use rodbus::server::*;
-use rodbus::types::*;
+use rodbus::*;
 
 struct SimpleHandler {
     coils: Vec<bool>,

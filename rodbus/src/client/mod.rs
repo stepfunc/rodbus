@@ -10,6 +10,7 @@ pub(crate) mod task;
 
 pub use crate::client::channel::strategy::*;
 pub use crate::client::channel::*;
+pub use crate::client::requests::write_multiple::WriteMultiple;
 
 /// Spawns a channel task onto the runtime that maintains a TCP connection and processes
 /// requests from an mpsc request queue. The task completes when the returned channel handle

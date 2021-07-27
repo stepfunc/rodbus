@@ -179,7 +179,7 @@ mod tests {
     use crate::decode::*;
     use crate::*;
 
-    use crate::error::details::FrameParseError;
+    use crate::error::FrameParseError;
     use crate::server::response::BitWriter;
     use crate::tcp::frame::MbapFormatter;
     use crate::tcp::frame::MbapParser;
@@ -311,9 +311,9 @@ mod tests {
 
         assert_ready_eq!(
             spawn(rx).poll(),
-            Ok(Err(RequestError::BadFrame(FrameParseError::UnknownProtocolId(
-                0xCAFE
-            ))))
+            Ok(Err(RequestError::BadFrame(
+                FrameParseError::UnknownProtocolId(0xCAFE)
+            )))
         );
     }
 

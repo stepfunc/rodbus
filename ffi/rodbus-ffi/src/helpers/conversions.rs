@@ -93,14 +93,14 @@ impl<'a> From<rodbus::ExceptionCode> for ffi::ErrorInfo {
     }
 }
 
-impl std::convert::From<ffi::Bit> for rodbus::types::Indexed<bool> {
+impl std::convert::From<ffi::Bit> for rodbus::Indexed<bool> {
     fn from(x: ffi::Bit) -> Self {
-        rodbus::types::Indexed::new(x.index, x.value)
+        rodbus::Indexed::new(x.index, x.value)
     }
 }
 
-impl std::convert::From<ffi::Register> for rodbus::types::Indexed<u16> {
+impl std::convert::From<ffi::Register> for rodbus::Indexed<u16> {
     fn from(x: ffi::Register) -> Self {
-        rodbus::types::Indexed::new(x.index, x.value)
+        rodbus::Indexed::new(x.index, x.value)
     }
 }

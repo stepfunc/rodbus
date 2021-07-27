@@ -2,11 +2,10 @@ use std::net::SocketAddr;
 use std::str::FromStr;
 use std::time::Duration;
 
-use rodbus::*;
 use rodbus::client::*;
 use rodbus::error::RequestError;
 use rodbus::server::*;
-use rodbus::types::*;
+use rodbus::*;
 
 struct Handler {
     coils: [bool; 100],

@@ -38,7 +38,6 @@
 //! ```no_run
 //!use rodbus::*;
 //!use rodbus::client::*;
-//!use rodbus::types::*;
 //!
 //!use std::net::SocketAddr;
 //!use std::time::Duration;
@@ -80,7 +79,6 @@
 //!
 //! ```no_run
 //! use rodbus::*;
-//! use rodbus::types::*;
 //! use rodbus::server::*;
 //!
 //! use std::net::SocketAddr;
@@ -197,18 +195,17 @@ pub mod constants;
 pub mod error;
 /// Server API
 pub mod server;
-/// Types used to shutdown async tasks
-pub mod shutdown;
-/// Types used in requests and responses
-pub mod types;
 
 // modules that are re-exported
-pub(crate) mod exception;
 pub(crate) mod decode;
+pub(crate) mod exception;
+pub(crate) mod types;
 
 // re-exports
-pub use crate::exception::*;
 pub use crate::decode::*;
+pub use crate::exception::*;
+pub use crate::types::*;
+pub use error::RequestError;
 
 // internal modules
 mod common;

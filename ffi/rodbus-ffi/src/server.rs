@@ -1,8 +1,7 @@
 use crate::ffi;
 use crate::Database;
-use rodbus::shutdown::TaskHandle;
-use rodbus::types::{Indexed, UnitId};
-use rodbus::ExceptionCode;
+use rodbus::server::ServerHandle;
+use rodbus::{ExceptionCode, Indexed, UnitId};
 use std::collections::HashMap;
 use std::net::SocketAddr;
 
@@ -121,7 +120,7 @@ impl RequestHandler for RequestHandlerWrapper {
 
 pub struct Server {
     // never used but we have to hang onto it otherwise the server shuts down
-    _server: rodbus::shutdown::TaskHandle,
+    _server: ServerHandle,
     map: ServerHandlerMap<RequestHandlerWrapper>,
 }
 
@@ -188,7 +187,7 @@ pub(crate) unsafe fn create_tcp_server(
     let join_handle = runtime.inner.spawn(task);
 
     let server_handle = Server {
-        _server: TaskHandle::new(tx, join_handle),
+        _server: ServerHandle::new(tx, join_handle),
         map: handler_map,
     };
 

@@ -1,14 +1,14 @@
 use crate::common::function::FunctionCode;
 use crate::common::traits::Loggable;
 use crate::decode::PduDecodeLevel;
-use crate::error::details::AduParseError;
+use crate::error::AduParseError;
 use crate::error::*;
 use crate::exception::ExceptionCode;
 use crate::tokio;
 
 use crate::client::requests::read_bits::ReadBits;
 use crate::client::requests::read_registers::ReadRegisters;
-use crate::client::requests::write_multiple::MultipleWrite;
+use crate::client::requests::write_multiple::MultipleWriteRequest;
 use crate::client::requests::write_single::SingleWrite;
 use crate::common::cursor::{ReadCursor, WriteCursor};
 use crate::common::traits::Serialize;
@@ -29,8 +29,8 @@ pub(crate) enum RequestDetails {
     ReadInputRegisters(ReadRegisters),
     WriteSingleCoil(SingleWrite<Indexed<bool>>),
     WriteSingleRegister(SingleWrite<Indexed<u16>>),
-    WriteMultipleCoils(MultipleWrite<bool>),
-    WriteMultipleRegisters(MultipleWrite<u16>),
+    WriteMultipleCoils(MultipleWriteRequest<bool>),
+    WriteMultipleRegisters(MultipleWriteRequest<u16>),
 }
 
 impl Request {
@@ -188,16 +188,16 @@ impl std::fmt::Display for RequestDetailsDisplay<'_> {
         if self.level.data_headers() {
             match self.request {
                 RequestDetails::ReadCoils(details) => {
-                    write!(f, "{}", details.request.inner)?;
+                    write!(f, "{}", details.request.get())?;
                 }
                 RequestDetails::ReadDiscreteInputs(details) => {
-                    write!(f, "{}", details.request.inner)?;
+                    write!(f, "{}", details.request.get())?;
                 }
                 RequestDetails::ReadHoldingRegisters(details) => {
-                    write!(f, "{}", details.request.inner)?;
+                    write!(f, "{}", details.request.get())?;
                 }
                 RequestDetails::ReadInputRegisters(details) => {
-                    write!(f, "{}", details.request.inner)?;
+                    write!(f, "{}", details.request.get())?;
                 }
                 RequestDetails::WriteSingleCoil(details) => {
                     write!(f, "{}", details.request)?;

@@ -39,7 +39,7 @@ impl ReadRegisters {
     }
 
     pub(crate) fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
-        self.request.inner.serialize(cursor)
+        self.request.get().serialize(cursor)
     }
 
     pub(crate) fn failure(self, err: RequestError) {
@@ -52,7 +52,7 @@ impl ReadRegisters {
         function: FunctionCode,
         decode: PduDecodeLevel,
     ) {
-        let result = Self::parse_registers_response(self.request.inner, &mut cursor);
+        let result = Self::parse_registers_response(self.request.get(), &mut cursor);
 
         match &result {
             Ok(response) => {

@@ -5,7 +5,7 @@ use crate::common::cursor::WriteCursor;
 use crate::common::frame::{Frame, FrameFormatter, FrameHeader, FrameParser, TxId};
 use crate::common::traits::Serialize;
 use crate::decode::AduDecodeLevel;
-use crate::error::*;
+use crate::error::{FrameParseError, InternalError, RequestError};
 use crate::types::UnitId;
 
 pub(crate) mod constants {
@@ -63,20 +63,18 @@ impl MbapParser {
         let unit_id = UnitId::new(cursor.read_u8()?);
 
         if protocol_id != 0 {
-            return Err(details::FrameParseError::UnknownProtocolId(protocol_id).into());
+            return Err(FrameParseError::UnknownProtocolId(protocol_id).into());
         }
 
         if length > constants::MAX_LENGTH_FIELD {
-            return Err(details::FrameParseError::MbapLengthTooBig(
-                length,
-                constants::MAX_LENGTH_FIELD,
-            )
-            .into());
+            return Err(
+                FrameParseError::MbapLengthTooBig(length, constants::MAX_LENGTH_FIELD).into(),
+            );
         }
 
         // must be > 0 b/c the 1-byte unit identifier counts towards length
         if length == 0 {
-            return Err(details::FrameParseError::MbapLengthZero.into());
+            return Err(FrameParseError::MbapLengthZero.into());
         }
 
         Ok(MbapHeader {
@@ -130,7 +128,11 @@ impl FrameParser for MbapParser {
 }
 
 impl FrameFormatter for MbapFormatter {
-    fn format_impl(&mut self, header: FrameHeader, msg: &dyn Serialize) -> Result<usize, RequestError> {
+    fn format_impl(
+        &mut self,
+        header: FrameHeader,
+        msg: &dyn Serialize,
+    ) -> Result<usize, RequestError> {
         let mut cursor = WriteCursor::new(self.buffer.as_mut());
 
         // Write header
@@ -148,7 +150,7 @@ impl FrameFormatter for MbapFormatter {
         {
             // write the resulting length
             let frame_length_value = u16::try_from(adu_length + 1)
-                .map_err(|_err| details::InternalError::AduTooBig(adu_length))?;
+                .map_err(|_err| InternalError::AduTooBig(adu_length))?;
 
             cursor.seek_from_start(4)?;
             cursor.write_u16_be(frame_length_value)?;
@@ -345,7 +347,7 @@ mod tests {
         let frame = &[0x00, 0x07, 0xCA, 0xFE, 0x00, 0x01, 0x2A];
         assert_eq!(
             test_error(frame),
-            RequestError::BadFrame(details::FrameParseError::UnknownProtocolId(0xCAFE)),
+            RequestError::BadFrame(FrameParseError::UnknownProtocolId(0xCAFE)),
         );
     }
 
@@ -354,7 +356,7 @@ mod tests {
         let frame = &[0x00, 0x07, 0x00, 0x00, 0x00, 0x00, 0x2A];
         assert_eq!(
             test_error(frame),
-            RequestError::BadFrame(details::FrameParseError::MbapLengthZero)
+            RequestError::BadFrame(FrameParseError::MbapLengthZero)
         );
     }
 
@@ -363,7 +365,7 @@ mod tests {
         let frame = &[0x00, 0x07, 0x00, 0x00, 0x00, 0xFF, 0x2A];
         assert_eq!(
             test_error(frame),
-            RequestError::BadFrame(details::FrameParseError::MbapLengthTooBig(
+            RequestError::BadFrame(FrameParseError::MbapLengthTooBig(
                 0xFF,
                 constants::MAX_LENGTH_FIELD,
             ))
