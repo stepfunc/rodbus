@@ -1,5 +1,4 @@
-use crate::error::details::ADUParseError;
-use crate::error::*;
+use crate::error::{AduParseError, InternalError};
 
 #[cfg(feature = "no-panic")]
 use no_panic::no_panic;
@@ -32,40 +31,40 @@ impl<'a> ReadCursor<'a> {
     }
 
     #[cfg_attr(feature = "no-panic", no_panic)]
-    pub(crate) fn expect_empty(&self) -> Result<(), ADUParseError> {
+    pub(crate) fn expect_empty(&self) -> Result<(), AduParseError> {
         if self.is_empty() {
             Ok(())
         } else {
-            Err(ADUParseError::TrailingBytes(self.len()))
+            Err(AduParseError::TrailingBytes(self.len()))
         }
     }
 
     #[cfg_attr(feature = "no-panic", no_panic)]
-    pub(crate) fn read_u8(&mut self) -> Result<u8, ADUParseError> {
+    pub(crate) fn read_u8(&mut self) -> Result<u8, AduParseError> {
         match self.src.split_first() {
             Some((first, rest)) => {
                 self.src = rest;
                 Ok(*first)
             }
-            None => Err(ADUParseError::InsufficientBytes),
+            None => Err(AduParseError::InsufficientBytes),
         }
     }
 
     #[cfg_attr(feature = "no-panic", no_panic)]
-    pub(crate) fn read_u16_be(&mut self) -> Result<u16, ADUParseError> {
+    pub(crate) fn read_u16_be(&mut self) -> Result<u16, AduParseError> {
         let high = self.read_u8()?;
         let low = self.read_u8()?;
         Ok((high as u16) << 8 | (low as u16))
     }
 
     #[cfg_attr(feature = "no-panic", no_panic)]
-    pub(crate) fn read_bytes(&mut self, count: usize) -> Result<&'a [u8], ADUParseError> {
+    pub(crate) fn read_bytes(&mut self, count: usize) -> Result<&'a [u8], AduParseError> {
         match (self.src.get(0..count), self.src.get(count..)) {
             (Some(first), Some(rest)) => {
                 self.src = rest;
                 Ok(first)
             }
-            _ => Err(ADUParseError::InsufficientBytes),
+            _ => Err(AduParseError::InsufficientBytes),
         }
     }
 }
@@ -87,43 +86,40 @@ impl<'a> WriteCursor<'a> {
     }
 
     #[cfg_attr(feature = "no-panic", no_panic)]
-    pub(crate) fn seek_from_current(&mut self, count: usize) -> Result<(), details::InternalError> {
+    pub(crate) fn seek_from_current(&mut self, count: usize) -> Result<(), InternalError> {
         if self.remaining() < count {
-            return Err(details::InternalError::BadSeekOperation);
+            return Err(InternalError::BadSeekOperation);
         }
         self.pos += count;
         Ok(())
     }
 
     #[cfg_attr(feature = "no-panic", no_panic)]
-    pub(crate) fn seek_from_start(&mut self, count: usize) -> Result<(), details::InternalError> {
+    pub(crate) fn seek_from_start(&mut self, count: usize) -> Result<(), InternalError> {
         if self.dest.len() < count {
-            return Err(details::InternalError::BadSeekOperation);
+            return Err(InternalError::BadSeekOperation);
         }
         self.pos = count;
         Ok(())
     }
 
     #[cfg_attr(feature = "no-panic", no_panic)]
-    pub(crate) fn write_u8(&mut self, value: u8) -> Result<(), details::InternalError> {
+    pub(crate) fn write_u8(&mut self, value: u8) -> Result<(), InternalError> {
         match self.dest.get_mut(self.pos) {
             Some(x) => {
                 *x = value;
                 self.pos += 1;
                 Ok(())
             }
-            None => Err(details::InternalError::InsufficientWriteSpace(1, 0)),
+            None => Err(InternalError::InsufficientWriteSpace(1, 0)),
         }
     }
 
     #[cfg_attr(feature = "no-panic", no_panic)]
-    pub(crate) fn write_u16_be(&mut self, value: u16) -> Result<(), details::InternalError> {
+    pub(crate) fn write_u16_be(&mut self, value: u16) -> Result<(), InternalError> {
         if self.remaining() < 2 {
             // don't write any bytes if there's isn't space for the whole thing
-            return Err(details::InternalError::InsufficientWriteSpace(
-                2,
-                self.remaining(),
-            ));
+            return Err(InternalError::InsufficientWriteSpace(2, self.remaining()));
         }
         let upper = ((value & 0xFF00) >> 8) as u8;
         let lower = (value & 0x00FF) as u8;

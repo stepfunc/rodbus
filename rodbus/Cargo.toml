@@ -1,24 +1,20 @@
 [package]
 name = "rodbus"
-version = "0.1.1"
-authors = ["Adam Crain <jadamcrain@automatak.com>", "Émile Grégoire <emile@automatak.com>"]
+version = "0.9.0"
+authors = ["Adam Crain <adam@stepfunc.io>", "Émile Grégoire <emile@stepfunc.io>"]
 edition = "2018"
-license = "GPL-3.0-only"
-description = "A high-performance implementation of the Modbus protocol using Tokio and async/await"
+description = "A high-performance async implementation of the Modbus protocol using tokio"
 keywords = ["modbus", "ics", "industrial", "plc", "security"]
 categories = ["network-programming"]
-repository = "https://www.github.com/automatak/rodbus"
+repository = "https://github.com/stepfunc/rodbus"
 readme = "../README.md"
 
-[badges]
-codecov = { repository = "automatak/rodbus", branch = "master", service = "github" }
-maintenance = { status = "actively-developed" }
-
 [dependencies]
-tokio = { version = "^0.2.20", features = ["tcp", "sync", "io-util", "time", "rt-core", "rt-threaded", "macros"]}
-log = "0.4"
-no-panic = { version = "0.1", optional = true }
+tokio-mock = { git = "https://github.com/stepfunc/tokio-mock.git", tag = "0.1.0" }
+tracing = "0.1"
 
 [dev-dependencies]
-tokio-test = "0.2"
-simple_logger = "1.9"
+tokio = { version = "1.5", features = ["rt-multi-thread", "macros"] }
+tokio-stream = "0.1"
+tokio-util = { version = "0.6", features = ["codec"] }
+tracing-subscriber = "0.2"

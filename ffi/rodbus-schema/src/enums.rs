@@ -4,7 +4,7 @@ use oo_bindgen::{BindingError, Handle, LibraryBuilder};
 pub(crate) fn define_exception(
     lib: &mut LibraryBuilder,
 ) -> Result<Handle<NativeEnum>, BindingError> {
-    lib.define_native_enum("Exception")?
+    lib.define_native_enum("ModbusException")?
         .variant("IllegalFunction", 0x01, "The data address received in the query is not an allowable address for the server")?
         .variant("IllegalDataAddress", 0x02, "The data address received in the query is not an allowable address for the server")?
         .variant("IllegalDataValue", 0x03, "A value contained in the request is not an allowable value for server")?
@@ -48,7 +48,7 @@ pub(crate) fn define_status(lib: &mut LibraryBuilder) -> Result<Handle<NativeEnu
             "The response from the server was received but was improperly formatted",
         )?
         .variant(
-            "IOError",
+            "IoError",
             6,
             "An I/O error occurred on the underlying stream while performing the request",
         )?

@@ -6,9 +6,9 @@ use std::time::Duration;
 
 use clap::{App, Arg, ArgMatches, SubCommand};
 
-use rodbus::error::details::{InvalidRange, InvalidRequest};
-use rodbus::prelude::*;
-use simple_logger::SimpleLogger;
+use rodbus::client::*;
+use rodbus::error::{InvalidRange, InvalidRequest};
+use rodbus::*;
 
 #[derive(Debug)]
 enum Error {
@@ -17,7 +17,7 @@ enum Error {
     BadInt(std::num::ParseIntError),
     BadBool(std::str::ParseBoolError),
     BadCharInBitString(char),
-    Request(rodbus::error::Error),
+    Request(rodbus::error::RequestError),
     MissingSubCommand,
 }
 
@@ -50,13 +50,13 @@ impl Args {
     }
 }
 
-#[tokio::main(basic_scheduler)]
+#[tokio::main(flavor = "multi_thread")]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // print log messages to the console
-    SimpleLogger::new()
-        .with_level(log::LevelFilter::Info)
-        .init()
-        .unwrap();
+    // Initialize logging
+    tracing_subscriber::fmt()
+        .with_max_level(tracing::Level::INFO)
+        .with_target(false)
+        .init();
 
     if let Err(ref e) = run().await {
         println!("error: {}", e);
@@ -67,51 +67,62 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 async fn run() -> Result<(), Error> {
     let args = parse_args()?;
-    let channel = spawn_tcp_client_task(args.address, 1, strategy::default());
-    let mut session = channel.create_session(args.id, Duration::from_secs(1));
+    let mut channel = spawn_tcp_client_task(
+        args.address,
+        1,
+        default_reconnect_strategy(),
+        PduDecodeLevel::DataValues.into(),
+    );
+    let params = RequestParam::new(args.id, Duration::from_secs(1));
 
     match args.period {
-        None => run_command(&args.command, &mut session).await,
+        None => run_command(&args.command, &mut channel, params).await,
         Some(period) => loop {
-            run_command(&args.command, &mut session).await?;
-            tokio::time::delay_for(period).await
+            run_command(&args.command, &mut channel, params).await?;
+            tokio::time::sleep(period).await
         },
     }
 }
 
-async fn run_command(command: &Command, session: &mut AsyncSession) -> Result<(), Error> {
+async fn run_command(
+    command: &Command,
+    channel: &mut Channel,
+    params: RequestParam,
+) -> Result<(), Error> {
     match command {
         Command::ReadCoils(range) => {
-            for x in session.read_coils(*range).await? {
+            for x in channel.read_coils(params, *range).await? {
                 println!("index: {} value: {}", x.index, x.value)
             }
         }
         Command::ReadDiscreteInputs(range) => {
-            for x in session.read_discrete_inputs(*range).await? {
+            for x in channel.read_discrete_inputs(params, *range).await? {
                 println!("index: {} value: {}", x.index, x.value)
             }
         }
         Command::ReadHoldingRegisters(range) => {
-            for x in session.read_holding_registers(*range).await? {
+            for x in channel.read_holding_registers(params, *range).await? {
                 println!("index: {} value: {}", x.index, x.value)
             }
         }
         Command::ReadInputRegisters(range) => {
-            for x in session.read_input_registers(*range).await? {
+            for x in channel.read_input_registers(params, *range).await? {
                 println!("index: {} value: {}", x.index, x.value)
             }
         }
         Command::WriteSingleRegister(arg) => {
-            session.write_single_register(*arg).await?;
+            channel.write_single_register(params, *arg).await?;
         }
         Command::WriteSingleCoil(arg) => {
-            session.write_single_coil(*arg).await?;
+            channel.write_single_coil(params, *arg).await?;
         }
         Command::WriteMultipleCoils(arg) => {
-            session.write_multiple_coils(arg.clone()).await?;
+            channel.write_multiple_coils(params, arg.clone()).await?;
         }
         Command::WriteMultipleRegisters(arg) => {
-            session.write_multiple_registers(arg.clone()).await?;
+            channel
+                .write_multiple_registers(params, arg.clone())
+                .await?;
         }
     }
     Ok(())
@@ -329,26 +340,6 @@ fn parse_args() -> Result<Args, Error> {
                 ),
         )
         .subcommand(
-            SubCommand::with_name("wsr")
-                .about("write single register")
-                .arg(
-                    Arg::with_name("index")
-                        .short("i")
-                        .long("index")
-                        .required(true)
-                        .takes_value(true)
-                        .help("the address of the register"),
-                )
-                .arg(
-                    Arg::with_name("value")
-                        .short("v")
-                        .long("value")
-                        .required(true)
-                        .takes_value(true)
-                        .help("the value of the register"),
-                ),
-        )
-        .subcommand(
             SubCommand::with_name("wsc")
                 .about("write single coil")
                 .arg(
@@ -366,6 +357,26 @@ fn parse_args() -> Result<Args, Error> {
                         .required(true)
                         .takes_value(true)
                         .help("the value of the coil (ON or OFF)"),
+                ),
+        )
+        .subcommand(
+            SubCommand::with_name("wsr")
+                .about("write single register")
+                .arg(
+                    Arg::with_name("index")
+                        .short("i")
+                        .long("index")
+                        .required(true)
+                        .takes_value(true)
+                        .help("the address of the register"),
+                )
+                .arg(
+                    Arg::with_name("value")
+                        .short("v")
+                        .long("value")
+                        .required(true)
+                        .takes_value(true)
+                        .help("the value of the register"),
                 ),
         )
         .subcommand(
@@ -437,8 +448,8 @@ impl std::fmt::Display for Error {
     }
 }
 
-impl From<rodbus::error::Error> for Error {
-    fn from(err: rodbus::error::Error) -> Self {
+impl From<rodbus::error::RequestError> for Error {
+    fn from(err: rodbus::error::RequestError) -> Self {
         Error::Request(err)
     }
 }

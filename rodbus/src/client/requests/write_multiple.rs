@@ -1,19 +1,92 @@
 use crate::client::message::Promise;
 use crate::common::cursor::{ReadCursor, WriteCursor};
+use crate::common::function::FunctionCode;
 use crate::common::traits::{Parse, Serialize};
-use crate::error::details::ADUParseError;
-use crate::error::Error;
-use crate::types::{AddressRange, WriteMultiple};
+use crate::decode::PduDecodeLevel;
+use crate::error::RequestError;
+use crate::error::{AduParseError, InvalidRequest};
+use crate::types::{AddressRange, Indexed};
 
-pub(crate) struct MultipleWrite<T>
+use std::convert::TryFrom;
+
+/// Collection of values and starting address
+///
+/// Used when making write multiple coil/register requests
+#[derive(Debug, Clone)]
+pub struct WriteMultiple<T> {
+    /// starting address
+    pub(crate) range: AddressRange,
+    /// vector of values
+    pub(crate) values: Vec<T>,
+}
+
+pub(crate) struct WriteMultipleIterator<'a, T> {
+    range: AddressRange,
+    pos: u16,
+    iter: std::slice::Iter<'a, T>,
+}
+
+impl<T> WriteMultiple<T> {
+    /// Create new collection of values
+    pub fn from(start: u16, values: Vec<T>) -> Result<Self, InvalidRequest> {
+        let count = match u16::try_from(values.len()) {
+            Ok(x) => x,
+            Err(_) => return Err(InvalidRequest::CountTooBigForU16(values.len())),
+        };
+        let range = AddressRange::try_from(start, count)?;
+        Ok(Self { range, values })
+    }
+
+    pub(crate) fn iter(&self) -> WriteMultipleIterator<'_, T> {
+        WriteMultipleIterator::new(self.range, self.values.iter())
+    }
+}
+
+impl<'a, T> WriteMultipleIterator<'a, T> {
+    fn new(range: AddressRange, iter: std::slice::Iter<'a, T>) -> Self {
+        Self {
+            range,
+            pos: 0,
+            iter,
+        }
+    }
+}
+
+impl<T> Iterator for WriteMultipleIterator<'_, T>
+where
+    T: Copy,
+{
+    type Item = Indexed<T>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let next = self.iter.next();
+
+        match next {
+            Some(next) => {
+                let result = Indexed::new(self.range.start + self.pos, *next);
+                self.pos += 1;
+                Some(result)
+            }
+            None => None,
+        }
+    }
+
+    // implementing this allows collect to optimize the vector capacity
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let remaining = (self.range.count - self.pos) as usize;
+        (remaining, Some(remaining))
+    }
+}
+
+pub(crate) struct MultipleWriteRequest<T>
 where
     WriteMultiple<T>: Serialize,
 {
-    request: WriteMultiple<T>,
+    pub(crate) request: WriteMultiple<T>,
     promise: Promise<AddressRange>,
 }
 
-impl<T> MultipleWrite<T>
+impl<T> MultipleWriteRequest<T>
 where
     WriteMultiple<T>: Serialize,
 {
@@ -21,23 +94,43 @@ where
         Self { request, promise }
     }
 
-    pub(crate) fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), Error> {
+    pub(crate) fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
         self.request.serialize(cursor)
     }
 
-    pub(crate) fn failure(self, err: Error) {
+    pub(crate) fn failure(self, err: RequestError) {
         self.promise.failure(err)
     }
 
-    pub(crate) fn handle_response(self, cursor: ReadCursor) {
+    pub(crate) fn handle_response(
+        self,
+        cursor: ReadCursor,
+        function: FunctionCode,
+        decode: PduDecodeLevel,
+    ) {
         let result = self.parse_all(cursor);
+
+        match &result {
+            Ok(response) => {
+                if decode.data_headers() {
+                    tracing::info!("PDU RX - {} {}", function, response);
+                } else if decode.header() {
+                    tracing::info!("PDU RX - {}", function);
+                }
+            }
+            Err(err) => {
+                // TODO: check if this is how we want to log it
+                tracing::warn!("{}", err);
+            }
+        }
+
         self.promise.complete(result)
     }
 
-    fn parse_all(&self, mut cursor: ReadCursor) -> Result<AddressRange, Error> {
+    fn parse_all(&self, mut cursor: ReadCursor) -> Result<AddressRange, RequestError> {
         let range = AddressRange::parse(&mut cursor)?;
         if range != self.request.range {
-            return Err(Error::BadResponse(ADUParseError::ReplyEchoMismatch));
+            return Err(RequestError::BadResponse(AduParseError::ReplyEchoMismatch));
         }
         cursor.expect_empty()?;
         Ok(range)

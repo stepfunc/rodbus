@@ -1,0 +1,35 @@
+---
+id: guide
+title: About This Guide
+sidebar_label: Guide
+slug: /guide
+---
+
+import useBaseUrl from '@docusaurus/useBaseUrl';
+import sitedata from '../../sitedata.json'
+
+This guide provides the primary documentation for Step Function I/O's Modbus [library](https://github.com/stepfunc/rodbus). Here you'll find:
+
+* Which parts of Modbus the library implements
+* How to use the library's Application Programming Interface (API)
+* How the API maps to Modbus concepts
+* How to get pre-built binary distributions of the library for supported languages
+* How to build the core Rust library and bindings from the source
+
+You can find exhaustive details for every field, method, and argument to the language-specific API documentation here:
+
+* <a href={`https://docs.stepfunc.io/rodbus/${sitedata.version}/rust/rodbus/`}>Rust (rustdoc)</a>
+* <a href={`https://docs.stepfunc.io/rodbus/${sitedata.version}/c/rodbus_8h.html`}>C (doxygen)</a>
+* <a href={`https://docs.stepfunc.io/rodbus/${sitedata.version}/java/`}>Java (javadoc)</a>
+* <a href={`https://docs.stepfunc.io/rodbus/${sitedata.version}/dotnet/namespacerodbus.html`}>C# (doxygen)</a>
+
+In addition to this documentation, you can find example programs in the source repository that demonstrate the most common API features for each language.
+
+## Modbus Standard
+
+Please note that while this guide covers many Modbus concepts, it cannot replicate the Modbus standard itself. If you plan to develop a product that uses Modbus,
+you can get a free copy from the [Modbus Organization website](https://modbus.org/).
+
+<div style={{textAlign: 'center'}}>
+    <a href="https://modbus.org"><img alt="Modbus logo" src={useBaseUrl('img/modbus_logo.jpg')} /></a>
+</div>

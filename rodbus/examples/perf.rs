@@ -2,11 +2,10 @@ use std::net::SocketAddr;
 use std::str::FromStr;
 use std::time::Duration;
 
-use tokio::net::TcpListener;
-
-use rodbus::error::details::ExceptionCode;
-use rodbus::prelude::*;
-use rodbus::server::spawn_tcp_server_task;
+use rodbus::client::*;
+use rodbus::error::RequestError;
+use rodbus::server::*;
+use rodbus::*;
 
 struct Handler {
     coils: [bool; 100],
@@ -20,8 +19,14 @@ impl RequestHandler for Handler {
     }
 }
 
-#[tokio::main(threaded_scheduler)]
+#[tokio::main(flavor = "multi_thread")]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Initialize logging
+    tracing_subscriber::fmt()
+        .with_max_level(tracing::Level::INFO)
+        .with_target(false)
+        .init();
+
     let args: Vec<String> = std::env::args().collect();
 
     if args.len() != 3 {
@@ -42,33 +47,47 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         coils: [false; 100],
     }
     .wrap();
-    let listener = TcpListener::bind(addr).await?;
 
     let _handle = spawn_tcp_server_task(
         num_sessions,
-        listener,
+        addr,
         ServerHandlerMap::single(UnitId::new(1), handler),
-    );
+        DecodeLevel::new(
+            PduDecodeLevel::DataValues,
+            AduDecodeLevel::Nothing,
+            PhysDecodeLevel::Nothing,
+        ),
+    )
+    .await?;
 
     // now spawn a bunch of clients
-    let mut sessions: Vec<AsyncSession> = Vec::new();
+    let mut channels: Vec<(Channel, RequestParam)> = Vec::new();
     for _ in 0..num_sessions {
-        sessions.push(
-            spawn_tcp_client_task(addr, 10, strategy::default())
-                .create_session(UnitId::new(1), Duration::from_secs(1)),
+        let channel = spawn_tcp_client_task(
+            addr,
+            10,
+            default_reconnect_strategy(),
+            DecodeLevel::new(
+                PduDecodeLevel::Nothing,
+                AduDecodeLevel::Nothing,
+                PhysDecodeLevel::Nothing,
+            ),
         );
+        let params = RequestParam::new(UnitId::new(1), Duration::from_secs(1));
+
+        channels.push((channel, params));
     }
 
-    let mut query_tasks: Vec<tokio::task::JoinHandle<Result<(), Error>>> = Vec::new();
+    let mut query_tasks: Vec<tokio::task::JoinHandle<Result<(), RequestError>>> = Vec::new();
 
     let start = std::time::Instant::now();
 
     // spawn tasks that make a query 1000 times
-    for mut session in sessions {
-        let handle: tokio::task::JoinHandle<Result<(), Error>> = tokio::spawn(async move {
+    for (mut channel, params) in channels {
+        let handle: tokio::task::JoinHandle<Result<(), RequestError>> = tokio::spawn(async move {
             for _ in 0..num_requests {
-                if let Err(err) = session
-                    .read_coils(AddressRange::try_from(0, 100).unwrap())
+                if let Err(err) = channel
+                    .read_coils(params, AddressRange::try_from(0, 100).unwrap())
                     .await
                 {
                     println!("failure: {}", err);

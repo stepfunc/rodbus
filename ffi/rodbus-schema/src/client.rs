@@ -1,11 +1,11 @@
+use oo_bindgen::callback::InterfaceHandle;
 use oo_bindgen::class::ClassDeclarationHandle;
 use oo_bindgen::iterator::IteratorHandle;
-use oo_bindgen::native_function::{NativeFunctionHandle, ReturnType, Type};
-use oo_bindgen::native_struct::NativeStructHandle;
-use oo_bindgen::{BindingError, LibraryBuilder};
+use oo_bindgen::native_function::{DurationMapping, NativeFunctionHandle, ReturnType, Type};
+use oo_bindgen::native_struct::{NativeStructHandle, StructElementType};
+use oo_bindgen::{doc, BindingError, LibraryBuilder};
 
 use crate::common::CommonDefinitions;
-use oo_bindgen::callback::OneTimeCallbackHandle;
 use oo_bindgen::collection::CollectionHandle;
 
 pub(crate) fn build(
@@ -13,6 +13,8 @@ pub(crate) fn build(
     common: &CommonDefinitions,
 ) -> Result<(), BindingError> {
     let channel = lib.declare_class("Channel")?;
+
+    let retry_strategy = build_retry_strategy(lib)?;
 
     let create_tcp_client_fn = lib.declare_native_function("create_tcp_client")?;
     let create_tcp_client_fn = create_tcp_client_fn
@@ -27,16 +29,26 @@ pub(crate) fn build(
             Type::Uint16,
             "Maximum number of requests to queue before failing the next request",
         )?
+        .param(
+            "retry_strategy",
+            Type::Struct(retry_strategy),
+            "Reconnection timing strategy",
+        )?
+        .param(
+            "decode_level",
+            Type::Struct(common.decode_level.clone()),
+            "Decode levels for this client",
+        )?
         .return_type(ReturnType::Type(
             Type::ClassRef(channel.clone()),
             "pointer to the created channel or NULL if an error occurred".into(),
         ))?
+        .fails_with(common.error_type.clone())?
         .doc("create a new tcp channel instance")?
         .build()?;
 
-    let destroy_channel_fn = lib.declare_native_function("destroy_channel")?;
-
-    let destroy_channel_fn = destroy_channel_fn
+    let destroy_channel_fn = lib
+        .declare_native_function("channel_destroy")?
         .param(
             "channel",
             Type::ClassRef(channel.clone()),
@@ -48,10 +60,10 @@ pub(crate) fn build(
 
     let bit_read_callback = build_bit_read_callback(lib, common)?;
     let register_read_callback = build_register_read_callback(lib, common)?;
-    let result_only_callback = build_result_only_callback(lib, common)?;
+    let write_callback = build_write_callback(lib, common)?;
 
     let read_coils_fn = build_async_read_fn(
-        "channel_read_coils_async",
+        "channel_read_coils",
         lib,
         common,
         &channel,
@@ -60,7 +72,7 @@ pub(crate) fn build(
     )?;
 
     let read_discrete_inputs_fn = build_async_read_fn(
-        "channel_read_discrete_inputs_async",
+        "channel_read_discrete_inputs",
         lib,
         common,
         &channel,
@@ -69,7 +81,7 @@ pub(crate) fn build(
     )?;
 
     let read_holding_registers_fn = build_async_read_fn(
-        "channel_read_holding_registers_async",
+        "channel_read_holding_registers",
         lib,
         common,
         &channel,
@@ -78,7 +90,7 @@ pub(crate) fn build(
     )?;
 
     let read_input_registers_fn = build_async_read_fn(
-        "channel_read_input_registers_async",
+        "channel_read_input_registers",
         lib,
         common,
         &channel,
@@ -87,43 +99,43 @@ pub(crate) fn build(
     )?;
 
     let write_single_coil_fn = build_async_write_single_fn(
-        "channel_write_single_coil_async",
+        "channel_write_single_coil",
         lib,
         common,
         &channel,
-        &result_only_callback,
+        &write_callback,
         &common.bit,
         "write a single coil",
     )?;
 
     let write_single_register_fn = build_async_write_single_fn(
-        "channel_write_single_register_async",
+        "channel_write_single_register",
         lib,
         common,
         &channel,
-        &result_only_callback,
+        &write_callback,
         &common.register,
         "write a single register",
     )?;
 
     let list_of_bit = build_list(lib, "Bit", Type::Bool)?;
     let write_multiple_coils_fn = build_async_write_multiple_fn(
-        "channel_write_multiple_coils_async",
+        "channel_write_multiple_coils",
         lib,
         common,
         &channel,
-        &result_only_callback,
+        &write_callback,
         &list_of_bit,
         "write multiple coils",
     )?;
 
     let list_of_register = build_list(lib, "Register", Type::Uint16)?;
     let write_multiple_registers_fn = build_async_write_multiple_fn(
-        "channel_write_multiple_registers_async",
+        "channel_write_multiple_registers",
         lib,
         common,
         &channel,
-        &result_only_callback,
+        &write_callback,
         &list_of_register,
         "write multiple registers",
     )?;
@@ -143,6 +155,7 @@ pub(crate) fn build(
         .async_method("write_multiple_registers", &write_multiple_registers_fn)?
         // destructor
         .destructor(&destroy_channel_fn)?
+        .custom_destroy("Shutdown")?
         .doc("Abstract representation of a channel")?
         .build()?;
 
@@ -154,7 +167,7 @@ fn build_async_write_single_fn(
     lib: &mut LibraryBuilder,
     common: &CommonDefinitions,
     channel: &ClassDeclarationHandle,
-    callback: &OneTimeCallbackHandle,
+    callback: &InterfaceHandle,
     write_type: &NativeStructHandle,
     docs: &str,
 ) -> Result<NativeFunctionHandle, BindingError> {
@@ -165,21 +178,22 @@ fn build_async_write_single_fn(
             "channel on which to perform the write operation",
         )?
         .param(
-            "value",
-            Type::Struct(write_type.clone()),
-            "Address and value to write",
-        )?
-        .param(
             "param",
             Type::Struct(common.request_param.clone()),
             "parameters for the request",
         )?
         .param(
+            "value",
+            Type::Struct(write_type.clone()),
+            "Address and value to write",
+        )?
+        .param(
             "callback",
-            Type::OneTimeCallback(callback.clone()),
+            Type::Interface(callback.clone()),
             "callback invoked on completion",
         )?
         .return_type(ReturnType::void())?
+        .fails_with(common.error_type.clone())?
         .doc(docs)?
         .build()
 }
@@ -189,7 +203,7 @@ fn build_async_write_multiple_fn(
     lib: &mut LibraryBuilder,
     common: &CommonDefinitions,
     channel: &ClassDeclarationHandle,
-    callback: &OneTimeCallbackHandle,
+    callback: &InterfaceHandle,
     list_type: &CollectionHandle,
     docs: &str,
 ) -> Result<NativeFunctionHandle, BindingError> {
@@ -199,23 +213,24 @@ fn build_async_write_multiple_fn(
             Type::ClassRef(channel.clone()),
             "channel on which to perform the write operation",
         )?
-        .param("start", Type::Uint16, "Starting address")?
+        .param(
+            "param",
+            Type::Struct(common.request_param.clone()),
+            "parameters for the request",
+        )?
+        .param("start", Type::Uint16, "starting address")?
         .param(
             "items",
             Type::Collection(list_type.clone()),
             "list of items to write",
         )?
         .param(
-            "param",
-            Type::Struct(common.request_param.clone()),
-            "parameters for the request",
-        )?
-        .param(
             "callback",
-            Type::OneTimeCallback(callback.clone()),
+            Type::Interface(callback.clone()),
             "callback invoked on completion",
         )?
         .return_type(ReturnType::void())?
+        .fails_with(common.error_type.clone())?
         .doc(docs)?
         .build()
 }
@@ -225,7 +240,7 @@ fn build_async_read_fn(
     lib: &mut LibraryBuilder,
     common: &CommonDefinitions,
     channel: &ClassDeclarationHandle,
-    callback: &OneTimeCallbackHandle,
+    callback: &InterfaceHandle,
     docs: &str,
 ) -> Result<NativeFunctionHandle, BindingError> {
     lib.declare_native_function(name)?
@@ -235,21 +250,22 @@ fn build_async_read_fn(
             "channel on which to perform the read",
         )?
         .param(
-            "range",
-            Type::Struct(common.address_range.clone()),
-            "range of addresses to read",
-        )?
-        .param(
             "param",
             Type::Struct(common.request_param.clone()),
             "parameters for the request",
         )?
         .param(
+            "range",
+            Type::Struct(common.address_range.clone()),
+            "range of addresses to read",
+        )?
+        .param(
             "callback",
-            Type::OneTimeCallback(callback.clone()),
+            Type::Interface(callback.clone()),
             "callback invoked on completion",
         )?
         .return_type(ReturnType::void())?
+        .fails_with(common.error_type.clone())?
         .doc(docs)?
         .build()
 }
@@ -257,21 +273,22 @@ fn build_async_read_fn(
 fn build_bit_read_callback(
     lib: &mut LibraryBuilder,
     common: &CommonDefinitions,
-) -> Result<OneTimeCallbackHandle, BindingError> {
+) -> Result<InterfaceHandle, BindingError> {
     let bit_read_result =
         build_callback_struct(lib, &common.bit, &common.bit_iterator, &common.error_info)?;
     let bit_read_callback = lib
-        .define_one_time_callback(
+        .define_interface(
             "BitReadCallback",
             "Callback for reading coils or input registers",
         )?
         .callback(
             "on_complete",
-            "Called when the operation is complete or fails",
+            "Called when the operation completes or fails",
         )?
         .param("result", Type::Struct(bit_read_result), "result")?
         .return_type(ReturnType::void())?
         .build()?
+        .destroy_callback("on_destroy")?
         .build()?;
 
     Ok(bit_read_callback)
@@ -280,7 +297,7 @@ fn build_bit_read_callback(
 fn build_register_read_callback(
     lib: &mut LibraryBuilder,
     common: &CommonDefinitions,
-) -> Result<OneTimeCallbackHandle, BindingError> {
+) -> Result<InterfaceHandle, BindingError> {
     let read_result = build_callback_struct(
         lib,
         &common.register,
@@ -288,42 +305,41 @@ fn build_register_read_callback(
         &common.error_info,
     )?;
     let read_callback = lib
-        .define_one_time_callback(
+        .define_interface(
             "RegisterReadCallback",
             "Callback for reading holding or input registers",
         )?
         .callback(
             "on_complete",
-            "Called when the operation is complete or fails",
+            "Called when the operation completes or fails",
         )?
         .param("result", Type::Struct(read_result), "result")?
         .return_type(ReturnType::void())?
         .build()?
+        .destroy_callback("on_destroy")?
         .build()?;
 
     Ok(read_callback)
 }
 
-fn build_result_only_callback(
+fn build_write_callback(
     lib: &mut LibraryBuilder,
     common: &CommonDefinitions,
-) -> Result<OneTimeCallbackHandle, BindingError> {
-    lib.define_one_time_callback(
-        "ResultCallback",
-        "Callback type for anything that doesn't return a value, e.g. write operations",
-    )?
-    .callback(
-        "on_complete",
-        "Called when the operation is complete or fails",
-    )?
-    .param(
-        "result",
-        Type::Struct(common.error_info.clone()),
-        "result of the operation",
-    )?
-    .return_type(ReturnType::void())?
-    .build()?
-    .build()
+) -> Result<InterfaceHandle, BindingError> {
+    lib.define_interface("WriteCallback", "Callback type for write operations")?
+        .callback(
+            "on_complete",
+            "Called when the operation completes or fails",
+        )?
+        .param(
+            "result",
+            Type::Struct(common.error_info.clone()),
+            "result of the operation",
+        )?
+        .return_type(ReturnType::void())?
+        .build()?
+        .destroy_callback("on_destroy")?
+        .build()
 }
 
 fn build_callback_struct(
@@ -397,4 +413,29 @@ fn build_list(
         .build()?;
 
     lib.define_collection(&create_fn, &destroy_fn, &add_fn)
+}
+
+fn build_retry_strategy(lib: &mut LibraryBuilder) -> Result<NativeStructHandle, BindingError> {
+    let retry_strategy = lib.declare_native_struct("RetryStrategy")?;
+    lib.define_native_struct(&retry_strategy)?
+        .add(
+            "min_delay",
+            StructElementType::Duration(
+                DurationMapping::Milliseconds,
+                Some(std::time::Duration::from_secs(1)),
+            ),
+            "Minimum delay between two retries",
+        )?
+        .add(
+            "max_delay",
+            StructElementType::Duration(
+                DurationMapping::Milliseconds,
+                Some(std::time::Duration::from_secs(10)),
+            ),
+            "Maximum delay between two retries",
+        )?
+        .doc(doc("Retry strategy configuration.").details(
+            "The strategy uses an exponential back-off with a minimum and maximum value.",
+        ))?
+        .build()
 }

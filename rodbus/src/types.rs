@@ -1,9 +1,8 @@
-use std::convert::TryFrom;
-
-use crate::error::details::{ADUParseError, InvalidRange, InvalidRequest};
+use crate::decode::PduDecodeLevel;
+use crate::error::{AduParseError, InvalidRange};
 
 use crate::common::cursor::ReadCursor;
-use crate::error::Error;
+use crate::error::RequestError;
 #[cfg(feature = "no-panic")]
 use no_panic::no_panic;
 
@@ -27,12 +26,13 @@ pub struct AddressRange {
 /// Specialized wrapper around an address
 /// range only valid for ReadCoils / ReadDiscreteInputs
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub struct ReadBitsRange {
+pub(crate) struct ReadBitsRange {
     pub(crate) inner: AddressRange,
 }
 
 impl ReadBitsRange {
-    pub fn get(self) -> AddressRange {
+    /// retrieve the underlying [AddressRange]
+    pub(crate) fn get(self) -> AddressRange {
         self.inner
     }
 }
@@ -40,12 +40,13 @@ impl ReadBitsRange {
 /// Specialized wrapper around an `AddressRange`
 /// only valid for ReadHoldingRegisters / ReadInputRegisters
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub struct ReadRegistersRange {
+pub(crate) struct ReadRegistersRange {
     pub(crate) inner: AddressRange,
 }
 
 impl ReadRegistersRange {
-    pub fn get(self) -> AddressRange {
+    /// retrieve the underlying [AddressRange]
+    pub(crate) fn get(self) -> AddressRange {
         self.inner
     }
 }
@@ -59,27 +60,43 @@ pub struct Indexed<T> {
     pub value: T,
 }
 
-/// zero-copy type used to iterate over a collection of bits without allocating
-#[derive(Copy, Clone)]
+/// Zero-copy type used to iterate over a collection of bits
+#[derive(Debug, Copy, Clone)]
 pub struct BitIterator<'a> {
     bytes: &'a [u8],
     range: AddressRange,
     pos: u16,
 }
 
-/// zero-copy type used to iterate over a collection of registers without allocating
-#[derive(Copy, Clone)]
+pub(crate) struct BitIteratorDisplay<'a, 'b> {
+    iterator: &'a BitIterator<'b>,
+    level: PduDecodeLevel,
+}
+
+/// Zero-copy type used to iterate over a collection of registers
+#[derive(Debug, Copy, Clone)]
 pub struct RegisterIterator<'a> {
     bytes: &'a [u8],
     range: AddressRange,
     pos: u16,
 }
 
+pub(crate) struct RegisterIteratorDisplay<'a, 'b> {
+    iterator: &'a RegisterIterator<'b>,
+    level: PduDecodeLevel,
+}
+
+impl std::fmt::Display for UnitId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:#04X}", self.value)
+    }
+}
+
 impl<'a> BitIterator<'a> {
     pub(crate) fn parse_all(
         range: AddressRange,
         cursor: &'a mut ReadCursor,
-    ) -> Result<Self, Error> {
+    ) -> Result<Self, RequestError> {
         let bytes = cursor.read_bytes(crate::common::bits::num_bytes_for_bits(range.count))?;
         cursor.expect_empty()?;
         Ok(Self {
@@ -90,11 +107,32 @@ impl<'a> BitIterator<'a> {
     }
 }
 
+impl<'a, 'b> BitIteratorDisplay<'a, 'b> {
+    pub(crate) fn new(level: PduDecodeLevel, iterator: &'a BitIterator<'b>) -> Self {
+        Self { iterator, level }
+    }
+}
+
+impl std::fmt::Display for BitIteratorDisplay<'_, '_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{}", self.iterator.range)?;
+
+        if self.level.data_values() {
+            // This clone is lightweigth
+            for x in *self.iterator {
+                write!(f, "\n{}", x)?;
+            }
+        }
+
+        Ok(())
+    }
+}
+
 impl<'a> RegisterIterator<'a> {
     pub(crate) fn parse_all(
         range: AddressRange,
         cursor: &'a mut ReadCursor,
-    ) -> Result<Self, Error> {
+    ) -> Result<Self, RequestError> {
         let bytes = cursor.read_bytes(2 * (range.count as usize))?;
         cursor.expect_empty()?;
         Ok(Self {
@@ -102,6 +140,27 @@ impl<'a> RegisterIterator<'a> {
             range,
             pos: 0,
         })
+    }
+}
+
+impl<'a, 'b> RegisterIteratorDisplay<'a, 'b> {
+    pub(crate) fn new(level: PduDecodeLevel, iterator: &'a RegisterIterator<'b>) -> Self {
+        Self { iterator, level }
+    }
+}
+
+impl std::fmt::Display for RegisterIteratorDisplay<'_, '_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{}", self.iterator.range)?;
+
+        if self.level.data_values() {
+            // This clone is lightweigth
+            for x in *self.iterator {
+                write!(f, "\n{}", x)?;
+            }
+        }
+
+        Ok(())
     }
 }
 
@@ -164,30 +223,6 @@ impl<'a> Iterator for RegisterIterator<'a> {
     }
 }
 
-#[derive(Copy, Clone)]
-pub struct WriteCoils<'a> {
-    pub range: AddressRange,
-    pub iterator: BitIterator<'a>,
-}
-
-impl<'a> WriteCoils<'a> {
-    pub fn new(range: AddressRange, iterator: BitIterator<'a>) -> Self {
-        Self { range, iterator }
-    }
-}
-
-#[derive(Copy, Clone)]
-pub struct WriteRegisters<'a> {
-    pub range: AddressRange,
-    pub iterator: RegisterIterator<'a>,
-}
-
-impl<'a> WriteRegisters<'a> {
-    pub fn new(range: AddressRange, iterator: RegisterIterator<'a>) -> Self {
-        Self { range, iterator }
-    }
-}
-
 impl<T> From<(u16, T)> for Indexed<T>
 where
     T: Copy,
@@ -198,34 +233,11 @@ where
     }
 }
 
-/// Collection of values and starting address
-///
-/// Used when making write multiple coil/register requests
-#[derive(Debug, Clone)]
-pub struct WriteMultiple<T> {
-    /// starting address
-    pub(crate) range: AddressRange,
-    /// vector of values
-    pub(crate) values: Vec<T>,
-}
-
-impl<T> WriteMultiple<T> {
-    /// Create new collection of values
-    pub fn from(start: u16, values: Vec<T>) -> Result<Self, InvalidRequest> {
-        let count = match u16::try_from(values.len()) {
-            Ok(x) => x,
-            Err(_) => return Err(InvalidRequest::CountTooBigForU16(values.len())),
-        };
-        let range = AddressRange::try_from(start, count)?;
-        Ok(Self { range, values })
-    }
-}
-
-pub(crate) fn coil_from_u16(value: u16) -> Result<bool, ADUParseError> {
+pub(crate) fn coil_from_u16(value: u16) -> Result<bool, AduParseError> {
     match value {
         crate::constants::coil::ON => Ok(true),
         crate::constants::coil::OFF => Ok(false),
-        _ => Err(ADUParseError::UnknownCoilState(value)),
+        _ => Err(AduParseError::UnknownCoilState(value)),
     }
 }
 
@@ -284,6 +296,12 @@ impl AddressRange {
     }
 }
 
+impl std::fmt::Display for AddressRange {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "start: {:#06X} qty: {}", self.start, self.count)
+    }
+}
+
 pub(crate) struct AddressIterator {
     pub(crate) current: u16,
     pub(crate) remain: u16,
@@ -318,6 +336,18 @@ impl<T> Indexed<T> {
     }
 }
 
+impl std::fmt::Display for Indexed<bool> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "idx: {:#06X} value: {}", self.index, self.value as i32)
+    }
+}
+
+impl std::fmt::Display for Indexed<u16> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "idx: {:#06X} value: {:#06X}", self.index, self.value)
+    }
+}
+
 impl UnitId {
     /// Create a new UnitId
     pub fn new(value: u8) -> Self {
@@ -332,7 +362,7 @@ impl UnitId {
 
 #[cfg(test)]
 mod tests {
-    use crate::error::details::*;
+    use crate::error::*;
 
     use super::*;
 

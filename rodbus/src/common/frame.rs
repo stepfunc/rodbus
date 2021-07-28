@@ -1,10 +1,12 @@
-use tokio::io::AsyncRead;
+use crate::common::phys::PhysLayer;
 
 use crate::common::buffer::ReadBuffer;
 use crate::common::function::FunctionCode;
 use crate::common::traits::Serialize;
-use crate::error::details::{ExceptionCode, InternalError};
-use crate::error::Error;
+use crate::common::traits::{Loggable, LoggableDisplay};
+use crate::decode::PduDecodeLevel;
+use crate::error::{InternalError, RequestError};
+use crate::exception::ExceptionCode;
 use crate::server::response::{ErrorResponse, Response};
 use crate::types::UnitId;
 
@@ -44,6 +46,12 @@ impl Default for TxId {
     }
 }
 
+impl std::fmt::Display for TxId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:#04X}", self.value)
+    }
+}
+
 #[derive(Copy, Clone)]
 pub(crate) struct FrameHeader {
     pub(crate) unit_id: UnitId,
@@ -59,7 +67,7 @@ impl FrameHeader {
 pub(crate) struct Frame {
     pub(crate) header: FrameHeader,
     length: usize,
-    adu: [u8; constants::MAX_ADU_LENGTH],
+    pdu: [u8; constants::MAX_ADU_LENGTH],
 }
 
 impl Frame {
@@ -67,22 +75,22 @@ impl Frame {
         Frame {
             header,
             length: 0,
-            adu: [0; constants::MAX_ADU_LENGTH],
+            pdu: [0; constants::MAX_ADU_LENGTH],
         }
     }
 
     pub(crate) fn set(&mut self, src: &[u8]) -> bool {
-        if src.len() > self.adu.len() {
+        if src.len() > self.pdu.len() {
             return false;
         }
 
-        self.adu[0..src.len()].copy_from_slice(src);
+        self.pdu[0..src.len()].copy_from_slice(src);
         self.length = src.len();
         true
     }
 
     pub(crate) fn payload(&self) -> &[u8] {
-        &self.adu[0..self.length]
+        &self.pdu[0..self.length]
     }
 }
 
@@ -100,15 +108,35 @@ pub(crate) trait FrameParser {
      * Ok(None) implies that more data is required to complete parsing
      * Ok(Some(..)) will contain a fully parsed frame and will advance the Cursor appropriately
      */
-    fn parse(&mut self, cursor: &mut ReadBuffer) -> Result<Option<Frame>, Error>;
+    fn parse(&mut self, cursor: &mut ReadBuffer) -> Result<Option<Frame>, RequestError>;
 }
 
 pub(crate) trait FrameFormatter {
     // internal only
-    fn format_impl(&mut self, header: FrameHeader, msg: &dyn Serialize) -> Result<usize, Error>;
-    fn get_option_impl(&self, size: usize) -> Option<&[u8]>;
-    fn get_impl(&self, len: usize) -> Result<&[u8], Error> {
-        match self.get_option_impl(len) {
+    fn format_impl(
+        &mut self,
+        header: FrameHeader,
+        msg: &dyn Serialize,
+    ) -> Result<usize, RequestError>;
+    fn get_full_buffer_impl(&self, size: usize) -> Option<&[u8]>;
+    fn get_payload_impl(&self, size: usize) -> Option<&[u8]>;
+
+    fn get_full_buffer(&self, len: usize) -> Result<&[u8], RequestError> {
+        match self.get_full_buffer_impl(len) {
+            Some(x) => Ok(x),
+            None => Err(InternalError::BadSeekOperation.into()), // TODO - proper error?
+        }
+    }
+
+    fn get_payload(&self, len: usize) -> Result<&[u8], RequestError> {
+        match self
+            .get_payload_impl(len)
+            .map(|x| {
+                // Skip the function code
+                x.get(1..)
+            })
+            .flatten()
+        {
             Some(x) => Ok(x),
             None => Err(InternalError::BadSeekOperation.into()), // TODO - proper error?
         }
@@ -120,15 +148,26 @@ pub(crate) trait FrameFormatter {
         header: FrameHeader,
         function: FunctionCode,
         msg: &T,
-    ) -> Result<&[u8], Error>
+        level: PduDecodeLevel,
+    ) -> Result<&[u8], RequestError>
     where
-        T: Serialize,
+        T: Serialize + Loggable,
     {
         let response = Response::new(function, msg);
         match self.format_impl(header, &response) {
-            Ok(count) => self.get_impl(count),
+            Ok(count) => {
+                if level.enabled() {
+                    tracing::info!(
+                        "PDU TX - {} {}",
+                        function,
+                        LoggableDisplay::new(msg, self.get_payload(count)?, level)
+                    );
+                }
+
+                self.get_full_buffer(count)
+            }
             Err(err) => match err {
-                Error::Exception(ex) => self.exception(header, function, ex),
+                RequestError::Exception(ex) => self.exception(header, function, ex, level),
                 _ => Err(err),
             },
         }
@@ -140,21 +179,34 @@ pub(crate) trait FrameFormatter {
         header: FrameHeader,
         function: FunctionCode,
         ex: ExceptionCode,
-    ) -> Result<&[u8], Error> {
+        level: PduDecodeLevel,
+    ) -> Result<&[u8], RequestError> {
+        if level.enabled() {
+            tracing::warn!("PDU TX - Modbus exception {:?} ({:#04X})", ex, u8::from(ex));
+        }
+
         self.error(header, ErrorResponse::new(function, ex))
     }
 
     // make a single effort to serialize an exception response
-    fn error(&mut self, header: FrameHeader, response: ErrorResponse) -> Result<&[u8], Error> {
+    fn error(
+        &mut self,
+        header: FrameHeader,
+        response: ErrorResponse,
+    ) -> Result<&[u8], RequestError> {
         let len = self.format_impl(header, &response)?;
-        self.get_impl(len)
+        self.get_full_buffer(len)
     }
 
     // make a single effort to serialize an exception response
-    fn unknown_function(&mut self, header: FrameHeader, unknown: u8) -> Result<&[u8], Error> {
+    fn unknown_function(
+        &mut self,
+        header: FrameHeader,
+        unknown: u8,
+    ) -> Result<&[u8], RequestError> {
         let response = ErrorResponse::unknown_function(unknown);
         let len = self.format_impl(header, &response)?;
-        self.get_impl(len)
+        self.get_full_buffer(len)
     }
 }
 
@@ -175,10 +227,7 @@ impl<T: FrameParser> FramedReader<T> {
         }
     }
 
-    pub(crate) async fn next_frame<R>(&mut self, io: &mut R) -> Result<Frame, Error>
-    where
-        R: AsyncRead + Unpin,
-    {
+    pub(crate) async fn next_frame(&mut self, io: &mut PhysLayer) -> Result<Frame, RequestError> {
         loop {
             match self.parser.parse(&mut self.buffer)? {
                 Some(frame) => return Ok(frame),

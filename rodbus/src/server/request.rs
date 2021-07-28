@@ -1,12 +1,13 @@
 use crate::common::cursor::ReadCursor;
 use crate::common::frame::{FrameFormatter, FrameHeader};
 use crate::common::function::FunctionCode;
-use crate::common::traits::{Parse, Serialize};
-use crate::error::details::ExceptionCode;
-use crate::error::Error;
+use crate::common::traits::{Loggable, Parse, Serialize};
+use crate::decode::PduDecodeLevel;
+use crate::error::RequestError;
+use crate::exception::ExceptionCode;
 use crate::server::handler::RequestHandler;
 use crate::server::response::{BitWriter, RegisterWriter};
-use crate::tcp::frame::MBAPFormatter;
+use crate::server::*;
 use crate::types::*;
 
 pub(crate) enum Request<'a> {
@@ -34,27 +35,31 @@ impl<'a> Request<'a> {
         }
     }
 
-    pub(crate) fn get_reply<'b, T>(
+    pub(crate) fn get_reply<'b, T, F>(
         self,
         header: FrameHeader,
         handler: &mut T,
-        writer: &'b mut MBAPFormatter,
-    ) -> Result<&'b [u8], Error>
+        writer: &'b mut F,
+        level: PduDecodeLevel,
+    ) -> Result<&'b [u8], RequestError>
     where
         T: RequestHandler,
+        F: FrameFormatter,
     {
-        fn serialize_result<T>(
+        fn serialize_result<T, F>(
             function: FunctionCode,
             header: FrameHeader,
-            writer: &mut MBAPFormatter,
+            writer: &mut F,
             result: Result<T, ExceptionCode>,
-        ) -> Result<&[u8], Error>
+            level: PduDecodeLevel,
+        ) -> Result<&[u8], RequestError>
         where
-            T: Serialize,
+            T: Serialize + Loggable,
+            F: FrameFormatter,
         {
             match result {
-                Ok(data) => writer.format(header, function, &data),
-                Err(ex) => writer.exception(header, function, ex),
+                Ok(data) => writer.format(header, function, &data, level),
+                Err(ex) => writer.exception(header, function, ex, level),
             }
         }
 
@@ -62,50 +67,57 @@ impl<'a> Request<'a> {
         match self {
             Request::ReadCoils(range) => {
                 let bits = BitWriter::new(range, |index| handler.read_coil(index));
-                writer.format(header, function, &bits)
+                writer.format(header, function, &bits, level)
             }
             Request::ReadDiscreteInputs(range) => {
                 let bits = BitWriter::new(range, |index| handler.read_discrete_input(index));
-                writer.format(header, function, &bits)
+                writer.format(header, function, &bits, level)
             }
             Request::ReadHoldingRegisters(range) => {
                 let registers =
                     RegisterWriter::new(range, |index| handler.read_holding_register(index));
-                writer.format(header, function, &registers)
+                writer.format(header, function, &registers, level)
             }
             Request::ReadInputRegisters(range) => {
                 let registers =
                     RegisterWriter::new(range, |index| handler.read_input_register(index));
-                writer.format(header, function, &registers)
+                writer.format(header, function, &registers, level)
             }
             Request::WriteSingleCoil(request) => serialize_result(
                 function,
                 header,
                 writer,
                 handler.write_single_coil(request).map(|_| request),
+                level,
             ),
             Request::WriteSingleRegister(request) => serialize_result(
                 function,
                 header,
                 writer,
                 handler.write_single_register(request).map(|_| request),
+                level,
             ),
             Request::WriteMultipleCoils(items) => serialize_result(
                 function,
                 header,
                 writer,
                 handler.write_multiple_coils(items).map(|_| items.range),
+                level,
             ),
             Request::WriteMultipleRegisters(items) => serialize_result(
                 function,
                 header,
                 writer,
                 handler.write_multiple_registers(items).map(|_| items.range),
+                level,
             ),
         }
     }
 
-    pub(crate) fn parse(function: FunctionCode, cursor: &'a mut ReadCursor) -> Result<Self, Error> {
+    pub(crate) fn parse(
+        function: FunctionCode,
+        cursor: &'a mut ReadCursor,
+    ) -> Result<Self, RequestError> {
         match function {
             FunctionCode::ReadCoils => {
                 let x = Request::ReadCoils(AddressRange::parse(cursor)?.of_read_bits()?);
@@ -162,15 +174,69 @@ impl<'a> Request<'a> {
     }
 }
 
+pub(crate) struct RequestDisplay<'a, 'b> {
+    request: &'a Request<'b>,
+    level: PduDecodeLevel,
+}
+
+impl<'a, 'b> RequestDisplay<'a, 'b> {
+    pub(crate) fn new(level: PduDecodeLevel, request: &'a Request<'b>) -> Self {
+        Self { request, level }
+    }
+}
+
+impl std::fmt::Display for RequestDisplay<'_, '_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.request.get_function())?;
+
+        if self.level.data_headers() {
+            match self.request {
+                Request::ReadCoils(range) => {
+                    write!(f, " {}", range.get())?;
+                }
+                Request::ReadDiscreteInputs(range) => {
+                    write!(f, " {}", range.get())?;
+                }
+                Request::ReadHoldingRegisters(range) => {
+                    write!(f, " {}", range.get())?;
+                }
+                Request::ReadInputRegisters(range) => {
+                    write!(f, " {}", range.get())?;
+                }
+                Request::WriteSingleCoil(request) => {
+                    write!(f, " {}", request)?;
+                }
+                Request::WriteSingleRegister(request) => {
+                    write!(f, " {}", request)?;
+                }
+                Request::WriteMultipleCoils(items) => {
+                    write!(
+                        f,
+                        " {}",
+                        BitIteratorDisplay::new(self.level, &items.iterator)
+                    )?;
+                }
+                Request::WriteMultipleRegisters(items) => {
+                    write!(
+                        f,
+                        " {}",
+                        RegisterIteratorDisplay::new(self.level, &items.iterator)
+                    )?;
+                }
+            }
+        }
+
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
-
-    #[cfg(test)]
     mod coils {
         use crate::common::cursor::ReadCursor;
 
         use super::super::*;
-        use crate::error::details::ADUParseError;
+        use crate::error::AduParseError;
         use crate::types::Indexed;
 
         #[test]
@@ -179,7 +245,7 @@ mod tests {
             let err = Request::parse(FunctionCode::WriteMultipleCoils, &mut cursor)
                 .err()
                 .unwrap();
-            assert_eq!(err, ADUParseError::InsufficientBytes.into());
+            assert_eq!(err, AduParseError::InsufficientBytes.into());
         }
 
         #[test]
@@ -188,7 +254,7 @@ mod tests {
             let err = Request::parse(FunctionCode::WriteMultipleCoils, &mut cursor)
                 .err()
                 .unwrap();
-            assert_eq!(err, ADUParseError::InsufficientBytes.into());
+            assert_eq!(err, AduParseError::InsufficientBytes.into());
         }
 
         #[test]
@@ -197,7 +263,7 @@ mod tests {
             let err = Request::parse(FunctionCode::WriteMultipleCoils, &mut cursor)
                 .err()
                 .unwrap();
-            assert_eq!(err, ADUParseError::InsufficientBytes.into());
+            assert_eq!(err, AduParseError::InsufficientBytes.into());
         }
 
         #[test]
@@ -206,7 +272,7 @@ mod tests {
             let err = Request::parse(FunctionCode::WriteMultipleCoils, &mut cursor)
                 .err()
                 .unwrap();
-            assert_eq!(err, ADUParseError::TrailingBytes(1).into());
+            assert_eq!(err, AduParseError::TrailingBytes(1).into());
         }
 
         #[test]
@@ -230,12 +296,11 @@ mod tests {
         }
     }
 
-    #[cfg(test)]
     mod registers {
         use crate::common::cursor::ReadCursor;
 
         use super::super::*;
-        use crate::error::details::ADUParseError;
+        use crate::error::AduParseError;
         use crate::types::Indexed;
 
         #[test]
@@ -244,7 +309,7 @@ mod tests {
             let err = Request::parse(FunctionCode::WriteMultipleRegisters, &mut cursor)
                 .err()
                 .unwrap();
-            assert_eq!(err, ADUParseError::InsufficientBytes.into());
+            assert_eq!(err, AduParseError::InsufficientBytes.into());
         }
 
         #[test]
@@ -253,7 +318,7 @@ mod tests {
             let err = Request::parse(FunctionCode::WriteMultipleRegisters, &mut cursor)
                 .err()
                 .unwrap();
-            assert_eq!(err, ADUParseError::InsufficientBytes.into());
+            assert_eq!(err, AduParseError::InsufficientBytes.into());
         }
 
         #[test]
@@ -262,7 +327,7 @@ mod tests {
             let err = Request::parse(FunctionCode::WriteMultipleRegisters, &mut cursor)
                 .err()
                 .unwrap();
-            assert_eq!(err, ADUParseError::InsufficientBytes.into());
+            assert_eq!(err, AduParseError::InsufficientBytes.into());
         }
 
         #[test]
@@ -271,7 +336,7 @@ mod tests {
             let err = Request::parse(FunctionCode::WriteMultipleRegisters, &mut cursor)
                 .err()
                 .unwrap();
-            assert_eq!(err, ADUParseError::TrailingBytes(1).into());
+            assert_eq!(err, AduParseError::TrailingBytes(1).into());
         }
 
         #[test]

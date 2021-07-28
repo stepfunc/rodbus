@@ -1,29 +1,16 @@
-# rodbus
+Commercial library by [Step Function I/O](https://stepfunc.io/)
 
-[![crates.io](https://img.shields.io/crates/v/rodbus.svg)](https://crates.io/crates/rodbus)
-[![docs.rs](https://docs.rs/rodbus/badge.svg)](https://docs.rs/rodbus)
-![MSRV](https://img.shields.io/badge/rustc-1.39+-blue.svg) [![Build status](https://github.com/automatak/rodbus/workflows/CI/badge.svg)](https://github.com/automatak/rodbus/actions)
-[![Codecov](https://codecov.io/gh/automatak/rodbus/graph/badge.svg)](https://codecov.io/gh/automatak/rodbus)
+# rodbus
 
 [Rust](https://www.rust-lang.org/) async/await implementation of the [Modbus](http://www.modbus.org/) protocol using
 [Tokio](https://tokio.rs/) with idiomatic bindings for C/C++, Java, and .NET Core.
 
-# license 
+## License
 
-Refer to `License.txt` for the terms of the non-commercial license.  This software is "source available", but is not
+Refer to [`License.txt`](./LICENSE.txt) for the terms of the non-commercial license.  This software is "source available", but is not
 "open source". You must purchase a commercial license to use this software for profit.
 
 ## Library
-
-[Documentation](https://docs.rs/rodbus)
-
-Rodbus is library for implementing [Modbus](https://modbus.org/) client and server applications. The library is safe, 
-memory-efficient and easy to use. All of the error handling in the library is explicit and logging is available by
-providing a backend to the [log](https://crates.io/crates/log) crate. Three client interfaces are provided for making requests:
-
-- Async (Rust futures)
-- Callback-based
-- Synchronous (blocking)
 
 The [`client`](./rodbus/examples/client.rs) and [`server`](./rodbus/examples/server.rs) examples demonstrate simple
 usage of the API.
@@ -47,26 +34,12 @@ the benchmark achieved around 200k requests per second spread across 100 concurr
 * [Modbus Security](http://modbus.org/docs/MB-TCP-Security-v21_2018-07-24.pdf) using TLS
 * [Modbus RTU](http://modbus.org/docs/PI_MBUS_300.pdf) (serial)
 
-## C/C++ bindings
+## Bindings
 
-The [rodbus-ffi](ffi/rodbus-ffi) directory contains an idiomatic C/C++ API to the library.
-Requests can be sent asynchronously using callback functions or synchronously with blocking function calls.
-
-In this early release, only the client side of the library has been exposed and is only known to work on *nix platforms.
-Please read the  [C/C++ Documentation](https://docs.automatak.com/rodbus) and review the [examples](ffi/rodbus-ffi/cmake/examples).
-
-To generate the bindings, do the following:
-- Install `cbindgen` with `cargo install cbindgen`
-- Run `cbingen -c cmake/cbindgen.c.toml -o rodbus.h`
-- Run `cbingen -c cmake/cbindgen.cpp.toml -o rodbus.hpp`
-- Build `rodbus-ffi`
-
-To use the bindings, you will need to include`rodbus.h` or `rodbus.hpp` which each include `prelude.h`. 
-You will also need to link with the compiled library `rodbus_ffi.so` found in the target directory.
-
-There is also a [CMake script](ffi/rodbus-ffi/cmake/CMakeLists.txt) that can help you automatically build and link to
-rodbus from a C/C++ project.
+Bindings in C, .NET Core and Java are available for this library. See the
+[documentation](https://stepfunc.io/products/libraries/modbus/) for more details.
 
 ## Modbus client CLI
 
-You can test Modbus servers from the command line with the [rodbus-client](https://crates.io/crates/rodbus-client) crate.
+You can test Modbus servers from the command line with the
+[rodbus-client](https://crates.io/crates/rodbus-client) crate.
