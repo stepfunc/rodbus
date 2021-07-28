@@ -1,14 +1,12 @@
-extern crate rodbus;
-
-use rodbus::decode::DecodeLevel;
-use rodbus::prelude::*;
 use std::net::SocketAddr;
 use std::str::FromStr;
+use std::time::Duration;
+
+use rodbus::client::*;
+use rodbus::server::*;
+use rodbus::*;
 
 use tokio::runtime::Runtime;
-
-use rodbus::error::details::ExceptionCode;
-use std::time::Duration;
 
 struct Handler {
     pub coils: [bool; 10],
@@ -57,27 +55,27 @@ impl RequestHandler for Handler {
         }
     }
 
-    fn write_single_coil(&mut self, value: Indexed<bool>) -> Result<(), details::ExceptionCode> {
+    fn write_single_coil(&mut self, value: Indexed<bool>) -> Result<(), ExceptionCode> {
         match self.coils.get_mut(value.index as usize) {
             Some(x) => {
                 *x = value.value;
                 Ok(())
             }
-            None => Err(details::ExceptionCode::IllegalDataAddress),
+            None => Err(ExceptionCode::IllegalDataAddress),
         }
     }
 
-    fn write_single_register(&mut self, value: Indexed<u16>) -> Result<(), details::ExceptionCode> {
+    fn write_single_register(&mut self, value: Indexed<u16>) -> Result<(), ExceptionCode> {
         match self.holding_registers.get_mut(value.index as usize) {
             Some(x) => {
                 *x = value.value;
                 Ok(())
             }
-            None => Err(details::ExceptionCode::IllegalDataAddress),
+            None => Err(ExceptionCode::IllegalDataAddress),
         }
     }
 
-    fn write_multiple_coils(&mut self, values: WriteCoils) -> Result<(), details::ExceptionCode> {
+    fn write_multiple_coils(&mut self, values: WriteCoils) -> Result<(), ExceptionCode> {
         for x in values.iterator {
             match self.coils.get_mut(x.index as usize) {
                 Some(c) => *c = x.value,
@@ -87,10 +85,7 @@ impl RequestHandler for Handler {
         Ok(())
     }
 
-    fn write_multiple_registers(
-        &mut self,
-        values: WriteRegisters,
-    ) -> Result<(), details::ExceptionCode> {
+    fn write_multiple_registers(&mut self, values: WriteRegisters) -> Result<(), ExceptionCode> {
         for x in values.iterator {
             match self.holding_registers.get_mut(x.index as usize) {
                 Some(c) => *c = x.value,
@@ -114,7 +109,12 @@ async fn test_requests_and_responses() {
     .await
     .unwrap();
 
-    let mut channel = spawn_tcp_client_task(addr, 10, strategy::default(), DecodeLevel::default());
+    let mut channel = spawn_tcp_client_task(
+        addr,
+        10,
+        default_reconnect_strategy(),
+        DecodeLevel::default(),
+    );
     let params = RequestParam::new(UnitId::new(0x01), Duration::from_secs(1));
 
     {

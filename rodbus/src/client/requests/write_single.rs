@@ -4,13 +4,13 @@ use crate::client::message::Promise;
 use crate::common::cursor::{ReadCursor, WriteCursor};
 use crate::common::function::FunctionCode;
 use crate::decode::PduDecodeLevel;
-use crate::error::details::AduParseError;
-use crate::error::Error;
+use crate::error::AduParseError;
+use crate::error::RequestError;
 use crate::types::{coil_from_u16, coil_to_u16, Indexed};
 
 pub(crate) trait SingleWriteOperation: Sized + PartialEq {
-    fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), Error>;
-    fn parse(cursor: &mut ReadCursor) -> Result<Self, Error>;
+    fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError>;
+    fn parse(cursor: &mut ReadCursor) -> Result<Self, RequestError>;
 }
 
 pub(crate) struct SingleWrite<T>
@@ -29,11 +29,11 @@ where
         Self { request, promise }
     }
 
-    pub(crate) fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), Error> {
+    pub(crate) fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
         self.request.serialize(cursor)
     }
 
-    pub(crate) fn failure(self, err: Error) {
+    pub(crate) fn failure(self, err: RequestError) {
         self.promise.failure(err)
     }
 
@@ -62,7 +62,7 @@ where
         self.promise.complete(result)
     }
 
-    fn parse_all(&self, mut cursor: ReadCursor) -> Result<T, Error> {
+    fn parse_all(&self, mut cursor: ReadCursor) -> Result<T, RequestError> {
         let response = T::parse(&mut cursor)?;
         cursor.expect_empty()?;
         if self.request != response {
@@ -73,13 +73,13 @@ where
 }
 
 impl SingleWriteOperation for Indexed<bool> {
-    fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), Error> {
+    fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
         cursor.write_u16_be(self.index)?;
         cursor.write_u16_be(coil_to_u16(self.value))?;
         Ok(())
     }
 
-    fn parse(cursor: &mut ReadCursor) -> Result<Self, Error> {
+    fn parse(cursor: &mut ReadCursor) -> Result<Self, RequestError> {
         Ok(Indexed::new(
             cursor.read_u16_be()?,
             coil_from_u16(cursor.read_u16_be()?)?,
@@ -88,13 +88,13 @@ impl SingleWriteOperation for Indexed<bool> {
 }
 
 impl SingleWriteOperation for Indexed<u16> {
-    fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), Error> {
+    fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
         cursor.write_u16_be(self.index)?;
         cursor.write_u16_be(self.value)?;
         Ok(())
     }
 
-    fn parse(cursor: &mut ReadCursor) -> Result<Self, Error> {
+    fn parse(cursor: &mut ReadCursor) -> Result<Self, RequestError> {
         Ok(Indexed::new(cursor.read_u16_be()?, cursor.read_u16_be()?))
     }
 }

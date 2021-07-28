@@ -3,10 +3,11 @@ use crate::common::frame::{FrameFormatter, FrameHeader};
 use crate::common::function::FunctionCode;
 use crate::common::traits::{Loggable, Parse, Serialize};
 use crate::decode::PduDecodeLevel;
-use crate::error::details::ExceptionCode;
-use crate::error::Error;
+use crate::error::RequestError;
+use crate::exception::ExceptionCode;
 use crate::server::handler::RequestHandler;
 use crate::server::response::{BitWriter, RegisterWriter};
+use crate::server::*;
 use crate::types::*;
 
 pub(crate) enum Request<'a> {
@@ -40,7 +41,7 @@ impl<'a> Request<'a> {
         handler: &mut T,
         writer: &'b mut F,
         level: PduDecodeLevel,
-    ) -> Result<&'b [u8], Error>
+    ) -> Result<&'b [u8], RequestError>
     where
         T: RequestHandler,
         F: FrameFormatter,
@@ -51,7 +52,7 @@ impl<'a> Request<'a> {
             writer: &mut F,
             result: Result<T, ExceptionCode>,
             level: PduDecodeLevel,
-        ) -> Result<&[u8], Error>
+        ) -> Result<&[u8], RequestError>
         where
             T: Serialize + Loggable,
             F: FrameFormatter,
@@ -113,7 +114,10 @@ impl<'a> Request<'a> {
         }
     }
 
-    pub(crate) fn parse(function: FunctionCode, cursor: &'a mut ReadCursor) -> Result<Self, Error> {
+    pub(crate) fn parse(
+        function: FunctionCode,
+        cursor: &'a mut ReadCursor,
+    ) -> Result<Self, RequestError> {
         match function {
             FunctionCode::ReadCoils => {
                 let x = Request::ReadCoils(AddressRange::parse(cursor)?.of_read_bits()?);
@@ -188,16 +192,16 @@ impl std::fmt::Display for RequestDisplay<'_, '_> {
         if self.level.data_headers() {
             match self.request {
                 Request::ReadCoils(range) => {
-                    write!(f, " {}", range.inner)?;
+                    write!(f, " {}", range.get())?;
                 }
                 Request::ReadDiscreteInputs(range) => {
-                    write!(f, " {}", range.inner)?;
+                    write!(f, " {}", range.get())?;
                 }
                 Request::ReadHoldingRegisters(range) => {
-                    write!(f, " {}", range.inner)?;
+                    write!(f, " {}", range.get())?;
                 }
                 Request::ReadInputRegisters(range) => {
-                    write!(f, " {}", range.inner)?;
+                    write!(f, " {}", range.get())?;
                 }
                 Request::WriteSingleCoil(request) => {
                     write!(f, " {}", request)?;
@@ -228,13 +232,11 @@ impl std::fmt::Display for RequestDisplay<'_, '_> {
 
 #[cfg(test)]
 mod tests {
-
-    #[cfg(test)]
     mod coils {
         use crate::common::cursor::ReadCursor;
 
         use super::super::*;
-        use crate::error::details::AduParseError;
+        use crate::error::AduParseError;
         use crate::types::Indexed;
 
         #[test]
@@ -294,12 +296,11 @@ mod tests {
         }
     }
 
-    #[cfg(test)]
     mod registers {
         use crate::common::cursor::ReadCursor;
 
         use super::super::*;
-        use crate::error::details::AduParseError;
+        use crate::error::AduParseError;
         use crate::types::Indexed;
 
         #[test]

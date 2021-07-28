@@ -7,8 +7,8 @@ use crate::tokio;
 use crate::common::cursor::ReadCursor;
 use crate::common::frame::{Frame, FrameFormatter, FrameHeader, FrameParser, FramedReader};
 use crate::common::function::FunctionCode;
-use crate::error::details::ExceptionCode;
 use crate::error::*;
+use crate::exception::ExceptionCode;
 use crate::server::handler::{RequestHandler, ServerHandlerMap};
 use crate::server::request::{Request, RequestDisplay};
 use crate::server::response::ErrorResponse;
@@ -55,19 +55,19 @@ where
         &mut self,
         header: FrameHeader,
         err: ErrorResponse,
-    ) -> Result<(), Error> {
+    ) -> Result<(), RequestError> {
         let bytes = self.writer.error(header, err)?;
         self.io.write(bytes).await?;
         Ok(())
     }
 
-    pub(crate) async fn run(&mut self) -> Result<(), Error> {
+    pub(crate) async fn run(&mut self) -> Result<(), RequestError> {
         loop {
             self.run_one().await?;
         }
     }
 
-    async fn run_one(&mut self) -> Result<(), Error> {
+    async fn run_one(&mut self) -> Result<(), RequestError> {
         crate::tokio::select! {
             frame = self.reader.next_frame(&mut self.io) => {
                 let frame = frame?;
@@ -77,12 +77,12 @@ where
                     .await
             }
             _ = self.shutdown.recv() => {
-               Err(crate::error::Error::Shutdown)
+               Err(crate::error::RequestError::Shutdown)
             }
         }
     }
 
-    async fn handle_frame(&mut self, frame: Frame) -> Result<(), Error> {
+    async fn handle_frame(&mut self, frame: Frame) -> Result<(), RequestError> {
         let mut cursor = ReadCursor::new(frame.payload());
 
         // if no addresses match, then don't respond

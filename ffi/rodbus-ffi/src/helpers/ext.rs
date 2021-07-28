@@ -1,6 +1,6 @@
 use crate::ffi;
-use rodbus::client::channel::{CallbackSession, RequestParam};
-use rodbus::types::UnitId;
+use rodbus::client::{CallbackSession, RequestParam};
+use rodbus::UnitId;
 use std::time::Duration;
 
 impl ffi::RequestParam {
@@ -18,8 +18,8 @@ impl ffi::RequestParam {
 impl ffi::BitReadCallback {
     pub(crate) fn convert_to_fn_once(
         self,
-    ) -> impl FnOnce(std::result::Result<rodbus::types::BitIterator, rodbus::error::Error>) {
-        move |result: std::result::Result<rodbus::types::BitIterator, rodbus::error::Error>| {
+    ) -> impl FnOnce(std::result::Result<rodbus::BitIterator, rodbus::error::RequestError>) {
+        move |result: std::result::Result<rodbus::BitIterator, rodbus::error::RequestError>| {
             match result {
                 Err(err) => {
                     self.on_complete(err.into());
@@ -42,9 +42,9 @@ impl ffi::BitReadCallback {
 impl ffi::RegisterReadCallback {
     pub(crate) fn convert_to_fn_once(
         self,
-    ) -> impl FnOnce(std::result::Result<rodbus::types::RegisterIterator, rodbus::error::Error>)
+    ) -> impl FnOnce(std::result::Result<rodbus::RegisterIterator, rodbus::error::RequestError>)
     {
-        move |result: std::result::Result<rodbus::types::RegisterIterator, rodbus::error::Error>| {
+        move |result: std::result::Result<rodbus::RegisterIterator, rodbus::error::RequestError>| {
             match result {
                 Err(err) => {
                     self.on_complete(err.into());
@@ -68,8 +68,8 @@ impl ffi::WriteCallback {
     /// we do't care what type T is b/c we're going to ignore it
     pub(crate) fn convert_to_fn_once<T>(
         self,
-    ) -> impl FnOnce(std::result::Result<T, rodbus::error::Error>) {
-        move |result: std::result::Result<T, rodbus::error::Error>| match result {
+    ) -> impl FnOnce(std::result::Result<T, rodbus::error::RequestError>) {
+        move |result: std::result::Result<T, rodbus::error::RequestError>| match result {
             Err(err) => {
                 self.on_complete(err.into());
             }
@@ -92,39 +92,25 @@ impl ffi::ErrorInfo {
 }
 
 impl ffi::WriteResult {
-    pub(crate) fn convert_to_result(self) -> Result<(), rodbus::error::details::ExceptionCode> {
+    pub(crate) fn convert_to_result(self) -> Result<(), rodbus::ExceptionCode> {
         if self.success() {
             return Ok(());
         }
         let ex = match self.exception() {
-            ffi::ModbusException::Acknowledge => rodbus::error::details::ExceptionCode::Acknowledge,
+            ffi::ModbusException::Acknowledge => rodbus::ExceptionCode::Acknowledge,
             ffi::ModbusException::GatewayPathUnavailable => {
-                rodbus::error::details::ExceptionCode::GatewayPathUnavailable
+                rodbus::ExceptionCode::GatewayPathUnavailable
             }
             ffi::ModbusException::GatewayTargetDeviceFailedToRespond => {
-                rodbus::error::details::ExceptionCode::GatewayTargetDeviceFailedToRespond
+                rodbus::ExceptionCode::GatewayTargetDeviceFailedToRespond
             }
-            ffi::ModbusException::IllegalDataAddress => {
-                rodbus::error::details::ExceptionCode::IllegalDataAddress
-            }
-            ffi::ModbusException::IllegalDataValue => {
-                rodbus::error::details::ExceptionCode::IllegalDataValue
-            }
-            ffi::ModbusException::IllegalFunction => {
-                rodbus::error::details::ExceptionCode::IllegalFunction
-            }
-            ffi::ModbusException::MemoryParityError => {
-                rodbus::error::details::ExceptionCode::MemoryParityError
-            }
-            ffi::ModbusException::ServerDeviceBusy => {
-                rodbus::error::details::ExceptionCode::ServerDeviceBusy
-            }
-            ffi::ModbusException::ServerDeviceFailure => {
-                rodbus::error::details::ExceptionCode::ServerDeviceFailure
-            }
-            ffi::ModbusException::Unknown => {
-                rodbus::error::details::ExceptionCode::Unknown(self.raw_exception())
-            }
+            ffi::ModbusException::IllegalDataAddress => rodbus::ExceptionCode::IllegalDataAddress,
+            ffi::ModbusException::IllegalDataValue => rodbus::ExceptionCode::IllegalDataValue,
+            ffi::ModbusException::IllegalFunction => rodbus::ExceptionCode::IllegalFunction,
+            ffi::ModbusException::MemoryParityError => rodbus::ExceptionCode::MemoryParityError,
+            ffi::ModbusException::ServerDeviceBusy => rodbus::ExceptionCode::ServerDeviceBusy,
+            ffi::ModbusException::ServerDeviceFailure => rodbus::ExceptionCode::ServerDeviceFailure,
+            ffi::ModbusException::Unknown => rodbus::ExceptionCode::Unknown(self.raw_exception()),
         };
 
         Err(ex)

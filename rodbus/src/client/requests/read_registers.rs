@@ -2,23 +2,23 @@ use crate::common::cursor::{ReadCursor, WriteCursor};
 use crate::common::function::FunctionCode;
 use crate::common::traits::Serialize;
 use crate::decode::PduDecodeLevel;
-use crate::error::Error;
+use crate::error::RequestError;
 use crate::tokio;
 use crate::types::{
     AddressRange, Indexed, ReadRegistersRange, RegisterIterator, RegisterIteratorDisplay,
 };
 
 pub(crate) enum Promise {
-    Channel(tokio::sync::oneshot::Sender<Result<Vec<Indexed<u16>>, Error>>),
-    Callback(Box<dyn FnOnce(Result<RegisterIterator, Error>) + Send + Sync + 'static>),
+    Channel(tokio::sync::oneshot::Sender<Result<Vec<Indexed<u16>>, RequestError>>),
+    Callback(Box<dyn FnOnce(Result<RegisterIterator, RequestError>) + Send + Sync + 'static>),
 }
 
 impl Promise {
-    pub(crate) fn failure(self, err: Error) {
+    pub(crate) fn failure(self, err: RequestError) {
         self.complete(Err(err))
     }
 
-    pub(crate) fn complete(self, x: Result<RegisterIterator, Error>) {
+    pub(crate) fn complete(self, x: Result<RegisterIterator, RequestError>) {
         match self {
             Promise::Channel(sender) => {
                 sender.send(x.map(|y| y.collect())).ok();
@@ -38,11 +38,11 @@ impl ReadRegisters {
         Self { request, promise }
     }
 
-    pub(crate) fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), Error> {
-        self.request.inner.serialize(cursor)
+    pub(crate) fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
+        self.request.get().serialize(cursor)
     }
 
-    pub(crate) fn failure(self, err: Error) {
+    pub(crate) fn failure(self, err: RequestError) {
         self.promise.failure(err)
     }
 
@@ -52,7 +52,7 @@ impl ReadRegisters {
         function: FunctionCode,
         decode: PduDecodeLevel,
     ) {
-        let result = Self::parse_registers_response(self.request.inner, &mut cursor);
+        let result = Self::parse_registers_response(self.request.get(), &mut cursor);
 
         match &result {
             Ok(response) => {
@@ -76,7 +76,7 @@ impl ReadRegisters {
     fn parse_registers_response<'a>(
         range: AddressRange,
         cursor: &'a mut ReadCursor,
-    ) -> Result<RegisterIterator<'a>, Error> {
+    ) -> Result<RegisterIterator<'a>, RequestError> {
         // there's a byte-count here that we don't actually need
         cursor.read_u8()?;
         // the reset is a sequence of bits

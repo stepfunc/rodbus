@@ -1,7 +1,8 @@
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 
-use crate::error::details::ExceptionCode;
+use crate::exception::ExceptionCode;
+use crate::server::{WriteCoils, WriteRegisters};
 use crate::types::*;
 
 /// Trait implemented by the user to process requests received from the client
@@ -12,9 +13,6 @@ use crate::types::*;
 ///
 /// If an implementation returns a slice smaller than the requested range, this will result
 /// in [`ExceptionCode::ServerDeviceFailure`] being returned to the client.
-///
-/// [`ExceptionCode::IllegalDataAddress`]: ../../error/details/enum.ExceptionCode.html#variant.IllegalDataAddress
-/// [`ExceptionCode::ServerDeviceFailure`]: ../../error/details/enum.ExceptionCode.html#variant.ServerDeviceFailure
 pub trait RequestHandler: Send + 'static {
     /// Moves a server handler implementation into a `Arc<Mutex<Box<ServerHandler>>>`
     /// suitable for passing to the server
@@ -65,6 +63,9 @@ pub trait RequestHandler: Send + 'static {
         Err(ExceptionCode::IllegalFunction)
     }
 
+    /// Helper function to convert an Option<T> to Result<T, ExceptionCode::IllegalDataAddress>
+    ///
+    /// This is useful when looking up requested values in a map where the value may not be present
     fn convert<T>(x: Option<&T>) -> Result<T, ExceptionCode>
     where
         T: Copy,
@@ -79,11 +80,8 @@ pub trait RequestHandler: Send + 'static {
 type ServerHandlerType<T> = Arc<Mutex<Box<T>>>;
 
 /// A type that hides the underlying map implementation
-/// and allows lookups of a [`ServerHandler`] from a [`UnitId`]
-///
-/// [`ServerHandler`]: trait.ServerHandler.html
-/// [`UnitId`]: ../../types/struct.UnitId.html
-#[derive(Default)]
+/// and allows lookups of a [`RequestHandler`] from a [`UnitId`]
+#[derive(Debug, Default)]
 pub struct ServerHandlerMap<T: RequestHandler> {
     handlers: BTreeMap<UnitId, ServerHandlerType<T>>,
 }
@@ -119,7 +117,7 @@ where
         Self { handlers: map }
     }
 
-    /// Retrieve a mutable reference to a [`ServerHandler`](trait.ServerHandler.html)
+    /// Retrieve a mutable reference to a [`RequestHandler`]
     pub fn get(&mut self, id: UnitId) -> Option<&mut ServerHandlerType<T>> {
         self.handlers.get_mut(&id)
     }

@@ -1,8 +1,8 @@
 use crate::common::cursor::WriteCursor;
 use crate::common::function::FunctionCode;
 use crate::common::traits::Serialize;
-use crate::error::details::ExceptionCode;
-use crate::error::Error;
+use crate::error::RequestError;
+use crate::exception::ExceptionCode;
 use crate::types::{ReadBitsRange, ReadRegistersRange};
 
 pub(crate) struct BitWriter<T>
@@ -60,7 +60,7 @@ impl<'a, T> Serialize for Response<'a, T>
 where
     T: Serialize,
 {
-    fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), Error> {
+    fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
         cursor.write_u8(self.function.get_value())?;
         self.body.serialize(cursor)?;
         Ok(())
@@ -89,7 +89,7 @@ impl ErrorResponse {
 }
 
 impl Serialize for ErrorResponse {
-    fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), Error> {
+    fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
         cursor.write_u8(self.function)?;
         self.exception.serialize(cursor)?;
         Ok(())

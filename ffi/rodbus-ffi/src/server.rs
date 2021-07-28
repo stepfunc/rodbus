@@ -1,11 +1,12 @@
 use crate::ffi;
 use crate::Database;
-use rodbus::error::details::ExceptionCode;
-use rodbus::server::handler::{RequestHandler, ServerHandlerMap};
-use rodbus::shutdown::TaskHandle;
-use rodbus::types::{Indexed, UnitId, WriteCoils, WriteRegisters};
+use rodbus::server::ServerHandle;
+use rodbus::{ExceptionCode, Indexed, UnitId};
 use std::collections::HashMap;
 use std::net::SocketAddr;
+
+use rodbus::server::*;
+use rodbus::server::{RequestHandler, ServerHandlerMap};
 
 struct RequestHandlerWrapper {
     database: Database,
@@ -26,10 +27,8 @@ pub struct DeviceMap {
 }
 
 impl DeviceMap {
-    fn drain_and_convert(
-        &mut self,
-    ) -> rodbus::server::handler::ServerHandlerMap<RequestHandlerWrapper> {
-        let mut handlers = rodbus::server::handler::ServerHandlerMap::new();
+    fn drain_and_convert(&mut self) -> rodbus::server::ServerHandlerMap<RequestHandlerWrapper> {
+        let mut handlers = rodbus::server::ServerHandlerMap::new();
         for (key, value) in self.inner.drain() {
             handlers.add(UnitId::new(key), value.wrap());
         }
@@ -121,7 +120,7 @@ impl RequestHandler for RequestHandlerWrapper {
 
 pub struct Server {
     // never used but we have to hang onto it otherwise the server shuts down
-    _server: rodbus::shutdown::TaskHandle,
+    _server: ServerHandle,
     map: ServerHandlerMap<RequestHandlerWrapper>,
 }
 
@@ -188,7 +187,7 @@ pub(crate) unsafe fn create_tcp_server(
     let join_handle = runtime.inner.spawn(task);
 
     let server_handle = Server {
-        _server: TaskHandle::new(tx, join_handle),
+        _server: ServerHandle::new(tx, join_handle),
         map: handler_map,
     };
 

@@ -1,10 +1,11 @@
 use std::error::Error;
 use std::time::Duration;
 
-use rodbus::decode::DecodeLevel;
-use rodbus::prelude::*;
 use tokio_stream::StreamExt;
 use tokio_util::codec::{FramedRead, LinesCodec};
+
+use rodbus::client::*;
+use rodbus::*;
 
 // ANCHOR: runtime_init
 #[tokio::main(flavor = "multi_thread")]
@@ -24,7 +25,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let mut channel = spawn_tcp_client_task(
         "127.0.0.1:502".parse()?,
         1,
-        strategy::default(),
+        default_reconnect_strategy(),
         DecodeLevel::default(),
     );
     // ANCHOR_END: create_tcp_channel
@@ -49,7 +50,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                             println!("index: {} value: {}", bit.index, bit.value);
                         }
                     }
-                    Err(rodbus::error::Error::Exception(exception)) => {
+                    Err(rodbus::error::RequestError::Exception(exception)) => {
                         println!("Modbus exception: {}", exception);
                     }
                     Err(err) => println!("error: {}", err),
@@ -67,7 +68,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                             println!("index: {} value: {}", bit.index, bit.value);
                         }
                     }
-                    Err(rodbus::error::Error::Exception(exception)) => {
+                    Err(rodbus::error::RequestError::Exception(exception)) => {
                         println!("Modbus exception: {}", exception);
                     }
                     Err(err) => println!("error: {}", err),
@@ -85,7 +86,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                             println!("index: {} value: {}", bit.index, bit.value);
                         }
                     }
-                    Err(rodbus::error::Error::Exception(exception)) => {
+                    Err(rodbus::error::RequestError::Exception(exception)) => {
                         println!("Modbus exception: {}", exception);
                     }
                     Err(err) => println!("error: {}", err),
@@ -103,7 +104,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                             println!("index: {} value: {}", bit.index, bit.value);
                         }
                     }
-                    Err(rodbus::error::Error::Exception(exception)) => {
+                    Err(rodbus::error::RequestError::Exception(exception)) => {
                         println!("Modbus exception: {}", exception);
                     }
                     Err(err) => println!("error: {}", err),
@@ -117,7 +118,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
                 match result {
                     Ok(_) => println!("success"),
-                    Err(rodbus::error::Error::Exception(exception)) => {
+                    Err(rodbus::error::RequestError::Exception(exception)) => {
                         println!("Modbus exception: {}", exception);
                     }
                     Err(err) => println!("error: {}", err),
@@ -131,7 +132,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
                 match result {
                     Ok(_) => println!("success"),
-                    Err(rodbus::error::Error::Exception(exception)) => {
+                    Err(rodbus::error::RequestError::Exception(exception)) => {
                         println!("Modbus exception: {}", exception);
                     }
                     Err(err) => println!("error: {}", err),
@@ -147,7 +148,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
                 match result {
                     Ok(_) => println!("success"),
-                    Err(rodbus::error::Error::Exception(exception)) => {
+                    Err(rodbus::error::RequestError::Exception(exception)) => {
                         println!("Modbus exception: {}", exception);
                     }
                     Err(err) => println!("error: {}", err),
@@ -164,7 +165,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
                 match result {
                     Ok(_) => println!("success"),
-                    Err(rodbus::error::Error::Exception(exception)) => {
+                    Err(rodbus::error::RequestError::Exception(exception)) => {
                         println!("Modbus exception: {}", exception);
                     }
                     Err(err) => println!("error: {}", err),

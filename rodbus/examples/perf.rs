@@ -2,11 +2,10 @@ use std::net::SocketAddr;
 use std::str::FromStr;
 use std::time::Duration;
 
-use rodbus::decode::{AduDecodeLevel, DecodeLevel, PduDecodeLevel, PhysDecodeLevel};
-
-use rodbus::error::details::ExceptionCode;
-use rodbus::prelude::*;
-use rodbus::server::spawn_tcp_server_task;
+use rodbus::client::*;
+use rodbus::error::RequestError;
+use rodbus::server::*;
+use rodbus::*;
 
 struct Handler {
     coils: [bool; 100],
@@ -67,7 +66,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let channel = spawn_tcp_client_task(
             addr,
             10,
-            strategy::default(),
+            default_reconnect_strategy(),
             DecodeLevel::new(
                 PduDecodeLevel::Nothing,
                 AduDecodeLevel::Nothing,
@@ -79,13 +78,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         channels.push((channel, params));
     }
 
-    let mut query_tasks: Vec<tokio::task::JoinHandle<Result<(), Error>>> = Vec::new();
+    let mut query_tasks: Vec<tokio::task::JoinHandle<Result<(), RequestError>>> = Vec::new();
 
     let start = std::time::Instant::now();
 
     // spawn tasks that make a query 1000 times
     for (mut channel, params) in channels {
-        let handle: tokio::task::JoinHandle<Result<(), Error>> = tokio::spawn(async move {
+        let handle: tokio::task::JoinHandle<Result<(), RequestError>> = tokio::spawn(async move {
             for _ in 0..num_requests {
                 if let Err(err) = channel
                     .read_coils(params, AddressRange::try_from(0, 100).unwrap())

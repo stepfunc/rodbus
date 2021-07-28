@@ -6,9 +6,9 @@ use std::time::Duration;
 
 use clap::{App, Arg, ArgMatches, SubCommand};
 
-use rodbus::decode::PduDecodeLevel;
-use rodbus::error::details::{InvalidRange, InvalidRequest};
-use rodbus::prelude::*;
+use rodbus::client::*;
+use rodbus::error::{InvalidRange, InvalidRequest};
+use rodbus::*;
 
 #[derive(Debug)]
 enum Error {
@@ -17,7 +17,7 @@ enum Error {
     BadInt(std::num::ParseIntError),
     BadBool(std::str::ParseBoolError),
     BadCharInBitString(char),
-    Request(rodbus::error::Error),
+    Request(rodbus::error::RequestError),
     MissingSubCommand,
 }
 
@@ -70,7 +70,7 @@ async fn run() -> Result<(), Error> {
     let mut channel = spawn_tcp_client_task(
         args.address,
         1,
-        strategy::default(),
+        default_reconnect_strategy(),
         PduDecodeLevel::DataValues.into(),
     );
     let params = RequestParam::new(args.id, Duration::from_secs(1));
@@ -448,8 +448,8 @@ impl std::fmt::Display for Error {
     }
 }
 
-impl From<rodbus::error::Error> for Error {
-    fn from(err: rodbus::error::Error) -> Self {
+impl From<rodbus::error::RequestError> for Error {
+    fn from(err: rodbus::error::RequestError) -> Self {
         Error::Request(err)
     }
 }

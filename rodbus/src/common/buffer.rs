@@ -3,7 +3,7 @@ use crate::common::phys::PhysLayer;
 #[cfg(feature = "no-panic")]
 use no_panic::no_panic;
 
-use crate::error::*;
+use crate::error::InternalError;
 
 pub(crate) struct ReadBuffer {
     buffer: Vec<u8>,
@@ -31,12 +31,9 @@ impl ReadBuffer {
     }
 
     #[cfg_attr(feature = "no-panic", no_panic)]
-    pub(crate) fn read(&mut self, count: usize) -> Result<&[u8], details::InternalError> {
+    pub(crate) fn read(&mut self, count: usize) -> Result<&[u8], InternalError> {
         if self.len() < count {
-            return Err(details::InternalError::InsufficientBytesForRead(
-                count,
-                self.len(),
-            ));
+            return Err(InternalError::InsufficientBytesForRead(count, self.len()));
         }
 
         match self.buffer.get(self.begin..(self.begin + count)) {
@@ -44,29 +41,26 @@ impl ReadBuffer {
                 self.begin += count;
                 Ok(ret)
             }
-            None => Err(details::InternalError::InsufficientBytesForRead(
-                count,
-                self.len(),
-            )),
+            None => Err(InternalError::InsufficientBytesForRead(count, self.len())),
         }
     }
 
     #[cfg_attr(feature = "no-panic", no_panic)]
-    pub(crate) fn read_u8(&mut self) -> Result<u8, details::InternalError> {
+    pub(crate) fn read_u8(&mut self) -> Result<u8, InternalError> {
         if self.is_empty() {
-            return Err(details::InternalError::InsufficientBytesForRead(1, 0));
+            return Err(InternalError::InsufficientBytesForRead(1, 0));
         }
         match self.buffer.get(self.begin) {
             Some(ret) => {
                 self.begin += 1;
                 Ok(*ret)
             }
-            None => Err(details::InternalError::InsufficientBytesForRead(1, 0)),
+            None => Err(InternalError::InsufficientBytesForRead(1, 0)),
         }
     }
 
     #[cfg_attr(feature = "no-panic", no_panic)]
-    pub(crate) fn read_u16_be(&mut self) -> Result<u16, details::InternalError> {
+    pub(crate) fn read_u16_be(&mut self) -> Result<u16, InternalError> {
         let b1 = self.read_u8()? as u16;
         let b2 = self.read_u8()? as u16;
         Ok((b1 << 8) | b2)
@@ -109,11 +103,11 @@ mod tests {
         let mut buffer = ReadBuffer::new(10);
         assert_eq!(
             buffer.read_u8(),
-            Err(details::InternalError::InsufficientBytesForRead(1, 0))
+            Err(InternalError::InsufficientBytesForRead(1, 0))
         );
         assert_eq!(
             buffer.read(1),
-            Err(details::InternalError::InsufficientBytesForRead(1, 0))
+            Err(InternalError::InsufficientBytesForRead(1, 0))
         );
     }
 

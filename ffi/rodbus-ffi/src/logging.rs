@@ -1,6 +1,7 @@
 use std::ffi::CString;
 
-use rodbus::decode::{AduDecodeLevel, DecodeLevel, PduDecodeLevel, PhysDecodeLevel};
+use rodbus::*;
+
 use tracing::span::{Attributes, Record};
 use tracing::{Event, Id, Metadata};
 use tracing_subscriber::fmt::time::{ChronoUtc, SystemTime};
