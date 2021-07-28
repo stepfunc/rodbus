@@ -315,12 +315,11 @@ jobs:
       - name: Publish NuGet package
         shell: bash
         run: dotnet nuget push $(find artifacts/dotnet-bindings/rodbus*.nupkg) -s https://api.nuget.org/v3/index.json -k ${{ secrets.SFIO_NUGET_KEY }}
-      - name: Package C bindings and conformance results
+      - name: Package C bindings
         shell: bash
         run: >
           mkdir release &&
-          for i in artifacts/c-bindings/*; do (cd $i && zip -r ../../../release/rodbus-${GITHUB_REF##*/}-$(basename $i).zip .); done &&
-          (cd artifacts/conformance-results && zip -r ../../release/conformance-results.zip .)
+          for i in artifacts/c-bindings/*; do (cd $i && zip -r ../../../release/rodbus-${GITHUB_REF##*/}-$(basename $i).zip .); done
       - name: Create GitHub release
         uses: softprops/action-gh-release@v1
         with:
