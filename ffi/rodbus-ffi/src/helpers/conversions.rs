@@ -35,7 +35,9 @@ impl From<rodbus::error::RequestError> for ffi::ErrorInfo {
             rodbus::error::RequestError::NoConnection => from_status(ffi::Status::NoConnection),
             rodbus::error::RequestError::BadFrame(_) => from_status(ffi::Status::BadFraming),
             rodbus::error::RequestError::Shutdown => from_status(ffi::Status::Shutdown),
-            rodbus::error::RequestError::ResponseTimeout => from_status(ffi::Status::ResponseTimeout),
+            rodbus::error::RequestError::ResponseTimeout => {
+                from_status(ffi::Status::ResponseTimeout)
+            }
             rodbus::error::RequestError::BadRequest(_) => from_status(ffi::Status::BadRequest),
             rodbus::error::RequestError::Exception(ex) => ex.into(),
             rodbus::error::RequestError::Io(_) => from_status(ffi::Status::IoError),
@@ -62,12 +64,10 @@ impl<'a> From<rodbus::ExceptionCode> for ffi::ErrorInfo {
             rodbus::ExceptionCode::GatewayPathUnavailable => {
                 from_exception(ffi::ModbusException::GatewayPathUnavailable, x.into())
             }
-            rodbus::ExceptionCode::GatewayTargetDeviceFailedToRespond => {
-                from_exception(
-                    ffi::ModbusException::GatewayTargetDeviceFailedToRespond,
-                    x.into(),
-                )
-            }
+            rodbus::ExceptionCode::GatewayTargetDeviceFailedToRespond => from_exception(
+                ffi::ModbusException::GatewayTargetDeviceFailedToRespond,
+                x.into(),
+            ),
             rodbus::ExceptionCode::IllegalDataAddress => {
                 from_exception(ffi::ModbusException::IllegalDataAddress, x.into())
             }
@@ -86,9 +86,7 @@ impl<'a> From<rodbus::ExceptionCode> for ffi::ErrorInfo {
             rodbus::ExceptionCode::ServerDeviceFailure => {
                 from_exception(ffi::ModbusException::ServerDeviceFailure, x.into())
             }
-            rodbus::ExceptionCode::Unknown(x) => {
-                from_exception(ffi::ModbusException::Unknown, x)
-            }
+            rodbus::ExceptionCode::Unknown(x) => from_exception(ffi::ModbusException::Unknown, x),
         }
     }
 }

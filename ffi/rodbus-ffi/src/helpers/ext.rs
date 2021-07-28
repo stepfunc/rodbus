@@ -1,6 +1,6 @@
 use crate::ffi;
-use rodbus::UnitId;
 use rodbus::client::{CallbackSession, RequestParam};
+use rodbus::UnitId;
 use std::time::Duration;
 
 impl ffi::RequestParam {
@@ -104,27 +104,13 @@ impl ffi::WriteResult {
             ffi::ModbusException::GatewayTargetDeviceFailedToRespond => {
                 rodbus::ExceptionCode::GatewayTargetDeviceFailedToRespond
             }
-            ffi::ModbusException::IllegalDataAddress => {
-                rodbus::ExceptionCode::IllegalDataAddress
-            }
-            ffi::ModbusException::IllegalDataValue => {
-                rodbus::ExceptionCode::IllegalDataValue
-            }
-            ffi::ModbusException::IllegalFunction => {
-                rodbus::ExceptionCode::IllegalFunction
-            }
-            ffi::ModbusException::MemoryParityError => {
-                rodbus::ExceptionCode::MemoryParityError
-            }
-            ffi::ModbusException::ServerDeviceBusy => {
-                rodbus::ExceptionCode::ServerDeviceBusy
-            }
-            ffi::ModbusException::ServerDeviceFailure => {
-                rodbus::ExceptionCode::ServerDeviceFailure
-            }
-            ffi::ModbusException::Unknown => {
-                rodbus::ExceptionCode::Unknown(self.raw_exception())
-            }
+            ffi::ModbusException::IllegalDataAddress => rodbus::ExceptionCode::IllegalDataAddress,
+            ffi::ModbusException::IllegalDataValue => rodbus::ExceptionCode::IllegalDataValue,
+            ffi::ModbusException::IllegalFunction => rodbus::ExceptionCode::IllegalFunction,
+            ffi::ModbusException::MemoryParityError => rodbus::ExceptionCode::MemoryParityError,
+            ffi::ModbusException::ServerDeviceBusy => rodbus::ExceptionCode::ServerDeviceBusy,
+            ffi::ModbusException::ServerDeviceFailure => rodbus::ExceptionCode::ServerDeviceFailure,
+            ffi::ModbusException::Unknown => rodbus::ExceptionCode::Unknown(self.raw_exception()),
         };
 
         Err(ex)
