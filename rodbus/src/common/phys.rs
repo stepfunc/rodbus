@@ -10,6 +10,8 @@ pub(crate) struct PhysLayer {
 // encapsulates all possible physical layers as an enum
 pub(crate) enum PhysLayerImpl {
     Tcp(crate::tokio::net::TcpStream),
+    // TLS type is boxed because its size is huge
+    Tls(Box<tokio_rustls::TlsStream<crate::tokio::net::TcpStream>>),
     #[cfg(test)]
     Mock(tokio_mock::mock::test::io::MockIO),
 }
@@ -18,6 +20,7 @@ impl std::fmt::Debug for PhysLayer {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self.layer {
             PhysLayerImpl::Tcp(_) => f.write_str("Tcp"),
+            PhysLayerImpl::Tls(_) => f.write_str("Tls"),
             #[cfg(test)]
             PhysLayerImpl::Mock(_) => f.write_str("Mock"),
         }
@@ -28,6 +31,16 @@ impl PhysLayer {
     pub(crate) fn new_tcp(socket: crate::tokio::net::TcpStream, level: PhysDecodeLevel) -> Self {
         Self {
             layer: PhysLayerImpl::Tcp(socket),
+            level,
+        }
+    }
+
+    pub(crate) fn new_tls(
+        socket: tokio_rustls::TlsStream<crate::tokio::net::TcpStream>,
+        level: PhysDecodeLevel,
+    ) -> Self {
+        Self {
+            layer: PhysLayerImpl::Tls(Box::new(socket)),
             level,
         }
     }
@@ -46,6 +59,7 @@ impl PhysLayer {
     pub(crate) async fn read(&mut self, buffer: &mut [u8]) -> Result<usize, std::io::Error> {
         let length = match &mut self.layer {
             PhysLayerImpl::Tcp(x) => x.read(buffer).await?,
+            PhysLayerImpl::Tls(x) => x.read(buffer).await?,
             #[cfg(test)]
             PhysLayerImpl::Mock(x) => x.read(buffer).await?,
         };
@@ -66,6 +80,7 @@ impl PhysLayer {
 
         match &mut self.layer {
             PhysLayerImpl::Tcp(x) => x.write_all(data).await,
+            PhysLayerImpl::Tls(x) => x.write_all(data).await,
             #[cfg(test)]
             PhysLayerImpl::Mock(x) => x.write_all(data).await,
         }

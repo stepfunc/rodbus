@@ -7,6 +7,7 @@ use crate::error::RequestError;
 use crate::exception::ExceptionCode;
 use crate::server::handler::RequestHandler;
 use crate::server::response::{BitWriter, RegisterWriter};
+use crate::server::task::SessionAuthentication;
 use crate::server::*;
 use crate::types::*;
 
@@ -39,6 +40,7 @@ impl<'a> Request<'a> {
         self,
         header: FrameHeader,
         handler: &mut T,
+        auth: &SessionAuthentication,
         writer: &'b mut F,
         level: PduDecodeLevel,
     ) -> Result<&'b [u8], RequestError>
@@ -46,17 +48,47 @@ impl<'a> Request<'a> {
         T: RequestHandler,
         F: FrameFormatter,
     {
-        fn serialize_result<T, F>(
+        fn serialize_result<'a, T, F, FnAuth, FnResult>(
             function: FunctionCode,
             header: FrameHeader,
-            writer: &mut F,
-            result: Result<T, ExceptionCode>,
+            writer: &'a mut F,
+            auth: &SessionAuthentication,
+            auth_fn: FnAuth,
+            result: FnResult,
             level: PduDecodeLevel,
-        ) -> Result<&[u8], RequestError>
+        ) -> Result<&'a [u8], RequestError>
         where
             T: Serialize + Loggable,
             F: FrameFormatter,
+            FnAuth: FnOnce(&dyn AuthorizationHandler, &str) -> AuthorizationResult,
+            FnResult: FnOnce() -> Result<T, ExceptionCode>,
         {
+            // Check authorization
+            if let SessionAuthentication::Authenticated(handler, role) = auth {
+                let handler = handler.lock().unwrap();
+                match auth_fn(handler.as_ref(), role) {
+                    AuthorizationResult::Authorized => {
+                        tracing::debug!("request authorized for \"{}\"", role)
+                    }
+                    AuthorizationResult::NotAuthorized => {
+                        tracing::warn!("request not authorized for \"{}\"", role);
+                        return writer.exception(
+                            header,
+                            function,
+                            ExceptionCode::IllegalFunction,
+                            level,
+                        );
+                    }
+                }
+            }
+
+            // Generate the result
+            let result = result();
+
+            // Serialize the result or the exception
+            // Note: the `data` in `Ok(data)` might be something that generate the data as it is written
+            // (e.g. `BitWriter`). If this fails during the serialization, it is abandonned and an
+            // exception is written instead. This is all handled inside `FrameFormatter::format`.
             match result {
                 Ok(data) => writer.format(header, function, &data, level),
                 Err(ex) => writer.exception(header, function, ex, level),
@@ -65,50 +97,88 @@ impl<'a> Request<'a> {
 
         let function = self.get_function();
         match self {
-            Request::ReadCoils(range) => {
-                let bits = BitWriter::new(range, |index| handler.read_coil(index));
-                writer.format(header, function, &bits, level)
-            }
-            Request::ReadDiscreteInputs(range) => {
-                let bits = BitWriter::new(range, |index| handler.read_discrete_input(index));
-                writer.format(header, function, &bits, level)
-            }
-            Request::ReadHoldingRegisters(range) => {
-                let registers =
-                    RegisterWriter::new(range, |index| handler.read_holding_register(index));
-                writer.format(header, function, &registers, level)
-            }
-            Request::ReadInputRegisters(range) => {
-                let registers =
-                    RegisterWriter::new(range, |index| handler.read_input_register(index));
-                writer.format(header, function, &registers, level)
-            }
+            Request::ReadCoils(range) => serialize_result(
+                function,
+                header,
+                writer,
+                auth,
+                |handler, role| handler.read_coils(header.unit_id, range.inner, role),
+                || Ok(BitWriter::new(range, |index| handler.read_coil(index))),
+                level,
+            ),
+            Request::ReadDiscreteInputs(range) => serialize_result(
+                function,
+                header,
+                writer,
+                auth,
+                |handler, role| handler.read_discrete_inputs(header.unit_id, range.inner, role),
+                || {
+                    Ok(BitWriter::new(range, |index| {
+                        handler.read_discrete_input(index)
+                    }))
+                },
+                level,
+            ),
+            Request::ReadHoldingRegisters(range) => serialize_result(
+                function,
+                header,
+                writer,
+                auth,
+                |handler, role| handler.read_holding_registers(header.unit_id, range.inner, role),
+                || {
+                    Ok(RegisterWriter::new(range, |index| {
+                        handler.read_holding_register(index)
+                    }))
+                },
+                level,
+            ),
+            Request::ReadInputRegisters(range) => serialize_result(
+                function,
+                header,
+                writer,
+                auth,
+                |handler, role| handler.read_input_registers(header.unit_id, range.inner, role),
+                || {
+                    Ok(RegisterWriter::new(range, |index| {
+                        handler.read_input_register(index)
+                    }))
+                },
+                level,
+            ),
             Request::WriteSingleCoil(request) => serialize_result(
                 function,
                 header,
                 writer,
-                handler.write_single_coil(request).map(|_| request),
+                auth,
+                |handler, role| handler.write_single_coil(header.unit_id, request.index, role),
+                || handler.write_single_coil(request).map(|_| request),
                 level,
             ),
             Request::WriteSingleRegister(request) => serialize_result(
                 function,
                 header,
                 writer,
-                handler.write_single_register(request).map(|_| request),
+                auth,
+                |handler, role| handler.write_single_register(header.unit_id, request.index, role),
+                || handler.write_single_register(request).map(|_| request),
                 level,
             ),
             Request::WriteMultipleCoils(items) => serialize_result(
                 function,
                 header,
                 writer,
-                handler.write_multiple_coils(items).map(|_| items.range),
+                auth,
+                |handler, role| handler.write_multiple_coils(header.unit_id, items.range, role),
+                || handler.write_multiple_coils(items).map(|_| items.range),
                 level,
             ),
             Request::WriteMultipleRegisters(items) => serialize_result(
                 function,
                 header,
                 writer,
-                handler.write_multiple_registers(items).map(|_| items.range),
+                auth,
+                |handler, role| handler.write_multiple_registers(header.unit_id, items.range, role),
+                || handler.write_multiple_registers(items).map(|_| items.range),
                 level,
             ),
         }

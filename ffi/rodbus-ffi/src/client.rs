@@ -17,7 +17,7 @@ pub(crate) unsafe fn create_tcp_client(
     let runtime = runtime.as_ref().ok_or(ffi::ParamError::NullParameter)?;
     let address = address.to_string_lossy().parse()?;
 
-    let (handle, task) = rodbus::client::create_handle_and_task(
+    let (handle, task) = rodbus::client::create_tcp_handle_and_task(
         address,
         max_queued_requests as usize,
         retry_strategy.into(),

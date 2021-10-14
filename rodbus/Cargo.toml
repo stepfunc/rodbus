@@ -10,7 +10,10 @@ repository = "https://github.com/stepfunc/rodbus"
 readme = "../README.md"
 
 [dependencies]
+rasn = { git = "https://github.com/stepfunc/rasn.git", tag = "0.1.1" }
+rustls-pemfile = "0.2"
 tokio-mock = { git = "https://github.com/stepfunc/tokio-mock.git", tag = "0.1.0" }
+tokio-rustls = { version = "0.23", git = "https://github.com/tokio-rs/tls.git", rev = "ea14b430d7c305e6758a050f7e4da6676f2ded24", features = ["dangerous_configuration", "tls12"], default-features = false }
 tracing = "0.1"
 
 [dev-dependencies]

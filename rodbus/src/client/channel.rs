@@ -1,23 +1,18 @@
-use std::net::SocketAddr;
 use std::time::Duration;
-
-use tracing::Instrument;
 
 use crate::client::message::{Promise, Request, RequestDetails};
 use crate::client::requests::read_bits::ReadBits;
 use crate::client::requests::read_registers::ReadRegisters;
 use crate::client::requests::write_multiple::{MultipleWriteRequest, WriteMultiple};
 use crate::client::requests::write_single::SingleWrite;
-use crate::decode::DecodeLevel;
 use crate::error::*;
-use crate::tcp::client::TcpChannelTask;
 use crate::tokio;
 use crate::types::{AddressRange, BitIterator, Indexed, RegisterIterator, UnitId};
 
 /// Async channel used to make requests
 #[derive(Debug, Clone)]
 pub struct Channel {
-    tx: tokio::sync::mpsc::Sender<Request>,
+    pub(crate) tx: tokio::sync::mpsc::Sender<Request>,
 }
 
 /// Request parameters to dispatch the request to the proper device
@@ -97,34 +92,6 @@ impl RequestParam {
 }
 
 impl Channel {
-    pub(crate) fn new(
-        addr: SocketAddr,
-        max_queued_requests: usize,
-        connect_retry: Box<dyn ReconnectStrategy + Send>,
-        decode: DecodeLevel,
-    ) -> Self {
-        let (handle, task) =
-            Self::create_handle_and_task(addr, max_queued_requests, connect_retry, decode);
-        tokio::spawn(task);
-        handle
-    }
-
-    pub(crate) fn create_handle_and_task(
-        addr: SocketAddr,
-        max_queued_requests: usize,
-        connect_retry: Box<dyn ReconnectStrategy + Send>,
-        decode: DecodeLevel,
-    ) -> (Self, impl std::future::Future<Output = ()>) {
-        let (tx, rx) = tokio::sync::mpsc::channel(max_queued_requests);
-        let task = async move {
-            TcpChannelTask::new(addr, rx, connect_retry, decode)
-                .run()
-                .instrument(tracing::info_span!("Modbus-Client-TCP", endpoint = ?addr))
-                .await
-        };
-        (Channel { tx }, task)
-    }
-
     /// Read coils from the server
     pub async fn read_coils(
         &mut self,
