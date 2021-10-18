@@ -147,6 +147,8 @@ where
         let (tx, rx) = tokio::sync::mpsc::channel(1);
         let span = tracing::span::Span::current();
 
+        tracing::info!("accepted connection from: {}", addr);
+
         // We first spawn the task so that multiple TLS handshakes can happen at the same time
         tokio::spawn(async move {
             match conn_handler.handle(socket, decode.physical).await {
@@ -155,7 +157,7 @@ where
                 }
                 Ok((phys, auth)) => {
                     let id = tracker.lock().unwrap().add(tx);
-                    tracing::info!("accepted connection {} from: {}", id, addr);
+                    tracing::info!("established session {} from: {}", id, addr);
 
                     crate::server::task::SessionTask::new(
                         phys,

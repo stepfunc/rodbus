@@ -16,22 +16,23 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // ANCHOR: logging
     // Initialize logging
     tracing_subscriber::fmt()
-        .with_max_level(tracing::Level::DEBUG)
+        .with_max_level(tracing::Level::INFO)
         .with_target(false)
         .init();
     // ANCHOR_END: logging
 
     #[allow(unused)]
     // ANCHOR: tls_self_signed_config
-    /*let self_signed_tls_config = TlsClientConfig::new(
+    let self_signed_tls_config = TlsClientConfig::new(
         "test.com",
         &Path::new("./certs/self_signed/entity2_cert.pem"),
         &Path::new("./certs/self_signed/entity1_cert.pem"),
         &Path::new("./certs/self_signed/entity1_key.pem"),
         MinTlsVersion::Tls1_2,
         CertificateMode::SelfSignedCertificate,
-    )?;*/
+    )?;
     // ANCHOR_END: tls_self_signed_config
+
     #[allow(unused)]
     // ANCHOR: tls_ca_chain_config
     let ca_chain_tls_config = TlsClientConfig::new(
@@ -49,7 +50,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // Create a channel
     // ANCHOR: create_tls_channel
     let mut channel = spawn_tls_client_task(
-        "127.0.0.1:502".parse()?,
+        "127.0.0.1:802".parse()?,
         1,
         default_reconnect_strategy(),
         tls_config,

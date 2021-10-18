@@ -1,10 +1,9 @@
-use std::convert::TryFrom;
 use std::io::{self, ErrorKind};
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
+use tokio_rustls::rustls;
 use tokio_rustls::rustls::server::AllowAnyAuthenticatedClient;
-use tokio_rustls::{rustls, webpki};
 
 use crate::common::phys::PhysLayer;
 use crate::server::task::SessionAuthentication;
@@ -26,7 +25,6 @@ pub struct TlsServerConfig {
 impl TlsServerConfig {
     /// Create a TLS server config
     pub fn new(
-        name: &str,
         peer_cert_path: &Path,
         local_cert_path: &Path,
         private_key_path: &Path,
@@ -50,16 +48,8 @@ impl TlsServerConfig {
                     })?;
                 }
 
-                let dns_name = webpki::DnsNameRef::try_from_ascii_str(name)
-                    .map_err(|_| TlsError::InvalidDnsName)?
-                    .to_owned();
-
                 Arc::new(move |role_container| {
-                    let verifier = CaChainClientCertVerifier::new(
-                        roots.clone(),
-                        dns_name.clone(),
-                        role_container,
-                    );
+                    let verifier = CaChainClientCertVerifier::new(roots.clone(), role_container);
 
                     rustls::ServerConfig::builder()
                         .with_safe_default_cipher_suites()
@@ -154,7 +144,6 @@ impl TlsServerConfig {
 
 struct CaChainClientCertVerifier {
     inner: Arc<dyn rustls::server::ClientCertVerifier>,
-    dns_name: webpki::DnsName,
     role_container: RoleContainer,
 }
 
@@ -162,13 +151,11 @@ impl CaChainClientCertVerifier {
     #[allow(clippy::new_ret_no_self)]
     fn new(
         roots: rustls::RootCertStore,
-        dns_name: webpki::DnsName,
         role_container: RoleContainer,
     ) -> Arc<dyn rustls::server::ClientCertVerifier> {
         let inner = AllowAnyAuthenticatedClient::new(roots);
         Arc::new(CaChainClientCertVerifier {
             inner,
-            dns_name,
             role_container,
         })
     }
@@ -208,16 +195,7 @@ impl rustls::server::ClientCertVerifier for CaChainClientCertVerifier {
         let role = extract_modbus_role(&parsed_cert)?;
         self.role_container.lock().unwrap().replace(role);
 
-        // Check DNS name
-        let cert = webpki::EndEntityCert::try_from(end_entity.0.as_ref())
-            .map_err(|_| rustls::Error::InvalidCertificateEncoding)?;
-        cert.verify_is_valid_for_dns_name(self.dns_name.as_ref())
-            .map_err(|_| {
-                rustls::Error::InvalidCertificateData(
-                    "client certificate is not valid for provided name".to_string(),
-                )
-            })
-            .map(|_| rustls::server::ClientCertVerified::assertion())
+        Ok(rustls::server::ClientCertVerified::assertion())
     }
 }
 
@@ -300,8 +278,6 @@ impl rustls::server::ClientCertVerifier for SelfSignedCertificateClientCertVerif
                 "self-signed certificate is currently not valid".to_string(),
             ));
         }
-
-        // We do not validate DNS name. Providing the exact same certificate is sufficient.
 
         Ok(rustls::server::ClientCertVerified::assertion())
     }

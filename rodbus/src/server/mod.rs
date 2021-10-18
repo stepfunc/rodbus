@@ -137,7 +137,7 @@ pub async fn spawn_tls_server_task<T: RequestHandler>(
     let listener = crate::tokio::net::TcpListener::bind(addr).await?;
 
     let (tx, rx) = tokio::sync::mpsc::channel(1);
-    let handle = tokio::spawn(create_tls_server_task_impl(
+    tokio::spawn(create_tls_server_task_impl(
         rx,
         max_sessions,
         addr,
@@ -148,7 +148,7 @@ pub async fn spawn_tls_server_task<T: RequestHandler>(
         decode,
     ));
 
-    Ok(ServerHandle::new(tx, handle))
+    Ok(ServerHandle::new(tx))
 }
 
 /// Creates a TLS server task that can then be spawned onto the runtime manually.

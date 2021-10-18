@@ -15,9 +15,41 @@ pub(crate) fn build(
     let channel = lib.declare_class("Channel")?;
 
     let retry_strategy = build_retry_strategy(lib)?;
+    let tls_client_config = build_tls_client_config(lib, common)?;
 
     let create_tcp_client_fn = lib.declare_native_function("create_tcp_client")?;
     let create_tcp_client_fn = create_tcp_client_fn
+        .param(
+            "runtime",
+            Type::ClassRef(common.runtime_handle.declaration.clone()),
+            "runtime on which to create the channel",
+        )?
+        .param("address", Type::String, "IP address of remote host")?
+        .param(
+            "max_queued_requests",
+            Type::Uint16,
+            "Maximum number of requests to queue before failing the next request",
+        )?
+        .param(
+            "retry_strategy",
+            Type::Struct(retry_strategy.clone()),
+            "Reconnection timing strategy",
+        )?
+        .param(
+            "decode_level",
+            Type::Struct(common.decode_level.clone()),
+            "Decode levels for this client",
+        )?
+        .return_type(ReturnType::Type(
+            Type::ClassRef(channel.clone()),
+            "pointer to the created channel or NULL if an error occurred".into(),
+        ))?
+        .fails_with(common.error_type.clone())?
+        .doc("create a new TCP channel instance")?
+        .build()?;
+
+    let create_tls_client_fn = lib.declare_native_function("create_tls_client")?;
+    let create_tls_client_fn = create_tls_client_fn
         .param(
             "runtime",
             Type::ClassRef(common.runtime_handle.declaration.clone()),
@@ -35,6 +67,11 @@ pub(crate) fn build(
             "Reconnection timing strategy",
         )?
         .param(
+            "tls_config",
+            Type::Struct(tls_client_config),
+            "TLS client configuration",
+        )?
+        .param(
             "decode_level",
             Type::Struct(common.decode_level.clone()),
             "Decode levels for this client",
@@ -44,7 +81,7 @@ pub(crate) fn build(
             "pointer to the created channel or NULL if an error occurred".into(),
         ))?
         .fails_with(common.error_type.clone())?
-        .doc("create a new tcp channel instance")?
+        .doc("create a new TLS channel instance")?
         .build()?;
 
     let destroy_channel_fn = lib
@@ -141,8 +178,9 @@ pub(crate) fn build(
     )?;
 
     lib.define_class(&channel)?
-        // abstract factory methods, later we'll have TLS/serial
+        // abstract factory methods
         .static_method("create_tcp_client", &create_tcp_client_fn)?
+        .static_method("create_tls_client", &create_tls_client_fn)?
         // read methods
         .async_method("read_coils", &read_coils_fn)?
         .async_method("read_discrete_inputs", &read_discrete_inputs_fn)?
@@ -437,5 +475,37 @@ fn build_retry_strategy(lib: &mut LibraryBuilder) -> Result<NativeStructHandle, 
         .doc(doc("Retry strategy configuration.").details(
             "The strategy uses an exponential back-off with a minimum and maximum value.",
         ))?
+        .build()
+}
+
+fn build_tls_client_config(
+    lib: &mut LibraryBuilder,
+    common: &CommonDefinitions,
+) -> Result<NativeStructHandle, BindingError> {
+    let tls_client_config = lib.declare_native_struct("TlsClientConfig")?;
+    lib.define_native_struct(&tls_client_config)?
+        .add("dns_name", Type::String, "Expected name to validate in the presented certificate (only in {enum:CertificateMode.TrustChain} mode)")?
+        .add(
+            "peer_cert_path",
+            Type::String,
+            "Path to the PEM-encoded certificate of the peer",
+        )?
+        .add(
+            "local_cert_path",
+            Type::String,
+            "Path to the PEM-encoded local certificate",
+        )?
+        .add(
+            "private_key_path",
+            Type::String,
+            "Path to the the PEM-encoded private key",
+        )?
+        .add(
+            "min_tls_version",
+            StructElementType::Enum(common.min_tls_version.clone(), Some("Tls1_2".to_owned())),
+            "Minimum TLS version allowed",
+        )?
+        .add("certificate_mode", StructElementType::Enum(common.certificate_mode.clone(), Some("TrustChain".to_owned())), "Certficate validation mode")?
+        .doc("TLS client configuration")?
         .build()
 }

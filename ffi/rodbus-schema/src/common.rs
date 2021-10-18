@@ -18,6 +18,8 @@ pub(crate) struct CommonDefinitions {
     pub(crate) bit_iterator: IteratorHandle,
     pub(crate) register_iterator: IteratorHandle,
     pub(crate) exception: NativeEnumHandle,
+    pub(crate) min_tls_version: NativeEnumHandle,
+    pub(crate) certificate_mode: NativeEnumHandle,
 }
 
 impl CommonDefinitions {
@@ -40,6 +42,8 @@ impl CommonDefinitions {
             bit_iterator: build_iterator(lib, &bit)?,
             register_iterator: build_iterator(lib, &register)?,
             exception,
+            min_tls_version: build_min_tls_version(lib)?,
+            certificate_mode: build_certificate_mode(lib)?,
         })
     }
 }
@@ -73,6 +77,10 @@ fn build_error_type(lib: &mut LibraryBuilder) -> Result<ErrorType, BindingError>
         "InvalidUnitId",
         "The specified unit id is not associated to this server",
     )?
+    .add_error("InvalidPeerCertificate", "Invalid peer certificate file")?
+    .add_error("InvalidLocalCertificate", "Invalid local certificate file")?
+    .add_error("InvalidPrivateKey", "Invalid private key file")?
+    .add_error("InvalidDnsName", "Invalid DNS name")?
     .doc("Error type used throughout the library")?
     .build()
 }
@@ -170,4 +178,23 @@ fn build_iterator(
         .build()?;
 
     lib.define_iterator_with_lifetime(&iterator_next_fn, value_type)
+}
+
+fn build_min_tls_version(lib: &mut LibraryBuilder) -> Result<NativeEnumHandle, BindingError> {
+    lib.define_native_enum("MinTlsVersion")?
+        .push("Tls1_2", "TLS 1.2")?
+        .push("Tls1_3", "TLS 1.3")?
+        .doc("Minimum TLS version to allow")?
+        .build()
+}
+
+fn build_certificate_mode(lib: &mut LibraryBuilder) -> Result<NativeEnumHandle, BindingError> {
+    lib.define_native_enum("CertificateMode")?
+        .push("TrustChain", "TrustChain")?
+        .push(
+            "SelfSignedCertificate",
+            "Single pre-shared self-sign certificate compared byte-for-byte",
+        )?
+        .doc("Certificate validation mode")?
+        .build()
 }

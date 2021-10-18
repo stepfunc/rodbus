@@ -144,19 +144,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     #[allow(unused)]
     // ANCHOR: tls_self_signed_config
-    /*let self_signed_tls_config = TlsServerConfig::new(
-        "test.com",
-        &Path::new("./certs/self_signed/entity2_cert.pem"),
+    let self_signed_tls_config = TlsServerConfig::new(
         &Path::new("./certs/self_signed/entity1_cert.pem"),
-        &Path::new("./certs/self_signed/entity1_key.pem"),
+        &Path::new("./certs/self_signed/entity2_cert.pem"),
+        &Path::new("./certs/self_signed/entity2_key.pem"),
         MinTlsVersion::Tls1_2,
         CertificateMode::SelfSignedCertificate,
-    )?;*/
+    )?;
     // ANCHOR_END: tls_self_signed_config
     #[allow(unused)]
     // ANCHOR: tls_ca_chain_config
     let ca_chain_tls_config = TlsServerConfig::new(
-        "test.com",
         &Path::new("./certs/ca_chain/ca_cert.pem"),
         &Path::new("./certs/ca_chain/entity1_cert.pem"),
         &Path::new("./certs/ca_chain/entity1_key.pem"),
@@ -172,7 +170,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // along with all of its active sessions
     let _server = rodbus::server::spawn_tls_server_task(
         1,
-        "127.0.0.1:502".parse()?,
+        "127.0.0.1:802".parse()?,
         map,
         ReadOnlyAuthorizationHandler::create(),
         tls_config,
