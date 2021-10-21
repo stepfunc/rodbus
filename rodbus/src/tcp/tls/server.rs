@@ -14,7 +14,7 @@ use crate::PhysDecodeLevel;
 
 type RoleContainer = Arc<Mutex<Option<String>>>;
 type ConfigBuilderCallback =
-    Arc<dyn Fn(RoleContainer) -> rustls::ServerConfig + Send + Sync + 'static>;
+    Arc<dyn Fn(RoleContainer) -> Result<rustls::ServerConfig, String> + Send + Sync + 'static>;
 
 /// TLS configuration
 #[derive(Clone)]
@@ -58,13 +58,7 @@ impl TlsServerConfig {
                         .expect("cipher suites or kx groups mismatch with TLS version")
                         .with_client_cert_verifier(verifier)
                         .with_single_cert(local_certs.clone(), private_key.clone())
-                        .map_err(|err| {
-                            TlsError::InvalidLocalCertificate(io::Error::new(
-                                ErrorKind::InvalidData,
-                                err.to_string(),
-                            ))
-                        })
-                        .unwrap()
+                        .map_err(|err| err.to_string())
                 })
             }
             CertificateMode::SelfSignedCertificate => {
@@ -89,13 +83,7 @@ impl TlsServerConfig {
                             .expect("cipher suites or kx groups mismatch with TLS version")
                             .with_client_cert_verifier(verifier)
                             .with_single_cert(local_certs.clone(), private_key.clone())
-                            .map_err(|err| {
-                                TlsError::InvalidLocalCertificate(io::Error::new(
-                                    ErrorKind::InvalidData,
-                                    err.to_string(),
-                                ))
-                            })
-                            .unwrap()
+                            .map_err(|err| err.to_string())
                     })
                 } else {
                     return Err(TlsError::InvalidPeerCertificate(io::Error::new(
@@ -109,8 +97,8 @@ impl TlsServerConfig {
         Ok(TlsServerConfig { config_builder })
     }
 
-    fn build(&self, role_container: RoleContainer) -> Arc<rustls::ServerConfig> {
-        Arc::new((self.config_builder)(role_container))
+    fn build(&self, role_container: RoleContainer) -> Result<Arc<rustls::ServerConfig>, String> {
+        Ok(Arc::new((self.config_builder)(role_container)?))
     }
 
     pub(crate) async fn handle_connection(
@@ -120,7 +108,7 @@ impl TlsServerConfig {
         auth_handler: AuthorizationHandlerType,
     ) -> Result<(PhysLayer, SessionAuthentication), String> {
         let role_container = Arc::new(Mutex::new(None));
-        let tls_config = self.build(role_container.clone());
+        let tls_config = self.build(role_container.clone())?;
 
         let connector = tokio_rustls::TlsAcceptor::from(tls_config);
         match connector.accept(socket).await {
