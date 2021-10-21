@@ -11,6 +11,7 @@ import io.stepfunc.rodbus.Runtime;
 import org.joou.UByte;
 import org.joou.UShort;
 
+// ANCHOR: auth_handler
 class TestAuthorizationHandler implements AuthorizationHandler
 {
     public AuthorizationResult readCoils(UByte unitId, AddressRange range, String role) {
@@ -45,6 +46,7 @@ class TestAuthorizationHandler implements AuthorizationHandler
         return AuthorizationResult.NOT_AUTHORIZED;
     }
 }
+// ANCHOR_END: auth_handler
 
 public class ServerTlsExample {
     public static void main(String[] args) throws Exception {

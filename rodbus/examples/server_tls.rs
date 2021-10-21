@@ -135,12 +135,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_target(false)
         .init();
 
-    // ANCHOR: tcp_server_create
+    // ANCHOR: handler_create
     let handler =
         SimpleHandler::new(vec![false; 10], vec![false; 10], vec![0; 10], vec![0; 10]).wrap();
 
     // map unit ids to a handler for processing requests
     let map = ServerHandlerMap::single(UnitId::new(1), handler.clone());
+    // ANCHOR_END: handler_create
 
     #[allow(unused)]
     // ANCHOR: tls_self_signed_config
@@ -168,6 +169,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // spawn a server to handle connections onto its own task
     // if we ever drop this handle, the server will shutdown
     // along with all of its active sessions
+    // ANCHOR: tls_server_create
     let _server = rodbus::server::spawn_tls_server_task(
         1,
         "127.0.0.1:802".parse()?,
@@ -177,7 +179,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         DecodeLevel::default(),
     )
     .await?;
-    // ANCHOR_END: tcp_server_create
+    // ANCHOR_END: tls_server_create
 
     let mut reader = FramedRead::new(tokio::io::stdin(), LinesCodec::new());
     loop {

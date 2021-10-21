@@ -73,8 +73,8 @@ impl MinTlsVersion {
 
 fn load_certs(path: &Path, is_local: bool) -> Result<Vec<rustls::Certificate>, TlsError> {
     let map_error_fn = match is_local {
-        false => |err| TlsError::InvalidPeerCertificate(err),
-        true => |err| TlsError::InvalidLocalCertificate(err),
+        false => TlsError::InvalidPeerCertificate,
+        true => TlsError::InvalidLocalCertificate,
     };
 
     let f = std::fs::File::open(path).map_err(map_error_fn)?;
