@@ -1,6 +1,6 @@
 [package]
 name = "rodbus-ffi"
-version = "0.9.0"
+version = "0.9.1"
 authors = ["Adam Crain <adam@stepfunc.io>", "Émile Grégoire <emile@stepfunc.io>"]
 edition = "2018"
 description = "FFI for Rodbus"
