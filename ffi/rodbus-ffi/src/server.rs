@@ -184,10 +184,10 @@ pub(crate) unsafe fn create_tcp_server(
             decode_level.into(),
         ))
         .map_err(|_| ffi::ParamError::ServerBindError)?;
-    let join_handle = runtime.inner.spawn(task);
+    runtime.inner.spawn(task);
 
     let server_handle = Server {
-        _server: ServerHandle::new(tx, join_handle),
+        _server: ServerHandle::new(tx),
         map: handler_map,
     };
 

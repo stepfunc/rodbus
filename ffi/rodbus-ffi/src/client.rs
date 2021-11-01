@@ -51,7 +51,7 @@ pub(crate) unsafe fn channel_read_coils(
     let mut session = param.build_session(channel);
     channel
         .runtime
-        .block_on(session.read_coils(range, callback))?;
+        .spawn(async move { session.read_coils(range, callback).await })?;
 
     Ok(())
 }
@@ -69,7 +69,7 @@ pub(crate) unsafe fn channel_read_discrete_inputs(
     let mut session = param.build_session(channel);
     channel
         .runtime
-        .block_on(session.read_discrete_inputs(range, callback))?;
+        .spawn(async move { session.read_discrete_inputs(range, callback).await })?;
 
     Ok(())
 }
@@ -87,7 +87,7 @@ pub(crate) unsafe fn channel_read_holding_registers(
     let mut session = param.build_session(channel);
     channel
         .runtime
-        .block_on(session.read_holding_registers(range, callback))?;
+        .spawn(async move { session.read_holding_registers(range, callback).await })?;
 
     Ok(())
 }
@@ -105,7 +105,7 @@ pub(crate) unsafe fn channel_read_input_registers(
     let mut session = param.build_session(channel);
     channel
         .runtime
-        .block_on(session.read_input_registers(range, callback))?;
+        .spawn(async move { session.read_input_registers(range, callback).await })?;
 
     Ok(())
 }
@@ -122,7 +122,7 @@ pub(crate) unsafe fn channel_write_single_coil(
     let mut session = param.build_session(channel);
     channel
         .runtime
-        .block_on(session.write_single_coil(bit.into(), callback))?;
+        .spawn(async move { session.write_single_coil(bit.into(), callback).await })?;
 
     Ok(())
 }
@@ -137,9 +137,11 @@ pub(crate) unsafe fn channel_write_single_register(
     let callback = callback.convert_to_fn_once();
 
     let mut session = param.build_session(channel);
-    channel
-        .runtime
-        .block_on(session.write_single_register(register.into(), callback))?;
+    channel.runtime.spawn(async move {
+        session
+            .write_single_register(register.into(), callback)
+            .await
+    })?;
 
     Ok(())
 }
@@ -159,7 +161,7 @@ pub(crate) unsafe fn channel_write_multiple_coils(
     let mut session = param.build_session(channel);
     channel
         .runtime
-        .block_on(session.write_multiple_coils(args, callback))?;
+        .spawn(async move { session.write_multiple_coils(args, callback).await })?;
 
     Ok(())
 }
@@ -179,7 +181,7 @@ pub(crate) unsafe fn channel_write_multiple_registers(
     let mut session = param.build_session(channel);
     channel
         .runtime
-        .block_on(session.write_multiple_registers(args, callback))?;
+        .spawn(async move { session.write_multiple_registers(args, callback).await })?;
 
     Ok(())
 }

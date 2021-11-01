@@ -20,16 +20,15 @@ pub use types::*;
 /// A handle to the server async task. The task is shutdown when the handle is dropped.
 #[derive(Debug)]
 pub struct ServerHandle {
-    tx: tokio::sync::mpsc::Sender<()>,
-    handle: tokio::task::JoinHandle<()>,
+    _tx: tokio::sync::mpsc::Sender<()>,
 }
 
 impl ServerHandle {
     /// Construct a [ServerHandle] from its fields
     ///
     /// This function is only required for the C bindings
-    pub fn new(tx: tokio::sync::mpsc::Sender<()>, handle: tokio::task::JoinHandle<()>) -> Self {
-        ServerHandle { tx, handle }
+    pub fn new(tx: tokio::sync::mpsc::Sender<()>) -> Self {
+        ServerHandle { _tx: tx }
     }
 }
 
@@ -52,7 +51,7 @@ pub async fn spawn_tcp_server_task<T: RequestHandler>(
     let listener = crate::tokio::net::TcpListener::bind(addr).await?;
 
     let (tx, rx) = tokio::sync::mpsc::channel(1);
-    let handle = tokio::spawn(create_tcp_server_task_impl(
+    tokio::spawn(create_tcp_server_task_impl(
         rx,
         max_sessions,
         addr,
@@ -61,7 +60,7 @@ pub async fn spawn_tcp_server_task<T: RequestHandler>(
         decode,
     ));
 
-    Ok(ServerHandle::new(tx, handle))
+    Ok(ServerHandle::new(tx))
 }
 
 /// Creates a TCP server task that can then be spawned onto the runtime manually.

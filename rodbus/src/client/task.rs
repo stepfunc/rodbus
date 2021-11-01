@@ -91,7 +91,7 @@ where
             tracing::warn!("error occurred making request: {}", e);
         }
 
-        result.as_ref().err().and_then(|e| SessionError::from(e))
+        result.as_ref().err().and_then(SessionError::from)
     }
 
     async fn execute_request(

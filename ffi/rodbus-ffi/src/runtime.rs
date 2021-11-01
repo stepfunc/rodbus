@@ -1,7 +1,6 @@
 use std::future::Future;
 
 use crate::ffi;
-use tokio::runtime::Handle;
 
 pub struct Runtime {
     pub(crate) inner: std::sync::Arc<tokio::runtime::Runtime>,
@@ -27,7 +26,7 @@ pub(crate) struct RuntimeHandle {
 }
 
 impl RuntimeHandle {
-    pub(crate) fn block_on<F: Future>(&self, future: F) -> Result<F::Output, ffi::ParamError> {
+    /*pub(crate) fn block_on<F: Future>(&self, future: F) -> Result<F::Output, ffi::ParamError> {
         let inner = self
             .inner
             .upgrade()
@@ -36,9 +35,9 @@ impl RuntimeHandle {
             return Err(ffi::ParamError::RuntimeCannotBlockWithinAsync);
         }
         Ok(inner.block_on(future))
-    }
+    }*/
 
-    /*pub(crate) fn spawn<F>(&self, future: F) -> Result<(), ffi::ParamError>
+    pub(crate) fn spawn<F>(&self, future: F) -> Result<(), ffi::ParamError>
     where
         F: Future + Send + 'static,
         F::Output: Send + 'static,
@@ -49,7 +48,7 @@ impl RuntimeHandle {
             .ok_or(ffi::ParamError::RuntimeDestroyed)?;
         inner.spawn(future);
         Ok(())
-    }*/
+    }
 }
 
 fn build_runtime<F>(f: F) -> std::result::Result<tokio::runtime::Runtime, std::io::Error>
