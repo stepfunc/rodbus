@@ -1,14 +1,38 @@
-cmake_minimum_required(VERSION 3.8)
+cmake_minimum_required(VERSION 3.11)
 
 project(rodbus_c LANGUAGES C)
 
-# Find rodbus
-if(WIN32)
-    set(CMAKE_PREFIX_PATH ${CMAKE_CURRENT_LIST_DIR}/generated/x86_64-pc-windows-msvc/cmake)
-elseif(UNIX)
-    set(CMAKE_PREFIX_PATH ${CMAKE_CURRENT_LIST_DIR}/generated/x86_64-unknown-linux-gnu/cmake)
+set(RODBUS_VERSION 0.9.1)
+
+# Determine the architecture
+if(WIN32 AND CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|amd64|AMD64" AND CMAKE_SIZEOF_VOID_P EQUAL 8)
+    set(RODBUS_ARCH "x86_64-pc-windows-msvc")
+elseif(UNIX AND CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|amd64|AMD64")
+    set(RODBUS_ARCH "x86_64-unknown-linux-gnu")
+elseif(UNIX AND CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64")
+    set(RODBUS_ARCH "aarch64-unknown-linux-gnu")
+else()
+    message(FATAL_ERROR "target architecture not supported by this CMake file")
 endif()
-find_package(rodbus REQUIRED)
+
+# Find the Rodbus package
+if(EXISTS ${CMAKE_CURRENT_LIST_DIR}/generated/${RODBUS_ARCH})
+    # Use the locally built library
+    find_package(rodbus REQUIRED HINTS ${CMAKE_CURRENT_LIST_DIR}/generated/${RODBUS_ARCH}/cmake)
+else()
+    # Download the library from GitHub
+    include(FetchContent)
+    FetchContent_Declare(
+        rodbus
+        URL https://github.com/stepfunc/rodbus/releases/download/${RODBUS_VERSION}/rodbus-${RODBUS_VERSION}-${RODBUS_ARCH}.zip
+    )
+
+    FetchContent_GetProperties(rodbus)
+    if(NOT rodbus_POPULATED)
+        FetchContent_Populate(rodbus)
+        find_package(rodbus REQUIRED HINTS ${rodbus_SOURCE_DIR})
+    endif()
+endif()
 
 # Client example
 add_executable(client_example ./client_example.c)
