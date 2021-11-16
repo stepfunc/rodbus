@@ -81,6 +81,7 @@ fn build_error_type(lib: &mut LibraryBuilder) -> Result<ErrorType, BindingError>
     .add_error("InvalidLocalCertificate", "Invalid local certificate file")?
     .add_error("InvalidPrivateKey", "Invalid private key file")?
     .add_error("InvalidDnsName", "Invalid DNS name")?
+    .add_error("MiscellaneousTlsError", "Miscellaneous tls error")?
     .doc("Error type used throughout the library")?
     .build()
 }

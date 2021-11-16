@@ -28,12 +28,13 @@ impl TlsServerConfig {
         peer_cert_path: &Path,
         local_cert_path: &Path,
         private_key_path: &Path,
+        password: Option<&str>,
         min_tls_version: MinTlsVersion,
         certificate_mode: CertificateMode,
     ) -> Result<Self, TlsError> {
         let mut peer_certs = load_certs(peer_cert_path, false)?;
         let local_certs = load_certs(local_cert_path, true)?;
-        let private_key = load_private_key(private_key_path)?;
+        let private_key = load_private_key(private_key_path, password)?;
 
         let config_builder: ConfigBuilderCallback = match certificate_mode {
             CertificateMode::TrustChain => {
@@ -55,7 +56,12 @@ impl TlsServerConfig {
                         .with_safe_default_cipher_suites()
                         .with_safe_default_kx_groups()
                         .with_protocol_versions(min_tls_version.to_rustls())
-                        .expect("cipher suites or kx groups mismatch with TLS version")
+                        .map_err(|err| {
+                            format!(
+                                "cipher suites or kx groups mismatch with TLS version: {}",
+                                err
+                            )
+                        })?
                         .with_client_cert_verifier(verifier)
                         .with_single_cert(local_certs.clone(), private_key.clone())
                         .map_err(|err| err.to_string())
@@ -80,7 +86,12 @@ impl TlsServerConfig {
                             .with_safe_default_cipher_suites()
                             .with_safe_default_kx_groups()
                             .with_protocol_versions(min_tls_version.to_rustls())
-                            .expect("cipher suites or kx groups mismatch with TLS version")
+                            .map_err(|err| {
+                                format!(
+                                    "cipher suites or kx groups mismatch with TLS version: {}",
+                                    err
+                                )
+                            })?
                             .with_client_cert_verifier(verifier)
                             .with_single_cert(local_certs.clone(), private_key.clone())
                             .map_err(|err| err.to_string())

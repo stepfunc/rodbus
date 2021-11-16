@@ -106,7 +106,8 @@ int main()
         "test.com",
         "./certs/self_signed/entity2_cert.pem",
         "./certs/self_signed/entity1_cert.pem",
-        "./certs/self_signed/entity1_key.pem"
+        "./certs/self_signed/entity1_key.pem",
+        "" // no password
     );
     self_signed_tls_config.certificate_mode = RODBUS_CERTIFICATE_MODE_SELF_SIGNED_CERTIFICATE;
     // ANCHOR_END: tls_self_signed_config
@@ -116,7 +117,8 @@ int main()
         "test.com",
         "./certs/ca_chain/ca_cert.pem",
         "./certs/ca_chain/entity1_cert.pem",
-        "./certs/ca_chain/entity1_key.pem"
+        "./certs/ca_chain/entity1_key.pem",
+        "" // no password
     );
     // ANCHOR_END: tls_ca_chain_config
 

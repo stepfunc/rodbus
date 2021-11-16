@@ -132,6 +132,7 @@ impl From<TlsError> for ffi::ParamError {
             TlsError::InvalidPeerCertificate(_) => ffi::ParamError::InvalidPeerCertificate,
             TlsError::InvalidLocalCertificate(_) => ffi::ParamError::InvalidLocalCertificate,
             TlsError::InvalidPrivateKey(_) => ffi::ParamError::InvalidPrivateKey,
+            TlsError::Miscellaneous(_) => ffi::ParamError::MiscellaneousTlsError,
         }
     }
 }

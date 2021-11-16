@@ -64,6 +64,7 @@ or other third-party library that needs to be present on the system, but will in
   - `rsa_pkcs1_sha512`
   - `rsa_pkcs1_sha384`
   - `rsa_pkcs1_sha256`
+- Server name validation through SAN and Common Name.
 - Self-signed certificates (with a special configuration)
 
 ## Configuration
@@ -73,20 +74,82 @@ The fields are the following:
 
 - `name` (client only): requested server DNS name. The client will advertise this name through
   a Server Name Indication (SNI) extension in the `Client Hello`. The client will verify that
-  the presented certificate is valid for this DNS name. Since Common Name is deprecated, the
-  presented certificate **must** have the DNS name appear in in a Subject
-  Alternative Name (SAN) extension. DNS name validation is not performed
+  the presented certificate is valid for this DNS name. is valid for this DNS name. See the
+  following section for more details about name validation. DNS name validation is not performed
   when `CertificateMode` is `SelfSignedCertificate`.
 - `peer_cert_path`: path to the unencrypted PEM file containing the trusted
   root certificate(s) or the peer self-signed certificate.
 - `local_cert_path`: path to the unencrypted PEM file containing the certificate
   or the chain of certificates to present to the peer.
-- `private_key_path`: path to the unencrypted PEM file containing the private
+- `private_key_path`: path to the PEM file containing the private
   key of the local certificate.
+- `password`: password used to decrypt the private key file. Leave empty if the file
+  is not encrypted. See the next section for more details.
 - `min_tls_version`: minimum TLS version to support. Setting this to `Tls1_3`
   will force TLSv1.3.
 - `certificate_mode`: mode of verification of the presented certificate. See
   the next section for more details.
+
+### Name validation
+
+The client always validates the server name when `certificate_mode` is `TrustChain`.
+
+A valid name has the same requirements as a DNS name. This is defined in
+[RFC 1034 Section 3.5](https://datatracker.ietf.org/doc/html/rfc1034#section-3.5),
+updated by [RFC1123 Section 2.1](https://datatracker.ietf.org/doc/html/rfc1123#section-2),
+with the additional exception that underscores `_` are allowed. A brief (but incomplete)
+definition of a valid name would be the following:
+
+- One or more labels separated by a single period
+- Labels are made of alphanumeric characters `[A-Za-z0-9]`, hyphen `-` and underscores `_`
+- A label cannot start or end with an hyphen `-`
+- A label cannot be all numeric
+- A label cannot be empty
+- Maximum of 63 characters per label
+- Maximum of 253 characters total
+
+We first validate the name through the Subject Alternative Name (SAN) extension if it's present.
+The SAN can contain multiple names and each name can contain a wildcard `*` character. The comparison
+is case insensitive.
+
+If and only if no SAN extension is present, then the Common Name from the certificate's Subject
+is extracted and compared. The Common Name cannot contain a wildcard character and the comparison
+is case sensitive. It is effectively compared byte-for-byte with the expected name.
+
+:::note
+Using SAN is the recommended way as Common Name usage is deprecated
+and might be removed in the future. New certificates should provide name
+in a SAN extension.
+:::
+
+### Private key encryption
+
+Unencrypted private keys can be stored in PKCS#8 (`-----BEGIN PRIVATE KEY-----`) or
+PKCS#1 format (`----BEGIN RSA PRIVATE KEY-----`).
+
+Encrypted private keys **must** be stored in PKCS#8v2 (`-----BEGIN ENCRYPTED PRIVATE KEY-----`).
+PKCS#1 encryption is **not** supported. The following algorithms are supported:
+
+- Key derivation functions:
+  - scrypt (RFC 7914) **recommended**
+  - PBKDF2 (RFC 8018) SHA-2 based PRF with HMAC-SHA224, HMAC-SHA256, HMAC-SHA384, or HMAC-SHA512
+- Symmetric encryption:
+  - AES-128-CBC
+  - AES-192-CBC
+  - AES-256-CBC **recommended**
+
+Notable unsupported algorithms are all SHA-1 based key derivation and DES/3DES symmetric encryption.
+These are considered insecure and should not be used anymore.
+
+[OpenSSL `pkcs8`](https://www.openssl.org/docs/man1.1.1/man1/openssl-pkcs8.html) tool can help you
+encrypting or converting private keys.
+
+:::warning
+Encrypting private keys is not an automatic security guarantee. Proper access control should be prioritized
+before encrypting the private the key. Keep in mind that encrypting a private key and leaving the password
+somewhere not-so-private (e.g. in the source code of your application) is the equivalent of locking the doors
+of your home and leaving a key in the mailbox.
+:::
 
 ### Certificate mode
 

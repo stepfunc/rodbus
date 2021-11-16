@@ -311,6 +311,12 @@ pub(crate) unsafe fn create_tls_server(
     let address = address.to_string_lossy().parse::<SocketAddr>()?;
     let endpoints = endpoints.as_mut().ok_or(ffi::ParamError::NullParameter)?;
 
+    let password = tls_config.password().to_string_lossy();
+    let optional_password = match password.as_ref() {
+        "" => None,
+        password => Some(password),
+    };
+
     let (tx, rx) = tokio::sync::mpsc::channel(1);
 
     let auth_handler = AuthorizationHandlerWrapper::new(auth_handler).wrap();
@@ -319,9 +325,14 @@ pub(crate) unsafe fn create_tls_server(
         Path::new(tls_config.peer_cert_path().to_string_lossy().as_ref()),
         Path::new(tls_config.local_cert_path().to_string_lossy().as_ref()),
         Path::new(tls_config.private_key_path().to_string_lossy().as_ref()),
+        optional_password,
         tls_config.min_tls_version().into(),
         tls_config.certificate_mode().into(),
-    )?;
+    )
+    .map_err(|err| {
+        tracing::error!("TLS error: {}", err);
+        err
+    })?;
 
     let handler_map = endpoints.drain_and_convert();
     let task = runtime
