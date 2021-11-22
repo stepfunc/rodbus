@@ -22,4 +22,4 @@ num_cpus = "1"
 
 [build-dependencies]
 rodbus-schema = { path = "../rodbus-schema" }
-rust-oo-bindgen = { git = "https://github.com/stepfunc/oo_bindgen.git", tag = "0.1.4" }
+rust-oo-bindgen = { git = "https://github.com/stepfunc/oo_bindgen.git", branch = "feature/c++" }

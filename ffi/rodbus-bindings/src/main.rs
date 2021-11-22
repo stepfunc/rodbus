@@ -7,7 +7,7 @@ pub fn main() {
         ffi_path: Path::new("ffi/rodbus-ffi"),
         java_group_id: "io.stepfunc",
         destination_path: Path::new("ffi/bindings"),
-        library: &rodbus_schema::build().unwrap(),
+        library: &rodbus_schema::build_lib().unwrap(),
     };
 
     ci_script::run(builder_settings);

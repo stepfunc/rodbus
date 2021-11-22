@@ -1,13 +1,13 @@
-pub struct BitIterator<'a> {
+pub struct BitValueIterator<'a> {
     inner: rodbus::BitIterator<'a>,
-    current: crate::ffi::Bit,
+    current: crate::ffi::BitValue,
 }
 
-impl<'a> BitIterator<'a> {
+impl<'a> BitValueIterator<'a> {
     pub(crate) fn new(inner: rodbus::BitIterator<'a>) -> Self {
         Self {
             inner,
-            current: crate::ffi::Bit {
+            current: crate::ffi::BitValue {
                 index: 0,
                 value: false,
             },
@@ -15,21 +15,23 @@ impl<'a> BitIterator<'a> {
     }
 }
 
-pub struct RegisterIterator<'a> {
+pub struct RegisterValueIterator<'a> {
     inner: rodbus::RegisterIterator<'a>,
-    current: crate::ffi::Register,
+    current: crate::ffi::RegisterValue,
 }
 
-impl<'a> RegisterIterator<'a> {
+impl<'a> RegisterValueIterator<'a> {
     pub(crate) fn new(inner: rodbus::RegisterIterator<'a>) -> Self {
         Self {
             inner,
-            current: crate::ffi::Register { index: 0, value: 0 },
+            current: crate::ffi::RegisterValue { index: 0, value: 0 },
         }
     }
 }
 
-pub(crate) unsafe fn next_bit(it: *mut crate::BitIterator) -> Option<&crate::ffi::Bit> {
+pub(crate) unsafe fn bit_value_iterator_next(
+    it: *mut crate::BitValueIterator,
+) -> Option<&crate::ffi::BitValue> {
     match it.as_mut() {
         Some(it) => match it.inner.next() {
             Some(x) => {
@@ -43,9 +45,9 @@ pub(crate) unsafe fn next_bit(it: *mut crate::BitIterator) -> Option<&crate::ffi
     }
 }
 
-pub(crate) unsafe fn next_register(
-    it: *mut crate::RegisterIterator,
-) -> Option<&crate::ffi::Register> {
+pub(crate) unsafe fn register_value_iterator_next(
+    it: *mut crate::RegisterValueIterator,
+) -> Option<&crate::ffi::RegisterValue> {
     match it.as_mut() {
         Some(it) => match it.inner.next() {
             Some(x) => {

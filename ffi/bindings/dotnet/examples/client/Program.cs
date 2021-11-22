@@ -54,7 +54,7 @@ namespace example
         private static async Task RunChannel(Channel channel)
         {
             // ANCHOR: request_param
-            var param = new RequestParam(1, 1000);
+            var param = new RequestParam(1, TimeSpan.FromSeconds(1));
             // ANCHOR_END: request_param
             // ANCHOR: address_range
             var range = new AddressRange(0, 5);
@@ -69,55 +69,126 @@ namespace example
                     case "rc":
                         {
                             // ANCHOR: read_coils
-                            var result = await channel.ReadCoils(param, range);
+                            try
+                            {
+                                var bits = await channel.ReadCoils(param, range);
+                                Console.WriteLine("success!");
+                                foreach (var bit in bits)
+                                {
+                                    Console.WriteLine($"index: {bit.Index} value: {bit.Value}");
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                Console.WriteLine($"error: {ex}");
+                            }
                             // ANCHOR_END: read_coils
-                            HandleBitResult(result);
                             break;
                         }
                     case "rdi":
                         {
-                            var result = await channel.ReadDiscreteInputs(param, range);
-                            HandleBitResult(result);
+                            try
+                            {
+                                var bits = await channel.ReadDiscreteInputs(param, range);
+                                Console.WriteLine("success!");
+                                foreach (var bit in bits)
+                                {
+                                    Console.WriteLine($"index: {bit.Index} value: {bit.Value}");
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                Console.WriteLine($"error: {ex}");
+                            }
                             break;
                         }
                     case "rhr":
                         {
-                            var result = await channel.ReadHoldingRegisters(param, range);
-                            HandleRegisterResult(result);
+                            try
+                            {
+                                var registers = await channel.ReadHoldingRegisters(param, range);
+                                Console.WriteLine("success!");
+                                foreach (var bit in registers)
+                                {
+                                    Console.WriteLine($"index: {bit.Index} value: {bit.Value}");
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                Console.WriteLine($"error: {ex}");
+                            }
                             break;
                         }
                     case "rir":
                         {
-                            var result = await channel.ReadInputRegisters(param, range);
-                            HandleRegisterResult(result);
+                            try
+                            {
+                                var registers = await channel.ReadInputRegisters(param, range);
+                                Console.WriteLine("success!");
+                                foreach (var bit in registers)
+                                {
+                                    Console.WriteLine($"index: {bit.Index} value: {bit.Value}");
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                Console.WriteLine($"error: {ex}");
+                            }
                             break;
                         }
                     case "wsc":
                         {
                             /// ANCHOR: write_single_coil
-                            var result = await channel.WriteSingleCoil(param, new Bit(0, true));
-                            /// ANCHOR_END: write_single_coil
-                            HandleWriteResult(result);
+                            try
+                            {
+                                await channel.WriteSingleCoil(param, new BitValue(0, true));
+                                Console.WriteLine("success!");
+                            }
+                            catch (Exception ex)
+                            {
+                                Console.WriteLine($"error: {ex}");
+                            }
                             break;
                         }
                     case "wsr":
                         {
-                            var result = await channel.WriteSingleRegister(param, new Register(0, 76));
-                            HandleWriteResult(result);
+                            try
+                            {
+                                await channel.WriteSingleRegister(param, new RegisterValue(0, 76));
+                                Console.WriteLine("success!");
+                            }
+                            catch (Exception ex)
+                            {
+                                Console.WriteLine($"error: {ex}");
+                            }
                             break;
                         }
                     case "wmc":
                         {
-                            var result = await channel.WriteMultipleCoils(param, 0, new List<bool>() { true, false });
-                            HandleWriteResult(result);
+                            try
+                            {
+                                await channel.WriteMultipleCoils(param, 0, new List<bool>() { true, false });
+                                Console.WriteLine("success!");
+                            }
+                            catch (Exception ex)
+                            {
+                                Console.WriteLine($"error: {ex}");
+                            }
                             break;
                         }
                     case "wmr":
                         {
                             // ANCHOR: write_multiple_registers
-                            var result = await channel.WriteMultipleRegisters(param, 0, new List<ushort>() { 0xCA, 0xFE });
+                            try
+                            {
+                                await channel.WriteMultipleRegisters(param, 0, new List<ushort>() { 0xCA, 0xFE });
+                                Console.WriteLine("success!");
+                            }
+                            catch (Exception ex)
+                            {
+                                Console.WriteLine($"error: {ex}");
+                            }
                             // ANCHOR_END: write_multiple_registers
-                            HandleWriteResult(result);
                             break;
                         }
                     default:
@@ -125,68 +196,6 @@ namespace example
                         break;
                 }
             }
-        }
-
-        private static void HandleBitResult(BitReadResult result)
-        {
-            // ANCHOR: handle_bit_result
-            if (result.Result.Summary == Status.Ok)
-            {
-                Console.WriteLine("success!");
-                foreach (var bit in result.Iterator)
-                {
-                    Console.WriteLine($"index: {bit.Index} value: {bit.Value}");
-                }
-            }
-            else if (result.Result.Summary == Status.Exception)
-            {
-                Console.WriteLine($"Modbus exception: {result.Result.Exception}");
-            }
-            else
-            {
-                Console.WriteLine($"error: {result.Result.Summary}");
-            }
-            // ANCHOR_END: handle_bit_result
-        }
-
-        private static void HandleRegisterResult(RegisterReadResult result)
-        {
-            // ANCHOR: error_handling
-            if (result.Result.Summary == Status.Ok)
-            {
-                Console.WriteLine("success!");
-                foreach (var bit in result.Iterator)
-                {
-                    Console.WriteLine($"index: {bit.Index} value: {bit.Value}");
-                }
-            }
-            else if (result.Result.Summary == Status.Exception)
-            {
-                Console.WriteLine($"Modbus exception: {result.Result.Exception}");
-            }
-            else
-            {
-                Console.WriteLine($"error: {result.Result.Summary}");
-            }
-            // ANCHOR_END: error_handling
-        }
-
-        private static void HandleWriteResult(ErrorInfo result)
-        {
-            /// ANCHOR: handle_write_result
-            if (result.Summary == Status.Ok)
-            {
-                Console.WriteLine("success!");
-            }
-            else if (result.Summary == Status.Exception)
-            {
-                Console.WriteLine($"Modbus exception: {result.Exception}");
-            }
-            else
-            {
-                Console.WriteLine($"error: {result.Summary}");
-            }
-            /// ANCHOR_END: handle_write_result
         }
 
         private static Task<string> GetInputAsync()

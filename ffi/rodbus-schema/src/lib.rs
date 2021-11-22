@@ -1,16 +1,15 @@
 use std::path::PathBuf;
 
 use crate::common::CommonDefinitions;
-use oo_bindgen::{BindingError, DeveloperInfo, Library, LibraryBuilder, LibraryInfo, Version};
+use oo_bindgen::model::*;
 
 mod client;
 mod common;
-mod enums;
 mod logging;
 mod runtime;
 mod server;
 
-pub fn build() -> Result<Library, BindingError> {
+pub fn build_lib() -> BackTraced<Library> {
     let info = LibraryInfo {
         description: "Safe and fast Modbus library".to_string(),
         project_url: "https://stepfunc.io/products/libraries/modbus/".to_string(),
@@ -46,22 +45,33 @@ pub fn build() -> Result<Library, BindingError> {
             },
         ],
     };
-    let mut lib = LibraryBuilder::new("rodbus", Version::parse(rodbus::VERSION).unwrap(), info);
 
-    let common = CommonDefinitions::build(&mut lib)?;
+    let settings = LibrarySettings::create(
+        "rodbus",
+        "rodbus",
+        ClassSettings::default(),
+        IteratorSettings::default(),
+        CollectionSettings::default(),
+        FutureSettings::default(),
+        InterfaceSettings::default(),
+    )?;
 
-    client::build(&mut lib, &common)?;
-    server::build(&mut lib, &common)?;
+    let mut builder = LibraryBuilder::new(Version::parse(rodbus::VERSION).unwrap(), info, settings);
 
-    lib.build()
+    let common = CommonDefinitions::build(&mut builder)?;
+
+    client::build(&mut builder, &common)?;
+    server::build(&mut builder, &common)?;
+
+    let library = builder.build()?;
+
+    Ok(library)
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::build;
-
     #[test]
     fn builds_library_without_error() {
-        build().unwrap();
+        crate::build_lib().unwrap();
     }
 }

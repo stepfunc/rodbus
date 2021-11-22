@@ -7,7 +7,9 @@ import io.stepfunc.rodbus.Runtime;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
+import java.time.Duration;
 import java.util.Arrays;
+import java.util.List;
 
 // ANCHOR: logging_interface
 class ConsoleLogger implements Logger {
@@ -48,103 +50,104 @@ public class ClientExample {
     }
 
     private static void run(Channel channel) throws Exception {
+        // Handle user input
+        BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
+        while (true) {
+            String line = reader.readLine();
+
+            if (line.equals("x")) return;
+
+            try {
+                runOneCommand(channel, line);
+            } catch(Exception ex) {
+                System.out.println("error: " + ex.getMessage());
+            }
+        }
+    }
+
+    private static void runOneCommand(Channel channel, String command) {
         // ANCHOR: request_param
-        final RequestParam param = new RequestParam(ubyte(1), uint(1000));
+        final RequestParam param = new RequestParam(ubyte(1), Duration.ofSeconds(1));
         // ANCHOR_END: request_param
         // ANCHOR: address_range
         final AddressRange range = new AddressRange(ushort(0), ushort(5));
         // ANCHOR_END: address_range
 
-        // Handle user input
-        BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
-        while (true) {
-            String line = reader.readLine();
-            switch (line) {
-                case "x":
-                    return;
-                case "rc": {
-                    // ANCHOR: read_coils
-                    channel.readCoils(param, range).thenAccept(ClientExample::handleBitResult);
-                    // ANCHOR_END: read_coils
-                    break;
-                }
-                case "rdi": {
-                    channel.readDiscreteInputs(param, range).thenAccept(ClientExample::handleBitResult);
-                    break;
-                }
-                case "rhr": {
-                    channel.readHoldingRegisters(param, range).thenAccept(ClientExample::handleRegisterResult);
-                    break;
-                }
-                case "rir": {
-                    channel.readInputRegisters(param, range).thenAccept(ClientExample::handleRegisterResult);
-                    break;
-                }
-                case "wsc": {
-                    /// ANCHOR: write_single_coil
-                    channel.writeSingleCoil(param, new Bit(ushort(0), true)).thenAccept(ClientExample::handleWriteResult);
-                    /// ANCHOR_END: write_single_coil
-                    break;
-                }
-                case "wsr": {
-                    channel.writeSingleRegister(param, new Register(ushort(0), ushort(76))).thenAccept(ClientExample::handleWriteResult);
-                    break;
-                }
-                case "wmc": {
-                    channel.writeMultipleCoils(param, ushort(0), Arrays.asList(true, false)).thenAccept(ClientExample::handleWriteResult);
-                    break;
-                }
-                case "wmr": {
-                    // ANCHOR: write_multiple_registers
-                    channel.writeMultipleRegisters(param, ushort(0), Arrays.asList(ushort(0xCA), ushort(0xFE))).thenAccept(ClientExample::handleWriteResult);
-                    // ANCHOR_END: write_multiple_registers
-                    break;
-                }
-                default:
-                    System.out.println("Unknown command");
-                    break;
+        switch (command) {
+            case "rc": {
+                // ANCHOR: read_coils
+                channel.readCoils(param, range).whenComplete(ClientExample::handleBitResult);
+                // ANCHOR_END: read_coils
+                break;
             }
+            case "rdi": {
+                channel.readDiscreteInputs(param, range).whenComplete(ClientExample::handleBitResult);
+                break;
+            }
+            case "rhr": {
+                channel.readHoldingRegisters(param, range).whenComplete(ClientExample::handleRegisterResult);
+                break;
+            }
+            case "rir": {
+                channel.readInputRegisters(param, range).whenComplete(ClientExample::handleRegisterResult);
+                break;
+            }
+            case "wsc": {
+                /// ANCHOR: write_single_coil
+                channel.writeSingleCoil(param, new BitValue(ushort(0), true)).whenComplete(ClientExample::handleWriteResult);
+                /// ANCHOR_END: write_single_coil
+                break;
+            }
+            case "wsr": {
+                channel.writeSingleRegister(param, new RegisterValue(ushort(0), ushort(76))).whenComplete(ClientExample::handleWriteResult);
+                break;
+            }
+            case "wmc": {
+                channel.writeMultipleCoils(param, ushort(0), Arrays.asList(true, false)).whenComplete(ClientExample::handleWriteResult);
+                break;
+            }
+            case "wmr": {
+                // ANCHOR: write_multiple_registers
+                channel.writeMultipleRegisters(param, ushort(0), Arrays.asList(ushort(0xCA), ushort(0xFE))).whenComplete(ClientExample::handleWriteResult);
+                // ANCHOR_END: write_multiple_registers
+                break;
+            }
+            default:
+                System.out.println("Unknown command");
+                break;
         }
     }
 
     // ANCHOR: handle_bit_result
-    private static void handleBitResult(BitReadResult result) {
-        if (result.result.summary == Status.OK) {
+    private static void handleBitResult(List<BitValue> bits, Throwable ex) {
+        if (ex == null) {
             System.out.println("success!");
-            for(Bit bit : result.iterator) {
+            for(BitValue bit : bits) {
                 System.out.println("index: " + bit.index + " value: " + bit.value);
             }
-        } else if (result.result.summary == Status.EXCEPTION) {
-            System.out.println("Modbus exception: " + result.result.exception);
         } else {
-            System.out.println("error: " + result.result.summary);
+            System.out.println("error: " + ex.getMessage());
         }
     }
     // ANCHOR_END: handle_bit_result
 
-    private static void handleRegisterResult(RegisterReadResult result) {
-        // ANCHOR: error_handling
-        if (result.result.summary == Status.OK) {
+    private static void handleRegisterResult(List<RegisterValue> registers, Throwable ex) {
+        if (ex == null) {
             System.out.println("success!");
-            for(Register register : result.iterator) {
+            for(RegisterValue register : registers) {
                 System.out.println("index: " + register.index + " value: " + register.value);
             }
-        } else if (result.result.summary == Status.EXCEPTION) {
-            System.out.println("Modbus exception: " + result.result.exception);
         } else {
-            System.out.println("error: " + result.result.summary);
+            System.out.println("error: " + ex.getMessage());
         }
-        // ANCHOR_END: error_handling
     }
 
     // ANCHOR: handle_write_result
-    private static void handleWriteResult(ErrorInfo result) {
-        if (result.summary == Status.OK) {
+    private static void handleWriteResult(Nothing nothing, Throwable ex) {
+        if (ex == null) {
             System.out.println("success!");
-        } else if (result.summary == Status.EXCEPTION) {
-            System.out.println("Modbus exception: " + result.exception);
         } else {
-            System.out.println("error: " + result.summary);
+            System.out.println("error: " + ex.getMessage());
         }
     }
     /// ANCHOR_END: handle_write_result

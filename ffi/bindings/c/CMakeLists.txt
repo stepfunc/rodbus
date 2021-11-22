@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.11)
 
-project(rodbus_c LANGUAGES C)
+project(rodbus_c LANGUAGES C CXX)
 
 set(RODBUS_VERSION 0.9.1)
 
@@ -34,13 +34,25 @@ else()
     endif()
 endif()
 
-# Client example
+# -------------- C examples -----------------
+
+# C Client example
 add_executable(client_example ./client_example.c)
 target_link_libraries(client_example PRIVATE rodbus)
 
-# Server example
+# C Server example
 add_executable(server_example server_example.c)
 target_link_libraries(server_example PRIVATE rodbus)
+
+# -------------- C++ examples -----------------
+
+# C++ Master example
+add_executable(cpp_client_example client_example.cpp)
+target_link_libraries(cpp_client_example PRIVATE rodbus_cpp)
+
+# C++ Outstation example
+add_executable(cpp_server_example server_example.cpp )
+target_link_libraries(cpp_server_example PRIVATE rodbus_cpp)
 
 # Copy the DLL after build
 add_custom_command(TARGET client_example POST_BUILD 
@@ -48,4 +60,10 @@ add_custom_command(TARGET client_example POST_BUILD
 )
 add_custom_command(TARGET server_example POST_BUILD 
     COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:rodbus> $<TARGET_FILE_DIR:server_example>
+)
+add_custom_command(TARGET cpp_client_example POST_BUILD 
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:rodbus> $<TARGET_FILE_DIR:cpp_client_example>
+)
+add_custom_command(TARGET cpp_server_example POST_BUILD 
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:rodbus> $<TARGET_FILE_DIR:cpp_server_example>
 )

@@ -113,7 +113,7 @@ pub(crate) unsafe fn channel_read_input_registers(
 pub(crate) unsafe fn channel_write_single_coil(
     channel: *mut crate::Channel,
     param: crate::ffi::RequestParam,
-    bit: crate::ffi::Bit,
+    bit: crate::ffi::BitValue,
     callback: crate::ffi::WriteCallback,
 ) -> Result<(), ffi::ParamError> {
     let channel = channel.as_ref().ok_or(ffi::ParamError::NullParameter)?;
@@ -130,7 +130,7 @@ pub(crate) unsafe fn channel_write_single_coil(
 pub(crate) unsafe fn channel_write_single_register(
     channel: *mut crate::Channel,
     param: crate::ffi::RequestParam,
-    register: crate::ffi::Register,
+    register: crate::ffi::RegisterValue,
     callback: crate::ffi::WriteCallback,
 ) -> Result<(), ffi::ParamError> {
     let channel = channel.as_ref().ok_or(ffi::ParamError::NullParameter)?;

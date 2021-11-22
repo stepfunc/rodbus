@@ -11,5 +11,5 @@ repository = "https://github.com/stepfunc/rodbus"
 readme = "../README.md"
 
 [dependencies]
-oo-bindgen = { git = "https://github.com/stepfunc/oo_bindgen.git", tag = "0.1.4" }
+oo-bindgen = { git = "https://github.com/stepfunc/oo_bindgen.git", branch = "feature/c++" }
 rodbus = { path = "../../rodbus" }

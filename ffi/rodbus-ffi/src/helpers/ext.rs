@@ -1,16 +1,12 @@
 use crate::ffi;
 use rodbus::client::{CallbackSession, RequestParam};
 use rodbus::UnitId;
-use std::time::Duration;
 
 impl ffi::RequestParam {
     pub(crate) fn build_session(&self, channel: &crate::Channel) -> CallbackSession {
         CallbackSession::new(
             channel.inner.clone(),
-            RequestParam::new(
-                UnitId::new(self.unit_id),
-                Duration::from_millis(self.timeout_ms as u64),
-            ),
+            RequestParam::new(UnitId::new(self.unit_id()), self.timeout()),
         )
     }
 }
@@ -22,17 +18,11 @@ impl ffi::BitReadCallback {
         move |result: std::result::Result<rodbus::BitIterator, rodbus::error::RequestError>| {
             match result {
                 Err(err) => {
-                    self.on_complete(err.into());
+                    self.on_failure(err.into());
                 }
                 Ok(values) => {
-                    let mut iter = crate::BitIterator::new(values);
-
-                    let result = ffi::BitReadResult {
-                        result: ffi::ErrorInfo::success(),
-                        iterator: &mut iter as *mut crate::BitIterator,
-                    };
-
-                    self.on_complete(result);
+                    let mut iter = crate::BitValueIterator::new(values);
+                    self.on_complete(&mut iter as *mut _);
                 }
             }
         }
@@ -47,17 +37,11 @@ impl ffi::RegisterReadCallback {
         move |result: std::result::Result<rodbus::RegisterIterator, rodbus::error::RequestError>| {
             match result {
                 Err(err) => {
-                    self.on_complete(err.into());
+                    self.on_failure(err.into());
                 }
                 Ok(values) => {
-                    let mut iter = crate::RegisterIterator::new(values);
-
-                    let result = ffi::RegisterReadResult {
-                        result: ffi::ErrorInfo::success(),
-                        iterator: &mut iter as *mut crate::RegisterIterator,
-                    };
-
-                    self.on_complete(result);
+                    let mut iter = crate::RegisterValueIterator::new(values);
+                    self.on_complete(&mut iter as *mut _);
                 }
             }
         }
@@ -66,28 +50,18 @@ impl ffi::RegisterReadCallback {
 
 impl ffi::WriteCallback {
     /// we do't care what type T is b/c we're going to ignore it
+    /// ^ you ok mate? (É.G.)
     pub(crate) fn convert_to_fn_once<T>(
         self,
     ) -> impl FnOnce(std::result::Result<T, rodbus::error::RequestError>) {
         move |result: std::result::Result<T, rodbus::error::RequestError>| match result {
             Err(err) => {
-                self.on_complete(err.into());
+                self.on_failure(err.into());
             }
             Ok(_) => {
-                self.on_complete(ffi::ErrorInfo::success());
+                self.on_complete(ffi::Nothing::Nothing);
             }
         }
-    }
-}
-
-impl ffi::ErrorInfo {
-    pub(crate) fn success() -> Self {
-        ffi::ErrorInfoFields {
-            summary: ffi::Status::Ok,
-            exception: ffi::ModbusException::Unknown,
-            raw_exception: 0,
-        }
-        .into()
     }
 }
 
