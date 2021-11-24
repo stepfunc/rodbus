@@ -80,7 +80,7 @@ public class IntegrationTest {
         });
 
         final Server server = Server.tcpServerCreate(runtime, ENDPOINT, ushort(100), deviceMap, new DecodeLevel());
-        final Channel client = Channel.createTcpClient(runtime, ENDPOINT, ushort(10), new RetryStrategy(), new DecodeLevel());
+        final Channel client = Channel.tcpClientCreate(runtime, ENDPOINT, ushort(10), new RetryStrategy(), new DecodeLevel());
 
         // Set a unique pattern to test reads
         server.updateDatabase(UNIT_ID, db -> {

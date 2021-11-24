@@ -67,7 +67,7 @@ int main()
 
     // initialize a Modbus TCP client channel
     // ANCHOR: create_tcp_channel
-    auto channel = rodbus::Channel::create_tcp_client(
+    auto channel = rodbus::Channel::tcp_client_create(
         runtime,
         "127.0.0.1:502",
         100,

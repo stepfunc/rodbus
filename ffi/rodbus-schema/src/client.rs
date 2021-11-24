@@ -7,8 +7,8 @@ pub(crate) fn build(lib: &mut LibraryBuilder, common: &CommonDefinitions) -> Bac
 
     let retry_strategy = build_retry_strategy(lib)?;
 
-    let create_tcp_client_fn = lib
-        .define_function("create_tcp_client")?
+    let tcp_client_create_fn = lib
+        .define_function("tcp_client_create")?
         .param(
             "runtime",
             common.runtime_handle.clone(),
@@ -127,7 +127,7 @@ pub(crate) fn build(lib: &mut LibraryBuilder, common: &CommonDefinitions) -> Bac
 
     lib.define_class(&channel)?
         // abstract factory methods, later we'll have TLS/serial
-        .static_method(create_tcp_client_fn)?
+        .static_method(tcp_client_create_fn)?
         // read methods
         .async_method(read_coils_method)?
         .async_method(read_discrete_inputs_method)?
@@ -152,9 +152,9 @@ fn build_async_read_method(
     lib: &mut LibraryBuilder,
     common: &CommonDefinitions,
     channel: ClassDeclarationHandle,
-    callback: FutureInterface<Unvalidated>,
+    callback: FutureInterfaceHandle,
     docs: &str,
-) -> BackTraced<FutureMethod<Unvalidated>> {
+) -> BackTraced<FutureMethodHandle> {
     let method = lib
         .define_future_method(name, channel, callback)?
         .param(
@@ -179,10 +179,10 @@ fn build_async_write_single_method(
     lib: &mut LibraryBuilder,
     common: &CommonDefinitions,
     channel: ClassDeclarationHandle,
-    callback: FutureInterface<Unvalidated>,
+    callback: FutureInterfaceHandle,
     write_type: UniversalStructHandle,
     docs: &str,
-) -> BackTraced<FutureMethod<Unvalidated>> {
+) -> BackTraced<FutureMethodHandle> {
     let method = lib
         .define_future_method(name, channel, callback)?
         .param(
@@ -203,10 +203,10 @@ fn build_async_write_multiple_method(
     lib: &mut LibraryBuilder,
     common: &CommonDefinitions,
     channel: ClassDeclarationHandle,
-    callback: FutureInterface<Unvalidated>,
+    callback: FutureInterfaceHandle,
     list_type: CollectionHandle,
     docs: &str,
-) -> BackTraced<FutureMethod<Unvalidated>> {
+) -> BackTraced<FutureMethodHandle> {
     let method = lib
         .define_future_method(name, channel, callback)?
         .param(
@@ -226,7 +226,7 @@ fn build_async_write_multiple_method(
 fn build_bit_read_callback(
     lib: &mut LibraryBuilder,
     common: &CommonDefinitions,
-) -> BackTraced<FutureInterface<Unvalidated>> {
+) -> BackTraced<FutureInterfaceHandle> {
     let future = lib.define_future_interface(
         "bit_read_callback",
         "Callback for reading coils or discrete inputs",
@@ -241,7 +241,7 @@ fn build_bit_read_callback(
 fn build_register_read_callback(
     lib: &mut LibraryBuilder,
     common: &CommonDefinitions,
-) -> BackTraced<FutureInterface<Unvalidated>> {
+) -> BackTraced<FutureInterfaceHandle> {
     let future = lib.define_future_interface(
         "register_read_callback",
         "Callback for reading holding or input registers",
@@ -256,7 +256,7 @@ fn build_register_read_callback(
 fn build_write_callback(
     lib: &mut LibraryBuilder,
     common: &CommonDefinitions,
-) -> BackTraced<FutureInterface<Unvalidated>> {
+) -> BackTraced<FutureInterfaceHandle> {
     let future = lib.define_future_interface(
         "write_callback",
         "Callback for write operations",
@@ -277,12 +277,12 @@ fn build_retry_strategy(lib: &mut LibraryBuilder) -> BackTraced<UniversalStructH
         .define_universal_struct(retry_strategy)?
         .add(
             &min_delay_field,
-            BasicType::Duration(DurationType::Milliseconds),
+            DurationType::Milliseconds,
             "Minimum delay between two retries",
         )?
         .add(
             &max_delay_field,
-            BasicType::Duration(DurationType::Milliseconds),
+            DurationType::Milliseconds,
             "Maximum delay between two retries",
         )?
         .doc(doc("Retry strategy configuration.").details(

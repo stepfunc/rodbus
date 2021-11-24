@@ -86,7 +86,7 @@ fn build_add_method(
     db: &ClassDeclarationHandle,
     snake_name: &str,
     value_type: Primitive,
-) -> BackTraced<Method<Unvalidated>> {
+) -> BackTraced<MethodHandle> {
     let spaced_name = snake_name.replace("_", " ");
 
     let method = lib
@@ -113,8 +113,8 @@ fn build_get_method(
     db: &ClassDeclarationHandle,
     snake_name: &str,
     value_type: Primitive,
-    error_type: &ErrorType<Unvalidated>,
-) -> BackTraced<Method<Unvalidated>> {
+    error_type: &ErrorTypeHandle,
+) -> BackTraced<MethodHandle> {
     let spaced_name = snake_name.replace("_", " ");
 
     let method = lib
@@ -139,7 +139,7 @@ fn build_delete_method(
     lib: &mut LibraryBuilder,
     db: &ClassDeclarationHandle,
     snake_name: &str,
-) -> BackTraced<Method<Unvalidated>> {
+) -> BackTraced<MethodHandle> {
     let spaced_name = snake_name.replace("_", " ");
 
     let method = lib
@@ -164,7 +164,7 @@ fn build_update_method(
     db: &ClassDeclarationHandle,
     snake_name: &str,
     value_type: Primitive,
-) -> BackTraced<Method<Unvalidated>> {
+) -> BackTraced<MethodHandle> {
     let spaced_name = snake_name.replace("_", " ");
 
     let method = lib

@@ -84,7 +84,7 @@ int main()
     // initialize a Modbus TCP client channel
     // ANCHOR: create_tcp_channel
     rodbus_decode_level_t decode_level = rodbus_decode_level_init();
-    err = rodbus_create_tcp_client(runtime, "127.0.0.1:502", 100, rodbus_retry_strategy_init(), decode_level, &channel);
+    err = rodbus_tcp_client_create(runtime, "127.0.0.1:502", 100, rodbus_retry_strategy_init(), decode_level, &channel);
     if (err) {
         printf("Unable to initialize channel: %s\n", rodbus_param_error_to_string(err));
         goto cleanup;

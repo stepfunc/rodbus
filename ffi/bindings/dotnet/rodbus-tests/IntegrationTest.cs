@@ -181,7 +181,7 @@ namespace rodbus_tests
             });
 
             var server = Server.TcpServerCreate(runtime, ENDPOINT, 100, map, new DecodeLevel());
-            var client = Channel.CreateTcpClient(runtime, ENDPOINT, 10, new RetryStrategy(), new DecodeLevel());
+            var client = Channel.TcpClientCreate(runtime, ENDPOINT, 10, new RetryStrategy(), new DecodeLevel());
 
             // set a unique pattern to test reads
             server.UpdateDatabase(UNIT_ID, db =>

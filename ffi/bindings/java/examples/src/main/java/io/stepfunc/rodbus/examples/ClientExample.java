@@ -37,7 +37,7 @@ public class ClientExample {
         // initialize a Modbus TCP client channel
         // ANCHOR: create_tcp_channel
         DecodeLevel decodeLevel = new DecodeLevel();
-        Channel channel = Channel.createTcpClient(runtime, "127.0.0.1:502", ushort(100), new RetryStrategy(), decodeLevel);
+        Channel channel = Channel.tcpClientCreate(runtime, "127.0.0.1:502", ushort(100), new RetryStrategy(), decodeLevel);
         // ANCHOR_END: create_tcp_channel
 
         try {

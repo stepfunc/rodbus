@@ -36,7 +36,7 @@ namespace example
             // initialize a Modbus TCP client channel
             // ANCHOR: create_tcp_channel
             var decodeLevel = new DecodeLevel();
-            var channel = Channel.CreateTcpClient(runtime, "127.0.0.1:502", 100, new RetryStrategy(), decodeLevel);
+            var channel = Channel.TcpClientCreate(runtime, "127.0.0.1:502", 100, new RetryStrategy(), decodeLevel);
             // ANCHOR_END: create_tcp_channel
 
             try

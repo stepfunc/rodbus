@@ -7,7 +7,7 @@ pub struct Channel {
     pub(crate) runtime: crate::RuntimeHandle,
 }
 
-pub(crate) unsafe fn create_tcp_client(
+pub(crate) unsafe fn tcp_client_create(
     runtime: *mut crate::Runtime,
     address: &std::ffi::CStr,
     max_queued_requests: u16,

@@ -105,10 +105,6 @@ jobs:
         if: ${{ runner.os == 'Windows' }}
         shell: pwsh
         run: Copy-Item -Path .cargo/config-windows.toml -Destination .cargo/config.toml
-      - name: Copy Linux config
-        if: ${{ runner.os == 'Linux' }}
-        shell: pwsh
-        run: Copy-Item -Path .cargo/config-linux.toml -Destination .cargo/config.toml
       - name: Caching
         uses: Swatinem/rust-cache@v1
       - name: Download Cargo.lock
@@ -142,10 +138,6 @@ jobs:
         if: ${{ runner.os == 'Windows' }}
         shell: pwsh
         run: Copy-Item -Path .cargo/config-windows.toml -Destination .cargo/config.toml
-      - name: Copy Linux config
-        if: ${{ runner.os == 'Linux' }}
-        shell: pwsh
-        run: Copy-Item -Path .cargo/config-linux.toml -Destination .cargo/config.toml
       - name: Caching
         uses: Swatinem/rust-cache@v1
       - name: Download Cargo.lock

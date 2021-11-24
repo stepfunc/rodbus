@@ -1,11 +1,11 @@
 use oo_bindgen::model::*;
 
 pub(crate) struct CommonDefinitions {
-    pub(crate) error_type: ErrorType<Unvalidated>,
+    pub(crate) error_type: ErrorTypeHandle,
     pub(crate) nothing: EnumHandle,
     pub(crate) decode_level: UniversalStructHandle,
     pub(crate) runtime_handle: ClassDeclarationHandle,
-    pub(crate) error_info: ErrorType<Unvalidated>,
+    pub(crate) error_info: ErrorTypeHandle,
     pub(crate) address_range: FunctionArgStructHandle,
     pub(crate) request_param: FunctionArgStructHandle,
     pub(crate) bit_value: UniversalStructHandle,
@@ -40,7 +40,7 @@ impl CommonDefinitions {
     }
 }
 
-fn build_error_type(lib: &mut LibraryBuilder) -> BackTraced<ErrorType<Unvalidated>> {
+fn build_error_type(lib: &mut LibraryBuilder) -> BackTraced<ErrorTypeHandle> {
     let definition = lib
         .define_error_type(
             "param_error",
@@ -114,7 +114,7 @@ fn build_register_value(lib: &mut LibraryBuilder) -> BackTraced<UniversalStructH
 }
 
 fn build_address_range(lib: &mut LibraryBuilder) -> BackTraced<FunctionArgStructHandle> {
-    let info = lib.declare_function_arg_struct("address_range")?;
+    let info = lib.declare_function_argument_struct("address_range")?;
     let info = lib
         .define_function_argument_struct(info)?
         .add("start", Primitive::U16, "Starting address of the range")?
@@ -128,13 +128,13 @@ fn build_address_range(lib: &mut LibraryBuilder) -> BackTraced<FunctionArgStruct
 }
 
 fn build_request_param(lib: &mut LibraryBuilder) -> BackTraced<FunctionArgStructHandle> {
-    let param = lib.declare_function_arg_struct("request_param")?;
+    let param = lib.declare_function_argument_struct("request_param")?;
     let param = lib
         .define_function_argument_struct(param)?
         .add("unit_id", Primitive::U8, "Modbus address for the request")?
         .add(
             "timeout",
-            BasicType::Duration(DurationType::Milliseconds),
+            DurationType::Milliseconds,
             "Response timeout for the request",
         )?
         .doc("Address and timeout parameters for requests")?
@@ -155,7 +155,7 @@ fn build_iterator(
     Ok(iter)
 }
 
-fn build_request_error(lib: &mut LibraryBuilder) -> BackTraced<ErrorType<Unvalidated>> {
+fn build_request_error(lib: &mut LibraryBuilder) -> BackTraced<ErrorTypeHandle> {
     let mut builder = lib
         .define_error_type(
             "request_error",
