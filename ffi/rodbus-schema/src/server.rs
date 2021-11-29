@@ -562,14 +562,14 @@ fn build_tls_server_config(
         )?
         .add(
             "min_tls_version",
-            StructElementType::Enum(common.min_tls_version.clone(), Some("Tls1_2".to_owned())),
+            StructElementType::Enum(common.min_tls_version.clone(), Some("V1_2".to_owned())),
             "Minimum TLS version allowed",
         )?
         .add(
             "certificate_mode",
             StructElementType::Enum(
                 common.certificate_mode.clone(),
-                Some("TrustChain".to_owned()),
+                Some("AuthorityBased".to_owned()),
             ),
             "Certficate validation mode",
         )?

@@ -152,7 +152,7 @@ namespace example
                 "./certs/self_signed/entity2_key.pem",
                 "" // no password
             );
-            selfSignedTlsConfig.CertificateMode = CertificateMode.SelfSignedCertificate;
+            selfSignedTlsConfig.CertificateMode = CertificateMode.SelfSigned;
             // ANCHOR_END: tls_self_signed_config
 
             // ANCHOR: tls_ca_chain_config

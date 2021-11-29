@@ -484,7 +484,7 @@ fn build_tls_client_config(
 ) -> Result<NativeStructHandle, BindingError> {
     let tls_client_config = lib.declare_native_struct("TlsClientConfig")?;
     lib.define_native_struct(&tls_client_config)?
-        .add("dns_name", Type::String, "Expected name to validate in the presented certificate (only in {enum:CertificateMode.TrustChain} mode)")?
+        .add("dns_name", Type::String, "Expected name to validate in the presented certificate (only in {enum:CertificateMode.AuthorityBased} mode)")?
         .add(
             "peer_cert_path",
             Type::String,
@@ -507,10 +507,10 @@ fn build_tls_client_config(
         )?
         .add(
             "min_tls_version",
-            StructElementType::Enum(common.min_tls_version.clone(), Some("Tls1_2".to_owned())),
+            StructElementType::Enum(common.min_tls_version.clone(), Some("V1_2".to_owned())),
             "Minimum TLS version allowed",
         )?
-        .add("certificate_mode", StructElementType::Enum(common.certificate_mode.clone(), Some("TrustChain".to_owned())), "Certficate validation mode")?
+        .add("certificate_mode", StructElementType::Enum(common.certificate_mode.clone(), Some("AuthorityBased".to_owned())), "Certficate validation mode")?
         .doc("TLS client configuration")?
         .build()
 }
