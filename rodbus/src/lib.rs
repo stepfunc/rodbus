@@ -167,7 +167,7 @@
     unreachable_pub,
     anonymous_parameters,
     missing_copy_implementations,
-    missing_debug_implementations,
+    //missing_debug_implementations,
     missing_docs,
     trivial_casts,
     trivial_numeric_casts,
@@ -177,7 +177,7 @@
 )]
 #![forbid(
     unsafe_code,
-    broken_intra_doc_links,
+    rustdoc::broken_intra_doc_links,
     unaligned_references,
     while_true,
     bare_trait_objects

@@ -53,7 +53,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         addr,
         ServerHandlerMap::single(UnitId::new(1), handler),
         DecodeLevel::new(
-            PduDecodeLevel::DataValues,
+            PduDecodeLevel::Nothing,
             AduDecodeLevel::Nothing,
             PhysDecodeLevel::Nothing,
         ),

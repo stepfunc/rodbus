@@ -91,7 +91,7 @@ public class ServerExample {
 
         // ANCHOR: tcp_server_create
         DecodeLevel decodeLevel = new DecodeLevel();
-        Server server = Server.tcpServerCreate(runtime, "127.0.0.1:502", ushort(10), map, decodeLevel);
+        Server server = Server.createTcp(runtime, "127.0.0.1:502", ushort(10), map, decodeLevel);
         // ANCHOR_END: tcp_server_create
 
         try {

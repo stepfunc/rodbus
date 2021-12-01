@@ -1,23 +1,25 @@
+use std::path::Path;
+
 use crate::ffi;
 use rodbus::client::{ReconnectStrategy, WriteMultiple};
 use rodbus::AddressRange;
 
-pub struct Channel {
+pub struct ClientChannel {
     pub(crate) inner: rodbus::client::Channel,
     pub(crate) runtime: crate::RuntimeHandle,
 }
 
-pub(crate) unsafe fn tcp_client_create(
+pub(crate) unsafe fn client_channel_create_tcp(
     runtime: *mut crate::Runtime,
     address: &std::ffi::CStr,
     max_queued_requests: u16,
     retry_strategy: ffi::RetryStrategy,
     decode_level: ffi::DecodeLevel,
-) -> Result<*mut crate::Channel, ffi::ParamError> {
+) -> Result<*mut crate::ClientChannel, ffi::ParamError> {
     let runtime = runtime.as_ref().ok_or(ffi::ParamError::NullParameter)?;
     let address = address.to_string_lossy().parse()?;
 
-    let (handle, task) = rodbus::client::create_handle_and_task(
+    let (handle, task) = rodbus::client::create_tcp_handle_and_task(
         address,
         max_queued_requests as usize,
         retry_strategy.into(),
@@ -26,20 +28,67 @@ pub(crate) unsafe fn tcp_client_create(
 
     runtime.inner.spawn(task);
 
-    Ok(Box::into_raw(Box::new(Channel {
+    Ok(Box::into_raw(Box::new(ClientChannel {
         inner: handle,
         runtime: runtime.handle(),
     })))
 }
 
-pub(crate) unsafe fn channel_destroy(channel: *mut crate::Channel) {
+pub(crate) unsafe fn client_channel_create_tls(
+    runtime: *mut crate::Runtime,
+    address: &std::ffi::CStr,
+    max_queued_requests: u16,
+    retry_strategy: ffi::RetryStrategy,
+    tls_config: ffi::TlsClientConfig,
+    decode_level: ffi::DecodeLevel,
+) -> Result<*mut crate::ClientChannel, ffi::ParamError> {
+    let runtime = runtime.as_ref().ok_or(ffi::ParamError::NullParameter)?;
+    let address = address.to_string_lossy().parse()?;
+
+    let password = tls_config.password().to_string_lossy();
+    let optional_password = match password.as_ref() {
+        "" => None,
+        password => Some(password),
+    };
+
+    let tls_config = rodbus::client::TlsClientConfig::new(
+        &tls_config.dns_name().to_string_lossy(),
+        Path::new(tls_config.peer_cert_path().to_string_lossy().as_ref()),
+        Path::new(tls_config.local_cert_path().to_string_lossy().as_ref()),
+        Path::new(tls_config.private_key_path().to_string_lossy().as_ref()),
+        optional_password,
+        tls_config.min_tls_version().into(),
+        tls_config.certificate_mode().into(),
+    )
+    .map_err(|err| {
+        tracing::error!("TLS error: {}", err);
+        err
+    })?;
+
+    let (handle, task) = rodbus::client::create_tls_handle_and_task(
+        address,
+        max_queued_requests as usize,
+        retry_strategy.into(),
+        tls_config,
+        decode_level.into(),
+    );
+
+    runtime.inner.spawn(task);
+
+    Ok(Box::into_raw(Box::new(ClientChannel {
+        inner: handle,
+        runtime: runtime.handle(),
+    })))
+}
+
+pub(crate) unsafe fn client_channel_destroy(channel: *mut crate::ClientChannel) {
     if !channel.is_null() {
         Box::from_raw(channel);
     };
 }
 
-pub(crate) unsafe fn channel_read_coils(
-    channel: *mut crate::Channel,
+pub(crate) unsafe fn client_channel_read_coils(
+    channel: *mut crate::ClientChannel,
     param: crate::ffi::RequestParam,
     range: crate::ffi::AddressRange,
     callback: crate::ffi::BitReadCallback,
@@ -56,8 +105,8 @@ pub(crate) unsafe fn channel_read_coils(
     Ok(())
 }
 
-pub(crate) unsafe fn channel_read_discrete_inputs(
-    channel: *mut crate::Channel,
+pub(crate) unsafe fn client_channel_read_discrete_inputs(
+    channel: *mut crate::ClientChannel,
     param: crate::ffi::RequestParam,
     range: crate::ffi::AddressRange,
     callback: crate::ffi::BitReadCallback,
@@ -74,8 +123,8 @@ pub(crate) unsafe fn channel_read_discrete_inputs(
     Ok(())
 }
 
-pub(crate) unsafe fn channel_read_holding_registers(
-    channel: *mut crate::Channel,
+pub(crate) unsafe fn client_channel_read_holding_registers(
+    channel: *mut crate::ClientChannel,
     param: crate::ffi::RequestParam,
     range: crate::ffi::AddressRange,
     callback: crate::ffi::RegisterReadCallback,
@@ -92,8 +141,8 @@ pub(crate) unsafe fn channel_read_holding_registers(
     Ok(())
 }
 
-pub(crate) unsafe fn channel_read_input_registers(
-    channel: *mut crate::Channel,
+pub(crate) unsafe fn client_channel_read_input_registers(
+    channel: *mut crate::ClientChannel,
     param: crate::ffi::RequestParam,
     range: crate::ffi::AddressRange,
     callback: crate::ffi::RegisterReadCallback,
@@ -110,8 +159,8 @@ pub(crate) unsafe fn channel_read_input_registers(
     Ok(())
 }
 
-pub(crate) unsafe fn channel_write_single_coil(
-    channel: *mut crate::Channel,
+pub(crate) unsafe fn client_channel_write_single_coil(
+    channel: *mut crate::ClientChannel,
     param: crate::ffi::RequestParam,
     bit: crate::ffi::BitValue,
     callback: crate::ffi::WriteCallback,
@@ -127,8 +176,8 @@ pub(crate) unsafe fn channel_write_single_coil(
     Ok(())
 }
 
-pub(crate) unsafe fn channel_write_single_register(
-    channel: *mut crate::Channel,
+pub(crate) unsafe fn client_channel_write_single_register(
+    channel: *mut crate::ClientChannel,
     param: crate::ffi::RequestParam,
     register: crate::ffi::RegisterValue,
     callback: crate::ffi::WriteCallback,
@@ -146,8 +195,8 @@ pub(crate) unsafe fn channel_write_single_register(
     Ok(())
 }
 
-pub(crate) unsafe fn channel_write_multiple_coils(
-    channel: *mut crate::Channel,
+pub(crate) unsafe fn client_channel_write_multiple_coils(
+    channel: *mut crate::ClientChannel,
     param: crate::ffi::RequestParam,
     start: u16,
     items: *mut crate::BitList,
@@ -166,8 +215,8 @@ pub(crate) unsafe fn channel_write_multiple_coils(
     Ok(())
 }
 
-pub(crate) unsafe fn channel_write_multiple_registers(
-    channel: *mut crate::Channel,
+pub(crate) unsafe fn client_channel_write_multiple_registers(
+    channel: *mut crate::ClientChannel,
     param: crate::ffi::RequestParam,
     start: u16,
     items: *mut crate::RegisterList,

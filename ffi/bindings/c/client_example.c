@@ -64,7 +64,7 @@ int main()
     rodbus_runtime_t *runtime = NULL;
     // ANCHOR_END: runtime_decl
     // ANCHOR: channel_decl
-    rodbus_channel_t *channel = NULL;
+    rodbus_client_channel_t *channel = NULL;
     // ANCHOR_END: channel_decl
     // ANCHOR: error_decl
     rodbus_param_error_t err = RODBUS_PARAM_ERROR_OK;
@@ -84,7 +84,7 @@ int main()
     // initialize a Modbus TCP client channel
     // ANCHOR: create_tcp_channel
     rodbus_decode_level_t decode_level = rodbus_decode_level_init();
-    err = rodbus_tcp_client_create(runtime, "127.0.0.1:502", 100, rodbus_retry_strategy_init(), decode_level, &channel);
+    err = rodbus_client_channel_create_tcp(runtime, "127.0.0.1:502", 100, rodbus_retry_strategy_init(), decode_level, &channel);
     if (err) {
         printf("Unable to initialize channel: %s\n", rodbus_param_error_to_string(err));
         goto cleanup;
@@ -137,27 +137,27 @@ int main()
         }
         else if (strcmp(cbuf, "rc\n") == 0) {
             // ANCHOR: read_coils
-            rodbus_channel_read_coils(channel, param, range, bit_callback);
+            rodbus_client_channel_read_coils(channel, param, range, bit_callback);
             // ANCHOR_END: read_coils
         }
         else if (strcmp(cbuf, "rdi\n") == 0) {
-            rodbus_channel_read_discrete_inputs(channel, param, range, bit_callback);
+            rodbus_client_channel_read_discrete_inputs(channel, param, range, bit_callback);
         }
         else if (strcmp(cbuf, "rhr\n") == 0) {
-            rodbus_channel_read_holding_registers(channel, param, range, register_callback);
+            rodbus_client_channel_read_holding_registers(channel, param, range, register_callback);
         }
         else if (strcmp(cbuf, "rir\n") == 0) {
-            rodbus_channel_read_input_registers(channel, param, range, register_callback);
+            rodbus_client_channel_read_input_registers(channel, param, range, register_callback);
         }
         else if (strcmp(cbuf, "wsc\n") == 0) {
             /// ANCHOR: write_single_coil
             rodbus_bit_value_t bit_value = rodbus_bit_value_init(0, true);
-            rodbus_channel_write_single_coil(channel, param, bit_value, write_callback);
+            rodbus_client_channel_write_single_coil(channel, param, bit_value, write_callback);
             /// ANCHOR_END: write_single_coil
         }
         else if (strcmp(cbuf, "wsr\n") == 0) {
             rodbus_register_value_t register_value = rodbus_register_value_init(0, 76);
-            rodbus_channel_write_single_register(channel, param, register_value, write_callback);
+            rodbus_client_channel_write_single_register(channel, param, register_value, write_callback);
         }
         else if (strcmp(cbuf, "wmc\n") == 0) {
             // create the bitlist
@@ -166,7 +166,7 @@ int main()
             rodbus_bit_list_add(bit_list, false);
 
             // send the request
-            rodbus_channel_write_multiple_coils(channel, param, 0, bit_list, write_callback);
+            rodbus_client_channel_write_multiple_coils(channel, param, 0, bit_list, write_callback);
 
             // destroy the bitlist
             rodbus_bit_list_destroy(bit_list);
@@ -179,7 +179,7 @@ int main()
             rodbus_register_list_add(register_list, 0xFE);
 
             // send the request
-            rodbus_channel_write_multiple_registers(channel, param, 0, register_list, write_callback);
+            rodbus_client_channel_write_multiple_registers(channel, param, 0, register_list, write_callback);
 
             // destroy the register list
             rodbus_register_list_destroy(register_list);
@@ -191,7 +191,7 @@ int main()
     }
 
 cleanup:
-    rodbus_channel_destroy(channel);
+    rodbus_client_channel_destroy(channel);
     // ANCHOR: runtime_destroy
     rodbus_runtime_destroy(runtime);
     // ANCHOR_END: runtime_destroy

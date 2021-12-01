@@ -14,14 +14,16 @@ class Logger : public rodbus::Logger {
 // ANCHOR: bit_read_callback
 class BitReadCallback : public rodbus::BitReadCallback
 {
-    void on_complete(rodbus::BitValueIterator& it) override {
+    void on_complete(rodbus::BitValueIterator& it) override
+    {
         std::cout << "success!" << std::endl;
         while (it.next()) {
             const auto value = it.get();
             std::cout << "index: " << value.index << "value: " << value.value << std::endl;
         }
     }
-    void on_failure(rodbus::RequestError err) override {
+    void on_failure(rodbus::RequestError err) override
+    {
         std::cout << "error: " << rodbus::to_string(err) << std::endl;
     }
 };
@@ -29,24 +31,28 @@ class BitReadCallback : public rodbus::BitReadCallback
 
 class RegisterReadCallback : public rodbus::RegisterReadCallback
 {
-    void on_complete(rodbus::RegisterValueIterator& it) override {
+    void on_complete(rodbus::RegisterValueIterator& it) override
+    {
         std::cout << "success!" << std::endl;
         while (it.next()) {
             const auto value = it.get();
             std::cout << "index: " << value.index << "value: " << value.value << std::endl;
         }
     }
-    void on_failure(rodbus::RequestError err) override {
+    void on_failure(rodbus::RequestError err) override
+    {
         std::cout << "error: " << rodbus::to_string(err) << std::endl;
     }
 };
 
 class WriteCallback : public rodbus::WriteCallback
 {
-    void on_complete(rodbus::Nothing result) override {
+    void on_complete(rodbus::Nothing result) override
+    {
         std::cout << "success!" << std::endl;
     }
-    void on_failure(rodbus::RequestError err) override {
+    void on_failure(rodbus::RequestError err) override
+    {
         std::cout << "error: " << rodbus::to_string(err) << std::endl;
     }
 };
@@ -67,7 +73,7 @@ int main()
 
     // initialize a Modbus TCP client channel
     // ANCHOR: create_tcp_channel
-    auto channel = rodbus::Channel::tcp_client_create(
+    auto channel = rodbus::ClientChannel::create_tcp(
         runtime,
         "127.0.0.1:502",
         100,

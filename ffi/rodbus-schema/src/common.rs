@@ -6,13 +6,15 @@ pub(crate) struct CommonDefinitions {
     pub(crate) decode_level: UniversalStructHandle,
     pub(crate) runtime_handle: ClassDeclarationHandle,
     pub(crate) error_info: ErrorTypeHandle,
-    pub(crate) address_range: FunctionArgStructHandle,
+    pub(crate) address_range: UniversalStructHandle,
     pub(crate) request_param: FunctionArgStructHandle,
     pub(crate) bit_value: UniversalStructHandle,
     pub(crate) register_value: UniversalStructHandle,
     pub(crate) bit_iterator: AbstractIteratorHandle,
     pub(crate) register_iterator: AbstractIteratorHandle,
     pub(crate) exception: EnumHandle,
+    pub(crate) min_tls_version: EnumHandle,
+    pub(crate) certificate_mode: EnumHandle,
 }
 
 impl CommonDefinitions {
@@ -36,6 +38,8 @@ impl CommonDefinitions {
             bit_iterator: build_iterator(lib, &bit_value)?,
             register_iterator: build_iterator(lib, &register_value)?,
             exception: build_exception(lib)?,
+            min_tls_version: build_min_tls_version(lib)?,
+            certificate_mode: build_certificate_mode(lib)?,
         })
     }
 }
@@ -70,6 +74,14 @@ fn build_error_type(lib: &mut LibraryBuilder) -> BackTraced<ErrorTypeHandle> {
             "invalid_unit_id",
             "The specified unit id is not associated to this server",
         )?
+        .add_error("invalid_peer_certificate", "Invalid peer certificate file")?
+        .add_error(
+            "invalid_local_certificate",
+            "Invalid local certificate file",
+        )?
+        .add_error("invalid_private_key", "Invalid private key file")?
+        .add_error("invalid_dns_name", "Invalid DNS name")?
+        .add_error("other_tls_error", "Other tls error")?
         .doc("Error type used throughout the library")?
         .build()?;
 
@@ -113,10 +125,10 @@ fn build_register_value(lib: &mut LibraryBuilder) -> BackTraced<UniversalStructH
     Ok(register)
 }
 
-fn build_address_range(lib: &mut LibraryBuilder) -> BackTraced<FunctionArgStructHandle> {
-    let info = lib.declare_function_argument_struct("address_range")?;
+fn build_address_range(lib: &mut LibraryBuilder) -> BackTraced<UniversalStructHandle> {
+    let info = lib.declare_universal_struct("address_range")?;
     let info = lib
-        .define_function_argument_struct(info)?
+        .define_universal_struct(info)?
         .add("start", Primitive::U16, "Starting address of the range")?
         .add("count", Primitive::U16, "Number of addresses in the range")?
         .doc("Range of 16-bit addresses")?
@@ -213,6 +225,36 @@ fn build_exception(lib: &mut LibraryBuilder) -> BackTraced<EnumHandle> {
     }
 
     let definition = builder.build()?;
+
+    Ok(definition)
+}
+
+fn build_min_tls_version(lib: &mut LibraryBuilder) -> BackTraced<EnumHandle> {
+    let definition = lib
+        .define_enum("min_tls_version")?
+        .push("v12", "TLS 1.2")?
+        .push("v13", "TLS 1.3")?
+        .doc("Minimum TLS version to allow")?
+        .build()?;
+
+    Ok(definition)
+}
+
+fn build_certificate_mode(lib: &mut LibraryBuilder) -> BackTraced<EnumHandle> {
+    let definition = lib.define_enum("certificate_mode")?
+        .push("authority_based",
+        doc("Validates the peer certificate against one or more configured trust anchors")
+            .details("This mode uses the default certificate verifier in `rustls` to ensure that the chain of certificates presented by the peer is valid against one of the configured trust anchors.")
+            .details("The name verification is relaxed to allow for certificates that do not contain the SAN extension. In these cases the name is verified using the Common Name instead.")
+        )?
+        .push("self_signed",
+            doc("Validates that the peer presents a single certificate which is a byte-for-byte match against the configured peer certificate")
+                .details("The certificate is parsed only to ensure that the `NotBefore` and `NotAfter` are valid for the current system time.")
+        )?
+        .doc(
+            doc("Determines how the certificate(s) presented by the peer are validated")
+                .details("This validation always occurs **after** the handshake signature has been verified."))?
+        .build()?;
 
     Ok(definition)
 }

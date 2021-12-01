@@ -3,7 +3,7 @@ use rodbus::client::{CallbackSession, RequestParam};
 use rodbus::UnitId;
 
 impl ffi::RequestParam {
-    pub(crate) fn build_session(&self, channel: &crate::Channel) -> CallbackSession {
+    pub(crate) fn build_session(&self, channel: &crate::ClientChannel) -> CallbackSession {
         CallbackSession::new(
             channel.inner.clone(),
             RequestParam::new(UnitId::new(self.unit_id()), self.timeout()),

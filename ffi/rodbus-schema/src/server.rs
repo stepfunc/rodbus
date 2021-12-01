@@ -34,11 +34,13 @@ pub(crate) fn build_server(
         db_update_callback.clone(),
         common,
     )?;
+    let tls_server_config = build_tls_server_config(lib, common)?;
+    let authorization_handler = build_authorization_handler(lib, common)?;
 
     let server = lib.declare_class("server")?;
 
     let tcp_constructor = lib
-        .define_function("tcp_server_create")?
+        .define_function("server_create_tcp")?
         .param(
             "runtime",
             common.runtime_handle.clone(),
@@ -54,8 +56,42 @@ pub(crate) fn build_server(
         .param("decode_level", common.decode_level.clone(), "Decode levels for this server")?
         .returns(server.clone(), "TCP server instance")?
         .fails_with(common.error_type.clone())?
-        .doc("Launch a TCP server. When the maximum number of concurrent sessions is reached, the oldest session is closed.")?
-        .build_static_with_same_name()?;
+        .doc(doc("Launch a TCP server.")
+            .details("Recommended port for Modbus is 502.")
+            .details("When the maximum number of concurrent sessions is reached, the oldest session is closed."))?
+            .build_static("create_tcp")?;
+
+    let tls_constructor = lib
+        .define_function("server_create_tls")?
+        .param(
+            "runtime",
+            common.runtime_handle.clone(),
+            "runtime on which to spawn the server",
+        )?
+        .param("address", StringType, "IPv4 or IPv6 host/port string")?
+        .param("max_sessions", Primitive::U16, "Maximum number of concurrent sessions")?
+        .param(
+            "endpoints",
+            handler_map.declaration(),
+            "Map of endpoints which is emptied upon passing to this function",
+        )?
+        .param(
+            "tls_config",
+            tls_server_config,
+            "TLS server configuration",
+        )?
+        .param(
+            "authorization_handler",
+            authorization_handler,
+            "Authorization handler",
+        )?
+        .param("decode_level", common.decode_level.clone(), "Decode levels for this server")?
+        .returns(server.clone(), "TCP server instance")?
+        .fails_with(common.error_type.clone())?
+        .doc(doc("Launch a TLS server.")
+            .details("Recommended port for Modbus is 502.")
+            .details("When the maximum number of concurrent sessions is reached, the oldest session is closed."))?
+            .build_static("create_tls")?;
 
     let destructor = lib.define_destructor(
         server.clone(),
@@ -72,6 +108,7 @@ pub(crate) fn build_server(
 
     let server = lib.define_class(&server)?
         .static_method(tcp_constructor)?
+        .static_method(tls_constructor)?
         .method(update_fn)?
         .destructor(destructor)?
         .custom_destroy("shutdown")?
@@ -321,6 +358,156 @@ fn build_handler_map(
         .build()?;
 
     Ok(class)
+}
+
+fn build_authorization_handler(
+    lib: &mut LibraryBuilder,
+    common: &CommonDefinitions,
+) -> BackTraced<AsynchronousInterface> {
+    let auth_result = lib
+        .define_enum("authorization_result")?
+        .push(
+            "authorized",
+            "Client is authorized to perform the operation",
+        )?
+        .push(
+            "not_authorized",
+            "Client is non authorized to perform the operation",
+        )?
+        .doc("Authorization result used by {interface:authorization_handler}")?
+        .build()?;
+
+    let definition = lib
+        .define_interface(
+            "authorization_handler",
+            "Modbus Security authorization handler",
+        )?
+        .begin_callback("read_coils", "Authorize a Read Discrete Inputs request")?
+        .param("unit_id", Primitive::U8, "Target unit ID")?
+        .param("range", common.address_range.clone(), "Range to read")?
+        .param("role", StringType, "Authenticated Modbus role")?
+        .returns(auth_result.clone(), "Authorization result")?
+        .end_callback()?
+        .begin_callback(
+            "read_discrete_inputs",
+            "Authorize a Read Discrete Inputs request",
+        )?
+        .param("unit_id", Primitive::U8, "Target unit ID")?
+        .param("range", common.address_range.clone(), "Range to read")?
+        .param("role", StringType, "Authenticated Modbus role")?
+        .returns(auth_result.clone(), "Authorization result")?
+        .end_callback()?
+        .begin_callback(
+            "read_holding_registers",
+            "Authorize a Read Holding Registers request",
+        )?
+        .param("unit_id", Primitive::U8, "Target unit ID")?
+        .param("range", common.address_range.clone(), "Range to read")?
+        .param("role", StringType, "Authenticated Modbus role")?
+        .returns(auth_result.clone(), "Authorization result")?
+        .end_callback()?
+        .begin_callback(
+            "read_input_registers",
+            "Authorize a Read Input Registers request",
+        )?
+        .param("unit_id", Primitive::U8, "Target unit ID")?
+        .param("range", common.address_range.clone(), "Range to read")?
+        .param("role", StringType, "Authenticated Modbus role")?
+        .returns(auth_result.clone(), "Authorization result")?
+        .end_callback()?
+        .begin_callback("write_single_coil", "Authorize a Write Single Coil request")?
+        .param("unit_id", Primitive::U8, "Target unit ID")?
+        .param("index", Primitive::U16, "Target index")?
+        .param("role", StringType, "Authenticated Modbus role")?
+        .returns(auth_result.clone(), "Authorization result")?
+        .end_callback()?
+        .begin_callback(
+            "write_single_register",
+            "Authorize a Write Single Register request",
+        )?
+        .param("unit_id", Primitive::U8, "Target unit ID")?
+        .param("index", Primitive::U16, "Target index")?
+        .param("role", StringType, "Authenticated Modbus role")?
+        .returns(auth_result.clone(), "Authorization result")?
+        .end_callback()?
+        .begin_callback(
+            "write_multiple_coils",
+            "Authorize a Write Multiple Coils request",
+        )?
+        .param("unit_id", Primitive::U8, "Target unit ID")?
+        .param("range", common.address_range.clone(), "Range to read")?
+        .param("role", StringType, "Authenticated Modbus role")?
+        .returns(auth_result.clone(), "Authorization result")?
+        .end_callback()?
+        .begin_callback(
+            "write_multiple_registers",
+            "Authorize a Write Multiple Registers request",
+        )?
+        .param("unit_id", Primitive::U8, "Target unit ID")?
+        .param("range", common.address_range.clone(), "Range to read")?
+        .param("role", StringType, "Authenticated Modbus role")?
+        .returns(auth_result, "Authorization result")?
+        .end_callback()?
+        .build_async()?;
+
+    Ok(definition)
+}
+
+fn build_tls_server_config(
+    lib: &mut LibraryBuilder,
+    common: &CommonDefinitions,
+) -> BackTraced<FunctionArgStructHandle> {
+    let min_tls_version_field = Name::create("min_tls_version")?;
+    let certificate_mode_field = Name::create("certificate_mode")?;
+
+    let tls_server_config = lib.declare_function_argument_struct("tls_server_config")?;
+    let tls_server_config = lib
+        .define_function_argument_struct(tls_server_config)?
+        .add(
+            "peer_cert_path",
+            StringType,
+            "Path to the PEM-encoded certificate of the peer",
+        )?
+        .add(
+            "local_cert_path",
+            StringType,
+            "Path to the PEM-encoded local certificate",
+        )?
+        .add(
+            "private_key_path",
+            StringType,
+            "Path to the the PEM-encoded private key",
+        )?
+        .add(
+            "password",
+            StringType,
+            doc("Optional password if the private key file is encrypted")
+                .details("Only PKCS#8 encrypted files are supported.")
+                .details("Pass empty string if the file is not encrypted."),
+        )?
+        .add(
+            &min_tls_version_field,
+            common.min_tls_version.clone(),
+            "Minimum TLS version allowed",
+        )?
+        .add(
+            &certificate_mode_field,
+            common.certificate_mode.clone(),
+            "Certficate validation mode",
+        )?
+        .doc("TLS server configuration")?
+        .end_fields()?
+        .begin_initializer(
+            "init",
+            InitializerType::Normal,
+            "Initialize a TLS client configuration",
+        )?
+        .default_variant(&min_tls_version_field, "v12")?
+        .default_variant(&certificate_mode_field, "authority_based")?
+        .end_initializer()?
+        .build()?;
+
+    Ok(tls_server_config)
 }
 
 fn build_write_handler_interface(

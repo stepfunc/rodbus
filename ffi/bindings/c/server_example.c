@@ -153,7 +153,7 @@ int main()
     // create the TCP server
     // ANCHOR: tcp_server_create
     rodbus_decode_level_t decode_level = rodbus_decode_level_init();
-    err = rodbus_tcp_server_create(runtime, "127.0.0.1:502", 100, map, decode_level, &server);
+    err = rodbus_server_create_tcp(runtime, "127.0.0.1:502", 100, map, decode_level, &server);
     rodbus_device_map_destroy(map);
 
     if (err) {

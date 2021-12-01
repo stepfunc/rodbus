@@ -1,3 +1,7 @@
+use rodbus::client::{CertificateMode, MinTlsVersion, TlsError};
+use rodbus::server::AuthorizationResult;
+use rodbus::AddressRange;
+
 use crate::ffi;
 
 impl From<rodbus::error::RequestError> for ffi::RequestError {
@@ -58,5 +62,53 @@ impl std::convert::From<ffi::BitValue> for rodbus::Indexed<bool> {
 impl std::convert::From<ffi::RegisterValue> for rodbus::Indexed<u16> {
     fn from(x: ffi::RegisterValue) -> Self {
         rodbus::Indexed::new(x.index, x.value)
+    }
+}
+
+impl From<AddressRange> for ffi::AddressRange {
+    fn from(x: AddressRange) -> Self {
+        ffi::AddressRange {
+            start: x.start,
+            count: x.count,
+        }
+    }
+}
+
+impl From<ffi::AuthorizationResult> for AuthorizationResult {
+    fn from(x: ffi::AuthorizationResult) -> Self {
+        match x {
+            ffi::AuthorizationResult::Authorized => Self::Authorized,
+            ffi::AuthorizationResult::NotAuthorized => Self::NotAuthorized,
+        }
+    }
+}
+
+impl From<TlsError> for ffi::ParamError {
+    fn from(error: TlsError) -> Self {
+        match error {
+            TlsError::InvalidDnsName => ffi::ParamError::InvalidDnsName,
+            TlsError::InvalidPeerCertificate(_) => ffi::ParamError::InvalidPeerCertificate,
+            TlsError::InvalidLocalCertificate(_) => ffi::ParamError::InvalidLocalCertificate,
+            TlsError::InvalidPrivateKey(_) => ffi::ParamError::InvalidPrivateKey,
+            TlsError::Other(_) => ffi::ParamError::OtherTlsError,
+        }
+    }
+}
+
+impl From<ffi::MinTlsVersion> for MinTlsVersion {
+    fn from(from: ffi::MinTlsVersion) -> Self {
+        match from {
+            ffi::MinTlsVersion::V12 => MinTlsVersion::V1_2,
+            ffi::MinTlsVersion::V13 => MinTlsVersion::V1_3,
+        }
+    }
+}
+
+impl From<ffi::CertificateMode> for CertificateMode {
+    fn from(from: ffi::CertificateMode) -> Self {
+        match from {
+            ffi::CertificateMode::AuthorityBased => CertificateMode::AuthorityBased,
+            ffi::CertificateMode::SelfSigned => CertificateMode::SelfSigned,
+        }
     }
 }

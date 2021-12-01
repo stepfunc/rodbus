@@ -12,9 +12,10 @@ class Logger : public rodbus::Logger {
 };
 
 // ANCHOR: write_handler
-struct WriterHandler : public rodbus::WriteHandler
+class WriterHandler : public rodbus::WriteHandler
 {
-    rodbus::WriteResult write_single_coil(uint16_t index, bool value, rodbus::Database& db) override {
+    rodbus::WriteResult write_single_coil(uint16_t index, bool value, rodbus::Database& db) override
+    {
         if(db.update_coil(index, value))
         {
             return rodbus::WriteResult::success_init();
@@ -25,7 +26,8 @@ struct WriterHandler : public rodbus::WriteHandler
         }
     }
 
-    rodbus::WriteResult write_single_register(uint16_t index, uint16_t value, rodbus::Database& db) override {
+    rodbus::WriteResult write_single_register(uint16_t index, uint16_t value, rodbus::Database& db) override
+    {
         if(db.update_holding_register(index, value))
         {
             return rodbus::WriteResult::success_init();
@@ -36,7 +38,8 @@ struct WriterHandler : public rodbus::WriteHandler
         }
     }
 
-    rodbus::WriteResult write_multiple_coils(uint16_t index, rodbus::BitValueIterator& it, rodbus::Database& db) override {
+    rodbus::WriteResult write_multiple_coils(uint16_t index, rodbus::BitValueIterator& it, rodbus::Database& db) override
+    {
         auto result = rodbus::WriteResult::success_init();
         while (it.next())
         {
@@ -49,7 +52,8 @@ struct WriterHandler : public rodbus::WriteHandler
         return result;
     }
 
-    rodbus::WriteResult write_multiple_registers(uint16_t index, rodbus::RegisterValueIterator& it, rodbus::Database& db) override {
+    rodbus::WriteResult write_multiple_registers(uint16_t index, rodbus::RegisterValueIterator& it, rodbus::Database& db) override
+    {
         auto result = rodbus::WriteResult::success_init();
         while (it.next())
         {
@@ -91,7 +95,7 @@ int main()
 
     // create the TCP server
     // ANCHOR: tcp_server_create
-    auto server = rodbus::Server::tcp_server_create(runtime, "127.0.0.1:502", 100, device_map, rodbus::DecodeLevel());
+    auto server = rodbus::Server::create_tcp(runtime, "127.0.0.1:502", 100, device_map, rodbus::DecodeLevel());
     // ANCHOR_END: tcp_server_create
 
     // state passed to the update callbacks

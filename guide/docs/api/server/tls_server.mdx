@@ -1,0 +1,147 @@
+---
+id: tls_server
+title: TLS Server
+sidebar_label: TLS Server
+slug: /api/outstation/tls_server
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+Creating a TLS server for outstation instances is exactly the same process as a [TCP server](./tcp_server.mdx),
+except that an extra `TlsServerConfig` and an `AuthorizationHandler` is required. For more details about TLS
+support and the configuration options, check the [TLS general information](../tls.mdx) page.
+
+## Examples
+
+### Certificate chain configuration
+
+<Tabs
+groupId="language"
+defaultValue="Rust"
+values={[
+{label: 'Rust', value: 'Rust'},
+{label: 'C', value: 'C'},
+{label: 'Java', value: 'Java'},
+{label: 'C#', value: 'C#'},
+]}>
+<TabItem value="Rust">
+
+```rust
+{{#include ../rodbus/examples/server_tls.rs:handler_create}}
+
+{{#include ../rodbus/examples/server_tls.rs:tls_ca_chain_config}}
+let tls_config = ca_chain_tls_config;
+
+{{#include ../rodbus/examples/server_tls.rs:tls_server_create}}
+```
+
+</TabItem>
+<TabItem value="C">
+
+```c
+{{#include ../ffi/bindings/c/server_tls_example.c:auth_handler}}
+
+{{#include ../ffi/bindings/c/server_tls_example.c:auth_handler_init}}
+
+{{#include ../ffi/bindings/c/server_tls_example.c:device_map_init}}
+
+{{#include ../ffi/bindings/c/server_tls_example.c:tls_ca_chain_config}}
+rodbus_tls_server_config_t tls_config = ca_chain_tls_config;
+
+{{#include ../ffi/bindings/c/server_tls_example.c:tls_server_create}}
+// check error
+```
+
+</TabItem>
+<TabItem value="Java">
+
+```java
+{{#include ../ffi/bindings/java/examples/src/main/java/io/stepfunc/rodbus/examples/ServerTlsExample.java:auth_handler}}
+
+{{#include ../ffi/bindings/java/examples/src/main/java/io/stepfunc/rodbus/examples/ServerTlsExample.java:tls_ca_chain_config}}
+TlsServerConfig tlsConfig = caChainTlsConfig;
+
+{{#include ../ffi/bindings/java/examples/src/main/java/io/stepfunc/rodbus/examples/ServerTlsExample.java:tls_server_create}}
+```
+
+</TabItem>
+<TabItem value="C#">
+
+```csharp
+{{#include ../ffi/bindings/dotnet/examples/server_tls/Program.cs:auth_handler}}
+
+{{#include ../ffi/bindings/dotnet/examples/server_tls/Program.cs:tls_ca_chain_config}}
+var tlsConfig = caChainTlsConfig;
+
+{{#include ../ffi/bindings/dotnet/examples/server_tls/Program.cs:tls_server_create}}
+```
+
+</TabItem>
+</Tabs>
+
+### Self-signed certificate configuration
+
+<Tabs
+groupId="language"
+defaultValue="Rust"
+values={[
+{label: 'Rust', value: 'Rust'},
+{label: 'C', value: 'C'},
+{label: 'Java', value: 'Java'},
+{label: 'C#', value: 'C#'},
+]}>
+<TabItem value="Rust">
+
+```rust
+{{#include ../rodbus/examples/server_tls.rs:handler_create}}
+
+{{#include ../rodbus/examples/server_tls.rs:tls_self_signed_config}}
+let tls_config = self_signed_tls_config;
+
+{{#include ../rodbus/examples/server_tls.rs:tls_server_create}}
+```
+
+</TabItem>
+<TabItem value="C">
+
+```c
+{{#include ../ffi/bindings/c/server_tls_example.c:auth_handler}}
+
+{{#include ../ffi/bindings/c/server_tls_example.c:auth_handler_init}}
+
+{{#include ../ffi/bindings/c/server_tls_example.c:device_map_init}}
+
+{{#include ../ffi/bindings/c/server_tls_example.c:tls_self_signed_config}}
+rodbus_tls_server_config_t tls_config = self_signed_tls_config;
+
+{{#include ../ffi/bindings/c/server_tls_example.c:tls_server_create}}
+// check error
+```
+
+</TabItem>
+<TabItem value="Java">
+
+```java
+{{#include ../ffi/bindings/java/examples/src/main/java/io/stepfunc/rodbus/examples/ServerTlsExample.java:auth_handler}}
+
+{{#include ../ffi/bindings/java/examples/src/main/java/io/stepfunc/rodbus/examples/ServerTlsExample.java:tls_self_signed_config}}
+TlsServerConfig tlsConfig = caChainTlsConfig;
+
+{{#include ../ffi/bindings/java/examples/src/main/java/io/stepfunc/rodbus/examples/ServerTlsExample.java:tls_server_create}}
+```
+
+</TabItem>
+<TabItem value="C#">
+
+```csharp
+{{#include ../ffi/bindings/dotnet/examples/server_tls/Program.cs:auth_handler}}
+
+{{#include ../ffi/bindings/dotnet/examples/server_tls/Program.cs:tls_self_signed_config}}
+var tlsConfig = caChainTlsConfig;
+
+{{#include ../ffi/bindings/dotnet/examples/server_tls/Program.cs:tls_server_create}}
+```
+
+</TabItem>
+</Tabs>

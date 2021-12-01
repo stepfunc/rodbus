@@ -103,7 +103,7 @@ namespace example
             // create the TCP server
             // ANCHOR: tcp_server_create
             var decodeLevel = new DecodeLevel();
-            var server = Server.TcpServerCreate(runtime, "127.0.0.1:502", 10, map, decodeLevel);
+            var server = Server.CreateTcp(runtime, "127.0.0.1:502", 10, map, decodeLevel);
             // ANCHOR_END: tcp_server_create
 
             try

@@ -79,8 +79,8 @@ public class IntegrationTest {
             }
         });
 
-        final Server server = Server.tcpServerCreate(runtime, ENDPOINT, ushort(100), deviceMap, new DecodeLevel());
-        final Channel client = Channel.tcpClientCreate(runtime, ENDPOINT, ushort(10), new RetryStrategy(), new DecodeLevel());
+        final Server server = Server.createTcp(runtime, ENDPOINT, ushort(100), deviceMap, new DecodeLevel());
+        final ClientChannel client = ClientChannel.createTcp(runtime, ENDPOINT, ushort(10), new RetryStrategy(), new DecodeLevel());
 
         // Set a unique pattern to test reads
         server.updateDatabase(UNIT_ID, db -> {
@@ -93,9 +93,10 @@ public class IntegrationTest {
         testWriteSingleCoil(client);
         testWriteSingleRegister(client);
         testWriteMultipleCoils(client);
+        testWriteMultipleRegisters(client);
     }
 
-    private void testReadDiscreteInputs(Channel client) throws ExecutionException, InterruptedException {
+    private void testReadDiscreteInputs(ClientChannel client) throws ExecutionException, InterruptedException {
         RequestParam param = new RequestParam(UNIT_ID, TIMEOUT);
         AddressRange range = new AddressRange(ushort(2), ushort(3));
 
@@ -118,7 +119,7 @@ public class IntegrationTest {
         }).isInstanceOf(ExecutionException.class).extracting("getCause.error").isEqualTo(RequestError.MODBUS_EXCEPTION_ILLEGAL_DATA_ADDRESS);
     }
 
-    private void testReadInputRegisters(Channel client) throws ExecutionException, InterruptedException {
+    private void testReadInputRegisters(ClientChannel client) throws ExecutionException, InterruptedException {
         RequestParam param = new RequestParam(UNIT_ID, TIMEOUT);
         AddressRange range = new AddressRange(ushort(3), ushort(3));
 
@@ -141,7 +142,7 @@ public class IntegrationTest {
         }).isInstanceOf(ExecutionException.class).extracting("getCause.error").isEqualTo(RequestError.MODBUS_EXCEPTION_ILLEGAL_DATA_ADDRESS);
     }
 
-    private void testWriteSingleCoil(Channel client) throws ExecutionException, InterruptedException {
+    private void testWriteSingleCoil(ClientChannel client) throws ExecutionException, InterruptedException {
         RequestParam param = new RequestParam(UNIT_ID, TIMEOUT);
         BitValue bit = new BitValue(ushort(1), true);
 
@@ -160,7 +161,7 @@ public class IntegrationTest {
         assertThat(readResult.get(1).value).isEqualTo(true);
     }
 
-    private void testWriteSingleRegister(Channel client) throws ExecutionException, InterruptedException {
+    private void testWriteSingleRegister(ClientChannel client) throws ExecutionException, InterruptedException {
         RequestParam param = new RequestParam(UNIT_ID, TIMEOUT);
         RegisterValue register = new RegisterValue(ushort(1), ushort(22));
 
@@ -179,7 +180,7 @@ public class IntegrationTest {
         assertThat(readResult.get(1).value).isEqualTo(ushort(22));
     }
 
-    private void testWriteMultipleCoils(Channel client) throws ExecutionException, InterruptedException {
+    private void testWriteMultipleCoils(ClientChannel client) throws ExecutionException, InterruptedException {
         RequestParam param = new RequestParam(UNIT_ID, TIMEOUT);
 
         client.writeMultipleCoils(param, ushort(0), Arrays.asList(true, false, true)).toCompletableFuture().get();
@@ -199,7 +200,7 @@ public class IntegrationTest {
         assertThat(readResult.get(2).value).isEqualTo(true);
     }
 
-    private void testWriteMultipleRegisters(Channel client) throws ExecutionException, InterruptedException {
+    private void testWriteMultipleRegisters(ClientChannel client) throws ExecutionException, InterruptedException {
         RequestParam param = new RequestParam(UNIT_ID, TIMEOUT);
 
         client.writeMultipleRegisters(param, ushort(0), Arrays.asList(ushort(0xCAFE), ushort(21), ushort(0xFFFF))).toCompletableFuture().get();

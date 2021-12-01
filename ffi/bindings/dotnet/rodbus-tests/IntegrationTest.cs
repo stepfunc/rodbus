@@ -68,7 +68,7 @@ namespace rodbus_tests
         private static readonly string ENDPOINT = "127.0.0.1:20000";
         private static readonly RequestParam param = new RequestParam(UNIT_ID, TimeSpan.FromSeconds(1));
 
-        static void TestReadDiscreteInputs(Channel client)
+        static void TestReadDiscreteInputs(ClientChannel client)
         {
             var result = client.ReadDiscreteInputs(param, new AddressRange(2, 3)).Result.ToList();
             Assert.AreEqual(3, result.Count);
@@ -90,7 +90,7 @@ namespace rodbus_tests
             }
         }
 
-        static void TestReadInputRegisters(Channel client)
+        static void TestReadInputRegisters(ClientChannel client)
         {
             var result = client.ReadInputRegisters(param, new AddressRange(3, 3)).Result.ToList();
             Assert.AreEqual(3, result.Count);
@@ -112,7 +112,7 @@ namespace rodbus_tests
             }
         }
 
-        static void TestWriteSingleCoil(Channel client)
+        static void TestWriteSingleCoil(ClientChannel client)
         {
             client.WriteSingleCoil(param, new BitValue(1, true)).Wait();
 
@@ -124,7 +124,7 @@ namespace rodbus_tests
             Assert.AreEqual(true, result[1].Value);
         }
 
-        static void TestWriteSingleRegister(Channel client)
+        static void TestWriteSingleRegister(ClientChannel client)
         {
             client.WriteSingleRegister(param, new RegisterValue(1, 22)).Wait();
 
@@ -136,7 +136,7 @@ namespace rodbus_tests
             Assert.AreEqual(22, result[1].Value);
         }
 
-        static void TestWriteMultipeCoils(Channel client)
+        static void TestWriteMultipeCoils(ClientChannel client)
         {
             client.WriteMultipleCoils(param, 0, new List<bool> { true, false, true }).Wait();
 
@@ -150,7 +150,7 @@ namespace rodbus_tests
             Assert.AreEqual(true, result[2].Value);
         }
 
-        static void TestWriteMultipeRegisters(Channel client)
+        static void TestWriteMultipeRegisters(ClientChannel client)
         {
             client.WriteMultipleRegisters(param, 0, new List<ushort> { 0xCAFE, 21, 0xFFFF }).Wait();
 
@@ -180,8 +180,8 @@ namespace rodbus_tests
                 }
             });
 
-            var server = Server.TcpServerCreate(runtime, ENDPOINT, 100, map, new DecodeLevel());
-            var client = Channel.TcpClientCreate(runtime, ENDPOINT, 10, new RetryStrategy(), new DecodeLevel());
+            var server = Server.CreateTcp(runtime, ENDPOINT, 100, map, new DecodeLevel());
+            var client = ClientChannel.CreateTcp(runtime, ENDPOINT, 10, new RetryStrategy(), new DecodeLevel());
 
             // set a unique pattern to test reads
             server.UpdateDatabase(UNIT_ID, db =>

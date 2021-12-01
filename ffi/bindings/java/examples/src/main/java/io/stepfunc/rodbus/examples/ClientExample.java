@@ -37,7 +37,7 @@ public class ClientExample {
         // initialize a Modbus TCP client channel
         // ANCHOR: create_tcp_channel
         DecodeLevel decodeLevel = new DecodeLevel();
-        Channel channel = Channel.tcpClientCreate(runtime, "127.0.0.1:502", ushort(100), new RetryStrategy(), decodeLevel);
+        ClientChannel channel = ClientChannel.createTcp(runtime, "127.0.0.1:502", ushort(100), new RetryStrategy(), decodeLevel);
         // ANCHOR_END: create_tcp_channel
 
         try {
@@ -49,7 +49,7 @@ public class ClientExample {
         }
     }
 
-    private static void run(Channel channel) throws Exception {
+    private static void run(ClientChannel channel) throws Exception {
         // Handle user input
         BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
         while (true) {
@@ -65,7 +65,7 @@ public class ClientExample {
         }
     }
 
-    private static void runOneCommand(Channel channel, String command) {
+    private static void runOneCommand(ClientChannel channel, String command) {
         // ANCHOR: request_param
         final RequestParam param = new RequestParam(ubyte(1), Duration.ofSeconds(1));
         // ANCHOR_END: request_param

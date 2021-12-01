@@ -3,12 +3,44 @@ use oo_bindgen::model::*;
 use crate::common::CommonDefinitions;
 
 pub(crate) fn build(lib: &mut LibraryBuilder, common: &CommonDefinitions) -> BackTraced<()> {
-    let channel = lib.declare_class("channel")?;
+    let channel = lib.declare_class("client_channel")?;
 
     let retry_strategy = build_retry_strategy(lib)?;
+    let tls_client_config = build_tls_client_config(lib, common)?;
 
     let tcp_client_create_fn = lib
-        .define_function("tcp_client_create")?
+        .define_function("client_channel_create_tcp")?
+        .param(
+            "runtime",
+            common.runtime_handle.clone(),
+            "Runtime on which to create the channel",
+        )?
+        .param("address", StringType, "IP address of remote host")?
+        .param(
+            "max_queued_requests",
+            Primitive::U16,
+            "Maximum number of requests to queue before failing the next request",
+        )?
+        .param(
+            "retry_strategy",
+            retry_strategy.clone(),
+            "Reconnection timing strategy",
+        )?
+        .param(
+            "decode_level",
+            common.decode_level.clone(),
+            "Decode levels for this client",
+        )?
+        .returns(
+            channel.clone(),
+            "Pointer to the created channel or {null} if an error occurred",
+        )?
+        .fails_with(common.error_type.clone())?
+        .doc("Create a new tcp channel instance")?
+        .build_static("create_tcp")?;
+
+    let tls_client_create_fn = lib
+        .define_function("client_channel_create_tls")?
         .param(
             "runtime",
             common.runtime_handle.clone(),
@@ -25,6 +57,7 @@ pub(crate) fn build(lib: &mut LibraryBuilder, common: &CommonDefinitions) -> Bac
             retry_strategy,
             "Reconnection timing strategy",
         )?
+        .param("tls_config", tls_client_config, "TLS client configuration")?
         .param(
             "decode_level",
             common.decode_level.clone(),
@@ -36,11 +69,11 @@ pub(crate) fn build(lib: &mut LibraryBuilder, common: &CommonDefinitions) -> Bac
         )?
         .fails_with(common.error_type.clone())?
         .doc("Create a new tcp channel instance")?
-        .build_static_with_same_name()?;
+        .build_static("create_tls")?;
 
     let destroy_channel_fn = lib.define_destructor(
         channel.clone(),
-        "Shutdown a {class:channel} and release all resources",
+        "Shutdown a {class:client_channel} and release all resources",
     )?;
 
     let bit_read_callback = build_bit_read_callback(lib, common)?;
@@ -126,8 +159,9 @@ pub(crate) fn build(lib: &mut LibraryBuilder, common: &CommonDefinitions) -> Bac
     )?;
 
     lib.define_class(&channel)?
-        // abstract factory methods, later we'll have TLS/serial
+        // abstract factory methods
         .static_method(tcp_client_create_fn)?
+        .static_method(tls_client_create_fn)?
         // read methods
         .async_method(read_coils_method)?
         .async_method(read_discrete_inputs_method)?
@@ -300,4 +334,51 @@ fn build_retry_strategy(lib: &mut LibraryBuilder) -> BackTraced<UniversalStructH
         .build()?;
 
     Ok(retry_strategy)
+}
+
+fn build_tls_client_config(
+    lib: &mut LibraryBuilder,
+    common: &CommonDefinitions,
+) -> BackTraced<FunctionArgStructHandle> {
+    let min_tls_version_field = Name::create("min_tls_version")?;
+    let certificate_mode_field = Name::create("certificate_mode")?;
+
+    let tls_client_config = lib.declare_function_argument_struct("tls_client_config")?;
+    let tls_client_config = lib.define_function_argument_struct(tls_client_config)?
+        .add("dns_name", StringType, "Expected name to validate in the presented certificate (only in {enum:certificate_mode.authority_based} mode)")?
+        .add(
+            "peer_cert_path",
+            StringType,
+            "Path to the PEM-encoded certificate of the peer",
+        )?
+        .add(
+            "local_cert_path",
+            StringType,
+            "Path to the PEM-encoded local certificate",
+        )?
+        .add(
+            "private_key_path",
+            StringType,
+            "Path to the the PEM-encoded private key",
+        )?
+        .add(
+            "password",
+            StringType,
+            doc("Optional password if the private key file is encrypted").details("Only PKCS#8 encrypted files are supported.").details("Pass empty string if the file is not encrypted.")
+        )?
+        .add(
+            &min_tls_version_field,
+            common.min_tls_version.clone(),
+            "Minimum TLS version allowed",
+        )?
+        .add(&certificate_mode_field, common.certificate_mode.clone(), "Certficate validation mode")?
+        .doc("TLS client configuration")?
+        .end_fields()?
+        .begin_initializer("init", InitializerType::Normal, "Initialize a TLS client configuration")?
+        .default_variant(&min_tls_version_field, "v12")?
+        .default_variant(&certificate_mode_field, "authority_based")?
+        .end_initializer()?
+        .build()?;
+
+    Ok(tls_client_config)
 }
