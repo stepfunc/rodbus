@@ -22,6 +22,7 @@ defaultValue="Rust"
 values={[
 {label: 'Rust', value: 'Rust'},
 {label: 'C', value: 'C'},
+{label: 'C++', value: 'C++'},
 {label: 'Java', value: 'Java'},
 {label: 'C#', value: 'C#'},
 ]}>
@@ -46,6 +47,16 @@ rodbus_tls_server_config_t tls_config = ca_chain_tls_config;
 
 {{#include ../ffi/bindings/c/client_tls_example.c:create_tls_channel}}
 // check error
+```
+
+</TabItem>
+<TabItem value="C++">
+
+```cpp
+{{#include ../ffi/bindings/c/client_tls_example.cpp:tls_ca_chain_config}}
+const auto tls_config = ca_chain_tls_config;
+
+{{#include ../ffi/bindings/c/client_tls_example.cpp:create_tls_channel}}
 ```
 
 </TabItem>
@@ -79,6 +90,7 @@ defaultValue="Rust"
 values={[
 {label: 'Rust', value: 'Rust'},
 {label: 'C', value: 'C'},
+{label: 'C++', value: 'C++'},
 {label: 'Java', value: 'Java'},
 {label: 'C#', value: 'C#'},
 ]}>
@@ -103,6 +115,16 @@ rodbus_tls_server_config_t tls_config = self_signed_tls_config;
 
 {{#include ../ffi/bindings/c/client_tls_example.c:create_tls_channel}}
 // check error
+```
+
+</TabItem>
+<TabItem value="C++">
+
+```cpp
+{{#include ../ffi/bindings/c/client_tls_example.cpp:tls_self_signed_config}}
+const auto tls_config = self_signed_tls_config;
+
+{{#include ../ffi/bindings/c/client_tls_example.cpp:create_tls_channel}}
 ```
 
 </TabItem>

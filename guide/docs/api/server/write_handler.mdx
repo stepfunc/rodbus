@@ -31,8 +31,8 @@ The return value of each callback function determines what is returned by the se
 The library automatically responds to improperly formatted requests such as ones containing invalid start/count combinations. Such invalid
 requests are never forwarded to your application code.
 
-To return an exception, the `WriteResult` value is used. It has three static methods to help build results. The `create_success`
-methods is used to create a success result. The `create_exception` is used to write a standard Modbus exception. The `create_raw_exception`
+To return an exception, the `WriteResult` value is used. It has three static methods to help build results. The `success_init`
+methods is used to create a success result. The `exception_init` is used to write a standard Modbus exception. The `raw_exception_init`
 is used to create a non-standard Modbus exception.
 
 ## Example
@@ -43,6 +43,7 @@ defaultValue="Rust"
 values={[
 {label: 'Rust', value: 'Rust'},
 {label: 'C', value: 'C'},
+{label: 'C++', value: 'C++'},
 {label: 'Java', value: 'Java'},
 {label: 'C#', value: 'C#'},
 ]}>
@@ -57,6 +58,13 @@ values={[
 
 ```c
 {{#include ../ffi/bindings/c/server_example.c:write_handler}}
+```
+
+</TabItem>
+<TabItem value="C++">
+
+```cpp
+{{#include ../ffi/bindings/c/server_example.cpp:write_handler}}
 ```
 
 </TabItem>

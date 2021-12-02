@@ -197,7 +197,7 @@ int main()
     rodbus_tls_server_config_t tls_config = ca_chain_tls_config;
 
     // create the TLS server
-    // ANCHOR: tcp_server_create
+    // ANCHOR: tls_server_create
     rodbus_decode_level_t decode_level = rodbus_decode_level_init();
     err = rodbus_server_create_tls(runtime, "127.0.0.1:802", 100, map, tls_config, auth_handler, decode_level, &server);
     rodbus_device_map_destroy(map);
@@ -206,7 +206,7 @@ int main()
         printf("Unable to initialize server: %s\n", rodbus_param_error_to_string(err));
         goto cleanup;
     }
-    // ANCHOR_END: tcp_server_create
+    // ANCHOR_END: tls_server_create
 
     // state passed to the update callbacks
     state_t state = {

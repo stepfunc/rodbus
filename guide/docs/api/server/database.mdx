@@ -39,6 +39,7 @@ groupId="language"
 defaultValue="Rust"
 values={[
 {label: 'C', value: 'C'},
+{label: 'C++', value: 'C++'},
 {label: 'Java', value: 'Java'},
 {label: 'C#', value: 'C#'},
 ]}>
@@ -49,6 +50,14 @@ values={[
 {{#include ../ffi/bindings/c/server_example.c:configure_db}}
 
 {{#include ../ffi/bindings/c/server_example.c:device_map_init}}
+```
+
+</TabItem>
+<TabItem value="C++">
+
+```cpp
+// initialize 10 of every point type
+{{#include ../ffi/bindings/c/server_example.cpp:device_map_init}}
 ```
 
 </TabItem>
@@ -78,6 +87,7 @@ groupId="language"
 defaultValue="Rust"
 values={[
 {label: 'C', value: 'C'},
+{label: 'C++', value: 'C++'},
 {label: 'Java', value: 'Java'},
 {label: 'C#', value: 'C#'},
 ]}>
@@ -87,6 +97,13 @@ values={[
 {{#include ../ffi/bindings/c/server_example.c:update_coil_callback}}
 
 {{#include ../ffi/bindings/c/server_example.c:update_coil}}
+```
+
+</TabItem>
+<TabItem value="C++">
+
+```cpp
+{{#include ../ffi/bindings/c/server_example.cpp:update_coil}}
 ```
 
 </TabItem>

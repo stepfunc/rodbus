@@ -4,12 +4,14 @@
 #include <iostream>
 #include <string>
 
+/// ANCHOR: logging_callback
 class Logger : public rodbus::Logger {
     void on_message(rodbus::LogLevel level, std::string message) override
     {
         std::cout << message;
     }
 };
+/// ANCHOR_END: logging_callback
 
 // ANCHOR: bit_read_callback
 class BitReadCallback : public rodbus::BitReadCallback
@@ -45,6 +47,7 @@ class RegisterReadCallback : public rodbus::RegisterReadCallback
     }
 };
 
+/// ANCHOR: write_callback
 class WriteCallback : public rodbus::WriteCallback
 {
     void on_complete(rodbus::Nothing result) override
@@ -56,6 +59,7 @@ class WriteCallback : public rodbus::WriteCallback
         std::cout << "error: " << rodbus::to_string(err) << std::endl;
     }
 };
+/// ANCHOR_END: write_callback
 
 int main()
 {
@@ -105,7 +109,9 @@ int main()
             return 0;
         }
         else if (cmd == "rc") {
+            /// ANCHOR: read_coils
             channel.read_coils(param, range, std::make_unique<BitReadCallback>());
+            /// ANCHOR_END: read_coils
         }
         else if (cmd == "rdi") {
             channel.read_discrete_inputs(param, range, std::make_unique<BitReadCallback>());
@@ -121,8 +127,10 @@ int main()
             channel.write_single_coil(param, bit_value, std::make_unique<WriteCallback>());
         }
         else if (cmd == "wsr") {
+            /// ANCHOR: write_single_coil
             const auto register_value = rodbus::RegisterValue(0, 76);
             channel.write_single_register(param, register_value, std::make_unique<WriteCallback>());
+            /// ANCHOR_END: write_single_coil
         }
         else if (cmd == "wmc") {
             // create the bitlist

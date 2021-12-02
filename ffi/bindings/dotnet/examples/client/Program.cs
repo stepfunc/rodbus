@@ -148,6 +148,7 @@ namespace example
                             {
                                 Console.WriteLine($"error: {ex}");
                             }
+                            /// ANCHOR_END: write_single_coil
                             break;
                         }
                     case "wsr":

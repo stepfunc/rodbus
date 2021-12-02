@@ -95,7 +95,7 @@ int main()
     const auto tls_config = ca_chain_tls_config;
 
     // initialize a Modbus TCP client channel
-    // ANCHOR: create_tcp_channel
+    // ANCHOR: create_tls_channel
     auto channel = rodbus::ClientChannel::create_tls(
         runtime,
         "127.0.0.1:802",
@@ -104,7 +104,7 @@ int main()
         tls_config,
         rodbus::DecodeLevel()
     );
-    // ANCHOR_END: create_tcp_channel
+    // ANCHOR_END: create_tls_channel
 
     // request param that we will be reusing
     // ANCHOR: request_param
