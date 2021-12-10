@@ -73,7 +73,7 @@ where
                 let frame = frame?;
                 let tx_id = frame.header.tx_id;
                 self.handle_frame(frame)
-                    .instrument(tracing::info_span!("Transaction", tx_id=%tx_id))
+                    .instrument(tracing::info_span!("Transaction", tx_id=?tx_id))
                     .await
             }
             _ = self.shutdown.recv() => {

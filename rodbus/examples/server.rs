@@ -143,14 +143,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // spawn a server to handle connections onto its own task
     // if we ever drop this handle, the server will shutdown
     // along with all of its active sessions
-    let _server = rodbus::server::spawn_tcp_server_task(
+    /*let _server = rodbus::server::spawn_tcp_server_task(
         1,
         "127.0.0.1:502".parse()?,
         map,
         DecodeLevel::default(),
     )
-    .await?;
+    .await?;*/
     // ANCHOR_END: tcp_server_create
+
+    let _server = rodbus::server::spawn_rtu_server_task(
+        "/dev/ttySIM1",
+        SerialSettings::default(),
+        map,
+        DecodeLevel::new(
+            PduDecodeLevel::DataValues,
+            AduDecodeLevel::Payload,
+            PhysDecodeLevel::Nothing,
+        ),
+    )?;
 
     let mut reader = FramedRead::new(tokio::io::stdin(), LinesCodec::new());
     loop {

@@ -22,13 +22,27 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     // Create a channel
     // ANCHOR: create_tcp_channel
-    let mut channel = spawn_tcp_client_task(
+    /*let mut channel = spawn_tcp_client_task(
         "127.0.0.1:502".parse()?,
         1,
         default_reconnect_strategy(),
         DecodeLevel::default(),
-    );
+    );*/
     // ANCHOR_END: create_tcp_channel
+
+    // ANCHOR: create_rtu_channel
+    let mut channel = spawn_rtu_client_task(
+        "/dev/ttySIM0",
+        SerialSettings::default(),
+        1,
+        Duration::from_secs(1),
+        DecodeLevel::new(
+            PduDecodeLevel::DataValues,
+            AduDecodeLevel::Payload,
+            PhysDecodeLevel::Nothing,
+        ),
+    );
+    // ANCHOR_END: create_rtu_channel
 
     // ANCHOR: request_param
     let params = RequestParam::new(UnitId::new(1), Duration::from_secs(1));

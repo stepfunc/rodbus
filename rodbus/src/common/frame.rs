@@ -55,12 +55,22 @@ impl std::fmt::Display for TxId {
 #[derive(Copy, Clone)]
 pub(crate) struct FrameHeader {
     pub(crate) unit_id: UnitId,
-    pub(crate) tx_id: TxId,
+    pub(crate) tx_id: Option<TxId>,
 }
 
 impl FrameHeader {
-    pub(crate) fn new(unit_id: UnitId, tx_id: TxId) -> Self {
-        FrameHeader { unit_id, tx_id }
+    pub(crate) fn new_with_tx_id(unit_id: UnitId, tx_id: TxId) -> Self {
+        FrameHeader {
+            unit_id,
+            tx_id: Some(tx_id),
+        }
+    }
+
+    pub(crate) fn new_without_tx_id(unit_id: UnitId) -> Self {
+        FrameHeader {
+            unit_id,
+            tx_id: None,
+        }
     }
 }
 
@@ -94,21 +104,20 @@ impl Frame {
     }
 }
 
-/**
-*  Defines an interface for reading and writing complete frames (TCP or RTU)
-*/
+///  Defines an interface for reading and writing complete frames (TCP or RTU)
 pub(crate) trait FrameParser {
     fn max_frame_size(&self) -> usize;
 
-    /**
-     * Parse bytes using the provided cursor. Advancing the cursor always implies that the bytes
-     * are consumed and can be discarded,
-     *
-     * Err implies the input data is invalid
-     * Ok(None) implies that more data is required to complete parsing
-     * Ok(Some(..)) will contain a fully parsed frame and will advance the Cursor appropriately
-     */
+    /// Parse bytes using the provided cursor. Advancing the cursor always implies that the bytes
+    /// are consumed and can be discarded,
+    ///
+    /// `Err` implies the input data is invalid
+    /// `Ok(None)` implies that more data is required to complete parsing
+    /// `Ok(Some(..))` will contain a fully parsed frame and will advance the cursor appropriately
     fn parse(&mut self, cursor: &mut ReadBuffer) -> Result<Option<Frame>, RequestError>;
+
+    /// Reset the parser state. Called whenever an error occurs
+    fn reset(&mut self);
 }
 
 pub(crate) trait FrameFormatter {
@@ -229,10 +238,14 @@ impl<T: FrameParser> FramedReader<T> {
 
     pub(crate) async fn next_frame(&mut self, io: &mut PhysLayer) -> Result<Frame, RequestError> {
         loop {
-            match self.parser.parse(&mut self.buffer)? {
-                Some(frame) => return Ok(frame),
-                None => {
+            match self.parser.parse(&mut self.buffer) {
+                Ok(Some(frame)) => return Ok(frame),
+                Ok(None) => {
                     self.buffer.read_some(io).await?;
+                }
+                Err(err) => {
+                    self.parser.reset();
+                    return Err(err);
                 }
             }
         }

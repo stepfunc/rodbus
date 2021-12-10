@@ -206,8 +206,10 @@ pub use crate::decode::*;
 pub use crate::exception::*;
 pub use crate::types::*;
 pub use error::RequestError;
+pub use serial::SerialSettings;
 
 // internal modules
 mod common;
+mod serial;
 mod tcp;
 mod tokio;
