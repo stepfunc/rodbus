@@ -297,162 +297,313 @@ impl<'a> std::fmt::Display for RtuDisplay<'a> {
     }
 }
 
-/*#[cfg(test)]
+#[cfg(test)]
 mod tests {
     use std::task::Poll;
 
+    use crate::common::frame::FramedReader;
     use crate::common::phys::PhysLayer;
     use crate::decode::PhysDecodeLevel;
     use crate::tokio::test::*;
 
-    use crate::common::frame::FramedReader;
-    use crate::error::*;
-
     use super::*;
 
-    //                            |   tx id  |  proto id |  length  | unit |  payload  |
-    const SIMPLE_FRAME: &[u8] = &[0x00, 0x07, 0x00, 0x00, 0x00, 0x03, 0x2A, 0x03, 0x04];
+    const UNIT_ID: u8 = 0x2A;
 
-    struct MockMessage {
-        a: u8,
-        b: u8,
-    }
+    const READ_COILS_REQUEST: &[u8] = &[
+        UNIT_ID, // unit id
+        0x01,    // function code
+        0x00, 0x10, // starting address
+        0x00, 0x13, // qty of outputs
+        0x7A, 0x19, // crc
+    ];
 
-    impl Serialize for MockMessage {
-        fn serialize(self: &Self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
-            cursor.write_u8(self.a)?;
-            cursor.write_u8(self.b)?;
-            Ok(())
-        }
-    }
+    const READ_COILS_RESPONSE: &[u8] = &[
+        UNIT_ID, // unit id
+        0x01,    // function code
+        0x03,    // byte count
+        0xCD, 0x6B, 0x05, // output status
+        0x44, 0x99, // crc
+    ];
 
-    fn assert_equals_simple_frame(frame: &Frame) {
-        assert_eq!(frame.header.tx_id, TxId::new(0x0007));
-        assert_eq!(frame.header.unit_id, UnitId::new(0x2A));
-        assert_eq!(frame.payload(), &[0x03, 0x04]);
-    }
+    const READ_DISCRETE_INPUTS_REQUEST: &[u8] = &[
+        UNIT_ID, // unit id
+        0x02,    // function code
+        0x00, 0x10, // starting address
+        0x00, 0x13, // qty of outputs
+        0x3E, 0x19, // crc
+    ];
 
-    fn test_segmented_parse(split_at: usize) {
-        let (f1, f2) = SIMPLE_FRAME.split_at(split_at);
+    const READ_DISCRETE_INPUTS_RESPONSE: &[u8] = &[
+        UNIT_ID, // unit id
+        0x02,    // function code
+        0x03,    // byte count
+        0xCD, 0x6B, 0x05, // output status
+        0x00, 0x99, // crc
+    ];
+
+    const READ_HOLDING_REGISTERS_REQUEST: &[u8] = &[
+        UNIT_ID, // unit id
+        0x03,    // function code
+        0x00, 0x10, // starting address
+        0x00, 0x03, // qty of registers
+        0x02, 0x15, // crc
+    ];
+
+    const READ_HOLDING_REGISTERS_RESPONSE: &[u8] = &[
+        UNIT_ID, // unit id
+        0x03,    // function code
+        0x06,    // byte count
+        0x12, 0x34, 0x56, 0x78, 0x23, 0x45, // register values
+        0x30, 0x60, // crc
+    ];
+
+    const READ_INPUT_REGISTERS_REQUEST: &[u8] = &[
+        UNIT_ID, // unit id
+        0x04,    // function code
+        0x00, 0x10, // starting address
+        0x00, 0x03, // qty of registers
+        0xB7, 0xD5, // crc
+    ];
+
+    const READ_INPUT_REGISTERS_RESPONSE: &[u8] = &[
+        UNIT_ID, // unit id
+        0x04,    // function code
+        0x06,    // byte count
+        0x12, 0x34, 0x56, 0x78, 0x23, 0x45, // register values
+        0x71, 0x86, // crc
+    ];
+
+    const WRITE_SINGLE_COIL_REQUEST: &[u8] = &[
+        UNIT_ID, // unit id
+        0x05,    // function code
+        0x00, 0x10, // output address
+        0xFF, 0x00, // output value
+        0x8B, 0xE4, // crc
+    ];
+
+    const WRITE_SINGLE_COIL_RESPONSE: &[u8] = &[
+        UNIT_ID, // unit id
+        0x05,    // function code
+        0x00, 0x10, // output address
+        0xFF, 0x00, // output value
+        0x8B, 0xE4, // crc
+    ];
+
+    const WRITE_SINGLE_REGISTER_REQUEST: &[u8] = &[
+        UNIT_ID, // unit id
+        0x06,    // function code
+        0x00, 0x10, // output address
+        0x12, 0x34, // output value
+        0x83, 0x63, // crc
+    ];
+
+    const WRITE_SINGLE_REGISTER_RESPONSE: &[u8] = &[
+        UNIT_ID, // unit id
+        0x06,    // function code
+        0x00, 0x10, // output address
+        0x12, 0x34, // output value
+        0x83, 0x63, // crc
+    ];
+
+    const WRITE_MULTIPLE_COILS_REQUEST: &[u8] = &[
+        UNIT_ID, // unit id
+        0x0F,    // function code
+        0x00, 0x10, // starting address
+        0x00, 0x0A, // qty of outputs
+        0x02, // byte count
+        0x12, 0x34, // output values
+        0x00, 0x2E, // crc
+    ];
+
+    const WRITE_MULTIPLE_COILS_RESPONSE: &[u8] = &[
+        UNIT_ID, // unit id
+        0x0F,    // function code
+        0x00, 0x10, // starting address
+        0x00, 0x0A, // qty of outputs
+        0xD2, 0x12, // crc
+    ];
+
+    const WRITE_MULTIPLE_REGISTERS_REQUEST: &[u8] = &[
+        UNIT_ID, // unit id
+        0x10,    // function code
+        0x00, 0x10, // starting address
+        0x00, 0x02, // qty of outputs
+        0x04, // byte count
+        0x12, 0x34, 0x56, 0x78, // output values
+        0x07, 0x73, // crc
+    ];
+
+    const WRITE_MULTIPLE_REGISTERS_RESPONSE: &[u8] = &[
+        UNIT_ID, // unit id
+        0x10,    // function code
+        0x00, 0x10, // starting address
+        0x00, 0x02, // qty of outputs
+        0x46, 0x16, // crc
+    ];
+
+    const ALL_REQUESTS: &[&[u8]] = &[
+        READ_COILS_REQUEST,
+        READ_DISCRETE_INPUTS_REQUEST,
+        READ_HOLDING_REGISTERS_REQUEST,
+        READ_INPUT_REGISTERS_REQUEST,
+        WRITE_SINGLE_COIL_REQUEST,
+        WRITE_SINGLE_REGISTER_REQUEST,
+        WRITE_MULTIPLE_COILS_REQUEST,
+        WRITE_MULTIPLE_REGISTERS_REQUEST,
+    ];
+
+    const ALL_RESPONSES: &[&[u8]] = &[
+        READ_COILS_RESPONSE,
+        READ_DISCRETE_INPUTS_RESPONSE,
+        READ_HOLDING_REGISTERS_RESPONSE,
+        READ_INPUT_REGISTERS_RESPONSE,
+        WRITE_SINGLE_COIL_RESPONSE,
+        WRITE_SINGLE_REGISTER_RESPONSE,
+        WRITE_MULTIPLE_COILS_RESPONSE,
+        WRITE_MULTIPLE_REGISTERS_RESPONSE,
+    ];
+
+    fn assert_can_parse_frame<T: FrameParser>(mut reader: FramedReader<T>, frame: &[u8]) {
         let (io, mut io_handle) = io::mock();
-        let mut reader = FramedReader::new(MbapParser::new(AduDecodeLevel::Nothing));
         let mut layer = PhysLayer::new_mock(io, PhysDecodeLevel::Nothing);
         let mut task = spawn(reader.next_frame(&mut layer));
 
-        assert!(task.poll().is_pending());
-        io_handle.read(f1);
-        assert!(task.poll().is_pending());
-        io_handle.read(f2);
-        if let Poll::Ready(frame) = task.poll() {
-            assert_equals_simple_frame(&frame.unwrap());
-        } else {
-            panic!("Task not ready");
-        }
-    }
-
-    fn test_error(input: &[u8]) -> RequestError {
-        let (io, mut io_handle) = io::mock();
-        let mut reader = FramedReader::new(MbapParser::new(AduDecodeLevel::Nothing));
-        let mut layer = PhysLayer::new_mock(io, PhysDecodeLevel::Nothing);
-        let mut task = spawn(reader.next_frame(&mut layer));
-
-        io_handle.read(input);
-        if let Poll::Ready(frame) = task.poll() {
-            return frame.err().unwrap();
-        } else {
-            panic!("Task not ready");
-        }
-    }
-
-    #[test]
-    fn correctly_formats_frame() {
-        let mut formatter = MbapFormatter::new(AduDecodeLevel::Nothing);
-        let msg = MockMessage { a: 0x03, b: 0x04 };
-        let header = FrameHeader::new(UnitId::new(42), TxId::new(7));
-        let size = formatter.format_impl(header, &msg).unwrap();
-        let output = formatter.get_full_buffer_impl(size).unwrap();
-
-        assert_eq!(output, SIMPLE_FRAME)
-    }
-
-    #[test]
-    fn can_parse_frame_from_stream() {
-        let (io, mut io_handle) = io::mock();
-        let mut reader = FramedReader::new(MbapParser::new(AduDecodeLevel::Nothing));
-        let mut layer = PhysLayer::new_mock(io, PhysDecodeLevel::Nothing);
-        let mut task = spawn(reader.next_frame(&mut layer));
-
-        io_handle.read(SIMPLE_FRAME);
-        if let Poll::Ready(frame) = task.poll() {
-            assert_equals_simple_frame(&frame.unwrap());
-        } else {
-            panic!("Task not ready");
-        }
-    }
-
-    #[test]
-    fn can_parse_maximum_size_frame() {
-        // maximum ADU length is 253, so max MBAP length value is 254 which is 0xFE
-        let header = &[0x00, 0x07, 0x00, 0x00, 0x00, 0xFE, 0x2A];
-        let payload = &[0xCC; 253];
-
-        let (io, mut io_handle) = io::mock();
-        let mut reader = FramedReader::new(MbapParser::new(AduDecodeLevel::Nothing));
-        let mut task = spawn(async {
+        io_handle.read(frame);
+        if let Poll::Ready(received_frame) = task.poll() {
+            let received_frame = received_frame.unwrap();
+            assert_eq!(received_frame.header.tx_id, None);
+            assert_eq!(received_frame.header.unit_id, UnitId::new(UNIT_ID));
             assert_eq!(
-                reader
-                    .next_frame(&mut PhysLayer::new_mock(io, PhysDecodeLevel::Nothing))
-                    .await
-                    .unwrap()
-                    .payload(),
-                payload.as_ref()
+                received_frame.payload(),
+                &frame[1..frame.len() - constants::CRC_LENGTH]
             );
-        });
-
-        assert_pending!(task.poll());
-        io_handle.read(header);
-        assert_pending!(task.poll());
-        io_handle.read(payload);
-        assert_ready!(task.poll());
+        } else {
+            panic!("Task not ready");
+        }
     }
 
     #[test]
-    fn can_parse_frame_if_segmented_in_header() {
-        test_segmented_parse(4);
+    fn can_parse_request_frames() {
+        for request in ALL_REQUESTS {
+            let reader = FramedReader::new(RtuParser::new_request_parser(AduDecodeLevel::Nothing));
+            assert_can_parse_frame(reader, request);
+        }
     }
 
     #[test]
-    fn can_parse_frame_if_segmented_in_payload() {
-        test_segmented_parse(8);
+    fn can_parse_response_frames() {
+        for response in ALL_RESPONSES {
+            let reader = FramedReader::new(RtuParser::new_response_parser(AduDecodeLevel::Nothing));
+            assert_can_parse_frame(reader, response);
+        }
+    }
+
+    fn assert_can_parse_frame_byte_per_byte<T: FrameParser>(
+        mut reader: FramedReader<T>,
+        frame: &[u8],
+    ) {
+        let (io, mut io_handle) = io::mock();
+        let mut layer = PhysLayer::new_mock(io, PhysDecodeLevel::Nothing);
+        let mut task = spawn(reader.next_frame(&mut layer));
+
+        // Send bytes to parser byte per byte
+        for byte in frame.into_iter().take(frame.len() - 1) {
+            io_handle.read(&[*byte]);
+            assert!(matches!(task.poll(), Poll::Pending));
+        }
+
+        // Last byte
+        io_handle.read(&[frame[frame.len() - 1]]);
+        if let Poll::Ready(received_frame) = task.poll() {
+            let received_frame = received_frame.unwrap();
+            assert_eq!(received_frame.header.tx_id, None);
+            assert_eq!(received_frame.header.unit_id, UnitId::new(UNIT_ID));
+            assert_eq!(
+                received_frame.payload(),
+                &frame[1..frame.len() - constants::CRC_LENGTH]
+            );
+        } else {
+            panic!("Task not ready");
+        }
     }
 
     #[test]
-    fn errors_on_bad_protocol_id() {
-        let frame = &[0x00, 0x07, 0xCA, 0xFE, 0x00, 0x01, 0x2A];
-        assert_eq!(
-            test_error(frame),
-            RequestError::BadFrame(FrameParseError::UnknownProtocolId(0xCAFE)),
-        );
+    fn can_parse_request_frames_byte_per_byte() {
+        for request in ALL_REQUESTS {
+            let reader = FramedReader::new(RtuParser::new_request_parser(AduDecodeLevel::Nothing));
+            assert_can_parse_frame_byte_per_byte(reader, request);
+        }
     }
 
     #[test]
-    fn errors_on_length_of_zero() {
-        let frame = &[0x00, 0x07, 0x00, 0x00, 0x00, 0x00, 0x2A];
-        assert_eq!(
-            test_error(frame),
-            RequestError::BadFrame(FrameParseError::MbapLengthZero)
-        );
+    fn can_parse_response_frames_byte_per_byte() {
+        for response in ALL_RESPONSES {
+            let reader = FramedReader::new(RtuParser::new_response_parser(AduDecodeLevel::Nothing));
+            assert_can_parse_frame_byte_per_byte(reader, response);
+        }
+    }
+
+    fn assert_can_parse_two_frames<T: FrameParser>(mut reader: FramedReader<T>, frame: &[u8]) {
+        let (io, mut io_handle) = io::mock();
+        let mut layer = PhysLayer::new_mock(io, PhysDecodeLevel::Nothing);
+
+        // Build single array with two identical frames
+        let duplicate_frames = frame
+            .iter()
+            .chain(frame.iter())
+            .copied()
+            .collect::<Vec<_>>();
+
+        // Last byte
+        io_handle.read(duplicate_frames.as_slice());
+
+        // First frame
+        {
+            let mut task = spawn(reader.next_frame(&mut layer));
+            if let Poll::Ready(received_frame) = task.poll() {
+                let received_frame = received_frame.unwrap();
+                assert_eq!(received_frame.header.tx_id, None);
+                assert_eq!(received_frame.header.unit_id, UnitId::new(UNIT_ID));
+                assert_eq!(
+                    received_frame.payload(),
+                    &frame[1..frame.len() - constants::CRC_LENGTH]
+                );
+            } else {
+                panic!("Task not ready");
+            }
+        }
+
+        // Second frame
+        {
+            let mut task = spawn(reader.next_frame(&mut layer));
+            if let Poll::Ready(received_frame) = task.poll() {
+                let received_frame = received_frame.unwrap();
+                assert_eq!(received_frame.header.tx_id, None);
+                assert_eq!(received_frame.header.unit_id, UnitId::new(UNIT_ID));
+                assert_eq!(
+                    received_frame.payload(),
+                    &frame[1..frame.len() - constants::CRC_LENGTH]
+                );
+            } else {
+                panic!("Task not ready");
+            }
+        }
     }
 
     #[test]
-    fn errors_when_mbap_length_too_big() {
-        let frame = &[0x00, 0x07, 0x00, 0x00, 0x00, 0xFF, 0x2A];
-        assert_eq!(
-            test_error(frame),
-            RequestError::BadFrame(FrameParseError::MbapLengthTooBig(
-                0xFF,
-                constants::MAX_LENGTH_FIELD,
-            ))
-        );
+    fn can_parse_two_request_frames() {
+        for request in ALL_REQUESTS {
+            let reader = FramedReader::new(RtuParser::new_request_parser(AduDecodeLevel::Nothing));
+            assert_can_parse_two_frames(reader, request);
+        }
     }
-}*/
+
+    #[test]
+    fn can_parse_two_response_frames() {
+        for response in ALL_RESPONSES {
+            let reader = FramedReader::new(RtuParser::new_response_parser(AduDecodeLevel::Nothing));
+            assert_can_parse_two_frames(reader, response);
+        }
+    }
+}
