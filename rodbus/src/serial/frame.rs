@@ -499,6 +499,50 @@ mod tests {
         }
     }
 
+    #[test]
+    fn can_parse_huge_response() {
+        let mut huge_response = vec![
+            UNIT_ID, // unit id
+            0x03,    // function code (read holding registers)
+            0xFA,    // byte count (max value, 125 registers)
+        ];
+
+        // Push the data
+        for _ in 0..0xFA {
+            huge_response.push(0x00)
+        }
+
+        // Write the correct CRC
+        let crc = crc::Crc::<u16>::new(&crc::CRC_16_MODBUS).checksum(&huge_response);
+        huge_response.push((crc & 0x00FF) as u8);
+        huge_response.push(((crc & 0xFF00) >> 8) as u8);
+
+        let reader = FramedReader::new(RtuParser::new_response_parser(AduDecodeLevel::Nothing));
+        assert_can_parse_frame(reader, &huge_response);
+    }
+
+    #[test]
+    fn refuse_response_too_big() {
+        let mut huge_response = vec![
+            UNIT_ID, // unit id
+            0x03,    // function code (read holding registers)
+            0xFB,    // byte count (one more than allowed)
+        ];
+
+        // Push the data
+        for _ in 0..0xFB {
+            huge_response.push(0x00)
+        }
+
+        // Write the correct CRC
+        let crc = crc::Crc::<u16>::new(&crc::CRC_16_MODBUS).checksum(&huge_response);
+        huge_response.push((crc & 0x00FF) as u8);
+        huge_response.push(((crc & 0xFF00) >> 8) as u8);
+
+        let reader = FramedReader::new(RtuParser::new_response_parser(AduDecodeLevel::Nothing));
+        assert_can_parse_frame(reader, &huge_response);
+    }
+
     fn assert_can_parse_frame_byte_per_byte<T: FrameParser>(
         mut reader: FramedReader<T>,
         frame: &[u8],
@@ -604,6 +648,71 @@ mod tests {
         for response in ALL_RESPONSES {
             let reader = FramedReader::new(RtuParser::new_response_parser(AduDecodeLevel::Nothing));
             assert_can_parse_two_frames(reader, response);
+        }
+    }
+
+    #[test]
+    fn fails_on_wrong_crc() {
+        const READ_COILS_REQUEST_WRONG_CRC: &[u8] = &[
+            UNIT_ID, // unit id
+            0x01,    // function code
+            0x00, 0x10, // starting address
+            0x00, 0x13, // qty of outputs
+            0xFF, 0xFF, // wrong crc
+        ];
+
+        let mut reader = FramedReader::new(RtuParser::new_request_parser(AduDecodeLevel::Nothing));
+        let (io, mut io_handle) = io::mock();
+        let mut layer = PhysLayer::new_mock(io, PhysDecodeLevel::Nothing);
+        let mut task = spawn(reader.next_frame(&mut layer));
+
+        io_handle.read(READ_COILS_REQUEST_WRONG_CRC);
+        if let Poll::Ready(received_frame) = task.poll() {
+            assert!(matches!(
+                received_frame,
+                Err(RequestError::BadFrame(
+                    FrameParseError::CrcValidationFailure(_, _)
+                ))
+            ));
+        } else {
+            panic!("Task not ready");
+        }
+    }
+
+    struct MockMessage<'a> {
+        frame: &'a [u8],
+    }
+
+    impl<'a> Serialize for MockMessage<'a> {
+        fn serialize(self: &Self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
+            for byte in &self.frame[1..self.frame.len() - 2] {
+                cursor.write_u8(*byte)?;
+            }
+            Ok(())
+        }
+    }
+
+    fn assert_frame_formatting(frame: &[u8]) {
+        let mut formatter = RtuFormatter::new(AduDecodeLevel::Nothing);
+        let msg = MockMessage { frame };
+        let header = FrameHeader::new_without_tx_id(UnitId::new(42));
+        let size = formatter.format_impl(header, &msg).unwrap();
+        let output = formatter.get_full_buffer_impl(size).unwrap();
+
+        assert_eq!(output, frame);
+    }
+
+    #[test]
+    fn can_format_request_frames() {
+        for request in ALL_REQUESTS {
+            assert_frame_formatting(request);
+        }
+    }
+
+    #[test]
+    fn can_format_response_frames() {
+        for response in ALL_RESPONSES {
+            assert_frame_formatting(response);
         }
     }
 }
