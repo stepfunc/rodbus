@@ -75,4 +75,17 @@ impl FunctionCode {
             _ => None,
         }
     }
+
+    pub(crate) fn supports_broadcast(&self) -> bool {
+        match self {
+            Self::ReadCoils => false,
+            Self::ReadDiscreteInputs => false,
+            Self::ReadHoldingRegisters => false,
+            Self::ReadInputRegisters => false,
+            Self::WriteSingleCoil => true,
+            Self::WriteSingleRegister => true,
+            Self::WriteMultipleCoils => true,
+            Self::WriteMultipleRegisters => true,
+        }
+    }
 }

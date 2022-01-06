@@ -1,6 +1,6 @@
 use crate::common::buffer::ReadBuffer;
 use crate::common::cursor::WriteCursor;
-use crate::common::frame::{Frame, FrameFormatter, FrameHeader, FrameParser};
+use crate::common::frame::{Frame, FrameDestination, FrameFormatter, FrameHeader, FrameParser};
 use crate::common::function::FunctionCode;
 use crate::common::traits::Serialize;
 use crate::decode::AduDecodeLevel;
@@ -24,8 +24,8 @@ enum ParserType {
 #[derive(Clone, Copy)]
 enum ParseState {
     Start,
-    ReadFullBody(UnitId, usize),          // unit_id, length of rest
-    ReadToOffsetForLength(UnitId, usize), // unit_id, length to length
+    ReadFullBody(FrameDestination, usize), // unit_id, length of rest
+    ReadToOffsetForLength(FrameDestination, usize), // unit_id, length to length
 }
 
 #[derive(Clone, Copy)]
@@ -126,13 +126,25 @@ impl FrameParser for RtuParser {
                 }
 
                 let unit_id = UnitId::new(cursor.read_u8()?);
-                // We don't consume the function code to avoid an unecessary copy later on
+                let destination = if unit_id == UnitId::broadcast() {
+                    FrameDestination::Broadcast
+                } else {
+                    FrameDestination::UnitId(unit_id)
+                };
+
+                if unit_id.is_rtu_reserved() {
+                    tracing::warn!("received reserved unit ID {}, violating Modbus RTU spec. Passing it through nevertheless.", unit_id);
+                }
+
+                tracing::debug!("UnitID: {}", unit_id);
+
+                // We don't consume the function code to avoid an unecessary copy of the receive buffer later on
                 let raw_function_code = cursor.peek_at(0)?;
 
                 self.state = match self.length_mode(raw_function_code) {
-                    LengthMode::Fixed(length) => ParseState::ReadFullBody(unit_id, length),
+                    LengthMode::Fixed(length) => ParseState::ReadFullBody(destination, length),
                     LengthMode::Offset(offset) => {
-                        ParseState::ReadToOffsetForLength(unit_id, offset)
+                        ParseState::ReadToOffsetForLength(destination, offset)
                     }
                     LengthMode::Unknown => {
                         return Err(RequestError::BadFrame(
@@ -143,7 +155,7 @@ impl FrameParser for RtuParser {
 
                 self.parse(cursor)
             }
-            ParseState::ReadToOffsetForLength(unit_id, offset) => {
+            ParseState::ReadToOffsetForLength(destination, offset) => {
                 if cursor.len() < constants::FUNCTION_CODE_LENGTH + offset {
                     return Ok(None);
                 }
@@ -151,11 +163,11 @@ impl FrameParser for RtuParser {
                 // Get the complete size
                 let extra_bytes_to_read =
                     cursor.peek_at(constants::FUNCTION_CODE_LENGTH + offset - 1)? as usize;
-                self.state = ParseState::ReadFullBody(unit_id, offset + extra_bytes_to_read);
+                self.state = ParseState::ReadFullBody(destination, offset + extra_bytes_to_read);
 
                 self.parse(cursor)
             }
-            ParseState::ReadFullBody(unit_id, length) => {
+            ParseState::ReadFullBody(destination, length) => {
                 if constants::FUNCTION_CODE_LENGTH + length
                     > crate::common::frame::constants::MAX_ADU_LENGTH
                 {
@@ -171,7 +183,7 @@ impl FrameParser for RtuParser {
 
                 let frame = {
                     let data = cursor.read(constants::FUNCTION_CODE_LENGTH + length)?;
-                    let mut frame = Frame::new(FrameHeader::new_without_tx_id(unit_id));
+                    let mut frame = Frame::new(FrameHeader::new_rtu_header(destination));
                     frame.set(data);
                     frame
                 };
@@ -181,7 +193,7 @@ impl FrameParser for RtuParser {
                 let expected_crc = {
                     let crc = crc::Crc::<u16>::new(&crc::CRC_16_MODBUS);
                     let mut digest = crc.digest();
-                    digest.update(&[unit_id.value]);
+                    digest.update(&[destination.value()]);
                     digest.update(frame.payload());
                     digest.finalize()
                 };
@@ -196,7 +208,7 @@ impl FrameParser for RtuParser {
                 if self.decode.enabled() {
                     tracing::info!(
                         "RTU RX - {}",
-                        RtuDisplay::new(self.decode, unit_id, frame.payload(), received_crc)
+                        RtuDisplay::new(self.decode, destination, frame.payload(), received_crc)
                     );
                 }
 
@@ -217,11 +229,18 @@ impl FrameFormatter for RtuFormatter {
         header: FrameHeader,
         msg: &dyn Serialize,
     ) -> Result<usize, RequestError> {
+        // Do some validation
+        if let FrameDestination::UnitId(unit_id) = header.destination {
+            if unit_id.is_rtu_reserved() {
+                tracing::warn!("sending a message to a reserved unit ID {} violates Modbus RTU spec. Sending it nevertheless.", unit_id)
+            }
+        }
+
         // Write the message
         let end_position = {
             let mut cursor = WriteCursor::new(self.buffer.as_mut());
 
-            cursor.write_u8(header.unit_id.value)?;
+            cursor.write_u8(header.destination.value())?;
             msg.serialize(&mut cursor)?;
 
             cursor.position()
@@ -243,7 +262,7 @@ impl FrameFormatter for RtuFormatter {
                 "RTU TX - {}",
                 RtuDisplay::new(
                     self.decode,
-                    header.unit_id,
+                    header.destination,
                     &self.buffer[constants::HEADER_LENGTH..end_position],
                     crc
                 )
@@ -265,16 +284,16 @@ impl FrameFormatter for RtuFormatter {
 
 struct RtuDisplay<'a> {
     level: AduDecodeLevel,
-    address: UnitId,
+    destination: FrameDestination,
     data: &'a [u8],
     crc: u16,
 }
 
 impl<'a> RtuDisplay<'a> {
-    fn new(level: AduDecodeLevel, address: UnitId, data: &'a [u8], crc: u16) -> Self {
+    fn new(level: AduDecodeLevel, destination: FrameDestination, data: &'a [u8], crc: u16) -> Self {
         RtuDisplay {
             level,
-            address,
+            destination,
             data,
             crc,
         }
@@ -285,8 +304,8 @@ impl<'a> std::fmt::Display for RtuDisplay<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(
             f,
-            "address: {} crc: {:#06X} (len = {})",
-            self.address,
+            "dest: {} crc: {:#06X} (len = {})",
+            self.destination,
             self.crc,
             self.data.len() - 1,
         )?;
@@ -473,7 +492,10 @@ mod tests {
         if let Poll::Ready(received_frame) = task.poll() {
             let received_frame = received_frame.unwrap();
             assert_eq!(received_frame.header.tx_id, None);
-            assert_eq!(received_frame.header.unit_id, UnitId::new(UNIT_ID));
+            assert_eq!(
+                received_frame.header.destination,
+                FrameDestination::new_unit_id(UNIT_ID)
+            );
             assert_eq!(
                 received_frame.payload(),
                 &frame[1..frame.len() - constants::CRC_LENGTH]
@@ -562,7 +584,10 @@ mod tests {
         if let Poll::Ready(received_frame) = task.poll() {
             let received_frame = received_frame.unwrap();
             assert_eq!(received_frame.header.tx_id, None);
-            assert_eq!(received_frame.header.unit_id, UnitId::new(UNIT_ID));
+            assert_eq!(
+                received_frame.header.destination,
+                FrameDestination::new_unit_id(UNIT_ID)
+            );
             assert_eq!(
                 received_frame.payload(),
                 &frame[1..frame.len() - constants::CRC_LENGTH]
@@ -608,7 +633,10 @@ mod tests {
             if let Poll::Ready(received_frame) = task.poll() {
                 let received_frame = received_frame.unwrap();
                 assert_eq!(received_frame.header.tx_id, None);
-                assert_eq!(received_frame.header.unit_id, UnitId::new(UNIT_ID));
+                assert_eq!(
+                    received_frame.header.destination,
+                    FrameDestination::new_unit_id(UNIT_ID)
+                );
                 assert_eq!(
                     received_frame.payload(),
                     &frame[1..frame.len() - constants::CRC_LENGTH]
@@ -624,7 +652,10 @@ mod tests {
             if let Poll::Ready(received_frame) = task.poll() {
                 let received_frame = received_frame.unwrap();
                 assert_eq!(received_frame.header.tx_id, None);
-                assert_eq!(received_frame.header.unit_id, UnitId::new(UNIT_ID));
+                assert_eq!(
+                    received_frame.header.destination,
+                    FrameDestination::new_unit_id(UNIT_ID)
+                );
                 assert_eq!(
                     received_frame.payload(),
                     &frame[1..frame.len() - constants::CRC_LENGTH]
@@ -695,7 +726,7 @@ mod tests {
     fn assert_frame_formatting(frame: &[u8]) {
         let mut formatter = RtuFormatter::new(AduDecodeLevel::Nothing);
         let msg = MockMessage { frame };
-        let header = FrameHeader::new_without_tx_id(UnitId::new(42));
+        let header = FrameHeader::new_rtu_header(FrameDestination::UnitId(UnitId::new(42)));
         let size = formatter.format_impl(header, &msg).unwrap();
         let output = formatter.get_full_buffer_impl(size).unwrap();
 

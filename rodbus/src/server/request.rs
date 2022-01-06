@@ -36,7 +36,7 @@ impl<'a> Request<'a> {
     }
 
     pub(crate) fn get_reply<'b, T, F>(
-        self,
+        &self,
         header: FrameHeader,
         handler: &mut T,
         writer: &'b mut F,
@@ -66,49 +66,51 @@ impl<'a> Request<'a> {
         let function = self.get_function();
         match self {
             Request::ReadCoils(range) => {
-                let bits = BitWriter::new(range, |index| handler.read_coil(index));
+                let bits = BitWriter::new(*range, |index| handler.read_coil(index));
                 writer.format(header, function, &bits, level)
             }
             Request::ReadDiscreteInputs(range) => {
-                let bits = BitWriter::new(range, |index| handler.read_discrete_input(index));
+                let bits = BitWriter::new(*range, |index| handler.read_discrete_input(index));
                 writer.format(header, function, &bits, level)
             }
             Request::ReadHoldingRegisters(range) => {
                 let registers =
-                    RegisterWriter::new(range, |index| handler.read_holding_register(index));
+                    RegisterWriter::new(*range, |index| handler.read_holding_register(index));
                 writer.format(header, function, &registers, level)
             }
             Request::ReadInputRegisters(range) => {
                 let registers =
-                    RegisterWriter::new(range, |index| handler.read_input_register(index));
+                    RegisterWriter::new(*range, |index| handler.read_input_register(index));
                 writer.format(header, function, &registers, level)
             }
             Request::WriteSingleCoil(request) => serialize_result(
                 function,
                 header,
                 writer,
-                handler.write_single_coil(request).map(|_| request),
+                handler.write_single_coil(*request).map(|_| *request),
                 level,
             ),
             Request::WriteSingleRegister(request) => serialize_result(
                 function,
                 header,
                 writer,
-                handler.write_single_register(request).map(|_| request),
+                handler.write_single_register(*request).map(|_| *request),
                 level,
             ),
             Request::WriteMultipleCoils(items) => serialize_result(
                 function,
                 header,
                 writer,
-                handler.write_multiple_coils(items).map(|_| items.range),
+                handler.write_multiple_coils(*items).map(|_| items.range),
                 level,
             ),
             Request::WriteMultipleRegisters(items) => serialize_result(
                 function,
                 header,
                 writer,
-                handler.write_multiple_registers(items).map(|_| items.range),
+                handler
+                    .write_multiple_registers(*items)
+                    .map(|_| items.range),
                 level,
             ),
         }

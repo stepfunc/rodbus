@@ -52,23 +52,54 @@ impl std::fmt::Display for TxId {
     }
 }
 
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub(crate) enum FrameDestination {
+    /// Normal unit ID
+    UnitId(UnitId),
+    /// Broadcast ID (only in RTU)
+    Broadcast,
+}
+
+impl FrameDestination {
+    #[cfg(test)]
+    pub(crate) fn new_unit_id(value: u8) -> Self {
+        Self::UnitId(UnitId::new(value))
+    }
+
+    pub(crate) fn value(&self) -> u8 {
+        match self {
+            Self::UnitId(unit_id) => unit_id.value,
+            Self::Broadcast => UnitId::broadcast().value,
+        }
+    }
+}
+
+impl std::fmt::Display for FrameDestination {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::UnitId(unit_id) => write!(f, "{}", unit_id),
+            Self::Broadcast => write!(f, "BCAST ({})", UnitId::broadcast()),
+        }
+    }
+}
+
 #[derive(Copy, Clone)]
 pub(crate) struct FrameHeader {
-    pub(crate) unit_id: UnitId,
+    pub(crate) destination: FrameDestination,
     pub(crate) tx_id: Option<TxId>,
 }
 
 impl FrameHeader {
-    pub(crate) fn new_with_tx_id(unit_id: UnitId, tx_id: TxId) -> Self {
+    pub(crate) fn new_tcp_header(unit_id: UnitId, tx_id: TxId) -> Self {
         FrameHeader {
-            unit_id,
+            destination: FrameDestination::UnitId(unit_id),
             tx_id: Some(tx_id),
         }
     }
 
-    pub(crate) fn new_without_tx_id(unit_id: UnitId) -> Self {
+    pub(crate) fn new_rtu_header(destination: FrameDestination) -> Self {
         FrameHeader {
-            unit_id,
+            destination,
             tx_id: None,
         }
     }
@@ -190,11 +221,7 @@ pub(crate) trait FrameFormatter {
         ex: ExceptionCode,
         level: PduDecodeLevel,
     ) -> Result<&[u8], RequestError> {
-        if level.enabled() {
-            tracing::warn!("PDU TX - Modbus exception {:?} ({:#04X})", ex, u8::from(ex));
-        }
-
-        self.error(header, ErrorResponse::new(function, ex))
+        self.error(header, ErrorResponse::new(function, ex), level)
     }
 
     // make a single effort to serialize an exception response
@@ -202,20 +229,60 @@ pub(crate) trait FrameFormatter {
         &mut self,
         header: FrameHeader,
         response: ErrorResponse,
+        level: PduDecodeLevel,
     ) -> Result<&[u8], RequestError> {
+        if level.enabled() {
+            tracing::warn!(
+                "PDU TX - Modbus exception {:?} ({:#04X})",
+                response.exception,
+                response.function
+            );
+        }
+
         let len = self.format_impl(header, &response)?;
         self.get_full_buffer(len)
     }
+}
 
-    // make a single effort to serialize an exception response
-    fn unknown_function(
+pub(crate) struct NullFrameFormatter;
+
+impl FrameFormatter for NullFrameFormatter {
+    fn format_impl(
         &mut self,
-        header: FrameHeader,
-        unknown: u8,
+        _header: FrameHeader,
+        _msg: &dyn Serialize,
+    ) -> Result<usize, RequestError> {
+        Ok(0)
+    }
+
+    fn get_full_buffer_impl(&self, _size: usize) -> Option<&[u8]> {
+        None
+    }
+
+    fn get_payload_impl(&self, _size: usize) -> Option<&[u8]> {
+        None
+    }
+
+    fn format<T>(
+        &mut self,
+        _header: FrameHeader,
+        _function: FunctionCode,
+        _msg: &T,
+        _level: PduDecodeLevel,
+    ) -> Result<&[u8], RequestError>
+    where
+        T: Serialize + Loggable,
+    {
+        Ok(&[])
+    }
+
+    fn error(
+        &mut self,
+        _header: FrameHeader,
+        _response: ErrorResponse,
+        _level: PduDecodeLevel,
     ) -> Result<&[u8], RequestError> {
-        let response = ErrorResponse::unknown_function(unknown);
-        let len = self.format_impl(header, &response)?;
-        self.get_full_buffer(len)
+        Ok(&[])
     }
 }
 

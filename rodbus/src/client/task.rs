@@ -20,7 +20,7 @@ pub(crate) enum SessionError {
     IoError,
     // unrecoverable framing issue,
     BadFrame,
-    // the mpsc is closed (dropped)  on the sender side
+    // the mpsc is closed (dropped) on the sender side
     Shutdown,
 }
 
@@ -101,7 +101,7 @@ where
         tx_id: TxId,
     ) -> Result<(), RequestError> {
         let bytes = self.formatter.format(
-            FrameHeader::new_with_tx_id(request.id, tx_id),
+            FrameHeader::new_tcp_header(request.id, tx_id),
             request.details.function(),
             &request.details,
             self.decode,
@@ -253,7 +253,7 @@ mod tests {
         T: Serialize + Loggable + Sized,
     {
         let mut fmt = MbapFormatter::new(AduDecodeLevel::Nothing);
-        let header = FrameHeader::new_with_tx_id(UnitId::new(1), TxId::new(0));
+        let header = FrameHeader::new_tcp_header(UnitId::new(1), TxId::new(0));
         let bytes = fmt
             .format(header, function, payload, PduDecodeLevel::Nothing)
             .unwrap();
