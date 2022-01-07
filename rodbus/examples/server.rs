@@ -1,6 +1,7 @@
 use tokio_stream::StreamExt;
 use tokio_util::codec::{FramedRead, LinesCodec};
 
+use rodbus::serial::*;
 use rodbus::server::*;
 use rodbus::*;
 

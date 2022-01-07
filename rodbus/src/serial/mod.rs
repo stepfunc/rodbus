@@ -1,4 +1,5 @@
-use tokio_serial::{DataBits, FlowControl, Parity, SerialStream, StopBits};
+use tokio_serial::SerialStream;
+pub use tokio_serial::{DataBits, FlowControl, Parity, StopBits};
 
 pub(crate) mod client;
 pub(crate) mod frame;

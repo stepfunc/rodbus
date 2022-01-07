@@ -194,6 +194,37 @@ pub(crate) unsafe fn create_tcp_server(
     Ok(Box::into_raw(Box::new(server_handle)))
 }
 
+pub(crate) unsafe fn create_rtu_server(
+    runtime: *mut crate::Runtime,
+    path: &std::ffi::CStr,
+    serial_params: ffi::SerialPortSettings,
+    endpoints: *mut crate::DeviceMap,
+    decode_level: ffi::DecodeLevel,
+) -> Result<*mut crate::Server, ffi::ParamError> {
+    let runtime = runtime.as_ref().ok_or(ffi::ParamError::NullParameter)?;
+    let endpoints = endpoints.as_mut().ok_or(ffi::ParamError::NullParameter)?;
+
+    let (tx, rx) = tokio::sync::mpsc::channel(1);
+
+    let handler_map = endpoints.drain_and_convert();
+    let task = rodbus::server::create_rtu_server_task(
+        rx,
+        &path.to_string_lossy(),
+        serial_params.into(),
+        handler_map.clone(),
+        decode_level.into(),
+    )
+    .map_err(|_| ffi::ParamError::ServerBindError)?;
+    runtime.inner.spawn(task);
+
+    let server_handle = Server {
+        _server: ServerHandle::new(tx),
+        map: handler_map,
+    };
+
+    Ok(Box::into_raw(Box::new(server_handle)))
+}
+
 pub(crate) unsafe fn server_destroy(server: *mut crate::Server) {
     if !server.is_null() {
         Box::from_raw(server);

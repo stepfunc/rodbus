@@ -64,6 +64,29 @@ pub(crate) fn build_server(
         .doc("Launch a TCP server. When the maximum number of concurrent sessions is reached, the oldest session is closed.")?
         .build()?;
 
+    let create_rtu_server_fn = lib
+        .declare_native_function("create_rtu_server")?
+        .param(
+            "runtime",
+            Type::ClassRef(common.runtime_handle.declaration.clone()),
+            "runtime on which to spawn the server",
+        )?
+        .param("path", Type::String, "Path to the serial device. Generally /dev/tty0 on Linux and COM1 on Windows.")?
+        .param("serial_params", Type::Struct(common.serial_port_settings.clone()), "Serial port settings")?
+        .param(
+            "endpoints",
+            Type::ClassRef(handler_map.declaration.clone()),
+            "map of endpoints which is emptied upon passing to this function",
+        )?
+        .param("decode_level", Type::Struct(common.decode_level.clone()), "Decode levels for this server")?
+        .return_type(ReturnType::Type(
+            Type::ClassRef(server.clone()),
+            "handle to the server".into(),
+        ))?
+        .fails_with(common.error_type.clone())?
+        .doc("Launch a TCP server. When the maximum number of concurrent sessions is reached, the oldest session is closed.")?
+        .build()?;
+
     let destroy_fn = lib
         .declare_native_function("server_destroy")?
         .param(
@@ -89,6 +112,7 @@ pub(crate) fn build_server(
         .destructor(&destroy_fn)?
         .method("update", &update_fn)?
         .static_method("create_tcp_server", &create_tcp_server_fn)?
+        .static_method("create_rtu_server", &create_rtu_server_fn)?
         .custom_destroy("Shutdown")?
         .doc("Handle to the running server. The server remains alive until this reference is destroyed")?
         .build()

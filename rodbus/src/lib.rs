@@ -193,6 +193,8 @@ pub mod constants;
 
 /// Error types associated with making requests
 pub mod error;
+/// Serial (RTU) API
+pub mod serial;
 /// Server API
 pub mod server;
 
@@ -206,10 +208,8 @@ pub use crate::decode::*;
 pub use crate::exception::*;
 pub use crate::types::*;
 pub use error::RequestError;
-pub use serial::SerialSettings;
 
 // internal modules
 mod common;
-mod serial;
 mod tcp;
 mod tokio;

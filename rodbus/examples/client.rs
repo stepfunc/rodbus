@@ -5,6 +5,7 @@ use tokio_stream::StreamExt;
 use tokio_util::codec::{FramedRead, LinesCodec};
 
 use rodbus::client::*;
+use rodbus::serial::*;
 use rodbus::*;
 
 // ANCHOR: runtime_init
