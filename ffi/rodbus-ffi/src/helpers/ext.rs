@@ -6,10 +6,7 @@ impl ffi::RequestParam {
     pub(crate) fn build_session(&self, channel: &crate::Channel) -> CallbackSession {
         CallbackSession::new(
             channel.inner.clone(),
-            RequestParam::new(
-                UnitId::new(self.unit_id()),
-                self.timeout(),
-            ),
+            RequestParam::new(UnitId::new(self.unit_id()), self.timeout()),
         )
     }
 }

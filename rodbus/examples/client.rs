@@ -45,10 +45,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
     } else {
         // ANCHOR: create_rtu_channel
         let channel = spawn_rtu_client_task(
-            "/dev/ttySIM0", // path
+            "/dev/ttySIM0",            // path
             SerialSettings::default(), // serial settings
-            1, // max queued requests
-            Duration::from_secs(1), // retry delay
+            1,                         // max queued requests
+            Duration::from_secs(1),    // retry delay
             DecodeLevel::new(
                 PduDecodeLevel::DataValues,
                 AduDecodeLevel::Payload,

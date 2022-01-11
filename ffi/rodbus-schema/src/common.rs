@@ -2,7 +2,7 @@ use oo_bindgen::class::ClassHandle;
 use oo_bindgen::error_type::{ErrorType, ExceptionType};
 use oo_bindgen::iterator::IteratorHandle;
 use oo_bindgen::native_enum::NativeEnumHandle;
-use oo_bindgen::native_function::{ReturnType, Type, DurationMapping};
+use oo_bindgen::native_function::{DurationMapping, ReturnType, Type};
 use oo_bindgen::native_struct::{NativeStructHandle, StructElementType};
 use oo_bindgen::{BindingError, LibraryBuilder};
 
