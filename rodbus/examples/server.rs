@@ -128,41 +128,59 @@ impl RequestHandler for SimpleHandler {
 
 #[tokio::main(flavor = "multi_thread")]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let matches = clap::App::new("rodbus client demo")
+        .version(rodbus::VERSION)
+        .about("Simple program to show off client API")
+        .arg(
+            clap::Arg::new("serial")
+                .long("serial")
+                .help("Use serial port"),
+        )
+        .get_matches();
+
     // initialize logging
     tracing_subscriber::fmt()
         .with_max_level(tracing::Level::DEBUG)
         .with_target(false)
         .init();
 
-    // ANCHOR: tcp_server_create
+    // ANCHOR: handler_map_create
     let handler =
         SimpleHandler::new(vec![false; 10], vec![false; 10], vec![0; 10], vec![0; 10]).wrap();
 
     // map unit ids to a handler for processing requests
     let map = ServerHandlerMap::single(UnitId::new(1), handler.clone());
+    // ANCHOR_END: handler_map_create
 
     // spawn a server to handle connections onto its own task
     // if we ever drop this handle, the server will shutdown
     // along with all of its active sessions
-    /*let _server = rodbus::server::spawn_tcp_server_task(
-        1,
-        "127.0.0.1:502".parse()?,
-        map,
-        DecodeLevel::default(),
-    )
-    .await?;*/
-    // ANCHOR_END: tcp_server_create
-
-    let _server = rodbus::server::spawn_rtu_server_task(
-        "/dev/ttySIM1",
-        SerialSettings::default(),
-        map,
-        DecodeLevel::new(
-            PduDecodeLevel::DataValues,
-            AduDecodeLevel::Payload,
-            PhysDecodeLevel::Data,
-        ),
-    )?;
+    let _server = if !matches.is_present("serial") {
+        // ANCHOR: tcp_server_create
+        let server = rodbus::server::spawn_tcp_server_task(
+            1,
+            "127.0.0.1:502".parse()?,
+            map,
+            DecodeLevel::default(),
+        )
+        .await?;
+        // ANCHOR_END: tcp_server_create
+        server
+    } else {
+        // ANCHOR: rtu_server_create
+        let server = rodbus::server::spawn_rtu_server_task(
+            "/dev/ttySIM1",
+            SerialSettings::default(),
+            map,
+            DecodeLevel::new(
+                PduDecodeLevel::DataValues,
+                AduDecodeLevel::Payload,
+                PhysDecodeLevel::Data,
+            ),
+        )?;
+        // ANCHOR_END: rtu_server_create
+        server
+    };
 
     let mut reader = FramedRead::new(tokio::io::stdin(), LinesCodec::new());
     loop {

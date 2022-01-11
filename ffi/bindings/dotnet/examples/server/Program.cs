@@ -101,10 +101,21 @@ namespace example
             // ANCHOR_END: device_map_init
 
             // create the TCP server
-            // ANCHOR: tcp_server_create
-            var decodeLevel = new DecodeLevel();
-            var server = Server.CreateTcpServer(runtime, "127.0.0.1:502", 10, map, decodeLevel);
-            // ANCHOR_END: tcp_server_create
+            Server server = null;
+            if (Array.IndexOf(args, "--serial") == -1)
+            {
+                // ANCHOR: tcp_server_create
+                var decodeLevel = new DecodeLevel();
+                server = Server.CreateTcpServer(runtime, "127.0.0.1:502", 100, map, decodeLevel);
+                // ANCHOR_END: tcp_server_create
+            }
+            else
+            {
+                // ANCHOR: rtu_server_create
+                var decodeLevel = new DecodeLevel();
+                server = Server.CreateRtuServer(runtime, "/dev/ttySIM1", new SerialPortSettings(), map, decodeLevel);
+                // ANCHOR_END: rtu_server_create
+            }
 
             try
             {

@@ -2,7 +2,7 @@ use oo_bindgen::class::ClassHandle;
 use oo_bindgen::error_type::{ErrorType, ExceptionType};
 use oo_bindgen::iterator::IteratorHandle;
 use oo_bindgen::native_enum::NativeEnumHandle;
-use oo_bindgen::native_function::{ReturnType, Type};
+use oo_bindgen::native_function::{ReturnType, Type, DurationMapping};
 use oo_bindgen::native_struct::{NativeStructHandle, StructElementType};
 use oo_bindgen::{BindingError, LibraryBuilder};
 
@@ -115,9 +115,9 @@ fn build_request_param(lib: &mut LibraryBuilder) -> Result<NativeStructHandle, B
         .define_native_struct(&param)?
         .add("unit_id", Type::Uint8, "Modbus address for the request")?
         .add(
-            "timeout_ms",
-            Type::Uint32,
-            "Response timeout for the request in milliseconds",
+            "timeout",
+            Type::Duration(DurationMapping::Milliseconds),
+            "Response timeout for the request",
         )?
         .doc("Address and timeout parameters for requests")?
         .build()?;

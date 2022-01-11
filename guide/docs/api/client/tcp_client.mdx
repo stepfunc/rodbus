@@ -13,7 +13,7 @@ regardless of the underlying transport. You can create a TCP client channel usin
 
 :::note
 In Rust, you can use the `spawn_tcp_client_task` to create a channel and spawn the runner task in the current runtime.
-Otherwise, you can use `create_handle_and_task` and manually spawn the returned future when ready.
+Otherwise, you can use `create_tcp_handle_and_task` and manually spawn the returned future when ready.
 :::
 
 <Tabs

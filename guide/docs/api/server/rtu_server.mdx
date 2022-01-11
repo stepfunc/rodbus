@@ -1,0 +1,94 @@
+---
+id: rtu_server
+title: Serial RTU Server
+sidebar_label: Serial RTU Server
+slug: /api/server/rtu_server
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+This library supports serial communication using the RTU transmission mode. It features an addressing
+scheme similar to the TCP transmission mode, as well as a checksum to ensure integrity of the messages.
+A multi-drop scenario can be implemented by having a single client communicating with multiple servers
+sharing the same serial link. A broadcast mechanism is also available to send write requests
+simultaneously to all servers.
+
+## Special addresses
+
+### Broadcast
+
+When a write request is received with the broadcast unit ID (`0x00`), it is automatically forwarded to all registered
+handlers. Note that no response will be sent back.
+
+### Reserved addresses
+
+Addresses 248 (`0xF8`) to 255 (`0xFF`) inclusively are reserved in the specification and **should not be used**. The library does not
+enforce this, but a warning message will be printed.
+
+## Creating a server
+
+To create a RTU server, first build a `DeviceMap` for each unit ID that the server will answer, similarly to how it's done for [TCP server](./tcp_server).
+Then use the `create_rtu_server` static method of the `Server` class. The created server will start listening on the serial port immediately.
+
+The `create_rtu_server` function takes the following arguments:
+
+- `runtime`: tokio runtime used to drive the async process. See [Runtime](../runtime.mdx) for more details.
+- `path`: path of the serial device.
+  - On Windows, it's generally something like `COM3`
+  - On Linux, it's generally something like `/dev/ttyS3`. You need to have the adequate permissions
+    to access these devices.
+- `serial_port_settings`: structure with various serial port settings:
+  - Baud rate in bit per second
+  - Data bits. Note that Modbus should use 8 data bits.
+  - Stop bits
+  - Parity
+  - Flow control
+
+<Tabs
+groupId="language"
+defaultValue="Rust"
+values={[
+{label: 'Rust', value: 'Rust'},
+{label: 'C', value: 'C'},
+{label: 'Java', value: 'Java'},
+{label: 'C#', value: 'C#'},
+]}>
+<TabItem value="Rust">
+
+```rust
+{{#include ../rodbus/examples/server.rs:handler_map_create}}
+
+{{#include ../rodbus/examples/server.rs:rtu_server_create}}
+```
+
+</TabItem>
+<TabItem value="C">
+
+```c
+{{#include ../ffi/bindings/c/server_example.c:device_map_init}}
+
+{{#include ../ffi/bindings/c/server_example.c:rtu_server_create}}
+// check error
+```
+
+</TabItem>
+<TabItem value="Java">
+
+```java
+{{#include ../ffi/bindings/java/examples/src/main/java/io/stepfunc/rodbus/examples/ServerExample.java:device_map_init}}
+
+{{#include ../ffi/bindings/java/examples/src/main/java/io/stepfunc/rodbus/examples/ServerExample.java:rtu_server_create}}
+```
+
+</TabItem>
+<TabItem value="C#">
+
+```csharp
+{{#include ../ffi/bindings/dotnet/examples/server/Program.cs:device_map_init}}
+
+{{#include ../ffi/bindings/dotnet/examples/server/Program.cs:rtu_server_create}}
+```
+
+</TabItem>
+</Tabs>

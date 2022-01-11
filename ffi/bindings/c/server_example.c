@@ -118,7 +118,7 @@ void update_input_register(rodbus_database_t *db, void *ctx)
     }
 }
 
-int main()
+int main(int argc, char* argv[])
 {
     // initialize logging with the default configuration
     rodbus_logger_t logger = rodbus_logger_init(&on_log_message, NULL, NULL);
@@ -150,17 +150,33 @@ int main()
     );
     // ANCHOR_END: device_map_init
 
-    // create the TCP server
-    // ANCHOR: tcp_server_create
-    rodbus_decode_level_t decode_level = rodbus_decode_level_init();
-    err = rodbus_create_tcp_server(runtime, "127.0.0.1:502", 100, map, decode_level, &server);
-    rodbus_device_map_destroy(map);
+    // create the server
+    if (argc > 1 && strcmp(argv[1], "--serial") == 0)
+    {
+        // ANCHOR: rtu_server_create
+        rodbus_decode_level_t decode_level = rodbus_decode_level_init();
+        err = rodbus_create_rtu_server(runtime, "/dev/ttySIM1", rodbus_serial_port_settings_init(), map, decode_level, &server);
+        rodbus_device_map_destroy(map);
 
-    if (err) {
-        printf("Unable to initialize server: %s\n", rodbus_param_error_to_string(err));
-        goto cleanup;
+        if (err) {
+            printf("Unable to initialize server: %s\n", rodbus_param_error_to_string(err));
+            goto cleanup;
+        }
+        // ANCHOR_END: rtu_server_create
     }
-    // ANCHOR_END: tcp_server_create
+    else
+    {
+        // ANCHOR: tcp_server_create
+        rodbus_decode_level_t decode_level = rodbus_decode_level_init();
+        err = rodbus_create_tcp_server(runtime, "127.0.0.1:502", 100, map, decode_level, &server);
+        rodbus_device_map_destroy(map);
+
+        if (err) {
+            printf("Unable to initialize server: %s\n", rodbus_param_error_to_string(err));
+            goto cleanup;
+        }
+        // ANCHOR_END: tcp_server_create
+    }
 
     // state passed to the update callbacks
     state_t state = {

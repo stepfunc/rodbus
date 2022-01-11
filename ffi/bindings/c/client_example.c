@@ -72,7 +72,7 @@ void on_write_complete(rodbus_error_info_t result, void *ctx)
 }
 /// ANCHOR_END: write_callback
 
-int main()
+int main(int argc, char* argv[])
 {
     // ANCHOR: logging_init
     // initialize logging with the default configuration
@@ -101,15 +101,36 @@ int main()
         goto cleanup;
     }
 
-    // initialize a Modbus TCP client channel
-    // ANCHOR: create_tcp_channel
-    rodbus_decode_level_t decode_level = rodbus_decode_level_init();
-    err = rodbus_create_tcp_client(runtime, "127.0.0.1:502", 100, rodbus_retry_strategy_init(), decode_level, &channel);
-    if (err) {
-        printf("Unable to initialize channel: %s\n", rodbus_param_error_to_string(err));
-        goto cleanup;
+    // initialize a Modbus client channel
+    if (argc > 1 && strcmp(argv[1], "--serial") == 0)
+    {
+        // ANCHOR: create_rtu_channel
+        rodbus_decode_level_t decode_level = rodbus_decode_level_init();
+        err = rodbus_create_rtu_client(runtime,
+            "/dev/ttySIM0", // path
+            rodbus_serial_port_settings_init(), // serial settings
+            1, // max queued requests
+            1000, // retry delay (in ms)
+            decode_level, // decode level
+            &channel
+        );
+        if (err) {
+            printf("Unable to initialize channel: %s\n", rodbus_param_error_to_string(err));
+            goto cleanup;
+        }
+        // ANCHOR_END: create_rtu_channel
     }
-    // ANCHOR_END: create_tcp_channel
+    else
+    {
+        // ANCHOR: create_tcp_channel
+        rodbus_decode_level_t decode_level = rodbus_decode_level_init();
+        err = rodbus_create_tcp_client(runtime, "127.0.0.1:502", 1, rodbus_retry_strategy_init(), decode_level, &channel);
+        if (err) {
+            printf("Unable to initialize channel: %s\n", rodbus_param_error_to_string(err));
+            goto cleanup;
+        }
+        // ANCHOR_END: create_tcp_channel
+    }
 
     // request param that we will be reusing
     // ANCHOR: request_param

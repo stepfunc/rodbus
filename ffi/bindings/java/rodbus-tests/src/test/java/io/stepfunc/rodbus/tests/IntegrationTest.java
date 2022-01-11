@@ -6,6 +6,7 @@ import io.stepfunc.rodbus.Runtime;
 import org.joou.*;
 import org.junit.jupiter.api.Test;
 
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
@@ -15,7 +16,7 @@ import static org.joou.Unsigned.*;
 
 public class IntegrationTest {
     static final UByte UNIT_ID = ubyte(1);
-    static final UInteger TIMEOUT_MS = uint(1000);
+    static final Duration TIMEOUT = Duration.ofSeconds(1);
     static final int NUM_POINTS = 10;
     static final String ENDPOINT = "127.0.0.1:20000";
 
@@ -93,7 +94,7 @@ public class IntegrationTest {
     }
 
     private void testReadDiscreteInputs(Channel client) throws ExecutionException, InterruptedException {
-        RequestParam param = new RequestParam(UNIT_ID, TIMEOUT_MS);
+        RequestParam param = new RequestParam(UNIT_ID, TIMEOUT);
         AddressRange range = new AddressRange(ushort(2), ushort(3));
 
         BitReadResult result = client.readDiscreteInputs(param, range).toCompletableFuture().get();
@@ -118,7 +119,7 @@ public class IntegrationTest {
     }
 
     private void testReadInputRegisters(Channel client) throws ExecutionException, InterruptedException {
-        RequestParam param = new RequestParam(UNIT_ID, TIMEOUT_MS);
+        RequestParam param = new RequestParam(UNIT_ID, TIMEOUT);
         AddressRange range = new AddressRange(ushort(3), ushort(3));
 
         RegisterReadResult result = client.readInputRegisters(param, range).toCompletableFuture().get();
@@ -143,7 +144,7 @@ public class IntegrationTest {
     }
 
     private void testWriteSingleCoil(Channel client) throws ExecutionException, InterruptedException {
-        RequestParam param = new RequestParam(UNIT_ID, TIMEOUT_MS);
+        RequestParam param = new RequestParam(UNIT_ID, TIMEOUT);
         Bit bit = new Bit(ushort(1), true);
 
         ErrorInfo writeResult = client.writeSingleCoil(param, bit).toCompletableFuture().get();
@@ -164,7 +165,7 @@ public class IntegrationTest {
     }
 
     private void testWriteSingleRegister(Channel client) throws ExecutionException, InterruptedException {
-        RequestParam param = new RequestParam(UNIT_ID, TIMEOUT_MS);
+        RequestParam param = new RequestParam(UNIT_ID, TIMEOUT);
         Register register = new Register(ushort(1), ushort(22));
 
         ErrorInfo writeResult = client.writeSingleRegister(param, register).toCompletableFuture().get();
@@ -185,7 +186,7 @@ public class IntegrationTest {
     }
 
     private void testWriteMultipleCoils(Channel client) throws ExecutionException, InterruptedException {
-        RequestParam param = new RequestParam(UNIT_ID, TIMEOUT_MS);
+        RequestParam param = new RequestParam(UNIT_ID, TIMEOUT);
 
         ErrorInfo writeResult = client.writeMultipleCoils(param, ushort(0), Arrays.asList(true, false, true)).toCompletableFuture().get();
         assertThat(writeResult.summary).isEqualTo(Status.OK);
@@ -207,7 +208,7 @@ public class IntegrationTest {
     }
 
     private void testWriteMultipleRegisters(Channel client) throws ExecutionException, InterruptedException {
-        RequestParam param = new RequestParam(UNIT_ID, TIMEOUT_MS);
+        RequestParam param = new RequestParam(UNIT_ID, TIMEOUT);
 
         ErrorInfo writeResult = client.writeMultipleRegisters(param, ushort(0), Arrays.asList(ushort(0xCAFE), ushort(21), ushort(0xFFFF))).toCompletableFuture().get();
         assertThat(writeResult.summary).isEqualTo(Status.OK);

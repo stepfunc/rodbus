@@ -5,6 +5,8 @@ import static org.joou.Unsigned.*;
 import io.stepfunc.rodbus.*;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
+import java.time.Duration;
+import java.util.Arrays;
 import java.util.List;
 
 import io.stepfunc.rodbus.Runtime;
@@ -89,10 +91,19 @@ public class ServerExample {
         });
         // ANCHOR_END: device_map_init
 
-        // ANCHOR: tcp_server_create
-        DecodeLevel decodeLevel = new DecodeLevel();
-        Server server = Server.createTcpServer(runtime, "127.0.0.1:502", ushort(10), map, decodeLevel);
-        // ANCHOR_END: tcp_server_create
+        Server server = null;
+        if (!Arrays.asList(args).contains("--serial")) {
+            // ANCHOR: tcp_server_create
+            DecodeLevel decodeLevel = new DecodeLevel();
+            server = Server.createTcpServer(runtime, "127.0.0.1:502", ushort(100), map, decodeLevel);
+            // ANCHOR_END: tcp_server_create
+        }
+        else {
+            // ANCHOR: rtu_server_create
+            DecodeLevel decodeLevel = new DecodeLevel();
+            server = Server.createRtuServer(runtime, "/dev/ttySIM1", new SerialPortSettings(), map, decodeLevel);
+            // ANCHOR_END: rtu_server_create
+        }
 
         try {
             run(server);
