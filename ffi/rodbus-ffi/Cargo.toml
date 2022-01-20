@@ -13,6 +13,7 @@ readme = "../README.md"
 crate-type = ["rlib", "staticlib", "cdylib"]
 
 [dependencies]
+lazy_static = "1.0"
 tracing = "0.1"
 tracing-core = "0.1"
 tracing-subscriber = "0.2"

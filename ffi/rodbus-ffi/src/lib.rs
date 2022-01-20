@@ -25,3 +25,11 @@ pub use runtime::*;
 pub use server::*;
 
 pub mod ffi;
+
+lazy_static::lazy_static! {
+    static ref VERSION: std::ffi::CString = std::ffi::CString::new(rodbus::VERSION).unwrap();
+}
+
+fn version() -> &'static std::ffi::CStr {
+    &VERSION
+}
