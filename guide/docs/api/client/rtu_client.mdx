@@ -8,16 +8,15 @@ slug: /api/client/rtu_client
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
-You can create a serial RTU client channel using `create_rtu_client` method. It will immediately try to open
-the serial port.
+You can create a RTU client channel using the `create_rtu_client` method. It will immediately try to open the serial port.
 
 :::note
-In Rust, you can use the `spawn_rtu_client_task` to create a channel and spawn the runner task in the current runtime.
-Otherwise, you can use `create_rtu_handle_and_task` and manually spawn the returned future when ready.
+In Rust, you can use the `spawn_rtu_client_task` to create a channel and spawn the async task in the context of the current runtime.
+Outside the Tokio runtime, you can use `create_rtu_handle_and_task` and manually spawn the returned future.
 :::
 
 :::info
-This library currently does **not** support sending broadcast requests. Sending a request with a broadcast unit ID
+The library does **not** support sending broadcast requests yet. Sending a request with a broadcast unit ID
 (`0x00`) will generate a timeout error, because no server will respond.
 :::
 
