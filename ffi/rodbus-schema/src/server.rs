@@ -124,7 +124,7 @@ fn build_add_method(
     snake_name: &str,
     value_type: Primitive,
 ) -> BackTraced<MethodHandle> {
-    let spaced_name = snake_name.replace("_", " ");
+    let spaced_name = snake_name.replace('_', " ");
 
     let method = lib
         .define_method(format!("add_{}", snake_name), db.clone())?
@@ -152,7 +152,7 @@ fn build_get_method(
     value_type: Primitive,
     error_type: &ErrorTypeHandle,
 ) -> BackTraced<MethodHandle> {
-    let spaced_name = snake_name.replace("_", " ");
+    let spaced_name = snake_name.replace('_', " ");
 
     let method = lib
         .define_method(format!("get_{}", snake_name), db.clone())?
@@ -177,7 +177,7 @@ fn build_delete_method(
     db: &ClassDeclarationHandle,
     snake_name: &str,
 ) -> BackTraced<MethodHandle> {
-    let spaced_name = snake_name.replace("_", " ");
+    let spaced_name = snake_name.replace('_', " ");
 
     let method = lib
         .define_method(format!("delete_{}", snake_name), db.clone())?
@@ -202,7 +202,7 @@ fn build_update_method(
     snake_name: &str,
     value_type: Primitive,
 ) -> BackTraced<MethodHandle> {
-    let spaced_name = snake_name.replace("_", " ");
+    let spaced_name = snake_name.replace('_', " ");
 
     let method = lib
         .define_method(format!("update_{}", snake_name), db.clone())?
