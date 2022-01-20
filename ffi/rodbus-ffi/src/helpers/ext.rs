@@ -1,16 +1,12 @@
 use crate::ffi;
 use rodbus::client::{CallbackSession, RequestParam};
 use rodbus::UnitId;
-use std::time::Duration;
 
 impl ffi::RequestParam {
     pub(crate) fn build_session(&self, channel: &crate::Channel) -> CallbackSession {
         CallbackSession::new(
             channel.inner.clone(),
-            RequestParam::new(
-                UnitId::new(self.unit_id),
-                Duration::from_millis(self.timeout_ms as u64),
-            ),
+            RequestParam::new(UnitId::new(self.unit_id()), self.timeout()),
         )
     }
 }

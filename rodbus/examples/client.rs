@@ -5,12 +5,23 @@ use tokio_stream::StreamExt;
 use tokio_util::codec::{FramedRead, LinesCodec};
 
 use rodbus::client::*;
+use rodbus::serial::*;
 use rodbus::*;
 
 // ANCHOR: runtime_init
 #[tokio::main(flavor = "multi_thread")]
 async fn main() -> Result<(), Box<dyn Error>> {
     // ANCHOR_END: runtime_init
+
+    let matches = clap::App::new("rodbus client demo")
+        .version(rodbus::VERSION)
+        .about("Simple program to show off client API")
+        .arg(
+            clap::Arg::new("serial")
+                .long("serial")
+                .help("Use serial port"),
+        )
+        .get_matches();
 
     // ANCHOR: logging
     // Initialize logging
@@ -21,14 +32,32 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // ANCHOR_END: logging
 
     // Create a channel
-    // ANCHOR: create_tcp_channel
-    let mut channel = spawn_tcp_client_task(
-        "127.0.0.1:502".parse()?,
-        1,
-        default_reconnect_strategy(),
-        DecodeLevel::default(),
-    );
-    // ANCHOR_END: create_tcp_channel
+    let mut channel = if !matches.is_present("serial") {
+        // ANCHOR: create_tcp_channel
+        let channel = spawn_tcp_client_task(
+            "127.0.0.1:502".parse()?,
+            1,
+            default_reconnect_strategy(),
+            DecodeLevel::default(),
+        );
+        // ANCHOR_END: create_tcp_channel
+        channel
+    } else {
+        // ANCHOR: create_rtu_channel
+        let channel = spawn_rtu_client_task(
+            "/dev/ttySIM0",            // path
+            SerialSettings::default(), // serial settings
+            1,                         // max queued requests
+            Duration::from_secs(1),    // retry delay
+            DecodeLevel::new(
+                PduDecodeLevel::DataValues,
+                AduDecodeLevel::Payload,
+                PhysDecodeLevel::Nothing,
+            ),
+        );
+        // ANCHOR_END: create_rtu_channel
+        channel
+    };
 
     // ANCHOR: request_param
     let params = RequestParam::new(UnitId::new(1), Duration::from_secs(1));

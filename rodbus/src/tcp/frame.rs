@@ -2,10 +2,12 @@ use std::convert::TryFrom;
 
 use crate::common::buffer::ReadBuffer;
 use crate::common::cursor::WriteCursor;
-use crate::common::frame::{Frame, FrameFormatter, FrameHeader, FrameParser, TxId};
+use crate::common::frame::{
+    Frame, FrameDestination, FrameFormatter, FrameHeader, FrameParser, TxId,
+};
 use crate::common::traits::Serialize;
 use crate::decode::AduDecodeLevel;
-use crate::error::{FrameParseError, InternalError, RequestError};
+use crate::error::{FrameParseError, InternalError, InvalidRequest, RequestError};
 use crate::types::UnitId;
 
 pub(crate) mod constants {
@@ -68,7 +70,7 @@ impl MbapParser {
 
         if length > constants::MAX_LENGTH_FIELD {
             return Err(
-                FrameParseError::MbapLengthTooBig(length, constants::MAX_LENGTH_FIELD).into(),
+                FrameParseError::FrameLengthTooBig(length, constants::MAX_LENGTH_FIELD).into(),
             );
         }
 
@@ -85,7 +87,7 @@ impl MbapParser {
     }
 
     fn parse_body(header: &MbapHeader, cursor: &mut ReadBuffer) -> Result<Frame, RequestError> {
-        let mut frame = Frame::new(FrameHeader::new(header.unit_id, header.tx_id));
+        let mut frame = Frame::new(FrameHeader::new_tcp_header(header.unit_id, header.tx_id));
         frame.set(cursor.read(header.adu_length)?);
         Ok(frame)
     }
@@ -125,6 +127,10 @@ impl FrameParser for MbapParser {
             }
         }
     }
+
+    fn reset(&mut self) {
+        self.state = ParseState::Begin;
+    }
 }
 
 impl FrameFormatter for MbapFormatter {
@@ -135,11 +141,24 @@ impl FrameFormatter for MbapFormatter {
     ) -> Result<usize, RequestError> {
         let mut cursor = WriteCursor::new(self.buffer.as_mut());
 
+        let tx_id = header
+            .tx_id
+            .ok_or(RequestError::Internal(InternalError::MissingTxId))?;
+
+        let unit_id = match header.destination {
+            FrameDestination::UnitId(unit_id) => unit_id,
+            FrameDestination::Broadcast => {
+                return Err(RequestError::BadRequest(
+                    InvalidRequest::BroadcastNotSupported,
+                ))
+            }
+        };
+
         // Write header
-        cursor.write_u16_be(header.tx_id.to_u16())?;
+        cursor.write_u16_be(tx_id.to_u16())?;
         cursor.write_u16_be(0)?;
         cursor.seek_from_current(2)?; // write the length later
-        cursor.write_u8(header.unit_id.value)?;
+        cursor.write_u8(unit_id.value)?;
 
         let start = cursor.position();
         let adu_length: usize = {
@@ -161,9 +180,9 @@ impl FrameFormatter for MbapFormatter {
         // Logging
         if self.decode.enabled() {
             let header = MbapHeader {
-                tx_id: header.tx_id,
+                tx_id,
                 adu_length,
-                unit_id: header.unit_id,
+                unit_id,
             };
             tracing::info!(
                 "MBAP TX - {}",
@@ -243,8 +262,11 @@ mod tests {
     }
 
     fn assert_equals_simple_frame(frame: &Frame) {
-        assert_eq!(frame.header.tx_id, TxId::new(0x0007));
-        assert_eq!(frame.header.unit_id, UnitId::new(0x2A));
+        assert_eq!(frame.header.tx_id, Some(TxId::new(0x0007)));
+        assert_eq!(
+            frame.header.destination,
+            FrameDestination::new_unit_id(0x2A)
+        );
         assert_eq!(frame.payload(), &[0x03, 0x04]);
     }
 
@@ -284,7 +306,7 @@ mod tests {
     fn correctly_formats_frame() {
         let mut formatter = MbapFormatter::new(AduDecodeLevel::Nothing);
         let msg = MockMessage { a: 0x03, b: 0x04 };
-        let header = FrameHeader::new(UnitId::new(42), TxId::new(7));
+        let header = FrameHeader::new_tcp_header(UnitId::new(42), TxId::new(7));
         let size = formatter.format_impl(header, &msg).unwrap();
         let output = formatter.get_full_buffer_impl(size).unwrap();
 
@@ -365,7 +387,7 @@ mod tests {
         let frame = &[0x00, 0x07, 0x00, 0x00, 0x00, 0xFF, 0x2A];
         assert_eq!(
             test_error(frame),
-            RequestError::BadFrame(FrameParseError::MbapLengthTooBig(
+            RequestError::BadFrame(FrameParseError::FrameLengthTooBig(
                 0xFF,
                 constants::MAX_LENGTH_FIELD,
             ))

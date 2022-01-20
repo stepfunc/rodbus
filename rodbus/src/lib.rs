@@ -177,7 +177,7 @@
 )]
 #![forbid(
     unsafe_code,
-    broken_intra_doc_links,
+    rustdoc::broken_intra_doc_links,
     unaligned_references,
     while_true,
     bare_trait_objects
@@ -193,6 +193,8 @@ pub mod constants;
 
 /// Error types associated with making requests
 pub mod error;
+/// Serial (RTU) API
+pub mod serial;
 /// Server API
 pub mod server;
 

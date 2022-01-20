@@ -1,6 +1,7 @@
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 using rodbus;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -80,7 +81,7 @@ namespace rodbus_tests
         private static readonly byte UNIT_ID = 1;
         private static readonly ushort NUM_POINTS = 10;
         private static readonly string ENDPOINT = "127.0.0.1:20000";
-        private static readonly RequestParam param = new RequestParam(UNIT_ID, 1000);
+        private static readonly RequestParam param = new RequestParam(UNIT_ID, TimeSpan.FromSeconds(1));
 
         static void TestReadDiscreteInputs(Channel client)
         {

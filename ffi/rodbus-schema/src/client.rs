@@ -47,6 +47,46 @@ pub(crate) fn build(
         .doc("create a new tcp channel instance")?
         .build()?;
 
+    let create_rtu_client_fn = lib.declare_native_function("create_rtu_client")?;
+    let create_rtu_client_fn = create_rtu_client_fn
+        .param(
+            "runtime",
+            Type::ClassRef(common.runtime_handle.declaration.clone()),
+            "runtime on which to create the channel",
+        )?
+        .param(
+            "path",
+            Type::String,
+            "Path to the serial device. Generally /dev/tty0 on Linux and COM1 on Windows.",
+        )?
+        .param(
+            "serial_params",
+            Type::Struct(common.serial_port_settings.clone()),
+            "Serial port settings",
+        )?
+        .param(
+            "max_queued_requests",
+            Type::Uint16,
+            "Maximum number of requests to queue before failing the next request",
+        )?
+        .param(
+            "open_retry_delay",
+            Type::Duration(DurationMapping::Milliseconds),
+            "Delay between attempts to open the serial port",
+        )?
+        .param(
+            "decode_level",
+            Type::Struct(common.decode_level.clone()),
+            "Decode levels for this client",
+        )?
+        .return_type(ReturnType::Type(
+            Type::ClassRef(channel.clone()),
+            "pointer to the created channel or NULL if an error occurred".into(),
+        ))?
+        .fails_with(common.error_type.clone())?
+        .doc("create a new tcp channel instance")?
+        .build()?;
+
     let destroy_channel_fn = lib
         .declare_native_function("channel_destroy")?
         .param(
@@ -141,8 +181,9 @@ pub(crate) fn build(
     )?;
 
     lib.define_class(&channel)?
-        // abstract factory methods, later we'll have TLS/serial
+        // abstract factory methods
         .static_method("create_tcp_client", &create_tcp_client_fn)?
+        .static_method("create_rtu_client", &create_rtu_client_fn)?
         // read methods
         .async_method("read_coils", &read_coils_fn)?
         .async_method("read_discrete_inputs", &read_discrete_inputs_fn)?

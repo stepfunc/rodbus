@@ -10,6 +10,8 @@ use crate::client::requests::write_multiple::{MultipleWriteRequest, WriteMultipl
 use crate::client::requests::write_single::SingleWrite;
 use crate::decode::DecodeLevel;
 use crate::error::*;
+use crate::serial::client::SerialChannelTask;
+use crate::serial::SerialSettings;
 use crate::tcp::client::TcpChannelTask;
 use crate::tokio;
 use crate::types::{AddressRange, BitIterator, Indexed, RegisterIterator, UnitId};
@@ -97,19 +99,19 @@ impl RequestParam {
 }
 
 impl Channel {
-    pub(crate) fn new(
+    pub(crate) fn spawn_tcp(
         addr: SocketAddr,
         max_queued_requests: usize,
         connect_retry: Box<dyn ReconnectStrategy + Send>,
         decode: DecodeLevel,
     ) -> Self {
         let (handle, task) =
-            Self::create_handle_and_task(addr, max_queued_requests, connect_retry, decode);
+            Self::create_tcp_handle_and_task(addr, max_queued_requests, connect_retry, decode);
         tokio::spawn(task);
         handle
     }
 
-    pub(crate) fn create_handle_and_task(
+    pub(crate) fn create_tcp_handle_and_task(
         addr: SocketAddr,
         max_queued_requests: usize,
         connect_retry: Box<dyn ReconnectStrategy + Send>,
@@ -120,6 +122,42 @@ impl Channel {
             TcpChannelTask::new(addr, rx, connect_retry, decode)
                 .run()
                 .instrument(tracing::info_span!("Modbus-Client-TCP", endpoint = ?addr))
+                .await
+        };
+        (Channel { tx }, task)
+    }
+
+    pub(crate) fn spawn_rtu(
+        path: &str,
+        serial_settings: SerialSettings,
+        max_queued_requests: usize,
+        retry_delay: Duration,
+        decode: DecodeLevel,
+    ) -> Self {
+        let (handle, task) = Self::create_rtu_handle_and_task(
+            path,
+            serial_settings,
+            max_queued_requests,
+            retry_delay,
+            decode,
+        );
+        tokio::spawn(task);
+        handle
+    }
+
+    pub(crate) fn create_rtu_handle_and_task(
+        path: &str,
+        serial_settings: SerialSettings,
+        max_queued_requests: usize,
+        retry_delay: Duration,
+        decode: DecodeLevel,
+    ) -> (Self, impl std::future::Future<Output = ()>) {
+        let path = path.to_string();
+        let (tx, rx) = tokio::sync::mpsc::channel(max_queued_requests);
+        let task = async move {
+            SerialChannelTask::new(&path, serial_settings, rx, retry_delay, decode)
+                .run()
+                .instrument(tracing::info_span!("Modbus-Client-RTU", "port" = ?path))
                 .await
         };
         (Channel { tx }, task)

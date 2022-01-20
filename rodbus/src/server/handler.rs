@@ -130,6 +130,10 @@ where
     ) -> Option<ServerHandlerType<T>> {
         self.handlers.insert(id, server)
     }
+
+    pub(crate) fn iter_mut(&mut self) -> impl Iterator<Item = &mut ServerHandlerType<T>> {
+        self.handlers.values_mut()
+    }
 }
 
 #[cfg(test)]

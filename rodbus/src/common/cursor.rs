@@ -126,4 +126,16 @@ impl<'a> WriteCursor<'a> {
         self.write_u8(upper)?;
         self.write_u8(lower)
     }
+
+    #[cfg_attr(feature = "no-panic", no_panic)]
+    pub(crate) fn write_u16_le(&mut self, value: u16) -> Result<(), InternalError> {
+        if self.remaining() < 2 {
+            // don't write any bytes if there's isn't space for the whole thing
+            return Err(InternalError::InsufficientWriteSpace(2, self.remaining()));
+        }
+        let upper = ((value & 0xFF00) >> 8) as u8;
+        let lower = (value & 0x00FF) as u8;
+        self.write_u8(lower)?;
+        self.write_u8(upper)
+    }
 }

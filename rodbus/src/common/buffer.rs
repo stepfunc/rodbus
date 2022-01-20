@@ -60,10 +60,29 @@ impl ReadBuffer {
     }
 
     #[cfg_attr(feature = "no-panic", no_panic)]
+    pub(crate) fn peek_at(&mut self, idx: usize) -> Result<u8, InternalError> {
+        let len = self.len();
+        if len < idx {
+            return Err(InternalError::InsufficientBytesForRead(idx + 1, len));
+        }
+        self.buffer
+            .get(self.begin + idx)
+            .copied()
+            .ok_or(InternalError::InsufficientBytesForRead(idx + 1, len))
+    }
+
+    #[cfg_attr(feature = "no-panic", no_panic)]
     pub(crate) fn read_u16_be(&mut self) -> Result<u16, InternalError> {
         let b1 = self.read_u8()? as u16;
         let b2 = self.read_u8()? as u16;
         Ok((b1 << 8) | b2)
+    }
+
+    #[cfg_attr(feature = "no-panic", no_panic)]
+    pub(crate) fn read_u16_le(&mut self) -> Result<u16, InternalError> {
+        let b1 = self.read_u8()? as u16;
+        let b2 = self.read_u8()? as u16;
+        Ok((b2 << 8) | b1)
     }
 
     pub(crate) async fn read_some(&mut self, io: &mut PhysLayer) -> Result<usize, std::io::Error> {

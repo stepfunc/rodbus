@@ -129,6 +129,8 @@ pub enum InternalError {
     BadSeekOperation,
     /// Byte count would exceed maximum allowed size in the ADU of u8
     BadByteCount(usize),
+    /// Trying to send a MBAP frame without a TX ID
+    MissingTxId,
 }
 
 impl std::error::Error for InternalError {}
@@ -164,6 +166,9 @@ impl std::fmt::Display for InternalError {
                 "Byte count of in ADU {} exceeds maximum size of u8",
                 size
             ),
+            InternalError::MissingTxId => {
+                write!(f, "Trying to send a MBAP frame without a transaction ID")
+            }
         }
     }
 }
@@ -173,10 +178,14 @@ impl std::fmt::Display for InternalError {
 pub enum FrameParseError {
     /// Received TCP frame with the length field set to zero
     MbapLengthZero,
-    /// Received TCP frame with length that exceeds max allowed size
-    MbapLengthTooBig(usize, usize), // actual size and the maximum size
+    /// Received TCP or RTU frame with length that exceeds max allowed size
+    FrameLengthTooBig(usize, usize), // actual size and the maximum size
     /// Received TCP frame within non-Modbus protocol id
     UnknownProtocolId(u16),
+    /// Unknown function code (only emitted in RTU parsing)
+    UnknownFunctionCode(u8),
+    /// RTU CRC validation failed
+    CrcValidationFailure(u16, u16), // received CRC, expected CRC
 }
 
 impl std::error::Error for FrameParseError {}
@@ -187,13 +196,23 @@ impl std::fmt::Display for FrameParseError {
             FrameParseError::MbapLengthZero => {
                 f.write_str("Received TCP frame with the length field set to zero")
             }
-            FrameParseError::MbapLengthTooBig(size, max) => write!(
+            FrameParseError::FrameLengthTooBig(size, max) => write!(
                 f,
                 "Received TCP frame with length ({}) that exceeds max allowed size ({})",
                 size, max
             ),
             FrameParseError::UnknownProtocolId(id) => {
                 write!(f, "Received TCP frame with non-Modbus protocol id: {}", id)
+            }
+            FrameParseError::UnknownFunctionCode(code) => {
+                write!(f, "Received unknown function code ({:#04X}), cannot determine the length of the message", code)
+            }
+            FrameParseError::CrcValidationFailure(received, expected) => {
+                write!(
+                    f,
+                    "Received incorrect CRC value {:#06X}, expected {:#06X}",
+                    received, expected
+                )
             }
         }
     }
@@ -256,6 +275,8 @@ pub enum InvalidRequest {
     CountTooBigForU16(usize),
     /// Count too big for specific request
     CountTooBigForType(u16, u16),
+    /// Broadcast is not supported on this type of link (only supported on RTU)
+    BroadcastNotSupported,
 }
 
 impl std::error::Error for InvalidRequest {}
@@ -275,6 +296,9 @@ impl std::fmt::Display for InvalidRequest {
                 "the request count of {} exceeds maximum allowed count of {} for this type",
                 count, max
             ),
+            InvalidRequest::BroadcastNotSupported => {
+                write!(f, "broadcast is not supported on this link",)
+            }
         }
     }
 }
