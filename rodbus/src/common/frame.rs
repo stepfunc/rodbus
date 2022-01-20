@@ -169,14 +169,10 @@ pub(crate) trait FrameFormatter {
     }
 
     fn get_payload(&self, len: usize) -> Result<&[u8], RequestError> {
-        match self
-            .get_payload_impl(len)
-            .map(|x| {
-                // Skip the function code
-                x.get(1..)
-            })
-            .flatten()
-        {
+        match self.get_payload_impl(len).and_then(|x| {
+            // Skip the function code
+            x.get(1..)
+        }) {
             Some(x) => Ok(x),
             None => Err(InternalError::BadSeekOperation.into()), // TODO - proper error?
         }

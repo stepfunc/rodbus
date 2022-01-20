@@ -68,7 +68,7 @@ impl ReadBuffer {
         self.buffer
             .get(self.begin + idx)
             .copied()
-            .ok_or_else(|| InternalError::InsufficientBytesForRead(idx + 1, len))
+            .ok_or(InternalError::InsufficientBytesForRead(idx + 1, len))
     }
 
     #[cfg_attr(feature = "no-panic", no_panic)]

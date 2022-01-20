@@ -124,7 +124,7 @@ pub(crate) fn build_add_fn(
     snake_name: &str,
     value_type: Type,
 ) -> Result<NativeFunctionHandle, BindingError> {
-    let spaced_name = snake_name.replace("_", " ");
+    let spaced_name = snake_name.replace('_', " ");
 
     lib.declare_native_function(&format!("database_add_{}", snake_name))?
         .param(
@@ -157,7 +157,7 @@ pub(crate) fn build_get_fn(
     value_type: Type,
     error_type: &ErrorType,
 ) -> Result<NativeFunctionHandle, BindingError> {
-    let spaced_name = snake_name.replace("_", " ");
+    let spaced_name = snake_name.replace('_', " ");
 
     lib.declare_native_function(&format!("database_get_{}", snake_name))?
         .param(
@@ -184,7 +184,7 @@ pub(crate) fn build_delete_fn(
     db: &ClassDeclarationHandle,
     snake_name: &str,
 ) -> Result<NativeFunctionHandle, BindingError> {
-    let spaced_name = snake_name.replace("_", " ");
+    let spaced_name = snake_name.replace('_', " ");
 
     lib.declare_native_function(&format!("database_delete_{}", snake_name))?
         .param(
@@ -211,7 +211,7 @@ pub(crate) fn build_update_fn(
     snake_name: &str,
     value_type: Type,
 ) -> Result<NativeFunctionHandle, BindingError> {
-    let spaced_name = snake_name.replace("_", " ");
+    let spaced_name = snake_name.replace('_', " ");
 
     lib.declare_native_function(&format!("database_update_{}", snake_name))?
         .param(
