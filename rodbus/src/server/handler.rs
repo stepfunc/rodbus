@@ -228,7 +228,8 @@ pub trait AuthorizationHandler: Send + 'static {
     }
 }
 
-pub(crate) type AuthorizationHandlerType = Arc<Mutex<Box<dyn AuthorizationHandler + Send>>>;
+/// Type definition for synchronized AuthorizationHandler
+pub type AuthorizationHandlerType = Arc<Mutex<Box<dyn AuthorizationHandler + Send>>>;
 
 /// Read-only authorization handler that blindly accepts
 /// all read requests.
