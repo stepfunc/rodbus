@@ -7,7 +7,7 @@ use tokio_rustls::rustls::server::AllowAnyAuthenticatedClient;
 
 use crate::common::phys::PhysLayer;
 use crate::server::task::SessionAuthentication;
-use crate::server::AuthorizationHandlerType;
+use crate::server::AuthorizationHandler;
 use crate::tcp::tls::{load_certs, load_private_key, CertificateMode, MinTlsVersion, TlsError};
 use crate::tokio::net::TcpStream;
 use crate::PhysDecodeLevel;
@@ -116,7 +116,7 @@ impl TlsServerConfig {
         &mut self,
         socket: TcpStream,
         level: PhysDecodeLevel,
-        auth_handler: AuthorizationHandlerType,
+        auth_handler: Arc<dyn AuthorizationHandler>,
     ) -> Result<(PhysLayer, SessionAuthentication), String> {
         let role_container = Arc::new(Mutex::new(None));
         let tls_config = self.build(role_container.clone())?;

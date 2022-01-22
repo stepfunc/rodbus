@@ -2,7 +2,7 @@ use tracing::Instrument;
 
 use crate::common::phys::PhysLayer;
 use crate::decode::PduDecodeLevel;
-use crate::server::AuthorizationHandlerType;
+use crate::server::AuthorizationHandler;
 use crate::tokio;
 
 use crate::common::cursor::ReadCursor;
@@ -13,6 +13,7 @@ use crate::exception::ExceptionCode;
 use crate::server::handler::{RequestHandler, ServerHandlerMap};
 use crate::server::request::{Request, RequestDisplay};
 use crate::server::response::ErrorResponse;
+use std::sync::Arc;
 
 pub(crate) struct SessionTask<T, F, P>
 where
@@ -159,5 +160,5 @@ pub(crate) enum SessionAuthentication {
     /// The request is not authenticated
     Unauthenticated,
     /// The request is authenticated with a Role ID
-    Authenticated(AuthorizationHandlerType, String),
+    Authenticated(Arc<dyn AuthorizationHandler>, String),
 }

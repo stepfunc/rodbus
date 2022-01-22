@@ -17,6 +17,7 @@ pub(crate) mod types;
 pub use crate::tcp::tls::server::TlsServerConfig;
 pub use crate::tcp::tls::*;
 pub use handler::*;
+use std::sync::Arc;
 pub use types::*;
 
 /// A handle to the server async task. The task is shutdown when the handle is dropped.
@@ -130,7 +131,7 @@ pub async fn spawn_tls_server_task<T: RequestHandler>(
     max_sessions: usize,
     addr: SocketAddr,
     handlers: ServerHandlerMap<T>,
-    auth_handler: AuthorizationHandlerType,
+    auth_handler: Arc<dyn AuthorizationHandler>,
     tls_config: TlsServerConfig,
     decode: DecodeLevel,
 ) -> Result<ServerHandle, crate::tokio::io::Error> {
@@ -169,7 +170,7 @@ pub async fn create_tls_server_task<T: RequestHandler>(
     max_sessions: usize,
     addr: SocketAddr,
     handlers: ServerHandlerMap<T>,
-    auth_handler: AuthorizationHandlerType,
+    auth_handler: Arc<dyn AuthorizationHandler>,
     tls_config: TlsServerConfig,
     decode: DecodeLevel,
 ) -> Result<impl std::future::Future<Output = ()>, crate::tokio::io::Error> {
@@ -193,7 +194,7 @@ async fn create_tls_server_task_impl<T: RequestHandler>(
     addr: SocketAddr,
     listener: crate::tokio::net::TcpListener,
     handlers: ServerHandlerMap<T>,
-    auth_handler: AuthorizationHandlerType,
+    auth_handler: Arc<dyn AuthorizationHandler>,
     tls_config: TlsServerConfig,
     decode: DecodeLevel,
 ) {

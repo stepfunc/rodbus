@@ -142,14 +142,14 @@ pub enum AuthorizationResult {
 }
 
 /// Authorization handler used in Modbus Security protocol
-pub trait AuthorizationHandler: Send + 'static {
+pub trait AuthorizationHandler: Send + Sync + 'static {
     /// Moves an authorization handler implementation into a `Arc<Mutex<Box<AuthorizationHandler>>>`
     /// suitable for passing to the server
-    fn wrap(self) -> AuthorizationHandlerType
+    fn wrap(self) -> Arc<dyn AuthorizationHandler>
     where
         Self: Sized,
     {
-        Arc::new(Mutex::new(Box::new(self)))
+        Arc::new(self)
     }
 
     /// Authorize a Read Coils request
@@ -228,9 +228,6 @@ pub trait AuthorizationHandler: Send + 'static {
     }
 }
 
-/// Type definition for synchronized AuthorizationHandler
-pub type AuthorizationHandlerType = Arc<Mutex<Box<dyn AuthorizationHandler + Send>>>;
-
 /// Read-only authorization handler that blindly accepts
 /// all read requests.
 #[derive(Debug, Clone, Copy)]
@@ -238,8 +235,8 @@ pub struct ReadOnlyAuthorizationHandler;
 
 impl ReadOnlyAuthorizationHandler {
     /// Instantiate a new read-only authorization handler
-    pub fn create() -> AuthorizationHandlerType {
-        Arc::new(Mutex::new(Box::new(Self)))
+    pub fn create() -> Arc<dyn AuthorizationHandler> {
+        Arc::new(Self)
     }
 }
 

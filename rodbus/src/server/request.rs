@@ -65,7 +65,6 @@ impl<'a> Request<'a> {
         {
             // Check authorization
             if let SessionAuthentication::Authenticated(handler, role) = auth {
-                let handler = handler.lock().unwrap();
                 match auth_fn(handler.as_ref(), role) {
                     AuthorizationResult::Authorized => {
                         tracing::debug!("request authorized for \"{}\"", role)
