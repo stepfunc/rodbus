@@ -8,23 +8,23 @@ slug: /api/tls
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
-[Modbus Security](https://modbus.org/docs/MB-TCP-Security-v21_2018-07-24.pdf) is a specification to wrap Modbus TCP inside a TLS secure transport to enable authentication
-and privacy of the communication links. It uses an X.509v3 extension to provide an authorization mechanism on the server. The IANA reserved port for Modbus Security is 802.
+[Modbus Security](https://modbus.org/docs/MB-TCP-Security-v21_2018-07-24.pdf) is a specification that defines how Modbus TCP is wrapped inside TLS to provide authentication and
+encryption. In addition to normal TLS functionality, it defines an X.509v3 extension used for role-based access control (RBAC). The IANA reserved port for Modbus Security is 802.
 
-In the presented certificate, the client must provide an x.509v3 extension with OID `1.3.6.1.4.1.50316.802.1`
-containing an `ASN1:UTF8String`. This arbitrary string represents the authorized role of the client and is
-used to authorize operations. For example, a client with the `historian` role might only be allowed to read
-a certain range of values, while a client with the `operator` role might be able to write coils and registers.
+The presented client certificate must include an extension with OID `1.3.6.1.4.1.50316.802.1` containing an `ASN1:UTF8String`. This string represents the
+role of the client and is used to authorize operations. For example, a client with the `historian` role might only be allowed to read
+a certain range of values, while a client with the `operator` role might be able to also write coils and registers.
+
+The mapping from the role string to permissions is defined by the user.
 
 ```mermaid
 sequenceDiagram
-Client->Server: TLS handshake
-Client->>Server: Modbus request
-Server->>Authorization Handler: Check authorization
+Client->>Server: Modbus Request
+Server->>Authorization Handler: Check Authorization
 alt authorized
 Authorization Handler->>Server: AUTHORIZED
-Server->>Point Database: Execute operation
-Point Database->>Server: Response
+Server->>Point Database: Execute Request
+Point Database->>Server: Request Result
 Server->>Client: Response
 else not authorized
 Authorization Handler->>Server: NOT_AUTHORIZED
@@ -188,14 +188,14 @@ Name validation is performed *indirectly* in self-signed mode, since the byte-fo
 ### `AuthorizationHandler`
 
 When creating a Modbus Security server, you also need to provide an `AuthorizationHandler`.
-It is use to validate that the client has the authorization to perform the operation. There's
-a callback for each function code. You get the unit ID of the destination, information about
+It is used to validate that the client has the permissions for the requested operation. There's
+a callback for each function code. You are given the unit ID of the endpoint, information about
 what points are requested (either as an `AddressRange` or a 16-bit unsigned integer) as well as
 the Role ID that was extracted from the presented certificate.
 
 If your handler returns `AuthorizationResult::Authorized`, then the request is passed to
 the appropriate handler and the operation is performed. If your handler returns
-`AuthorizationResult::NotAuthorized`, then the request is dropped and an `Illegal function code`
+`AuthorizationResult::NotAuthorized`, then the request is dropped and an `IllegalFunctionCode`
 exception is returned to the client.
 
 ### Generating certificates
