@@ -1,8 +1,8 @@
-use std::path::Path;
-
 use crate::ffi;
 use rodbus::client::{ReconnectStrategy, WriteMultiple};
 use rodbus::AddressRange;
+use std::path::Path;
+use std::time::Duration;
 
 pub struct Channel {
     pub(crate) inner: rodbus::client::Channel,
@@ -23,6 +23,32 @@ pub(crate) unsafe fn create_tcp_client(
         address,
         max_queued_requests as usize,
         retry_strategy.into(),
+        decode_level.into(),
+    );
+
+    runtime.inner.spawn(task);
+
+    Ok(Box::into_raw(Box::new(Channel {
+        inner: handle,
+        runtime: runtime.handle(),
+    })))
+}
+
+pub(crate) unsafe fn create_rtu_client(
+    runtime: *mut crate::Runtime,
+    path: &std::ffi::CStr,
+    serial_params: ffi::SerialPortSettings,
+    max_queued_requests: u16,
+    open_retry_delay: Duration,
+    decode_level: ffi::DecodeLevel,
+) -> Result<*mut crate::Channel, ffi::ParamError> {
+    let runtime = runtime.as_ref().ok_or(ffi::ParamError::NullParameter)?;
+
+    let (handle, task) = rodbus::client::create_rtu_handle_and_task(
+        &path.to_string_lossy(),
+        serial_params.into(),
+        max_queued_requests as usize,
+        open_retry_delay,
         decode_level.into(),
     );
 

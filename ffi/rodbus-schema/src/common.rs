@@ -2,8 +2,8 @@ use oo_bindgen::class::ClassHandle;
 use oo_bindgen::error_type::{ErrorType, ExceptionType};
 use oo_bindgen::iterator::IteratorHandle;
 use oo_bindgen::native_enum::NativeEnumHandle;
-use oo_bindgen::native_function::{ReturnType, Type};
-use oo_bindgen::native_struct::NativeStructHandle;
+use oo_bindgen::native_function::{DurationMapping, ReturnType, Type};
+use oo_bindgen::native_struct::{NativeStructHandle, StructElementType};
 use oo_bindgen::{doc, BindingError, LibraryBuilder};
 
 pub(crate) struct CommonDefinitions {
@@ -18,6 +18,7 @@ pub(crate) struct CommonDefinitions {
     pub(crate) bit_iterator: IteratorHandle,
     pub(crate) register_iterator: IteratorHandle,
     pub(crate) exception: NativeEnumHandle,
+    pub(crate) serial_port_settings: NativeStructHandle,
     pub(crate) min_tls_version: NativeEnumHandle,
     pub(crate) certificate_mode: NativeEnumHandle,
 }
@@ -42,6 +43,7 @@ impl CommonDefinitions {
             bit_iterator: build_iterator(lib, &bit)?,
             register_iterator: build_iterator(lib, &register)?,
             exception,
+            serial_port_settings: build_serial_params(lib)?,
             min_tls_version: build_min_tls_version(lib)?,
             certificate_mode: build_certificate_mode(lib)?,
         })
@@ -122,9 +124,9 @@ fn build_request_param(lib: &mut LibraryBuilder) -> Result<NativeStructHandle, B
         .define_native_struct(&param)?
         .add("unit_id", Type::Uint8, "Modbus address for the request")?
         .add(
-            "timeout_ms",
-            Type::Uint32,
-            "Response timeout for the request in milliseconds",
+            "timeout",
+            Type::Duration(DurationMapping::Milliseconds),
+            "Response timeout for the request",
         )?
         .doc("Address and timeout parameters for requests")?
         .build()?;
@@ -160,6 +162,70 @@ fn build_error_info(
         .build()?;
 
     Ok(info)
+}
+
+fn build_serial_params(lib: &mut LibraryBuilder) -> Result<NativeStructHandle, BindingError> {
+    let data_bits = lib
+        .define_native_enum("DataBits")?
+        .push("Five", "5 bits per character")?
+        .push("Six", "6 bits per character")?
+        .push("Seven", "7 bits per character")?
+        .push("Eight", "8 bits per character")?
+        .doc("Number of bits per character")?
+        .build()?;
+
+    let flow_control = lib
+        .define_native_enum("FlowControl")?
+        .push("None", "No flow control")?
+        .push("Software", "Flow control using XON/XOFF bytes")?
+        .push("Hardware", "Flow control using RTS/CTS signals")?
+        .doc("Flow control modes")?
+        .build()?;
+
+    let parity = lib
+        .define_native_enum("Parity")?
+        .push("None", "No parity bit")?
+        .push("Odd", "Parity bit sets odd number of 1 bits")?
+        .push("Even", "Parity bit sets even number of 1 bits")?
+        .doc("Parity checking modes")?
+        .build()?;
+
+    let stop_bits = lib
+        .define_native_enum("StopBits")?
+        .push("One", "One stop bit")?
+        .push("Two", "Two stop bits")?
+        .doc("Number of stop bits")?
+        .build()?;
+
+    let serial_params = lib.declare_native_struct("SerialPortSettings")?;
+    lib.define_native_struct(&serial_params)?
+        .add(
+            "baud_rate",
+            StructElementType::Uint32(Some(9600)),
+            "Baud rate (in symbols-per-second)",
+        )?
+        .add(
+            "data_bits",
+            StructElementType::Enum(data_bits, Some("Eight".to_string())),
+            "Number of bits used to represent a character sent on the line",
+        )?
+        .add(
+            "flow_control",
+            StructElementType::Enum(flow_control, Some("None".to_string())),
+            "Type of signalling to use for controlling data transfer",
+        )?
+        .add(
+            "parity",
+            StructElementType::Enum(parity, Some("None".to_string())),
+            "Type of parity to use for error checking",
+        )?
+        .add(
+            "stop_bits",
+            StructElementType::Enum(stop_bits, Some("One".to_string())),
+            "Number of bits to use to signal the end of a character",
+        )?
+        .doc("Serial port settings")?
+        .build()
 }
 
 fn build_iterator(

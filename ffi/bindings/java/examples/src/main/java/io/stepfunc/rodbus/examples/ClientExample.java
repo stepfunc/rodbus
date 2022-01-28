@@ -7,6 +7,7 @@ import io.stepfunc.rodbus.Runtime;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
+import java.time.Duration;
 import java.util.Arrays;
 
 // ANCHOR: logging_interface
@@ -32,11 +33,27 @@ public class ClientExample {
         Runtime runtime = new Runtime(runtimeConfig);
         // ANCHOR_END: runtime_init
 
-        // initialize a Modbus TCP client channel
-        // ANCHOR: create_tcp_channel
-        DecodeLevel decodeLevel = new DecodeLevel();
-        Channel channel = Channel.createTcpClient(runtime, "127.0.0.1:502", ushort(100), new RetryStrategy(), decodeLevel);
-        // ANCHOR_END: create_tcp_channel
+        // initialize a Modbus client channel
+        Channel channel = null;
+        if (!Arrays.asList(args).contains("--serial")) {
+            // ANCHOR: create_tcp_channel
+            DecodeLevel decodeLevel = new DecodeLevel();
+            channel = Channel.createTcpClient(runtime, "127.0.0.1:502", ushort(100), new RetryStrategy(), decodeLevel);
+            // ANCHOR_END: create_tcp_channel
+        }
+        else {
+            // ANCHOR: create_rtu_channel
+            DecodeLevel decodeLevel = new DecodeLevel();
+            channel = Channel.createRtuClient(
+                runtime,
+                "/dev/ttySIM0", // path
+                new SerialPortSettings(), // serial settings
+                ushort(1), // max queued requests
+                Duration.ofSeconds(1), // retry delay
+                decodeLevel // decode level
+            );
+            // ANCHOR_END: create_rtu_channel
+        }
 
         try {
             run(channel);
@@ -49,7 +66,7 @@ public class ClientExample {
 
     private static void run(Channel channel) throws Exception {
         // ANCHOR: request_param
-        final RequestParam param = new RequestParam(ubyte(1), uint(1000));
+        final RequestParam param = new RequestParam(ubyte(1), Duration.ofSeconds(1));
         // ANCHOR_END: request_param
         // ANCHOR: address_range
         final AddressRange range = new AddressRange(ushort(0), ushort(5));

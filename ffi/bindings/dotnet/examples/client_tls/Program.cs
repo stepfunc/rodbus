@@ -77,7 +77,7 @@ namespace example
         private static async Task RunChannel(Channel channel)
         {
             // ANCHOR: request_param
-            var param = new RequestParam(1, 1000);
+            var param = new RequestParam(1, TimeSpan.FromSeconds(1));
             // ANCHOR_END: request_param
             // ANCHOR: address_range
             var range = new AddressRange(0, 5);

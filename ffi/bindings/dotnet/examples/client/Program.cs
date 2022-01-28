@@ -33,11 +33,29 @@ namespace example
             var runtime = new Runtime(new RuntimeConfig { NumCoreThreads = 4 });
             // ANCHOR_END: runtime_init
 
-            // initialize a Modbus TCP client channel
-            // ANCHOR: create_tcp_channel
-            var decodeLevel = new DecodeLevel();
-            var channel = Channel.CreateTcpClient(runtime, "127.0.0.1:502", 100, new RetryStrategy(), decodeLevel);
-            // ANCHOR_END: create_tcp_channel
+            // initialize a Modbus client channel
+            Channel channel = null;
+            if (Array.IndexOf(args, "--serial") == -1)
+            {
+                // ANCHOR: create_tcp_channel
+                var decodeLevel = new DecodeLevel();
+                channel = Channel.CreateTcpClient(runtime, "127.0.0.1:502", 1, new RetryStrategy(), decodeLevel);
+                // ANCHOR_END: create_tcp_channel
+            }
+            else
+            {
+                // ANCHOR: create_rtu_channel
+                var decodeLevel = new DecodeLevel();
+                channel = Channel.CreateRtuClient(
+                    runtime, // runtime
+                    "/dev/ttySIM0", // path
+                    new SerialPortSettings(), // serial settings
+                    1, // max queued requests
+                    TimeSpan.FromSeconds(1), // retry delay
+                    decodeLevel // decode level
+                );
+                // ANCHOR_END: create_rtu_channel
+            }
 
             try
             {
@@ -54,7 +72,7 @@ namespace example
         private static async Task RunChannel(Channel channel)
         {
             // ANCHOR: request_param
-            var param = new RequestParam(1, 1000);
+            var param = new RequestParam(1, TimeSpan.FromSeconds(1));
             // ANCHOR_END: request_param
             // ANCHOR: address_range
             var range = new AddressRange(0, 5);

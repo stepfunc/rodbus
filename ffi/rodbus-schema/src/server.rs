@@ -68,6 +68,29 @@ pub(crate) fn build_server(
             .details("When the maximum number of concurrent sessions is reached, the oldest session is closed."))?
         .build()?;
 
+    let create_rtu_server_fn = lib
+        .declare_native_function("create_rtu_server")?
+        .param(
+            "runtime",
+            Type::ClassRef(common.runtime_handle.declaration.clone()),
+            "runtime on which to spawn the server",
+        )?
+        .param("path", Type::String, "Path to the serial device. Generally /dev/tty0 on Linux and COM1 on Windows.")?
+        .param("serial_params", Type::Struct(common.serial_port_settings.clone()), "Serial port settings")?
+        .param(
+            "endpoints",
+            Type::ClassRef(handler_map.declaration.clone()),
+            "map of endpoints which is emptied upon passing to this function",
+        )?
+        .param("decode_level", Type::Struct(common.decode_level.clone()), "Decode levels for this server")?
+        .return_type(ReturnType::Type(
+            Type::ClassRef(server.clone()),
+            "handle to the server".into(),
+        ))?
+        .fails_with(common.error_type.clone())?
+        .doc("Launch a TCP server. When the maximum number of concurrent sessions is reached, the oldest session is closed.")?
+        .build()?;
+
     let create_tls_server_fn = lib
         .declare_native_function("create_tls_server")?
         .param(
@@ -128,6 +151,7 @@ pub(crate) fn build_server(
         .destructor(&destroy_fn)?
         .method("update", &update_fn)?
         .static_method("create_tcp_server", &create_tcp_server_fn)?
+        .static_method("create_rtu_server", &create_rtu_server_fn)?
         .static_method("create_tls_server", &create_tls_server_fn)?
         .custom_destroy("Shutdown")?
         .doc("Handle to the running server. The server remains alive until this reference is destroyed")?
@@ -140,7 +164,7 @@ pub(crate) fn build_add_fn(
     snake_name: &str,
     value_type: Type,
 ) -> Result<NativeFunctionHandle, BindingError> {
-    let spaced_name = snake_name.replace("_", " ");
+    let spaced_name = snake_name.replace('_', " ");
 
     lib.declare_native_function(&format!("database_add_{}", snake_name))?
         .param(
@@ -173,7 +197,7 @@ pub(crate) fn build_get_fn(
     value_type: Type,
     error_type: &ErrorType,
 ) -> Result<NativeFunctionHandle, BindingError> {
-    let spaced_name = snake_name.replace("_", " ");
+    let spaced_name = snake_name.replace('_', " ");
 
     lib.declare_native_function(&format!("database_get_{}", snake_name))?
         .param(
@@ -200,7 +224,7 @@ pub(crate) fn build_delete_fn(
     db: &ClassDeclarationHandle,
     snake_name: &str,
 ) -> Result<NativeFunctionHandle, BindingError> {
-    let spaced_name = snake_name.replace("_", " ");
+    let spaced_name = snake_name.replace('_', " ");
 
     lib.declare_native_function(&format!("database_delete_{}", snake_name))?
         .param(
@@ -227,7 +251,7 @@ pub(crate) fn build_update_fn(
     snake_name: &str,
     value_type: Type,
 ) -> Result<NativeFunctionHandle, BindingError> {
-    let spaced_name = snake_name.replace("_", " ");
+    let spaced_name = snake_name.replace('_', " ");
 
     lib.declare_native_function(&format!("database_update_{}", snake_name))?
         .param(

@@ -10,14 +10,17 @@ repository = "https://github.com/stepfunc/rodbus"
 readme = "../README.md"
 
 [dependencies]
+crc = "2.0"
 pem = "1.0"
 pkcs8 = { version = "0.7", features = ["encryption", "pem", "std"] }
 rasn = { git = "https://github.com/stepfunc/rasn.git", tag = "0.1.2" }
 tokio-mock = { git = "https://github.com/stepfunc/tokio-mock.git", tag = "0.1.0" }
 tokio-rustls = { version = "0.23", features = ["dangerous_configuration", "tls12"], default-features = false }
+tokio-serial = "5.4"
 tracing = "0.1"
 
 [dev-dependencies]
+clap = "3.0"
 tokio = { version = "1.5", features = ["rt-multi-thread", "macros"] }
 tokio-stream = "0.1"
 tokio-util = { version = "0.6", features = ["codec"] }

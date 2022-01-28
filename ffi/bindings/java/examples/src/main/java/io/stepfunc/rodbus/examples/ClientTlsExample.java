@@ -7,6 +7,7 @@ import io.stepfunc.rodbus.Runtime;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
+import java.time.Duration;
 import java.util.Arrays;
 
 public class ClientTlsExample {
@@ -65,7 +66,7 @@ public class ClientTlsExample {
 
     private static void run(Channel channel) throws Exception {
         // ANCHOR: request_param
-        final RequestParam param = new RequestParam(ubyte(1), uint(1000));
+        final RequestParam param = new RequestParam(ubyte(1), Duration.ofSeconds(1));
         // ANCHOR_END: request_param
         // ANCHOR: address_range
         final AddressRange range = new AddressRange(ushort(0), ushort(5));

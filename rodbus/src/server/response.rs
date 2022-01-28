@@ -68,8 +68,8 @@ where
 }
 
 pub(crate) struct ErrorResponse {
-    function: u8,
-    exception: ExceptionCode,
+    pub(crate) function: u8,
+    pub(crate) exception: ExceptionCode,
 }
 
 impl ErrorResponse {
