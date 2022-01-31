@@ -77,7 +77,8 @@ pub trait RequestHandler: Send + 'static {
     }
 }
 
-type ServerHandlerType<T> = Arc<Mutex<Box<T>>>;
+/// Server handler boxed inside a `Arc<Mutex>`.
+pub type ServerHandlerType<T> = Arc<Mutex<Box<T>>>;
 
 /// A type that hides the underlying map implementation
 /// and allows lookups of a [`RequestHandler`] from a [`UnitId`]

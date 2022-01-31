@@ -72,66 +72,8 @@ void on_write_complete(rodbus_error_info_t result, void *ctx)
 }
 /// ANCHOR_END: write_callback
 
-int main(int argc, char* argv[])
+run_channel(rodbus_channel_t* channel)
 {
-    // ANCHOR: logging_init
-    // initialize logging with the default configuration
-    rodbus_logger_t logger = rodbus_logger_init(&on_log_message, NULL, NULL);
-    rodbus_configure_logging(rodbus_logging_config_init(), logger);
-    // ANCHOR_END: logging_init
-
-    // ANCHOR: runtime_decl
-    rodbus_runtime_t *runtime = NULL;
-    // ANCHOR_END: runtime_decl
-    // ANCHOR: channel_decl
-    rodbus_channel_t *channel = NULL;
-    // ANCHOR_END: channel_decl
-    // ANCHOR: error_decl
-    rodbus_param_error_t err = RODBUS_PARAM_ERROR_OK;
-    // ANCHOR_END: error_decl
-
-    // initialize the runtime
-    // ANCHOR: runtime_create
-    rodbus_runtime_config_t runtime_config = rodbus_runtime_config_init();
-    runtime_config.num_core_threads = 4;
-    err = rodbus_runtime_new(runtime_config, &runtime);
-    // ANCHOR_END: runtime_create
-    if (err) {
-        printf("Unable to initialize runtime: %s\n", rodbus_param_error_to_string(err));
-        goto cleanup;
-    }
-
-    // initialize a Modbus client channel
-    if (argc > 1 && strcmp(argv[1], "--serial") == 0)
-    {
-        // ANCHOR: create_rtu_channel
-        rodbus_decode_level_t decode_level = rodbus_decode_level_init();
-        err = rodbus_create_rtu_client(runtime,
-            "/dev/ttySIM0", // path
-            rodbus_serial_port_settings_init(), // serial settings
-            1, // max queued requests
-            1000, // retry delay (in ms)
-            decode_level, // decode level
-            &channel
-        );
-        if (err) {
-            printf("Unable to initialize channel: %s\n", rodbus_param_error_to_string(err));
-            goto cleanup;
-        }
-        // ANCHOR_END: create_rtu_channel
-    }
-    else
-    {
-        // ANCHOR: create_tcp_channel
-        rodbus_decode_level_t decode_level = rodbus_decode_level_init();
-        err = rodbus_create_tcp_client(runtime, "127.0.0.1:502", 1, rodbus_retry_strategy_init(), decode_level, &channel);
-        if (err) {
-            printf("Unable to initialize channel: %s\n", rodbus_param_error_to_string(err));
-            goto cleanup;
-        }
-        // ANCHOR_END: create_tcp_channel
-    }
-
     // request param that we will be reusing
     // ANCHOR: request_param
     rodbus_request_param_t param = rodbus_request_param_init(1,   // Unit ID
@@ -159,7 +101,7 @@ int main(int argc, char* argv[])
         fgets(cbuf, 10, stdin);
 
         if (strcmp(cbuf, "x\n") == 0) {
-            goto cleanup;
+            break;
         }
         else if (strcmp(cbuf, "rc\n") == 0) {
             // ANCHOR: read_coils
@@ -216,11 +158,147 @@ int main(int argc, char* argv[])
         }
     }
 
-cleanup:
     rodbus_channel_destroy(channel);
+
+    return 0;
+}
+
+int run_tcp_channel(rodbus_runtime_t* runtime)
+{
+    // ANCHOR: create_tcp_channel
+    rodbus_channel_t* channel = NULL;
+    rodbus_decode_level_t decode_level = rodbus_decode_level_init();
+    rodbus_param_error_t err = rodbus_create_tcp_client(runtime, "127.0.0.1:502", 1, rodbus_retry_strategy_init(), decode_level, &channel);
+    if (err) {
+        printf("Unable to initialize channel: %s\n", rodbus_param_error_to_string(err));
+        return -1;
+    }
+    // ANCHOR_END: create_tcp_channel
+
+    return run_channel(channel);
+}
+
+int run_rtu_channel(rodbus_runtime_t* runtime)
+{
+    // ANCHOR: create_rtu_channel
+    rodbus_channel_t* channel = NULL;
+    rodbus_decode_level_t decode_level = rodbus_decode_level_init();
+    rodbus_param_error_t err = rodbus_create_rtu_client(runtime,
+        "/dev/ttySIM0", // path
+        rodbus_serial_port_settings_init(), // serial settings
+        1, // max queued requests
+        1000, // retry delay (in ms)
+        decode_level, // decode level
+        &channel
+    );
+    if (err) {
+        printf("Unable to initialize channel: %s\n", rodbus_param_error_to_string(err));
+        return -1;
+    }
+    // ANCHOR_END: create_rtu_channel
+
+    return run_channel(channel);
+}
+
+rodbus_tls_client_config_t get_self_signed_tls_config()
+{
+    // ANCHOR: tls_self_signed_config
+    rodbus_tls_client_config_t tls_config = rodbus_tls_client_config_init(
+        "test.com",
+        "./certs/self_signed/entity2_cert.pem",
+        "./certs/self_signed/entity1_cert.pem",
+        "./certs/self_signed/entity1_key.pem",
+        "" // no password
+    );
+    tls_config.certificate_mode = RODBUS_CERTIFICATE_MODE_SELF_SIGNED;
+    // ANCHOR_END: tls_self_signed_config
+
+    return tls_config;
+}
+
+rodbus_tls_client_config_t get_ca_tls_config()
+{
+    // ANCHOR: tls_ca_chain_config
+    rodbus_tls_client_config_t tls_config = rodbus_tls_client_config_init(
+        "test.com",
+        "./certs/ca_chain/ca_cert.pem",
+        "./certs/ca_chain/entity1_cert.pem",
+        "./certs/ca_chain/entity1_key.pem",
+        "" // no password
+    );
+    // ANCHOR_END: tls_ca_chain_config
+
+    return tls_config;
+}
+
+int run_tls_channel(rodbus_runtime_t* runtime, rodbus_tls_client_config_t tls_config)
+{
+    // ANCHOR: create_tls_channel
+    rodbus_channel_t* channel = NULL;
+    rodbus_decode_level_t decode_level = rodbus_decode_level_init();
+    rodbus_param_error_t err = rodbus_create_tls_client(runtime, "127.0.0.1:802", 100, rodbus_retry_strategy_init(), tls_config, decode_level, &channel);
+    if (err) {
+        printf("Unable to initialize channel: %s\n", rodbus_param_error_to_string(err));
+        return -1;
+    }
+    // ANCHOR_END: create_tls_channel
+
+    return run_channel(channel);
+}
+
+// create a channel based on the command line arguments
+int create_and_run_channel(int argc, char *argv[], rodbus_runtime_t *runtime)
+{
+    if(argc != 2) {
+        printf("you must specify a transport type\n");
+        printf("usage: client_example <channel> (tcp, rtu, tls-ca, tls-self-signed)\n");
+        return -1;
+    }
+
+    if (strcmp(argv[1], "tcp") == 0) {
+        return run_tcp_channel(runtime);
+    }
+    else if (strcmp(argv[1], "rtu") == 0) {
+        return run_rtu_channel(runtime);
+    }
+    else if (strcmp(argv[1], "tls-ca") == 0) {
+        return run_tls_channel(runtime, get_ca_tls_config());
+    }
+    else if (strcmp(argv[1], "tls-self-signed") == 0) {
+        return run_tls_channel(runtime, get_self_signed_tls_config());
+    }
+    else {
+        printf("unknown channel type: %s\n", argv[1]);
+        return -1;
+    }
+}
+
+int main(int argc, char* argv[])
+{
+    // ANCHOR: logging_init
+    // initialize logging with the default configuration
+    rodbus_logger_t logger = rodbus_logger_init(&on_log_message, NULL, NULL);
+    rodbus_configure_logging(rodbus_logging_config_init(), logger);
+    // ANCHOR_END: logging_init
+
+    // initialize the runtime
+    // ANCHOR: runtime_create
+    rodbus_runtime_t *runtime = NULL;
+    rodbus_runtime_config_t runtime_config = rodbus_runtime_config_init();
+    runtime_config.num_core_threads = 4;
+    rodbus_param_error_t err = rodbus_runtime_new(runtime_config, &runtime);
+    if (err) {
+        printf("Unable to initialize runtime: %s\n", rodbus_param_error_to_string(err));
+        return -1;
+    }
+    // ANCHOR_END: runtime_create
+
+    // create a channel based on the cmd line arguments and run it
+    int res = create_and_run_channel(argc, argv, runtime);
+
     // ANCHOR: runtime_destroy
     rodbus_runtime_destroy(runtime);
     // ANCHOR_END: runtime_destroy
 
-    return 0;
+    return res;
 }

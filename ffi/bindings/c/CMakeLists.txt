@@ -42,24 +42,10 @@ target_link_libraries(client_example PRIVATE rodbus)
 add_executable(server_example server_example.c)
 target_link_libraries(server_example PRIVATE rodbus)
 
-# Client TLS example
-add_executable(client_tls_example ./client_tls_example.c)
-target_link_libraries(client_tls_example PRIVATE rodbus)
-
-# Server TLS example
-add_executable(server_tls_example server_tls_example.c)
-target_link_libraries(server_tls_example PRIVATE rodbus)
-
 # Copy the DLL after build
 add_custom_command(TARGET client_example POST_BUILD 
     COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:rodbus> $<TARGET_FILE_DIR:client_example>
 )
 add_custom_command(TARGET server_example POST_BUILD 
     COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:rodbus> $<TARGET_FILE_DIR:server_example>
-)
-add_custom_command(TARGET client_tls_example POST_BUILD 
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:rodbus> $<TARGET_FILE_DIR:client_tls_example>
-)
-add_custom_command(TARGET server_tls_example POST_BUILD 
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:rodbus> $<TARGET_FILE_DIR:server_tls_example>
 )
