@@ -1,8 +1,13 @@
 use std::net::SocketAddr;
 
+use tokio_serial::SerialStream;
 use tracing::Instrument;
 
+use crate::common::phys::PhysLayer;
 use crate::decode::DecodeLevel;
+use crate::serial::frame::{RtuFormatter, RtuParser};
+use crate::serial::SerialSettings;
+use crate::server::task::{SessionAuthentication, SessionTask};
 use crate::tcp::server::{ServerTask, TcpServerConnectionHandler};
 use crate::tokio;
 
@@ -17,6 +22,7 @@ pub(crate) mod types;
 pub use crate::tcp::tls::server::TlsServerConfig;
 pub use crate::tcp::tls::*;
 pub use handler::*;
+use std::sync::Arc;
 pub use types::*;
 
 /// A handle to the server async task. The task is shutdown when the handle is dropped.
@@ -114,8 +120,101 @@ async fn create_tcp_server_task_impl<T: RequestHandler>(
     .await;
 }
 
-/// Spawns a TCP server task onto the runtime. This method can only
-/// be called from within the runtime context. Use [`create_tcp_server_task`]
+/// Spawns a RTU server task onto the runtime. This method can only
+/// be called from within the runtime context. Use [`create_rtu_server_task`]
+/// and then spawn it manually if using outside the Tokio runtime.
+///
+/// * `path` - Path to the serial device. Generally `/dev/tty0` on Linux and `COM1` on Windows.
+/// * `serial_settings` = Serial port settings
+/// * `handlers` - A map of handlers keyed by a unit id
+/// * `decode` - Decode log level
+pub fn spawn_rtu_server_task<T: RequestHandler>(
+    path: &str,
+    settings: SerialSettings,
+    handlers: ServerHandlerMap<T>,
+    decode: DecodeLevel,
+) -> Result<ServerHandle, crate::tokio::io::Error> {
+    let serial = crate::serial::open(path, settings)?;
+
+    let (tx, rx) = tokio::sync::mpsc::channel(1);
+    tokio::spawn(create_rtu_server_task_impl(
+        rx,
+        path.to_string(),
+        serial,
+        handlers,
+        decode,
+    ));
+
+    Ok(ServerHandle::new(tx))
+}
+
+/// Creates a TCP server task that can then be spawned onto the runtime manually.
+/// Most users will prefer [`spawn_rtu_server_task`] unless they are using the library from
+/// outside the Tokio runtime and need to spawn it using a Runtime handle instead of the
+/// `tokio::spawn` function.
+///
+/// * `path` - Path to the serial device. Generally `/dev/tty0` on Linux and `COM1` on Windows.
+/// * `serial_settings` = Serial port settings
+/// * `handlers` - A map of handlers keyed by a unit id
+/// * `decode` - Decode log level
+pub fn create_rtu_server_task<T: RequestHandler>(
+    rx: tokio::sync::mpsc::Receiver<()>,
+    path: &str,
+    settings: SerialSettings,
+    handlers: ServerHandlerMap<T>,
+    decode: DecodeLevel,
+) -> Result<impl std::future::Future<Output = ()>, crate::tokio::io::Error> {
+    let serial = crate::serial::open(path, settings)?;
+
+    Ok(create_rtu_server_task_impl(
+        rx,
+        path.to_string(),
+        serial,
+        handlers,
+        decode,
+    ))
+}
+
+async fn create_rtu_server_task_impl<T: RequestHandler>(
+    rx: tokio::sync::mpsc::Receiver<()>,
+    path: String,
+    serial_stream: SerialStream,
+    handlers: ServerHandlerMap<T>,
+    decode: DecodeLevel,
+) {
+    let phys = PhysLayer::new_serial(serial_stream, decode.physical);
+    let mut task = SessionTask::new(
+        phys,
+        handlers,
+        SessionAuthentication::Unauthenticated,
+        RtuFormatter::new(decode.adu),
+        RtuParser::new_request_parser(decode.adu),
+        rx,
+        decode.pdu,
+    );
+
+    async {
+        loop {
+            let result = task.run().await;
+
+            match result {
+                Ok(()) => continue,
+                Err(crate::RequestError::Shutdown) => {
+                    tracing::info!("shutdown");
+                    return;
+                }
+                Err(err) => {
+                    tracing::warn!("{}", err);
+                }
+            }
+        }
+    }
+    .instrument(tracing::info_span!("Modbus-Server-RTU", "port" = ?path))
+    .await;
+}
+
+/// Spawns a TLS server task onto the runtime. This method can only
+/// be called from within the runtime context. Use [`create_tls_server_task`]
 /// and then spawn it manually if using outside the Tokio runtime.
 ///
 /// Each incoming connection will spawn a new task to handle it.
@@ -130,7 +229,7 @@ pub async fn spawn_tls_server_task<T: RequestHandler>(
     max_sessions: usize,
     addr: SocketAddr,
     handlers: ServerHandlerMap<T>,
-    auth_handler: AuthorizationHandlerType,
+    auth_handler: Arc<dyn AuthorizationHandler>,
     tls_config: TlsServerConfig,
     decode: DecodeLevel,
 ) -> Result<ServerHandle, crate::tokio::io::Error> {
@@ -169,7 +268,7 @@ pub async fn create_tls_server_task<T: RequestHandler>(
     max_sessions: usize,
     addr: SocketAddr,
     handlers: ServerHandlerMap<T>,
-    auth_handler: AuthorizationHandlerType,
+    auth_handler: Arc<dyn AuthorizationHandler>,
     tls_config: TlsServerConfig,
     decode: DecodeLevel,
 ) -> Result<impl std::future::Future<Output = ()>, crate::tokio::io::Error> {
@@ -193,7 +292,7 @@ async fn create_tls_server_task_impl<T: RequestHandler>(
     addr: SocketAddr,
     listener: crate::tokio::net::TcpListener,
     handlers: ServerHandlerMap<T>,
-    auth_handler: AuthorizationHandlerType,
+    auth_handler: Arc<dyn AuthorizationHandler>,
     tls_config: TlsServerConfig,
     decode: DecodeLevel,
 ) {

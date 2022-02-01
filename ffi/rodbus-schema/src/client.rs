@@ -31,13 +31,47 @@ pub(crate) fn build(lib: &mut LibraryBuilder, common: &CommonDefinitions) -> Bac
             common.decode_level.clone(),
             "Decode levels for this client",
         )?
-        .returns(
-            channel.clone(),
-            "Pointer to the created channel or {null} if an error occurred",
-        )?
+        .returns(channel.clone(), "Pointer to the created channel")?
         .fails_with(common.error_type.clone())?
-        .doc("Create a new tcp channel instance")?
+        .doc("Create a new TCP channel instance")?
         .build_static("create_tcp")?;
+
+    let rtu_client_create_fn = lib
+        .define_function("client_channel_create_rtu")?
+        .param(
+            "runtime",
+            common.runtime_handle.clone(),
+            "runtime on which to create the channel",
+        )?
+        .param(
+            "path",
+            StringType,
+            "Path to the serial device. Generally /dev/tty0 on Linux and COM1 on Windows.",
+        )?
+        .param(
+            "serial_params",
+            common.serial_port_settings.clone(),
+            "Serial port settings",
+        )?
+        .param(
+            "max_queued_requests",
+            Primitive::U16,
+            "Maximum number of requests to queue before failing the next request",
+        )?
+        .param(
+            "open_retry_delay",
+            DurationType::Milliseconds,
+            "Delay between attempts to open the serial port",
+        )?
+        .param(
+            "decode_level",
+            common.decode_level.clone(),
+            "Decode levels for this client",
+        )?
+        .returns(channel.clone(), "Pointer to the created channel")?
+        .fails_with(common.error_type.clone())?
+        .doc("Create a new RTU channel instance")?
+        .build_static("create_rtu")?;
 
     let tls_client_create_fn = lib
         .define_function("client_channel_create_tls")?
@@ -68,7 +102,7 @@ pub(crate) fn build(lib: &mut LibraryBuilder, common: &CommonDefinitions) -> Bac
             "Pointer to the created channel or {null} if an error occurred",
         )?
         .fails_with(common.error_type.clone())?
-        .doc("Create a new tcp channel instance")?
+        .doc("Create a new TLS channel instance")?
         .build_static("create_tls")?;
 
     let destroy_channel_fn = lib.define_destructor(
@@ -161,6 +195,7 @@ pub(crate) fn build(lib: &mut LibraryBuilder, common: &CommonDefinitions) -> Bac
     lib.define_class(&channel)?
         // abstract factory methods
         .static_method(tcp_client_create_fn)?
+        .static_method(rtu_client_create_fn)?
         .static_method(tls_client_create_fn)?
         // read methods
         .async_method(read_coils_method)?

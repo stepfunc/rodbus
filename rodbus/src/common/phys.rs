@@ -1,6 +1,8 @@
 use crate::decode::PhysDecodeLevel;
 use crate::tokio::io::{AsyncReadExt, AsyncWriteExt};
+use crate::tokio::time::{Duration, Instant};
 use std::fmt::Write;
+use tokio_serial::SerialPort;
 
 pub(crate) struct PhysLayer {
     layer: PhysLayerImpl,
@@ -10,6 +12,7 @@ pub(crate) struct PhysLayer {
 // encapsulates all possible physical layers as an enum
 pub(crate) enum PhysLayerImpl {
     Tcp(crate::tokio::net::TcpStream),
+    Serial(tokio_serial::SerialStream, Duration, Option<Instant>),
     // TLS type is boxed because its size is huge
     Tls(Box<tokio_rustls::TlsStream<crate::tokio::net::TcpStream>>),
     #[cfg(test)]
@@ -20,6 +23,7 @@ impl std::fmt::Debug for PhysLayer {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self.layer {
             PhysLayerImpl::Tcp(_) => f.write_str("Tcp"),
+            PhysLayerImpl::Serial(_, _, _) => f.write_str("Serial"),
             PhysLayerImpl::Tls(_) => f.write_str("Tls"),
             #[cfg(test)]
             PhysLayerImpl::Mock(_) => f.write_str("Mock"),
@@ -31,6 +35,14 @@ impl PhysLayer {
     pub(crate) fn new_tcp(socket: crate::tokio::net::TcpStream, level: PhysDecodeLevel) -> Self {
         Self {
             layer: PhysLayerImpl::Tcp(socket),
+            level,
+        }
+    }
+
+    pub(crate) fn new_serial(stream: tokio_serial::SerialStream, level: PhysDecodeLevel) -> Self {
+        let calculate_inter_character_delay = calculate_inter_character_delay(&stream);
+        Self {
+            layer: PhysLayerImpl::Serial(stream, calculate_inter_character_delay, None),
             level,
         }
     }
@@ -59,6 +71,7 @@ impl PhysLayer {
     pub(crate) async fn read(&mut self, buffer: &mut [u8]) -> Result<usize, std::io::Error> {
         let length = match &mut self.layer {
             PhysLayerImpl::Tcp(x) => x.read(buffer).await?,
+            PhysLayerImpl::Serial(x, _, _) => x.read(buffer).await?,
             PhysLayerImpl::Tls(x) => x.read(buffer).await?,
             #[cfg(test)]
             PhysLayerImpl::Mock(x) => x.read(buffer).await?,
@@ -80,6 +93,15 @@ impl PhysLayer {
 
         match &mut self.layer {
             PhysLayerImpl::Tcp(x) => x.write_all(data).await,
+            PhysLayerImpl::Serial(x, inter_char_delay, last_activity) => {
+                // Respect inter-character delay
+                if let Some(last_activity) = last_activity {
+                    crate::tokio::time::sleep_until(*last_activity + *inter_char_delay).await;
+                }
+                *last_activity = Some(Instant::now());
+
+                x.write_all(data).await
+            }
             PhysLayerImpl::Tls(x) => x.write_all(data).await,
             #[cfg(test)]
             PhysLayerImpl::Mock(x) => x.write_all(data).await,
@@ -105,6 +127,31 @@ impl<'a> std::fmt::Display for PhysDisplay<'a> {
             format_bytes(f, self.data)?;
         }
         Ok(())
+    }
+}
+
+fn calculate_inter_character_delay(serial: &tokio_serial::SerialStream) -> Duration {
+    // Modbus RTU uses 11-bit characters (1 start, 8 data, 1 parity or stop, 1 stop)
+    const NUM_BITS_IN_CHAR: u64 = 11;
+
+    // If the baud rate is higher than a certain threshold, then we fix the delay
+    // These constants are taken from the remark on page 13
+    const MAX_BAUD_RATE: u32 = 19200;
+    const MIN_DELAY: Duration = Duration::from_micros(1750);
+
+    match serial.baud_rate() {
+        Ok(baud_rate) if baud_rate <= MAX_BAUD_RATE => {
+            let character_time = Duration::from_secs(NUM_BITS_IN_CHAR) / baud_rate;
+            35 * character_time / 10 // multiply by 3.5
+        }
+        Ok(_) => MIN_DELAY,
+        Err(_) => {
+            tracing::warn!(
+                "unable to determine the baud rate, defaulting to {} μs",
+                MIN_DELAY.as_micros()
+            );
+            MIN_DELAY
+        }
     }
 }
 

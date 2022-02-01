@@ -1,6 +1,10 @@
+use std::path::Path;
+use std::process::exit;
+
 use tokio_stream::StreamExt;
 use tokio_util::codec::{FramedRead, LinesCodec};
 
+use rodbus::serial::*;
 use rodbus::server::*;
 use rodbus::*;
 
@@ -129,21 +133,39 @@ impl RequestHandler for SimpleHandler {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // initialize logging
     tracing_subscriber::fmt()
-        .with_max_level(tracing::Level::INFO)
+        .with_max_level(tracing::Level::DEBUG)
         .with_target(false)
         .init();
 
+    let args: Vec<String> = std::env::args().collect();
+    let transport: &str = match &args[..] {
+        [_, x] => x,
+        _ => {
+            eprintln!("please specify a transport:");
+            eprintln!("usage: outstation <transport> (tcp, rtu, tls-ca, tls-self-signed)");
+            exit(-1);
+        }
+    };
+    match transport {
+        "tcp" => run_tcp().await,
+        "rtu" => run_rtu().await,
+        "tls-ca" => run_tls(get_ca_chain_config()?).await,
+        "tls-self-signed" => run_tls(get_self_signed_config()?).await,
+        _ => {
+            eprintln!(
+                "unknown transport '{}', options are (tcp, rtu, tls-ca, tls-self-signed)",
+                transport
+            );
+            exit(-1);
+        }
+    }
+}
+
+async fn run_tcp() -> Result<(), Box<dyn std::error::Error>> {
+    let (handler, map) = create_handler();
+
     // ANCHOR: tcp_server_create
-    let handler =
-        SimpleHandler::new(vec![false; 10], vec![false; 10], vec![0; 10], vec![0; 10]).wrap();
-
-    // map unit ids to a handler for processing requests
-    let map = ServerHandlerMap::single(UnitId::new(1), handler.clone());
-
-    // spawn a server to handle connections onto its own task
-    // if we ever drop this handle, the server will shutdown
-    // along with all of its active sessions
-    let _server = rodbus::server::spawn_tcp_server_task(
+    let server = rodbus::server::spawn_tcp_server_task(
         1,
         "127.0.0.1:502".parse()?,
         map,
@@ -152,6 +174,95 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     .await?;
     // ANCHOR_END: tcp_server_create
 
+    run_server(server, handler).await
+}
+
+async fn run_rtu() -> Result<(), Box<dyn std::error::Error>> {
+    let (handler, map) = create_handler();
+
+    // ANCHOR: rtu_server_create
+    let server = rodbus::server::spawn_rtu_server_task(
+        "/dev/ttySIM1",
+        SerialSettings::default(),
+        map,
+        DecodeLevel::new(
+            PduDecodeLevel::DataValues,
+            AduDecodeLevel::Payload,
+            PhysDecodeLevel::Data,
+        ),
+    )?;
+    // ANCHOR_END: rtu_server_create
+
+    run_server(server, handler).await
+}
+
+async fn run_tls(tls_config: TlsServerConfig) -> Result<(), Box<dyn std::error::Error>> {
+    let (handler, map) = create_handler();
+
+    // ANCHOR: tls_server_create
+    let server = rodbus::server::spawn_tls_server_task(
+        1,
+        "127.0.0.1:802".parse()?,
+        map,
+        ReadOnlyAuthorizationHandler::create(),
+        tls_config,
+        DecodeLevel::default(),
+    )
+    .await?;
+    // ANCHOR_END: tls_server_create
+
+    run_server(server, handler).await
+}
+
+fn create_handler() -> (
+    ServerHandlerType<SimpleHandler>,
+    ServerHandlerMap<SimpleHandler>,
+) {
+    // ANCHOR: handler_map_create
+    let handler =
+        SimpleHandler::new(vec![false; 10], vec![false; 10], vec![0; 10], vec![0; 10]).wrap();
+
+    // map unit ids to a handler for processing requests
+    let map = ServerHandlerMap::single(UnitId::new(1), handler.clone());
+    // ANCHOR_END: handler_map_create
+
+    (handler, map)
+}
+
+fn get_self_signed_config() -> Result<TlsServerConfig, Box<dyn std::error::Error>> {
+    // ANCHOR: tls_self_signed_config
+    let tls_config = TlsServerConfig::new(
+        &Path::new("./certs/self_signed/entity1_cert.pem"),
+        &Path::new("./certs/self_signed/entity2_cert.pem"),
+        &Path::new("./certs/self_signed/entity2_key.pem"),
+        None, // no password
+        MinTlsVersion::V1_2,
+        CertificateMode::SelfSigned,
+    )?;
+    // ANCHOR_END: tls_self_signed_config
+
+    Ok(tls_config)
+}
+
+fn get_ca_chain_config() -> Result<TlsServerConfig, Box<dyn std::error::Error>> {
+    // ANCHOR: tls_ca_chain_config
+    let tls_config = TlsServerConfig::new(
+        &Path::new("./certs/ca_chain/ca_cert.pem"),
+        &Path::new("./certs/ca_chain/entity1_cert.pem"),
+        &Path::new("./certs/ca_chain/entity1_key.pem"),
+        None, // no password
+        MinTlsVersion::V1_2,
+        CertificateMode::AuthorityBased,
+    )?;
+    // ANCHOR_END: tls_ca_chain_config
+
+    Ok(tls_config)
+}
+
+async fn run_server(
+    _server: ServerHandle,
+    handler: ServerHandlerType<SimpleHandler>,
+) -> Result<(), Box<dyn std::error::Error>> {
     let mut reader = FramedRead::new(tokio::io::stdin(), LinesCodec::new());
     loop {
         match reader.next().await.unwrap()?.as_str() {

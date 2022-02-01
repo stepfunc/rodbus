@@ -61,6 +61,38 @@ pub(crate) fn build_server(
             .details("When the maximum number of concurrent sessions is reached, the oldest session is closed."))?
             .build_static("create_tcp")?;
 
+    let rtu_constructor = lib
+        .define_function("server_create_rtu")?
+        .param(
+            "runtime",
+            common.runtime_handle.clone(),
+            "runtime on which to spawn the server",
+        )?
+        .param(
+            "path",
+            StringType,
+            "Path to the serial device. Generally /dev/tty0 on Linux and COM1 on Windows.",
+        )?
+        .param(
+            "serial_params",
+            common.serial_port_settings.clone(),
+            "Serial port settings",
+        )?
+        .param(
+            "endpoints",
+            handler_map.declaration.clone(),
+            "map of endpoints which is emptied upon passing to this function",
+        )?
+        .param(
+            "decode_level",
+            common.decode_level.clone(),
+            "Decode levels for this server",
+        )?
+        .returns(server.clone(), "RTU server instance")?
+        .fails_with(common.error_type.clone())?
+        .doc("Launch a RTU server.")?
+        .build_static("create_rtu")?;
+
     let tls_constructor = lib
         .define_function("server_create_tls")?
         .param(
@@ -72,8 +104,8 @@ pub(crate) fn build_server(
         .param("max_sessions", Primitive::U16, "Maximum number of concurrent sessions")?
         .param(
             "endpoints",
-            handler_map.declaration(),
-            "Map of endpoints which is emptied upon passing to this function",
+            handler_map.declaration.clone(),
+            "map of endpoints which is emptied upon passing to this function",
         )?
         .param(
             "tls_config",
@@ -82,16 +114,16 @@ pub(crate) fn build_server(
         )?
         .param(
             "authorization_handler",
-            authorization_handler,
-            "Authorization handler",
+        authorization_handler,
+            "Authorization handler"
         )?
         .param("decode_level", common.decode_level.clone(), "Decode levels for this server")?
-        .returns(server.clone(), "TCP server instance")?
+        .returns(server.clone(), "Modbus Security (TLS) server instance")?
         .fails_with(common.error_type.clone())?
-        .doc(doc("Launch a TLS server.")
-            .details("Recommended port for Modbus is 502.")
+        .doc(doc("Launch a Modbus Security (TLS) server.")
+            .details("Recommended port for Modbus Security is 802.")
             .details("When the maximum number of concurrent sessions is reached, the oldest session is closed."))?
-            .build_static("create_tls")?;
+        .build_static("create_tls")?;
 
     let destructor = lib.define_destructor(
         server.clone(),
@@ -108,6 +140,7 @@ pub(crate) fn build_server(
 
     let server = lib.define_class(&server)?
         .static_method(tcp_constructor)?
+        .static_method(rtu_constructor)?
         .static_method(tls_constructor)?
         .method(update_fn)?
         .destructor(destructor)?

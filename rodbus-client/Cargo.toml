@@ -2,7 +2,7 @@
 name = "rodbus-client"
 version = "0.9.1"
 authors = ["Adam Crain <adam@stepfunc.io>", "Émile Grégoire <emile@stepfunc.io>"]
-edition = "2018"
+edition = "2021"
 description = "A command line program for making Modbus client requests using the Rodbus crate"
 keywords = ["modbus", "ics", "industrial", "plc", "security"]
 categories = ["network-programming"]

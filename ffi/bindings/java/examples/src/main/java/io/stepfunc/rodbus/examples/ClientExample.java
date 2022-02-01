@@ -34,11 +34,15 @@ public class ClientExample {
         Runtime runtime = new Runtime(runtimeConfig);
         // ANCHOR_END: runtime_init
 
-        // initialize a Modbus TCP client channel
-        // ANCHOR: create_tcp_channel
-        DecodeLevel decodeLevel = new DecodeLevel();
-        ClientChannel channel = ClientChannel.createTcp(runtime, "127.0.0.1:502", ushort(100), new RetryStrategy(), decodeLevel);
-        // ANCHOR_END: create_tcp_channel
+        if (args.length != 1)
+        {
+            System.out.println("you must specify a transport type");
+            System.out.println("usage: client_example <channel> (tcp, rtu, tls-ca, tls-self-signed)");
+            System.exit(-1);
+        }
+
+        // initialize a Modbus client channel
+        ClientChannel channel = createChannel(args[0], runtime);
 
         try {
             run(channel);
@@ -49,23 +53,84 @@ public class ClientExample {
         }
     }
 
-    private static void run(ClientChannel channel) throws Exception {
-        // Handle user input
-        BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
-        while (true) {
-            String line = reader.readLine();
-
-            if (line.equals("x")) return;
-
-            try {
-                runOneCommand(channel, line);
-            } catch(Exception ex) {
-                System.out.println("error: " + ex.getMessage());
-            }
+    private static ClientChannel createChannel(String type, Runtime runtime) {
+        switch (type)
+        {
+            case "tcp": return createTcpChannel(runtime);
+            case "rtu": return createRtuChannel(runtime);
+            case "tls-ca": return createTlsChannel(runtime, getCaTlsConfig());
+            case "tls-self-signed": return createTlsChannel(runtime, getSelfSignedTlsConfig());
+            default:
+                System.out.println("unknown channel type: " + type);
+                System.exit(-1);
+                return null;
         }
     }
 
-    private static void runOneCommand(ClientChannel channel, String command) {
+    private static ClientChannel createTcpChannel(Runtime runtime) {
+        // ANCHOR: create_tcp_channel
+        DecodeLevel decodeLevel = new DecodeLevel();
+        ClientChannel channel = ClientChannel.createTcp(runtime, "127.0.0.1:502", ushort(100), new RetryStrategy(), decodeLevel);
+        // ANCHOR_END: create_tcp_channel
+
+        return channel;
+    }
+
+    private static ClientChannel createRtuChannel(Runtime runtime) {
+        // ANCHOR: create_rtu_channel
+        DecodeLevel decodeLevel = new DecodeLevel();
+        ClientChannel channel = ClientChannel.createRtu(
+                runtime,
+                "/dev/ttySIM0", // path
+                new SerialPortSettings(), // serial settings
+                ushort(1), // max queued requests
+                Duration.ofSeconds(1), // retry delay
+                decodeLevel // decode level
+        );
+        // ANCHOR_END: create_rtu_channel
+
+        return channel;
+    }
+
+    private static ClientChannel createTlsChannel(Runtime runtime, TlsClientConfig tlsConfig) {
+        // ANCHOR: create_tls_channel
+        DecodeLevel decodeLevel = new DecodeLevel();
+        ClientChannel channel = ClientChannel.createTls(runtime, "127.0.0.1:802", ushort(100), new RetryStrategy(), tlsConfig, decodeLevel);
+        // ANCHOR_END: create_tls_channel
+
+        return channel;
+    }
+
+    private static TlsClientConfig getCaTlsConfig() {
+        // ANCHOR: tls_ca_chain_config
+        TlsClientConfig tlsConfig = new TlsClientConfig(
+                "test.com",
+                "./certs/ca_chain/ca_cert.pem",
+                "./certs/ca_chain/entity1_cert.pem",
+                "./certs/ca_chain/entity1_key.pem",
+                "" // no password
+        );
+        // ANCHOR_END: tls_ca_chain_config
+
+        return tlsConfig;
+    }
+
+    private static TlsClientConfig getSelfSignedTlsConfig() {
+        // ANCHOR: tls_self_signed_config
+        TlsClientConfig tlsConfig = new TlsClientConfig(
+                "test.com",
+                "./certs/self_signed/entity2_cert.pem",
+                "./certs/self_signed/entity1_cert.pem",
+                "./certs/self_signed/entity1_key.pem",
+                "" // no password
+        );
+        tlsConfig.certificateMode = CertificateMode.SELF_SIGNED;
+        // ANCHOR_END: tls_self_signed_config
+
+        return tlsConfig;
+    }
+
+    private static void run(ClientChannel channel) throws Exception {
         // ANCHOR: request_param
         final RequestParam param = new RequestParam(ubyte(1), Duration.ofSeconds(1));
         // ANCHOR_END: request_param
@@ -73,48 +138,55 @@ public class ClientExample {
         final AddressRange range = new AddressRange(ushort(0), ushort(5));
         // ANCHOR_END: address_range
 
-        switch (command) {
-            case "rc": {
-                // ANCHOR: read_coils
-                channel.readCoils(param, range).whenComplete(ClientExample::handleBitResult);
-                // ANCHOR_END: read_coils
-                break;
+        // Handle user input
+        BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
+        while (true) {
+            String line = reader.readLine();
+            switch (line) {
+                case "x":
+                    return;
+                case "rc": {
+                    // ANCHOR: read_coils
+                    channel.readCoils(param, range).whenComplete(ClientExample::handleBitResult);
+                    // ANCHOR_END: read_coils
+                    break;
+                }
+                case "rdi": {
+                    channel.readDiscreteInputs(param, range).whenComplete(ClientExample::handleBitResult);
+                    break;
+                }
+                case "rhr": {
+                    channel.readHoldingRegisters(param, range).whenComplete(ClientExample::handleRegisterResult);
+                    break;
+                }
+                case "rir": {
+                    channel.readInputRegisters(param, range).whenComplete(ClientExample::handleRegisterResult);
+                    break;
+                }
+                case "wsc": {
+                    /// ANCHOR: write_single_coil
+                    channel.writeSingleCoil(param, new BitValue(ushort(0), true)).whenComplete(ClientExample::handleWriteResult);
+                    /// ANCHOR_END: write_single_coil
+                    break;
+                }
+                case "wsr": {
+                    channel.writeSingleRegister(param, new RegisterValue(ushort(0), ushort(76))).whenComplete(ClientExample::handleWriteResult);
+                    break;
+                }
+                case "wmc": {
+                    channel.writeMultipleCoils(param, ushort(0), Arrays.asList(true, false)).whenComplete(ClientExample::handleWriteResult);
+                    break;
+                }
+                case "wmr": {
+                    // ANCHOR: write_multiple_registers
+                    channel.writeMultipleRegisters(param, ushort(0), Arrays.asList(ushort(0xCA), ushort(0xFE))).whenComplete(ClientExample::handleWriteResult);
+                    // ANCHOR_END: write_multiple_registers
+                    break;
+                }
+                default:
+                    System.out.println("Unknown command");
+                    break;
             }
-            case "rdi": {
-                channel.readDiscreteInputs(param, range).whenComplete(ClientExample::handleBitResult);
-                break;
-            }
-            case "rhr": {
-                channel.readHoldingRegisters(param, range).whenComplete(ClientExample::handleRegisterResult);
-                break;
-            }
-            case "rir": {
-                channel.readInputRegisters(param, range).whenComplete(ClientExample::handleRegisterResult);
-                break;
-            }
-            case "wsc": {
-                /// ANCHOR: write_single_coil
-                channel.writeSingleCoil(param, new BitValue(ushort(0), true)).whenComplete(ClientExample::handleWriteResult);
-                /// ANCHOR_END: write_single_coil
-                break;
-            }
-            case "wsr": {
-                channel.writeSingleRegister(param, new RegisterValue(ushort(0), ushort(76))).whenComplete(ClientExample::handleWriteResult);
-                break;
-            }
-            case "wmc": {
-                channel.writeMultipleCoils(param, ushort(0), Arrays.asList(true, false)).whenComplete(ClientExample::handleWriteResult);
-                break;
-            }
-            case "wmr": {
-                // ANCHOR: write_multiple_registers
-                channel.writeMultipleRegisters(param, ushort(0), Arrays.asList(ushort(0xCA), ushort(0xFE))).whenComplete(ClientExample::handleWriteResult);
-                // ANCHOR_END: write_multiple_registers
-                break;
-            }
-            default:
-                System.out.println("Unknown command");
-                break;
         }
     }
 

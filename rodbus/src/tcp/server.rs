@@ -6,7 +6,7 @@ use tracing::Instrument;
 use crate::common::phys::PhysLayer;
 use crate::decode::DecodeLevel;
 use crate::server::task::SessionAuthentication;
-use crate::server::AuthorizationHandlerType;
+use crate::server::AuthorizationHandler;
 use crate::tcp::frame::{MbapFormatter, MbapParser};
 use crate::tcp::tls::TlsServerConfig;
 use crate::tokio::net::TcpListener;
@@ -65,7 +65,7 @@ impl SessionTracker {
 #[derive(Clone)]
 pub(crate) enum TcpServerConnectionHandler {
     Tcp,
-    Tls(TlsServerConfig, AuthorizationHandlerType),
+    Tls(TlsServerConfig, Arc<dyn AuthorizationHandler>),
 }
 
 impl TcpServerConnectionHandler {

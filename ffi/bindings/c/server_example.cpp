@@ -1,6 +1,7 @@
 #include "rodbus.hpp"
 
 #include <chrono>
+#include <cstring>
 #include <iostream>
 #include <string>
 
@@ -68,36 +69,53 @@ class WriterHandler : public rodbus::WriteHandler
 };
 // ANCHOR_END: write_handler
 
-int main()
+// ANCHOR: auth_handler
+class AuthorizationHandler : public rodbus::AuthorizationHandler
 {
-    // initialize logging with the default configuration
-    rodbus::Logging::configure(rodbus::LoggingConfig(), std::make_unique<Logger>());
+    rodbus::AuthorizationResult read_coils(uint8_t unit_id, const rodbus::AddressRange& range, std::string role) override
+    {
+        return rodbus::AuthorizationResult::authorized;
+    }
 
-    // initialize the runtime
-    auto runtime_config = rodbus::RuntimeConfig();
-    runtime_config.num_core_threads = 4;
-    auto runtime = rodbus::Runtime(runtime_config);
+    rodbus::AuthorizationResult read_discrete_inputs(uint8_t unit_id, const rodbus::AddressRange& range, std::string role) override
+    {
+        return rodbus::AuthorizationResult::authorized;
+    }
 
-    // create the device map
-    // ANCHOR: device_map_init
-    auto device_map = rodbus::DeviceMap();
-    auto init_transaction = rodbus::functional::database_callback([](rodbus::Database& db) {
-        for (uint16_t i = 0; i < 10; ++i)
-        {
-            db.add_coil(i, false);
-            db.add_discrete_input(i, false);
-            db.add_holding_register(i, 0);
-            db.add_input_register(i, 0);
-        }
-    });
-    device_map.add_endpoint(1, std::make_unique<WriterHandler>(), init_transaction);
-    // ANCHOR_END: device_map_init
+    rodbus::AuthorizationResult read_holding_registers(uint8_t unit_id, const rodbus::AddressRange& range, std::string role) override
+    {
+        return rodbus::AuthorizationResult::authorized;
+    }
 
-    // create the TCP server
-    // ANCHOR: tcp_server_create
-    auto server = rodbus::Server::create_tcp(runtime, "127.0.0.1:502", 100, device_map, rodbus::DecodeLevel());
-    // ANCHOR_END: tcp_server_create
+    rodbus::AuthorizationResult read_input_registers(uint8_t unit_id, const rodbus::AddressRange& range, std::string role) override
+    {
+        return rodbus::AuthorizationResult::authorized;
+    }
 
+    rodbus::AuthorizationResult write_single_coil(uint8_t unit_id, uint16_t idx, std::string role) override
+    {
+        return rodbus::AuthorizationResult::not_authorized;
+    }
+
+    rodbus::AuthorizationResult write_single_register(uint8_t unit_id, uint16_t idx, std::string role) override
+    {
+        return rodbus::AuthorizationResult::not_authorized;
+    }
+
+    rodbus::AuthorizationResult write_multiple_coils(uint8_t unit_id, const rodbus::AddressRange& range, std::string role) override
+    {
+        return rodbus::AuthorizationResult::not_authorized;
+    }
+
+    rodbus::AuthorizationResult write_multiple_registers(uint8_t unit_id, const rodbus::AddressRange& range, std::string role) override
+    {
+        return rodbus::AuthorizationResult::not_authorized;
+    }
+};
+// ANCHOR_END: auth_handler
+
+int run_server(rodbus::Server& server)
+{
     // state passed to the update callbacks
     auto coil_value = false;
     auto discrete_input_value = false;
@@ -157,5 +175,123 @@ int main()
         else {
             std::cout << "unknown command: " << cmd << std::endl;
         }
+    }
+}
+
+rodbus::DeviceMap create_device_map()
+{
+    // create the device map
+    // ANCHOR: device_map_init
+    auto device_map = rodbus::DeviceMap();
+    auto init_transaction = rodbus::functional::database_callback([](rodbus::Database& db) {
+        for (uint16_t i = 0; i < 10; ++i)
+        {
+            db.add_coil(i, false);
+            db.add_discrete_input(i, false);
+            db.add_holding_register(i, 0);
+            db.add_input_register(i, 0);
+        }
+    });
+    device_map.add_endpoint(1, std::make_unique<WriterHandler>(), init_transaction);
+    // ANCHOR_END: device_map_init
+
+    return device_map;
+}
+
+int run_tcp_server(rodbus::Runtime& runtime)
+{
+    auto device_map = create_device_map();
+
+    // ANCHOR: tcp_server_create
+    auto server = rodbus::Server::create_tcp(runtime, "127.0.0.1:502", 100, device_map, rodbus::DecodeLevel());
+    // ANCHOR_END: tcp_server_create
+
+    return run_server(server);
+}
+
+int run_rtu_server(rodbus::Runtime& runtime)
+{
+    auto device_map = create_device_map();
+
+    // ANCHOR: rtu_server_create
+    auto server = rodbus::Server::create_rtu(runtime, "/dev/ttySIM1", rodbus::SerialPortSettings(), device_map, rodbus::DecodeLevel());
+    // ANCHOR_END: rtu_server_create
+
+    return run_server(server);
+}
+
+int run_tls_server(rodbus::Runtime& runtime, const rodbus::TlsServerConfig& tls_config)
+{
+    auto device_map = create_device_map();
+
+    // ANCHOR: tls_server_create
+    auto server = rodbus::Server::create_tls(runtime, "127.0.0.1:802", 100, device_map, tls_config, std::make_unique<AuthorizationHandler>(), rodbus::DecodeLevel());
+    // ANCHOR_END: tls_server_create
+
+    return run_server(server);
+}
+
+rodbus::TlsServerConfig get_tls_ca_config()
+{
+    // ANCHOR: tls_ca_chain_config
+    auto tls_config = rodbus::TlsServerConfig(
+        "./certs/ca_chain/ca_cert.pem",
+        "./certs/ca_chain/entity2_cert.pem",
+        "./certs/ca_chain/entity2_key.pem",
+        "" // no password
+    );
+    // ANCHOR_END: tls_ca_chain_config
+
+    return tls_config;
+}
+
+rodbus::TlsServerConfig get_tls_self_signed_config()
+{
+    // ANCHOR: tls_self_signed_config
+    auto tls_config = rodbus::TlsServerConfig(
+        "./certs/self_signed/entity1_cert.pem",
+        "./certs/self_signed/entity2_cert.pem",
+        "./certs/self_signed/entity2_key.pem",
+        "" // no password
+    );
+    tls_config.certificate_mode = rodbus::CertificateMode::self_signed;
+    // ANCHOR_END: tls_self_signed_config
+
+    return tls_config;
+}
+
+int main(int argc, char* argv[])
+{
+    // initialize logging with the default configuration
+    rodbus::Logging::configure(rodbus::LoggingConfig(), std::make_unique<Logger>());
+
+    // initialize the runtime
+    auto runtime_config = rodbus::RuntimeConfig();
+    runtime_config.num_core_threads = 4;
+    auto runtime = rodbus::Runtime(runtime_config);
+
+    if (argc != 2) {
+        std::cout << "you must specify a transport type" << std::endl;
+        std::cout << "usage: cpp_server_example <channel> (tcp, rtu, tls-ca, tls-self-signed)" << std::endl;
+        return -1;
+    }
+
+    const auto type = argv[1];
+
+    if (strcmp(type, "tcp") == 0) {
+        return run_tcp_server(runtime);
+    }
+    else if (strcmp(type, "rtu") == 0) {
+        return run_rtu_server(runtime);
+    }
+    else if (strcmp(type, "tls-ca") == 0) {
+        return run_tls_server(runtime, get_tls_ca_config());
+    }
+    else if (strcmp(type, "tls-self-signed") == 0) {
+        return run_tls_server(runtime, get_tls_self_signed_config());
+    }
+    else {
+        std::cout << "unknown channel type: " << type << std::endl;
+        return -1;
     }
 }

@@ -74,6 +74,51 @@ namespace example
         }
         // ANCHOR_END: write_handler
 
+        // ANCHOR: auth_handler
+        class AuthorizationHandler : IAuthorizationHandler
+        {
+            public AuthorizationResult ReadCoils(byte unitId, AddressRange range, string role)
+            {
+                return AuthorizationResult.Authorized;
+            }
+
+            public AuthorizationResult ReadDiscreteInputs(byte unitId, AddressRange range, string role)
+            {
+                return AuthorizationResult.Authorized;
+            }
+
+            public AuthorizationResult ReadHoldingRegisters(byte unitId, AddressRange range, string role)
+            {
+                return AuthorizationResult.Authorized;
+            }
+
+            public AuthorizationResult ReadInputRegisters(byte unitId, AddressRange range, string role)
+            {
+                return AuthorizationResult.Authorized;
+            }
+
+            public AuthorizationResult WriteSingleCoil(byte unitId, ushort idx, string role)
+            {
+                return AuthorizationResult.NotAuthorized;
+            }
+
+            public AuthorizationResult WriteSingleRegister(byte unitId, ushort idx, string role)
+            {
+                return AuthorizationResult.NotAuthorized;
+            }
+
+            public AuthorizationResult WriteMultipleCoils(byte unitId, AddressRange range, string role)
+            {
+                return AuthorizationResult.NotAuthorized;
+            }
+
+            public AuthorizationResult WriteMultipleRegisters(byte unitId, AddressRange range, string role)
+            {
+                return AuthorizationResult.NotAuthorized;
+            }
+        }
+        // ANCHOR_END: auth_handler
+
         static void Main(string[] args)
         {
             // initialize logging with the default configuration
@@ -100,11 +145,15 @@ namespace example
             });
             // ANCHOR_END: device_map_init
 
+            if (args.Length != 1)
+            {
+                Console.WriteLine("you must specify a transport type");
+                Console.WriteLine("usage: server_example <channel> (tcp, rtu, tls-ca, tls-self-signed)");
+                Environment.Exit(-1);
+            }
+
             // create the TCP server
-            // ANCHOR: tcp_server_create
-            var decodeLevel = new DecodeLevel();
-            var server = Server.CreateTcp(runtime, "127.0.0.1:502", 10, map, decodeLevel);
-            // ANCHOR_END: tcp_server_create
+            var server = CreateServer(args[0], runtime, map);
 
             try
             {
@@ -114,6 +163,84 @@ namespace example
             {
                 runtime.Shutdown();
             }
+        }
+
+        private static Server CreateServer(string type, Runtime runtime, DeviceMap map)
+        {
+            switch (type)
+            {
+                case "tcp":
+                    return CreateTcpServer(runtime, map);
+                case "rtu":
+                    return CreateRtuServer(runtime, map);
+                case "tls-ca":
+                    return CreateTlsServer(runtime, map, GetCaTlsConfig());
+                case "tls-self-signed":
+                    return CreateTlsServer(runtime, map, GetSelfSignedTlsConfig());
+                default:
+                    Console.WriteLine($"unknown server type: {type}");
+                    Environment.Exit(-1);
+                    return null;
+            }
+        }
+
+        private static Server CreateTcpServer(Runtime runtime, DeviceMap map)
+        {
+            // ANCHOR: tcp_server_create
+            var decodeLevel = new DecodeLevel();
+            var server = Server.CreateTcp(runtime, "127.0.0.1:502", 100, map, decodeLevel);
+            // ANCHOR_END: tcp_server_create
+
+            return server;
+        }
+
+        private static Server CreateRtuServer(Runtime runtime, DeviceMap map)
+        {
+            // ANCHOR: rtu_server_create
+            var decodeLevel = new DecodeLevel();
+            var server = Server.CreateRtu(runtime, "/dev/ttySIM1", new SerialPortSettings(), map, decodeLevel);
+            // ANCHOR_END: rtu_server_create
+
+            return server;
+        }
+
+        private static Server CreateTlsServer(Runtime runtime, DeviceMap map, TlsServerConfig tlsConfig)
+        {
+            // ANCHOR: tls_server_create
+            var decodeLevel = new DecodeLevel();
+            var server = Server.CreateTls(runtime, "127.0.0.1:802", 10, map, tlsConfig, new AuthorizationHandler(), decodeLevel);
+            // ANCHOR_END: tls_server_create
+
+            return server;
+        }
+
+        private static TlsServerConfig GetCaTlsConfig()
+        {
+            // ANCHOR: tls_ca_chain_config
+            var tlsConfig = new TlsServerConfig(
+                "./certs/ca_chain/ca_cert.pem",
+                "./certs/ca_chain/entity2_cert.pem",
+                "./certs/ca_chain/entity2_key.pem",
+                "" // no password
+            );
+            // ANCHOR_END: tls_ca_chain_config
+
+            return tlsConfig;
+        }
+
+        private static TlsServerConfig GetSelfSignedTlsConfig()
+        {
+            // ANCHOR: tls_self_signed_config
+            var tlsConfig = new TlsServerConfig(
+                "./certs/self_signed/entity1.pem",
+                "./certs/self_signed/entity2_cert.pem",
+                "./certs/self_signed/entity2_key.pem",
+                "" // no password
+            );
+            tlsConfig.CertificateMode = CertificateMode.SelfSigned;
+            // ANCHOR_END: tls_self_signed_config
+
+            return tlsConfig;
         }
 
         private static void RunServer(Server server)

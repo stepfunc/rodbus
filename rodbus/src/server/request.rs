@@ -37,7 +37,7 @@ impl<'a> Request<'a> {
     }
 
     pub(crate) fn get_reply<'b, T, F>(
-        self,
+        &self,
         header: FrameHeader,
         handler: &mut T,
         auth: &SessionAuthentication,
@@ -65,7 +65,6 @@ impl<'a> Request<'a> {
         {
             // Check authorization
             if let SessionAuthentication::Authenticated(handler, role) = auth {
-                let handler = handler.lock().unwrap();
                 match auth_fn(handler.as_ref(), role) {
                     AuthorizationResult::Authorized => {
                         tracing::debug!("request authorized for \"{}\"", role)
@@ -102,8 +101,10 @@ impl<'a> Request<'a> {
                 header,
                 writer,
                 auth,
-                |handler, role| handler.read_coils(header.unit_id, range.inner, role),
-                || Ok(BitWriter::new(range, |index| handler.read_coil(index))),
+                |handler, role| {
+                    handler.read_coils(header.destination.into_unit_id(), range.inner, role)
+                },
+                || Ok(BitWriter::new(*range, |index| handler.read_coil(index))),
                 level,
             ),
             Request::ReadDiscreteInputs(range) => serialize_result(
@@ -111,9 +112,15 @@ impl<'a> Request<'a> {
                 header,
                 writer,
                 auth,
-                |handler, role| handler.read_discrete_inputs(header.unit_id, range.inner, role),
+                |handler, role| {
+                    handler.read_discrete_inputs(
+                        header.destination.into_unit_id(),
+                        range.inner,
+                        role,
+                    )
+                },
                 || {
-                    Ok(BitWriter::new(range, |index| {
+                    Ok(BitWriter::new(*range, |index| {
                         handler.read_discrete_input(index)
                     }))
                 },
@@ -124,9 +131,15 @@ impl<'a> Request<'a> {
                 header,
                 writer,
                 auth,
-                |handler, role| handler.read_holding_registers(header.unit_id, range.inner, role),
+                |handler, role| {
+                    handler.read_holding_registers(
+                        header.destination.into_unit_id(),
+                        range.inner,
+                        role,
+                    )
+                },
                 || {
-                    Ok(RegisterWriter::new(range, |index| {
+                    Ok(RegisterWriter::new(*range, |index| {
                         handler.read_holding_register(index)
                     }))
                 },
@@ -137,9 +150,15 @@ impl<'a> Request<'a> {
                 header,
                 writer,
                 auth,
-                |handler, role| handler.read_input_registers(header.unit_id, range.inner, role),
+                |handler, role| {
+                    handler.read_input_registers(
+                        header.destination.into_unit_id(),
+                        range.inner,
+                        role,
+                    )
+                },
                 || {
-                    Ok(RegisterWriter::new(range, |index| {
+                    Ok(RegisterWriter::new(*range, |index| {
                         handler.read_input_register(index)
                     }))
                 },
@@ -150,8 +169,14 @@ impl<'a> Request<'a> {
                 header,
                 writer,
                 auth,
-                |handler, role| handler.write_single_coil(header.unit_id, request.index, role),
-                || handler.write_single_coil(request).map(|_| request),
+                |handler, role| {
+                    handler.write_single_coil(
+                        header.destination.into_unit_id(),
+                        request.index,
+                        role,
+                    )
+                },
+                || handler.write_single_coil(*request).map(|_| *request),
                 level,
             ),
             Request::WriteSingleRegister(request) => serialize_result(
@@ -159,8 +184,14 @@ impl<'a> Request<'a> {
                 header,
                 writer,
                 auth,
-                |handler, role| handler.write_single_register(header.unit_id, request.index, role),
-                || handler.write_single_register(request).map(|_| request),
+                |handler, role| {
+                    handler.write_single_register(
+                        header.destination.into_unit_id(),
+                        request.index,
+                        role,
+                    )
+                },
+                || handler.write_single_register(*request).map(|_| *request),
                 level,
             ),
             Request::WriteMultipleCoils(items) => serialize_result(
@@ -168,8 +199,14 @@ impl<'a> Request<'a> {
                 header,
                 writer,
                 auth,
-                |handler, role| handler.write_multiple_coils(header.unit_id, items.range, role),
-                || handler.write_multiple_coils(items).map(|_| items.range),
+                |handler, role| {
+                    handler.write_multiple_coils(
+                        header.destination.into_unit_id(),
+                        items.range,
+                        role,
+                    )
+                },
+                || handler.write_multiple_coils(*items).map(|_| items.range),
                 level,
             ),
             Request::WriteMultipleRegisters(items) => serialize_result(
@@ -177,8 +214,18 @@ impl<'a> Request<'a> {
                 header,
                 writer,
                 auth,
-                |handler, role| handler.write_multiple_registers(header.unit_id, items.range, role),
-                || handler.write_multiple_registers(items).map(|_| items.range),
+                |handler, role| {
+                    handler.write_multiple_registers(
+                        header.destination.into_unit_id(),
+                        items.range,
+                        role,
+                    )
+                },
+                || {
+                    handler
+                        .write_multiple_registers(*items)
+                        .map(|_| items.range)
+                },
                 level,
             ),
         }

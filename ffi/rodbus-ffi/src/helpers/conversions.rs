@@ -74,6 +74,34 @@ impl From<AddressRange> for ffi::AddressRange {
     }
 }
 
+impl From<ffi::SerialPortSettings> for rodbus::serial::SerialSettings {
+    fn from(from: ffi::SerialPortSettings) -> Self {
+        Self {
+            baud_rate: from.baud_rate(),
+            data_bits: match from.data_bits() {
+                ffi::DataBits::Five => rodbus::serial::DataBits::Five,
+                ffi::DataBits::Six => rodbus::serial::DataBits::Six,
+                ffi::DataBits::Seven => rodbus::serial::DataBits::Seven,
+                ffi::DataBits::Eight => rodbus::serial::DataBits::Eight,
+            },
+            flow_control: match from.flow_control() {
+                ffi::FlowControl::None => rodbus::serial::FlowControl::None,
+                ffi::FlowControl::Software => rodbus::serial::FlowControl::Software,
+                ffi::FlowControl::Hardware => rodbus::serial::FlowControl::Hardware,
+            },
+            parity: match from.parity() {
+                ffi::Parity::None => rodbus::serial::Parity::None,
+                ffi::Parity::Odd => rodbus::serial::Parity::Odd,
+                ffi::Parity::Even => rodbus::serial::Parity::Even,
+            },
+            stop_bits: match from.stop_bits() {
+                ffi::StopBits::One => rodbus::serial::StopBits::One,
+                ffi::StopBits::Two => rodbus::serial::StopBits::Two,
+            },
+        }
+    }
+}
+
 impl From<ffi::AuthorizationResult> for AuthorizationResult {
     fn from(x: ffi::AuthorizationResult) -> Self {
         match x {

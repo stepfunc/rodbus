@@ -20,7 +20,7 @@ pub(crate) enum SessionError {
     IoError,
     // unrecoverable framing issue,
     BadFrame,
-    // the mpsc is closed (dropped)  on the sender side
+    // the mpsc is closed (dropped) on the sender side
     Shutdown,
 }
 
@@ -101,7 +101,7 @@ where
         tx_id: TxId,
     ) -> Result<(), RequestError> {
         let bytes = self.formatter.format(
-            FrameHeader::new(request.id, tx_id),
+            FrameHeader::new_tcp_header(request.id, tx_id),
             request.details.function(),
             &request.details,
             self.decode,
@@ -127,13 +127,12 @@ where
                 }
             };
 
-            if frame.header.tx_id != tx_id {
-                tracing::warn!(
-                    "received {:?} while expecting {:?}",
-                    frame.header.tx_id,
-                    tx_id
-                );
-                continue; // next iteration of loop
+            if let Some(received_tx_id) = frame.header.tx_id {
+                // Check that the received transaction ID matches (only in TCP MBAP)
+                if received_tx_id != tx_id {
+                    tracing::warn!("received {:?} while expecting {:?}", received_tx_id, tx_id);
+                    continue; // next iteration of loop
+                }
             }
 
             break frame;
@@ -254,7 +253,7 @@ mod tests {
         T: Serialize + Loggable + Sized,
     {
         let mut fmt = MbapFormatter::new(AduDecodeLevel::Nothing);
-        let header = FrameHeader::new(UnitId::new(1), TxId::new(0));
+        let header = FrameHeader::new_tcp_header(UnitId::new(1), TxId::new(0));
         let bytes = fmt
             .format(header, function, payload, PduDecodeLevel::Nothing)
             .unwrap();

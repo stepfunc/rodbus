@@ -2,7 +2,7 @@
 name = "rodbus-ffi"
 version = "0.9.1"
 authors = ["Adam Crain <adam@stepfunc.io>", "Émile Grégoire <emile@stepfunc.io>"]
-edition = "2018"
+edition = "2021"
 description = "FFI for Rodbus"
 keywords = ["ffi", "c", "modbus", "ics", "industrial", "plc", "security"]
 categories = ["network-programming"]

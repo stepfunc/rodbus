@@ -5,9 +5,12 @@ import static org.joou.Unsigned.*;
 import io.stepfunc.rodbus.*;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
+import java.time.Duration;
+import java.util.Arrays;
 import java.util.List;
 
 import io.stepfunc.rodbus.Runtime;
+import org.joou.UByte;
 import org.joou.UShort;
 
 class TestLogger implements Logger {
@@ -66,6 +69,43 @@ class ExampleWriteHandler implements WriteHandler {
 }
 // ANCHOR_END: write_handler
 
+// ANCHOR: auth_handler
+class TestAuthorizationHandler implements AuthorizationHandler
+{
+    public AuthorizationResult readCoils(UByte unitId, AddressRange range, String role) {
+        return AuthorizationResult.AUTHORIZED;
+    }
+
+    public AuthorizationResult readDiscreteInputs(UByte unitId, AddressRange range, String role) {
+        return AuthorizationResult.AUTHORIZED;
+    }
+
+    public AuthorizationResult readHoldingRegisters(UByte unitId, AddressRange range, String role) {
+        return AuthorizationResult.AUTHORIZED;
+    }
+
+    public AuthorizationResult readInputRegisters(UByte unitId, AddressRange range, String role) {
+        return AuthorizationResult.AUTHORIZED;
+    }
+
+    public AuthorizationResult writeSingleCoil(UByte unitId, UShort idx, String role) {
+        return AuthorizationResult.NOT_AUTHORIZED;
+    }
+
+    public AuthorizationResult writeSingleRegister(UByte unitId, UShort idx, String role) {
+        return AuthorizationResult.NOT_AUTHORIZED;
+    }
+
+    public AuthorizationResult writeMultipleCoils(UByte unitId, AddressRange range, String role) {
+        return AuthorizationResult.NOT_AUTHORIZED;
+    }
+
+    public AuthorizationResult writeMultipleRegisters(UByte unitId, AddressRange range, String role) {
+        return AuthorizationResult.NOT_AUTHORIZED;
+    }
+}
+// ANCHOR_END: auth_handler
+
 public class ServerExample {
     public static void main(String[] args) throws Exception {
         // initialize logging with the default configuration
@@ -89,16 +129,89 @@ public class ServerExample {
         });
         // ANCHOR_END: device_map_init
 
-        // ANCHOR: tcp_server_create
-        DecodeLevel decodeLevel = new DecodeLevel();
-        Server server = Server.createTcp(runtime, "127.0.0.1:502", ushort(10), map, decodeLevel);
-        // ANCHOR_END: tcp_server_create
+        if (args.length != 1)
+        {
+            System.out.println("you must specify a transport type");
+            System.out.println("usage: server_example <channel> (tcp, rtu, tls-ca, tls-self-signed)");
+            System.exit(-1);
+        }
+
+        // initialize a Modbus client channel
+        Server server = createServer(args[0], runtime, map);
 
         try {
             run(server);
         } finally {
             runtime.shutdown();
         }
+    }
+
+    private static Server createServer(String type, Runtime runtime, DeviceMap map) {
+        switch (type)
+        {
+            case "tcp": return createTcpServer(runtime, map);
+            case "rtu": return createRtuServer(runtime, map);
+            case "tls-ca": return createTlsServer(runtime, map, getCaTlsConfig());
+            case "tls-self-signed": return createTlsServer(runtime, map, getSelfSignedTlsConfig());
+            default:
+                System.out.println("unknown server type: " + type);
+                System.exit(-1);
+                return null;
+        }
+    }
+
+    private static Server createTcpServer(Runtime runtime, DeviceMap map) {
+        // ANCHOR: tcp_server_create
+        DecodeLevel decodeLevel = new DecodeLevel();
+        Server server = Server.createTcp(runtime, "127.0.0.1:502", ushort(100), map, decodeLevel);
+        // ANCHOR_END: tcp_server_create
+
+        return server;
+    }
+
+    private static Server createRtuServer(Runtime runtime, DeviceMap map) {
+        // ANCHOR: rtu_server_create
+        DecodeLevel decodeLevel = new DecodeLevel();
+        Server server = Server.createRtu(runtime, "/dev/ttySIM1", new SerialPortSettings(), map, decodeLevel);
+        // ANCHOR_END: rtu_server_create
+
+        return server;
+    }
+
+    private static Server createTlsServer(Runtime runtime, DeviceMap map, TlsServerConfig tlsConfig) {
+        // ANCHOR: tls_server_create
+        DecodeLevel decodeLevel = new DecodeLevel();
+        Server server = Server.createTls(runtime, "127.0.0.1:802", ushort(10), map, tlsConfig, new TestAuthorizationHandler(), decodeLevel);
+        // ANCHOR_END: tls_server_create
+
+        return server;
+    }
+
+    private static TlsServerConfig getCaTlsConfig() {
+        // ANCHOR: tls_ca_chain_config
+        TlsServerConfig tlsConfig = new TlsServerConfig(
+                "./certs/ca_chain/ca_cert.pem",
+                "./certs/ca_chain/entity2_cert.pem",
+                "./certs/ca_chain/entity2_key.pem",
+                "" // no password
+        );
+        // ANCHOR_END: tls_ca_chain_config
+
+        return tlsConfig;
+    }
+
+    private static TlsServerConfig getSelfSignedTlsConfig() {
+        // ANCHOR: tls_self_signed_config
+        TlsServerConfig tlsConfig = new TlsServerConfig(
+                "./certs/self_signed/entity1_cert.pem",
+                "./certs/self_signed/entity2_cert.pem",
+                "./certs/self_signed/entity2_key.pem",
+                "" // no password
+        );
+        tlsConfig.certificateMode = CertificateMode.SELF_SIGNED;
+        // ANCHOR_END: tls_self_signed_config
+
+        return tlsConfig;
     }
 
     public static void run(Server server) throws Exception {

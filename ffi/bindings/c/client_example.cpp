@@ -1,6 +1,7 @@
 #include "rodbus.hpp"
 
 #include <chrono>
+#include <cstring>
 #include <iostream>
 #include <string>
 
@@ -61,31 +62,8 @@ class WriteCallback : public rodbus::WriteCallback
 };
 /// ANCHOR_END: write_callback
 
-int main()
+int run_channel(rodbus::ClientChannel& channel)
 {
-    // ANCHOR: logging_init
-    // initialize logging with the default configuration
-    rodbus::Logging::configure(rodbus::LoggingConfig(), std::make_unique<Logger>());
-    // ANCHOR_END: logging_init
-
-    // initialize the runtime
-    // ANCHOR: runtime_create
-    auto runtime_config = rodbus::RuntimeConfig();
-    runtime_config.num_core_threads = 4;
-    auto runtime = rodbus::Runtime(runtime_config);
-    // ANCHOR_END: runtime_create
-
-    // initialize a Modbus TCP client channel
-    // ANCHOR: create_tcp_channel
-    auto channel = rodbus::ClientChannel::create_tcp(
-        runtime,
-        "127.0.0.1:502",
-        100,
-        rodbus::RetryStrategy(),
-        rodbus::DecodeLevel()
-    );
-    // ANCHOR_END: create_tcp_channel
-
     // request param that we will be reusing
     // ANCHOR: request_param
     const auto param = rodbus::RequestParam(1, // Unit ID
@@ -155,5 +133,123 @@ int main()
         else {
             std::cout << "unknown command: " << cmd << std::endl;
         }
+    }
+}
+
+int run_tcp_channel(rodbus::Runtime& runtime)
+{
+    // ANCHOR: create_tcp_channel
+    auto channel = rodbus::ClientChannel::create_tcp(
+        runtime,
+        "127.0.0.1:502",
+        100,
+        rodbus::RetryStrategy(),
+        rodbus::DecodeLevel()
+    );
+    // ANCHOR_END: create_tcp_channel
+
+    return run_channel(channel);
+}
+
+int run_rtu_channel(rodbus::Runtime& runtime)
+{
+    // ANCHOR: create_rtu_channel
+    auto channel = rodbus::ClientChannel::create_rtu(
+        runtime,
+        "/dev/ttySIM0",
+        rodbus::SerialPortSettings(),
+        1,
+        std::chrono::seconds(1),
+        rodbus::DecodeLevel()
+    );
+    // ANCHOR_END: create_rtu_channel
+
+    return run_channel(channel);
+}
+
+int run_tls_channel(rodbus::Runtime& runtime, const rodbus::TlsClientConfig& tls_config)
+{
+    // ANCHOR: create_tls_channel
+    auto channel = rodbus::ClientChannel::create_tls(
+        runtime,
+        "127.0.0.1:802",
+        100,
+        rodbus::RetryStrategy(),
+        tls_config,
+        rodbus::DecodeLevel()
+    );
+    // ANCHOR_END: create_tls_channel
+
+    return run_channel(channel);
+}
+
+rodbus::TlsClientConfig get_tls_ca_config()
+{
+    // ANCHOR: tls_ca_chain_config
+    auto tls_config = rodbus::TlsClientConfig(
+        "test.com",
+        "./certs/ca_chain/ca_cert.pem",
+        "./certs/ca_chain/entity1_cert.pem",
+        "./certs/ca_chain/entity1_key.pem",
+        "" // no password
+    );
+    // ANCHOR_END: tls_ca_chain_config
+
+    return tls_config;
+}
+
+rodbus::TlsClientConfig get_tls_self_signed_config()
+{
+    // ANCHOR: tls_self_signed_config
+    auto tls_config = rodbus::TlsClientConfig(
+        "test.com",
+        "./certs/self_signed/entity2_cert.pem",
+        "./certs/self_signed/entity1_cert.pem",
+        "./certs/self_signed/entity1_key.pem",
+        "" // no password
+    );
+    tls_config.certificate_mode = rodbus::CertificateMode::self_signed;
+    // ANCHOR_END: tls_self_signed_config
+
+    return tls_config;
+}
+
+int main(int argc, char* argv[])
+{
+    // ANCHOR: logging_init
+    // initialize logging with the default configuration
+    rodbus::Logging::configure(rodbus::LoggingConfig(), std::make_unique<Logger>());
+    // ANCHOR_END: logging_init
+
+    // initialize the runtime
+    // ANCHOR: runtime_create
+    auto runtime_config = rodbus::RuntimeConfig();
+    runtime_config.num_core_threads = 4;
+    auto runtime = rodbus::Runtime(runtime_config);
+    // ANCHOR_END: runtime_create
+
+    if (argc != 2) {
+        std::cout << "you must specify a transport type" << std::endl;
+        std::cout << "usage: cpp_client_example <channel> (tcp, rtu, tls-ca, tls-self-signed)" << std::endl;
+        return -1;
+    }
+
+    const auto type = argv[1];
+
+    if (strcmp(type, "tcp") == 0) {
+        return run_tcp_channel(runtime);
+    }
+    else if (strcmp(type, "rtu") == 0) {
+        return run_rtu_channel(runtime);
+    }
+    else if (strcmp(type, "tls-ca") == 0) {
+        return run_tls_channel(runtime, get_tls_ca_config());
+    }
+    else if (strcmp(type, "tls-self-signed") == 0) {
+        return run_tls_channel(runtime, get_tls_self_signed_config());
+    }
+    else {
+        std::cout << "unknown channel type: " << type << std::endl;
+        return -1;
     }
 }

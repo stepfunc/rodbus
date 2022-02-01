@@ -44,14 +44,6 @@ target_link_libraries(client_example PRIVATE rodbus)
 add_executable(server_example server_example.c)
 target_link_libraries(server_example PRIVATE rodbus)
 
-# C Client TLS example
-add_executable(client_tls_example ./client_tls_example.c)
-target_link_libraries(client_tls_example PRIVATE rodbus)
-
-# C Server TLS example
-add_executable(server_tls_example server_tls_example.c)
-target_link_libraries(server_tls_example PRIVATE rodbus)
-
 # -------------- C++ examples -----------------
 
 # C++ Master example
@@ -62,14 +54,6 @@ target_link_libraries(cpp_client_example PRIVATE rodbus_cpp)
 add_executable(cpp_server_example server_example.cpp )
 target_link_libraries(cpp_server_example PRIVATE rodbus_cpp)
 
-# C++ Client TLS example
-add_executable(cpp_client_tls_example ./client_tls_example.cpp)
-target_link_libraries(cpp_client_tls_example PRIVATE rodbus_cpp)
-
-# C++ Server TLS example
-add_executable(cpp_server_tls_example server_tls_example.cpp)
-target_link_libraries(cpp_server_tls_example PRIVATE rodbus_cpp)
-
 # Copy the DLL after build
 add_custom_command(TARGET client_example POST_BUILD 
     COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:rodbus> $<TARGET_FILE_DIR:client_example>
@@ -77,21 +61,9 @@ add_custom_command(TARGET client_example POST_BUILD
 add_custom_command(TARGET server_example POST_BUILD 
     COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:rodbus> $<TARGET_FILE_DIR:server_example>
 )
-add_custom_command(TARGET client_tls_example POST_BUILD 
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:rodbus> $<TARGET_FILE_DIR:client_tls_example>
-)
-add_custom_command(TARGET server_tls_example POST_BUILD 
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:rodbus> $<TARGET_FILE_DIR:server_tls_example>
-)
 add_custom_command(TARGET cpp_client_example POST_BUILD 
     COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:rodbus> $<TARGET_FILE_DIR:cpp_client_example>
 )
 add_custom_command(TARGET cpp_server_example POST_BUILD 
     COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:rodbus> $<TARGET_FILE_DIR:cpp_server_example>
-)
-add_custom_command(TARGET cpp_client_example POST_BUILD 
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:rodbus> $<TARGET_FILE_DIR:cpp_client_tls_example>
-)
-add_custom_command(TARGET cpp_server_example POST_BUILD 
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:rodbus> $<TARGET_FILE_DIR:cpp_server_tls_example>
 )

@@ -24,6 +24,7 @@ module.exports = {
         {
             Client: [
                 'api/client/tcp_client',
+                'api/client/rtu_client',
                 'api/client/tls_client',
                 'api/client/requests',
             ]
@@ -31,6 +32,7 @@ module.exports = {
         {
             Server: [
                 'api/server/tcp_server',
+                'api/server/rtu_server',
                 'api/server/tls_server',
                 'api/server/database',
                 'api/server/write_handler',

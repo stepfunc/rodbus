@@ -2,17 +2,21 @@ use tracing::Instrument;
 
 use crate::common::phys::PhysLayer;
 use crate::decode::PduDecodeLevel;
-use crate::server::AuthorizationHandlerType;
+use crate::server::AuthorizationHandler;
 use crate::tokio;
 
 use crate::common::cursor::ReadCursor;
-use crate::common::frame::{Frame, FrameFormatter, FrameHeader, FrameParser, FramedReader};
+use crate::common::frame::{
+    Frame, FrameDestination, FrameFormatter, FrameHeader, FrameParser, FramedReader,
+    NullFrameFormatter,
+};
 use crate::common::function::FunctionCode;
 use crate::error::*;
 use crate::exception::ExceptionCode;
 use crate::server::handler::{RequestHandler, ServerHandlerMap};
 use crate::server::request::{Request, RequestDisplay};
 use crate::server::response::ErrorResponse;
+use std::sync::Arc;
 
 pub(crate) struct SessionTask<T, F, P>
 where
@@ -60,8 +64,11 @@ where
         header: FrameHeader,
         err: ErrorResponse,
     ) -> Result<(), RequestError> {
-        let bytes = self.writer.error(header, err)?;
-        self.io.write(bytes).await?;
+        // do not answer on broadcast
+        if header.destination != FrameDestination::Broadcast {
+            let bytes = self.writer.error(header, err, self.decode)?;
+            self.io.write(bytes).await?;
+        }
         Ok(())
     }
 
@@ -77,7 +84,7 @@ where
                 let frame = frame?;
                 let tx_id = frame.header.tx_id;
                 self.handle_frame(frame)
-                    .instrument(tracing::info_span!("Transaction", tx_id=%tx_id))
+                    .instrument(tracing::info_span!("Transaction", tx_id=?tx_id))
                     .await
             }
             _ = self.shutdown.recv() => {
@@ -88,18 +95,6 @@ where
 
     async fn handle_frame(&mut self, frame: Frame) -> Result<(), RequestError> {
         let mut cursor = ReadCursor::new(frame.payload());
-
-        // if no addresses match, then don't respond
-        let handler = match self.handlers.get(frame.header.unit_id) {
-            None => {
-                tracing::warn!(
-                    "received frame for unmapped unit id: {}",
-                    frame.header.unit_id.value
-                );
-                return Ok(());
-            }
-            Some(handler) => handler,
-        };
 
         let function = match cursor.read_u8() {
             Err(_) => {
@@ -121,14 +116,12 @@ where
             Ok(x) => x,
             Err(err) => {
                 tracing::warn!("error parsing {:?} request: {}", function, err);
-                let reply = self.writer.exception(
-                    frame.header,
-                    function,
-                    ExceptionCode::IllegalDataValue,
-                    self.decode,
-                )?;
-                self.io.write(reply).await?;
-                return Ok(());
+                return self
+                    .reply_with_error(
+                        frame.header,
+                        ErrorResponse::new(function, ExceptionCode::IllegalDataValue),
+                    )
+                    .await;
             }
         };
 
@@ -136,20 +129,53 @@ where
             tracing::info!("PDU RX - {}", RequestDisplay::new(self.decode, &request));
         }
 
-        // get the reply data (or exception reply)
-        let reply_frame: &[u8] = {
-            let mut lock = handler.lock().unwrap();
-            request.get_reply(
-                frame.header,
-                lock.as_mut(),
-                &self.auth,
-                &mut self.writer,
-                self.decode,
-            )?
-        };
+        // if no addresses match, then don't respond
+        match frame.header.destination {
+            FrameDestination::UnitId(unit_id) => {
+                let handler = match self.handlers.get(unit_id) {
+                    None => {
+                        tracing::warn!("received frame for unmapped unit id: {}", unit_id);
+                        return Ok(());
+                    }
+                    Some(handler) => handler,
+                };
 
-        // reply with the bytes
-        self.io.write(reply_frame).await?;
+                // get the reply data (or exception reply)
+                let reply_frame: &[u8] = {
+                    let mut lock = handler.lock().unwrap();
+                    request.get_reply(
+                        frame.header,
+                        lock.as_mut(),
+                        &self.auth,
+                        &mut self.writer,
+                        self.decode,
+                    )?
+                };
+
+                // reply with the bytes
+                self.io.write(reply_frame).await?;
+            }
+            FrameDestination::Broadcast => {
+                // check if broadcast is supported for this function code
+                if !function.supports_broadcast() {
+                    tracing::warn!("broadcast is not supported for {}", function);
+                    return Ok(());
+                }
+
+                for handler in self.handlers.iter_mut() {
+                    let mut lock = handler.lock().unwrap();
+                    request.get_reply(
+                        frame.header,
+                        lock.as_mut(),
+                        &self.auth,
+                        &mut NullFrameFormatter,
+                        self.decode,
+                    )?;
+                    // do not write a response
+                }
+            }
+        }
+
         Ok(())
     }
 }
@@ -159,5 +185,5 @@ pub(crate) enum SessionAuthentication {
     /// The request is not authenticated
     Unauthenticated,
     /// The request is authenticated with a Role ID
-    Authenticated(AuthorizationHandlerType, String),
+    Authenticated(Arc<dyn AuthorizationHandler>, String),
 }

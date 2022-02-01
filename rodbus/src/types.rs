@@ -358,6 +358,18 @@ impl UnitId {
     pub fn default() -> Self {
         Self { value: 0xFF }
     }
+
+    /// Broadcast address (only in RTU)
+    pub fn broadcast() -> Self {
+        Self { value: 0x00 }
+    }
+
+    /// Returns true if the address is reserved in RTU mode
+    ///
+    /// Users should *not* use reserved addresses in RTU mode.
+    pub fn is_rtu_reserved(&self) -> bool {
+        self.value >= 248
+    }
 }
 
 #[cfg(test)]
@@ -419,5 +431,17 @@ mod tests {
             values,
             vec![Indexed::new(1, 0xFFFF), Indexed::new(2, 0x01CC)]
         );
+    }
+
+    #[test]
+    fn broadcast_address() {
+        assert_eq!(UnitId::broadcast(), UnitId::new(0x00));
+    }
+
+    #[test]
+    fn rtu_reserved_address() {
+        assert!(UnitId::new(248).is_rtu_reserved());
+        assert!(UnitId::new(255).is_rtu_reserved());
+        assert!(!UnitId::new(41).is_rtu_reserved());
     }
 }

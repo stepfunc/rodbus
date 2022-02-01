@@ -13,6 +13,7 @@ pub(crate) struct CommonDefinitions {
     pub(crate) bit_iterator: AbstractIteratorHandle,
     pub(crate) register_iterator: AbstractIteratorHandle,
     pub(crate) exception: EnumHandle,
+    pub(crate) serial_port_settings: FunctionArgStructHandle,
     pub(crate) min_tls_version: EnumHandle,
     pub(crate) certificate_mode: EnumHandle,
 }
@@ -38,6 +39,7 @@ impl CommonDefinitions {
             bit_iterator: build_iterator(lib, &bit_value)?,
             register_iterator: build_iterator(lib, &register_value)?,
             exception: build_exception(lib)?,
+            serial_port_settings: build_serial_params(lib)?,
             min_tls_version: build_min_tls_version(lib)?,
             certificate_mode: build_certificate_mode(lib)?,
         })
@@ -257,6 +259,91 @@ fn build_certificate_mode(lib: &mut LibraryBuilder) -> BackTraced<EnumHandle> {
         .build()?;
 
     Ok(definition)
+}
+
+fn build_serial_params(lib: &mut LibraryBuilder) -> BackTraced<FunctionArgStructHandle> {
+    let data_bits = lib
+        .define_enum("data_bits")?
+        .push("five", "5 bits per character")?
+        .push("six", "6 bits per character")?
+        .push("seven", "7 bits per character")?
+        .push("eight", "8 bits per character")?
+        .doc("Number of bits per character")?
+        .build()?;
+
+    let flow_control = lib
+        .define_enum("flow_control")?
+        .push("none", "No flow control")?
+        .push("software", "Flow control using XON/XOFF bytes")?
+        .push("hardware", "Flow control using RTS/CTS signals")?
+        .doc("Flow control modes")?
+        .build()?;
+
+    let parity = lib
+        .define_enum("parity")?
+        .push("none", "No parity bit")?
+        .push("odd", "Parity bit sets odd number of 1 bits")?
+        .push("even", "Parity bit sets even number of 1 bits")?
+        .doc("Parity checking modes")?
+        .build()?;
+
+    let stop_bits = lib
+        .define_enum("stop_bits")?
+        .push("one", "One stop bit")?
+        .push("two", "Two stop bits")?
+        .doc("Number of stop bits")?
+        .build()?;
+
+    let baud_rate_field = Name::create("baud_rate")?;
+    let data_bits_field = Name::create("data_bits")?;
+    let flow_control_field = Name::create("flow_control")?;
+    let parity_field = Name::create("parity")?;
+    let stop_bits_field = Name::create("stop_bits")?;
+
+    let serial_params = lib.declare_function_argument_struct("serial_port_settings")?;
+    let serial_params = lib
+        .define_function_argument_struct(serial_params)?
+        .add(
+            &baud_rate_field,
+            Primitive::U32,
+            "Baud rate (in symbols-per-second)",
+        )?
+        .add(
+            &data_bits_field,
+            data_bits,
+            "Number of bits used to represent a character sent on the line",
+        )?
+        .add(
+            &flow_control_field,
+            flow_control,
+            "Type of signalling to use for controlling data transfer",
+        )?
+        .add(
+            &parity_field,
+            parity,
+            "Type of parity to use for error checking",
+        )?
+        .add(
+            &stop_bits_field,
+            stop_bits,
+            "Number of bits to use to signal the end of a character",
+        )?
+        .doc("Serial port settings")?
+        .end_fields()?
+        .begin_initializer(
+            "init",
+            InitializerType::Normal,
+            "Initialize a serial port configuration",
+        )?
+        .default(&baud_rate_field, NumberValue::U32(9600))?
+        .default_variant(&data_bits_field, "eight")?
+        .default_variant(&flow_control_field, "none")?
+        .default_variant(&parity_field, "none")?
+        .default_variant(&stop_bits_field, "one")?
+        .end_initializer()?
+        .build()?;
+
+    Ok(serial_params)
 }
 
 const MODBUS_EXCEPTION: &[(&str, u8, &str)] = &[

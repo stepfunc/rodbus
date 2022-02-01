@@ -7,7 +7,7 @@ use tokio_rustls::rustls::server::AllowAnyAuthenticatedClient;
 
 use crate::common::phys::PhysLayer;
 use crate::server::task::SessionAuthentication;
-use crate::server::AuthorizationHandlerType;
+use crate::server::AuthorizationHandler;
 use crate::tcp::tls::{load_certs, load_private_key, CertificateMode, MinTlsVersion, TlsError};
 use crate::tokio::net::TcpStream;
 use crate::PhysDecodeLevel;
@@ -51,20 +51,12 @@ impl TlsServerConfig {
 
                 Arc::new(move |role_container| {
                     let verifier = CaChainClientCertVerifier::new(roots.clone(), role_container);
-
-                    rustls::ServerConfig::builder()
-                        .with_safe_default_cipher_suites()
-                        .with_safe_default_kx_groups()
-                        .with_protocol_versions(min_tls_version.to_rustls())
-                        .map_err(|err| {
-                            format!(
-                                "cipher suites or kx groups mismatch with TLS version: {}",
-                                err
-                            )
-                        })?
-                        .with_client_cert_verifier(verifier)
-                        .with_single_cert(local_certs.clone(), private_key.clone())
-                        .map_err(|err| err.to_string())
+                    build_server_config(
+                        verifier,
+                        min_tls_version,
+                        local_certs.clone(),
+                        private_key.clone(),
+                    )
                 })
             }
             CertificateMode::SelfSigned => {
@@ -82,19 +74,12 @@ impl TlsServerConfig {
                             role_container,
                         );
 
-                        rustls::ServerConfig::builder()
-                            .with_safe_default_cipher_suites()
-                            .with_safe_default_kx_groups()
-                            .with_protocol_versions(min_tls_version.to_rustls())
-                            .map_err(|err| {
-                                format!(
-                                    "cipher suites or kx groups mismatch with TLS version: {}",
-                                    err
-                                )
-                            })?
-                            .with_client_cert_verifier(verifier)
-                            .with_single_cert(local_certs.clone(), private_key.clone())
-                            .map_err(|err| err.to_string())
+                        build_server_config(
+                            verifier,
+                            min_tls_version,
+                            local_certs.clone(),
+                            private_key.clone(),
+                        )
                     })
                 } else {
                     return Err(TlsError::InvalidPeerCertificate(io::Error::new(
@@ -116,7 +101,7 @@ impl TlsServerConfig {
         &mut self,
         socket: TcpStream,
         level: PhysDecodeLevel,
-        auth_handler: AuthorizationHandlerType,
+        auth_handler: Arc<dyn AuthorizationHandler>,
     ) -> Result<(PhysLayer, SessionAuthentication), String> {
         let role_container = Arc::new(Mutex::new(None));
         let tls_config = self.build(role_container.clone())?;
@@ -280,6 +265,27 @@ impl rustls::server::ClientCertVerifier for SelfSignedCertificateClientCertVerif
 
         Ok(rustls::server::ClientCertVerified::assertion())
     }
+}
+
+fn build_server_config(
+    verifier: Arc<dyn rustls::server::ClientCertVerifier>,
+    min_tls_version: MinTlsVersion,
+    local_certs: Vec<rustls::Certificate>,
+    private_key: rustls::PrivateKey,
+) -> Result<rustls::ServerConfig, String> {
+    rustls::ServerConfig::builder()
+        .with_safe_default_cipher_suites()
+        .with_safe_default_kx_groups()
+        .with_protocol_versions(min_tls_version.to_rustls())
+        .map_err(|err| {
+            format!(
+                "cipher suites or kx groups mismatch with TLS version: {}",
+                err
+            )
+        })?
+        .with_client_cert_verifier(verifier)
+        .with_single_cert(local_certs, private_key)
+        .map_err(|err| err.to_string())
 }
 
 fn extract_modbus_role(cert: &rasn::x509::Certificate) -> Result<String, rustls::Error> {

@@ -1,0 +1,96 @@
+---
+id: rtu_client
+title: Serial RTU Client
+sidebar_label: Serial RTU Client
+slug: /api/client/rtu_client
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+You can create a RTU client channel using the `create_rtu_client` method. It will immediately try to open the serial port.
+
+:::note
+In Rust, you can use the `spawn_rtu_client_task` to create a channel and spawn the async task in the context of the current runtime.
+Outside the Tokio runtime, you can use `create_rtu_handle_and_task` and manually spawn the returned future.
+:::
+
+:::info
+The library does **not** support sending broadcast requests yet. Sending a request with a broadcast unit ID
+(`0x00`) will generate a timeout error, because no server will respond.
+:::
+
+<Tabs
+groupId="language"
+defaultValue="Rust"
+values={[
+{label: 'Rust', value: 'Rust'},
+{label: 'C', value: 'C'},
+{label: 'C++', value: 'C++'},
+{label: 'Java', value: 'Java'},
+{label: 'C#', value: 'C#'},
+]}>
+<TabItem value="Rust">
+
+```rust
+{{#include ../rodbus/examples/client.rs:create_rtu_channel}}
+```
+
+</TabItem>
+<TabItem value="C">
+
+```c
+{{#include ../ffi/bindings/c/client_example.c:create_rtu_channel}}
+```
+
+</TabItem>
+<TabItem value="C++">
+
+```cpp
+{{#include ../ffi/bindings/c/client_example.cpp:create_rtu_channel}}
+```
+
+</TabItem>
+<TabItem value="Java">
+
+```java
+{{#include ../ffi/bindings/java/examples/src/main/java/io/stepfunc/rodbus/examples/ClientExample.java:create_rtu_channel}}
+```
+
+</TabItem>
+<TabItem value="C#">
+
+```csharp
+{{#include ../ffi/bindings/dotnet/examples/client/Program.cs:create_rtu_channel}}
+```
+
+</TabItem>
+</Tabs>
+
+## Path
+
+A path to the serial device must be supplied. On Windows, it's generally something like `COM3`. On Linux, it's
+generally something like `/dev/ttyS3`. You need to have the adequate permissions to access these devices.
+
+## Serial Port settings
+
+The serial port settings are the following:
+
+- Baud rate in bit per second
+- Data bits. Note that Modbus should use 8 data bits.
+- Stop bits
+- Parity
+- Flow control
+
+## Maximum Queued Requests
+
+Each channel sends one request at a time and has a fixed-length buffer of requests to send.
+
+## Retry Delay
+
+A serial channel tries to open the serial port as soon as it is created. If the serial port cannot be opened, the library
+automatically waits `retry_delay` before retrying to open the port.
+
+## Decode Level
+
+See [logging configuration page](../logging.mdx#protocol-decoding) for more details.
