@@ -13,11 +13,11 @@ namespace rodbus_tests
         {
             if (database.UpdateCoil(index, value))
             {
-                return WriteResult.CreateSuccess();
+                return WriteResult.SuccessInit();
             }
             else
             {
-                return WriteResult.CreateException(rodbus.ModbusException.IllegalDataAddress);
+                return WriteResult.ExceptionInit(rodbus.ModbusException.IllegalDataAddress);
             }
         }
 
@@ -25,53 +25,38 @@ namespace rodbus_tests
         {
             if (database.UpdateHoldingRegister(index, value))
             {
-                return WriteResult.CreateSuccess();
+                return WriteResult.SuccessInit();
             }
             else
             {
-                return WriteResult.CreateException(rodbus.ModbusException.IllegalDataAddress);
+                return WriteResult.ExceptionInit(rodbus.ModbusException.IllegalDataAddress);
             }
         }
 
-        public WriteResult WriteMultipleCoils(ushort start, ICollection<Bit> it, Database database)
+        public WriteResult WriteMultipleCoils(ushort start, ICollection<BitValue> it, Database database)
         {
             foreach (var bit in it)
             {
                 if (!database.UpdateCoil(bit.Index, bit.Value))
                 {
-                    return WriteResult.CreateException(rodbus.ModbusException.IllegalDataAddress);
+                    return WriteResult.ExceptionInit(rodbus.ModbusException.IllegalDataAddress);
                 }
             }
 
-            return WriteResult.CreateSuccess();
+            return WriteResult.SuccessInit();
         }
 
-        public WriteResult WriteMultipleRegisters(ushort start, ICollection<Register> it, Database database)
+        public WriteResult WriteMultipleRegisters(ushort start, ICollection<RegisterValue> it, Database database)
         {
             foreach (var bit in it)
             {
                 if (!database.UpdateHoldingRegister(bit.Index, bit.Value))
                 {
-                    return WriteResult.CreateException(rodbus.ModbusException.IllegalDataAddress);
+                    return WriteResult.ExceptionInit(rodbus.ModbusException.IllegalDataAddress);
                 }
             }
 
-            return WriteResult.CreateSuccess();
-        }
-    }
-
-    class DatabaseUpdate : IDatabaseCallback
-    {
-        readonly System.Action<Database> action;
-
-        public DatabaseUpdate(System.Action<Database> action)
-        {
-            this.action = action;
-        }
-
-        public void Callback(Database database)
-        {
-            this.action.Invoke(database);
+            return WriteResult.SuccessInit();
         }
     }
 
@@ -83,110 +68,100 @@ namespace rodbus_tests
         private static readonly string ENDPOINT = "127.0.0.1:20000";
         private static readonly RequestParam param = new RequestParam(UNIT_ID, TimeSpan.FromSeconds(1));
 
-        static void TestReadDiscreteInputs(Channel client)
+        static void TestReadDiscreteInputs(ClientChannel client)
         {
-            var result = client.ReadDiscreteInputs(param, new AddressRange(2, 3)).Result;
-            var resultList = result.Iterator.ToList();
-            Assert.AreEqual(Status.Ok, result.Result.Summary);
+            var result = client.ReadDiscreteInputs(param, new AddressRange(2, 3)).Result.ToList();
+            Assert.AreEqual(3, result.Count);
+            Assert.AreEqual(2, result[0].Index);
+            Assert.AreEqual(false, result[0].Value);
+            Assert.AreEqual(3, result[1].Index);
+            Assert.AreEqual(true, result[1].Value);
+            Assert.AreEqual(4, result[2].Index);
+            Assert.AreEqual(false, result[2].Value);
 
-            Assert.AreEqual(3, resultList.Count);
-            Assert.AreEqual(2, resultList[0].Index);
-            Assert.AreEqual(false, resultList[0].Value);
-            Assert.AreEqual(3, resultList[1].Index);
-            Assert.AreEqual(true, resultList[1].Value);
-            Assert.AreEqual(4, resultList[2].Index);
-            Assert.AreEqual(false, resultList[2].Value);
-
-            result = client.ReadDiscreteInputs(param, new AddressRange(9, 2)).Result;
-            Assert.AreEqual(Status.Exception, result.Result.Summary);
-            Assert.AreEqual(ModbusException.IllegalDataAddress, result.Result.Exception);
+            try
+            {
+                client.ReadDiscreteInputs(param, new AddressRange(9, 2)).Wait();
+                Assert.Fail("reading invalid address range did not fail");
+            }
+            catch (AggregateException ex)
+            {
+                Assert.AreEqual(RequestError.ModbusExceptionIllegalDataAddress, (ex.InnerException as RequestException).error);
+            }
         }
 
-        static void TestReadInputRegisters(Channel client)
+        static void TestReadInputRegisters(ClientChannel client)
         {
-            var result = client.ReadInputRegisters(param, new AddressRange(3, 3)).Result;
-            var resultList = result.Iterator.ToList();
-            Assert.AreEqual(Status.Ok, result.Result.Summary);
+            var result = client.ReadInputRegisters(param, new AddressRange(3, 3)).Result.ToList();
+            Assert.AreEqual(3, result.Count);
+            Assert.AreEqual(3, result[0].Index);
+            Assert.AreEqual(0, result[0].Value);
+            Assert.AreEqual(4, result[1].Index);
+            Assert.AreEqual(42, result[1].Value);
+            Assert.AreEqual(5, result[2].Index);
+            Assert.AreEqual(0, result[2].Value);
 
-            Assert.AreEqual(3, resultList.Count);
-            Assert.AreEqual(3, resultList[0].Index);
-            Assert.AreEqual(0, resultList[0].Value);
-            Assert.AreEqual(4, resultList[1].Index);
-            Assert.AreEqual(42, resultList[1].Value);
-            Assert.AreEqual(5, resultList[2].Index);
-            Assert.AreEqual(0, resultList[2].Value);
-
-            result = client.ReadInputRegisters(param, new AddressRange(10, 1)).Result;
-            Assert.AreEqual(Status.Exception, result.Result.Summary);
-            Assert.AreEqual(ModbusException.IllegalDataAddress, result.Result.Exception);
+            try
+            {
+                client.ReadInputRegisters(param, new AddressRange(10, 1)).Wait();
+                Assert.Fail("reading invalid address range did not fail");
+            }
+            catch(AggregateException ex)
+            {
+                Assert.AreEqual(RequestError.ModbusExceptionIllegalDataAddress, (ex.InnerException as RequestException).error);
+            }
         }
 
-        static void TestWriteSingleCoil(Channel client)
-        {            
-            var writeResult = client.WriteSingleCoil(param, new Bit(1, true)).Result;
-            Assert.AreEqual(Status.Ok, writeResult.Summary);
-
-            var readResult = client.ReadCoils(param, new AddressRange(0, 2)).Result;
-            var resultList = readResult.Iterator.ToList();
-            Assert.AreEqual(Status.Ok, readResult.Result.Summary);
-
-            Assert.AreEqual(2, resultList.Count);
-            Assert.AreEqual(0, resultList[0].Index);
-            Assert.AreEqual(false, resultList[0].Value);
-            Assert.AreEqual(1, resultList[1].Index);
-            Assert.AreEqual(true, resultList[1].Value);
-        }
-
-        static void TestWriteSingleRegister(Channel client)
-        {            
-            var writeResult = client.WriteSingleRegister(param, new Register(1, 22)).Result;
-            Assert.AreEqual(Status.Ok, writeResult.Summary);
-
-            var readResult = client.ReadHoldingRegisters(param, new AddressRange(0, 2)).Result;
-            var resultList = readResult.Iterator.ToList();
-            Assert.AreEqual(Status.Ok, readResult.Result.Summary);
-
-            Assert.AreEqual(2, resultList.Count);
-            Assert.AreEqual(0, resultList[0].Index);
-            Assert.AreEqual(0, resultList[0].Value);
-            Assert.AreEqual(1, resultList[1].Index);
-            Assert.AreEqual(22, resultList[1].Value);
-        }
-
-        static void TestWriteMultipeCoils(Channel client)
-        {            
-            var writeResult = client.WriteMultipleCoils(param, 0, new List<bool> { true, false, true }).Result;
-            Assert.AreEqual(Status.Ok, writeResult.Summary);
-
-            var readResult = client.ReadCoils(param, new AddressRange(0, 3)).Result;
-            var resultList = readResult.Iterator.ToList();
-            Assert.AreEqual(Status.Ok, readResult.Result.Summary);
-
-            Assert.AreEqual(3, resultList.Count);
-            Assert.AreEqual(0, resultList[0].Index);
-            Assert.AreEqual(true, resultList[0].Value);
-            Assert.AreEqual(1, resultList[1].Index);
-            Assert.AreEqual(false, resultList[1].Value);
-            Assert.AreEqual(2, resultList[2].Index);
-            Assert.AreEqual(true, resultList[2].Value);
-        }
-
-        static void TestWriteMultipeRegisters(Channel client)
+        static void TestWriteSingleCoil(ClientChannel client)
         {
-            var writeResult = client.WriteMultipleRegisters(param, 0, new List<ushort> { 0xCAFE, 21, 0xFFFF }).Result;
-            Assert.AreEqual(Status.Ok, writeResult.Summary);
+            client.WriteSingleCoil(param, new BitValue(1, true)).Wait();
 
-            var readResult = client.ReadHoldingRegisters(param, new AddressRange(0, 3)).Result;
-            var resultList = readResult.Iterator.ToList();
-            Assert.AreEqual(Status.Ok, readResult.Result.Summary);
+            var result = client.ReadCoils(param, new AddressRange(0, 2)).Result.ToList();
+            Assert.AreEqual(2, result.Count);
+            Assert.AreEqual(0, result[0].Index);
+            Assert.AreEqual(false, result[0].Value);
+            Assert.AreEqual(1, result[1].Index);
+            Assert.AreEqual(true, result[1].Value);
+        }
 
-            Assert.AreEqual(3, resultList.Count);
-            Assert.AreEqual(0, resultList[0].Index);
-            Assert.AreEqual(0xCAFE, resultList[0].Value);
-            Assert.AreEqual(1, resultList[1].Index);
-            Assert.AreEqual(21, resultList[1].Value);
-            Assert.AreEqual(2, resultList[2].Index);
-            Assert.AreEqual(0xFFFF, resultList[2].Value);
+        static void TestWriteSingleRegister(ClientChannel client)
+        {
+            client.WriteSingleRegister(param, new RegisterValue(1, 22)).Wait();
+
+            var result = client.ReadHoldingRegisters(param, new AddressRange(0, 2)).Result.ToList();
+            Assert.AreEqual(2, result.Count);
+            Assert.AreEqual(0, result[0].Index);
+            Assert.AreEqual(0, result[0].Value);
+            Assert.AreEqual(1, result[1].Index);
+            Assert.AreEqual(22, result[1].Value);
+        }
+
+        static void TestWriteMultipeCoils(ClientChannel client)
+        {
+            client.WriteMultipleCoils(param, 0, new List<bool> { true, false, true }).Wait();
+
+            var result = client.ReadCoils(param, new AddressRange(0, 3)).Result.ToList();
+            Assert.AreEqual(3, result.Count);
+            Assert.AreEqual(0, result[0].Index);
+            Assert.AreEqual(true, result[0].Value);
+            Assert.AreEqual(1, result[1].Index);
+            Assert.AreEqual(false, result[1].Value);
+            Assert.AreEqual(2, result[2].Index);
+            Assert.AreEqual(true, result[2].Value);
+        }
+
+        static void TestWriteMultipeRegisters(ClientChannel client)
+        {
+            client.WriteMultipleRegisters(param, 0, new List<ushort> { 0xCAFE, 21, 0xFFFF }).Wait();
+
+            var result = client.ReadHoldingRegisters(param, new AddressRange(0, 3)).Result.ToList();
+            Assert.AreEqual(3, result.Count);
+            Assert.AreEqual(0, result[0].Index);
+            Assert.AreEqual(0xCAFE, result[0].Value);
+            Assert.AreEqual(1, result[1].Index);
+            Assert.AreEqual(21, result[1].Value);
+            Assert.AreEqual(2, result[2].Index);
+            Assert.AreEqual(0xFFFF, result[2].Value);
         }
 
         [TestMethod]
@@ -194,7 +169,7 @@ namespace rodbus_tests
         {
             var runtime = new Runtime(new RuntimeConfig());
             var map = new DeviceMap();
-            map.AddEndpoint(UNIT_ID, new WriteHandler(), new DatabaseUpdate((db) =>
+            map.AddEndpoint(UNIT_ID, new WriteHandler(), db =>
             {
                 for (ushort i = 0; i < NUM_POINTS; ++i)
                 {
@@ -203,17 +178,17 @@ namespace rodbus_tests
                     db.AddHoldingRegister(i, 0);
                     db.AddInputRegister(i, 0);
                 }
-            }));
+            });
 
-            var server = Server.CreateTcpServer(runtime, ENDPOINT, 100, map, new DecodeLevel());
-            var client = Channel.CreateTcpClient(runtime, ENDPOINT, 10, new RetryStrategy(), new DecodeLevel());
+            var server = Server.CreateTcp(runtime, ENDPOINT, 100, map, new DecodeLevel());
+            var client = ClientChannel.CreateTcp(runtime, ENDPOINT, 10, new RetryStrategy(), new DecodeLevel());
 
             // set a unique pattern to test reads
-            server.Update(UNIT_ID, new DatabaseUpdate(db =>
+            server.UpdateDatabase(UNIT_ID, db =>
             {
                 db.UpdateDiscreteInput(3, true);
                 db.UpdateInputRegister(4, 42);
-            }));
+            });
 
             TestReadDiscreteInputs(client);
             TestReadInputRegisters(client);

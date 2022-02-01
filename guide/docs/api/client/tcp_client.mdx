@@ -8,8 +8,8 @@ slug: /api/client/tcp_client
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
-The `Channel` class represents a communication channel on which you can make requests to server device. `Channel` presents the same interface once you create it,
-regardless of the underlying transport. You can create a TCP client channel using `create_tcp_client` method.
+The `ClientChannel` class represents a communication channel on which you can make requests to server device. `Channel` presents the same interface once you create it,
+regardless of the underlying transport. You can create a TCP client channel using `create_tcp` method.
 
 :::note
 In Rust, you can use the `spawn_tcp_client_task` to create a channel and spawn the runner task in the current runtime.
@@ -22,6 +22,7 @@ defaultValue="Rust"
 values={[
 {label: 'Rust', value: 'Rust'},
 {label: 'C', value: 'C'},
+{label: 'C++', value: 'C++'},
 {label: 'Java', value: 'Java'},
 {label: 'C#', value: 'C#'},
 ]}>
@@ -36,6 +37,13 @@ values={[
 
 ```c
 {{#include ../ffi/bindings/c/client_example.c:create_tcp_channel}}
+```
+
+</TabItem>
+<TabItem value="C++">
+
+```cpp
+{{#include ../ffi/bindings/c/client_example.cpp:create_tcp_channel}}
 ```
 
 </TabItem>

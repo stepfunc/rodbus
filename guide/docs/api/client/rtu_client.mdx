@@ -26,6 +26,7 @@ defaultValue="Rust"
 values={[
 {label: 'Rust', value: 'Rust'},
 {label: 'C', value: 'C'},
+{label: 'C++', value: 'C++'},
 {label: 'Java', value: 'Java'},
 {label: 'C#', value: 'C#'},
 ]}>
@@ -40,6 +41,13 @@ values={[
 
 ```c
 {{#include ../ffi/bindings/c/client_example.c:create_rtu_channel}}
+```
+
+</TabItem>
+<TabItem value="C++">
+
+```cpp
+{{#include ../ffi/bindings/c/client_example.cpp:create_rtu_channel}}
 ```
 
 </TabItem>

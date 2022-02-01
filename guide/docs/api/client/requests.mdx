@@ -51,6 +51,7 @@ defaultValue="Rust"
 values={[
 {label: 'Rust', value: 'Rust'},
 {label: 'C', value: 'C'},
+{label: 'C++', value: 'C++'},
 {label: 'Java', value: 'Java'},
 {label: 'C#', value: 'C#'},
 ]}>
@@ -76,6 +77,18 @@ values={[
 ```
 
 </TabItem>
+<TabItem value="C++">
+
+```cpp
+{{#include ../ffi/bindings/c/client_example.cpp:bit_read_callback}}
+
+{{#include ../ffi/bindings/c/client_example.cpp:request_param}}
+{{#include ../ffi/bindings/c/client_example.cpp:address_range}}
+
+{{#include ../ffi/bindings/c/client_example.cpp:read_coils}}
+```
+
+</TabItem>
 <TabItem value="Java">
 
 ```java
@@ -95,7 +108,6 @@ values={[
 {{#include ../ffi/bindings/dotnet/examples/client/Program.cs:address_range}}
 
 {{#include ../ffi/bindings/dotnet/examples/client/Program.cs:read_coils}}
-{{#include ../ffi/bindings/dotnet/examples/client/Program.cs:handle_bit_result}}
 ```
 
 </TabItem>
@@ -130,6 +142,7 @@ defaultValue="Rust"
 values={[
 {label: 'Rust', value: 'Rust'},
 {label: 'C', value: 'C'},
+{label: 'C++', value: 'C++'},
 {label: 'Java', value: 'Java'},
 {label: 'C#', value: 'C#'},
 ]}>
@@ -153,6 +166,16 @@ values={[
 ```
 
 </TabItem>
+<TabItem value="C++">
+
+```cpp
+{{#include ../ffi/bindings/c/client_example.cpp:write_callback}}
+
+{{#include ../ffi/bindings/c/client_example.cpp:request_param}}
+{{#include ../ffi/bindings/c/client_example.cpp:write_single_coil}}
+```
+
+</TabItem>
 <TabItem value="Java">
 
 ```java
@@ -168,8 +191,6 @@ values={[
 ```csharp
 {{#include ../ffi/bindings/dotnet/examples/client/Program.cs:request_param}}
 {{#include ../ffi/bindings/dotnet/examples/client/Program.cs:write_single_coil}}
-
-{{#include ../ffi/bindings/dotnet/examples/client/Program.cs:handle_write_result}}
 ```
 
 </TabItem>
@@ -183,6 +204,7 @@ defaultValue="Rust"
 values={[
 {label: 'Rust', value: 'Rust'},
 {label: 'C', value: 'C'},
+{label: 'C++', value: 'C++'},
 {label: 'Java', value: 'Java'},
 {label: 'C#', value: 'C#'},
 ]}>
@@ -206,6 +228,16 @@ values={[
 ```
 
 </TabItem>
+<TabItem value="C++">
+
+```cpp
+{{#include ../ffi/bindings/c/client_example.cpp:write_callback}}
+
+{{#include ../ffi/bindings/c/client_example.cpp:request_param}}
+{{#include ../ffi/bindings/c/client_example.cpp:write_multiple_registers}}
+```
+
+</TabItem>
 <TabItem value="Java">
 
 ```java
@@ -221,8 +253,6 @@ values={[
 ```csharp
 {{#include ../ffi/bindings/dotnet/examples/client/Program.cs:request_param}}
 {{#include ../ffi/bindings/dotnet/examples/client/Program.cs:write_multiple_registers}}
-
-{{#include ../ffi/bindings/dotnet/examples/client/Program.cs:handle_write_result}}
 ```
 
 </TabItem>

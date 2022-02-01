@@ -46,6 +46,7 @@ defaultValue="Rust"
 values={[
 {label: 'Rust', value: 'Rust'},
 {label: 'C', value: 'C'},
+{label: 'C++', value: 'C++'},
 {label: 'Java', value: 'Java'},
 {label: 'C#', value: 'C#'},
 ]}>
@@ -65,6 +66,15 @@ values={[
 
 {{#include ../ffi/bindings/c/server_example.c:tcp_server_create}}
 // check error
+```
+
+</TabItem>
+<TabItem value="C++">
+
+```cpp
+{{#include ../ffi/bindings/c/server_example.cpp:device_map_init}}
+
+{{#include ../ffi/bindings/c/server_example.cpp:tcp_server_create}}
 ```
 
 </TabItem>

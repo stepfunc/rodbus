@@ -43,8 +43,8 @@ pub enum TlsError {
     InvalidPrivateKey(io::Error),
     /// DNS name is invalid
     InvalidDnsName,
-    /// Miscellaneous error
-    Miscellaneous(io::Error),
+    /// Other error
+    Other(io::Error),
 }
 
 impl std::fmt::Display for TlsError {
@@ -58,7 +58,7 @@ impl std::fmt::Display for TlsError {
             }
             Self::InvalidPrivateKey(err) => write!(f, "invalid private key file: {}", err),
             Self::InvalidDnsName => write!(f, "invalid DNS name"),
-            Self::Miscellaneous(err) => write!(f, "miscellaneous TLS error: {}", err),
+            Self::Other(err) => write!(f, "miscellaneous TLS error: {}", err),
         }
     }
 }

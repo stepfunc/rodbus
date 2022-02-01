@@ -2,7 +2,7 @@
 name = "rodbus"
 version = "0.9.1"
 authors = ["Adam Crain <adam@stepfunc.io>", "Émile Grégoire <emile@stepfunc.io>"]
-edition = "2018"
+edition = "2021"
 description = "A high-performance async implementation of the Modbus protocol using tokio"
 keywords = ["modbus", "ics", "industrial", "plc", "security"]
 categories = ["network-programming"]

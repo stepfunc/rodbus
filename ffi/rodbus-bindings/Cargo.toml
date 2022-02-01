@@ -2,7 +2,7 @@
 name = "rodbus-bindings"
 version = "0.1.1"
 authors = ["Adam Crain <adam@stepfunc.io>", "Émile Grégoire <emile@stepfunc.io>"]
-edition = "2018"
+edition = "2021"
 license = "GPL-3.0-only"
 description = "oobindgen schema for Rodbus"
 keywords = ["ffi", "c", "modbus", "ics", "industrial", "plc", "security"]
@@ -11,6 +11,6 @@ repository = "https://github.com/stepfunc/rodbus"
 readme = "../README.md"
 
 [dependencies]
-ci-script = { git = "https://github.com/stepfunc/oo_bindgen.git", tag = "0.1.5" }
+ci-script = { git = "https://github.com/stepfunc/oo_bindgen.git", branch = "feature/c++" }
 rodbus-schema = { path = "../rodbus-schema" }
 rodbus-ffi = { path = "../rodbus-ffi" }

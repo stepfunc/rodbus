@@ -1,557 +1,419 @@
-use oo_bindgen::callback::InterfaceHandle;
-use oo_bindgen::class::ClassDeclarationHandle;
-use oo_bindgen::iterator::IteratorHandle;
-use oo_bindgen::native_function::{DurationMapping, NativeFunctionHandle, ReturnType, Type};
-use oo_bindgen::native_struct::{NativeStructHandle, StructElementType};
-use oo_bindgen::{doc, BindingError, LibraryBuilder};
+use oo_bindgen::model::*;
 
 use crate::common::CommonDefinitions;
-use oo_bindgen::collection::CollectionHandle;
 
-pub(crate) fn build(
-    lib: &mut LibraryBuilder,
-    common: &CommonDefinitions,
-) -> Result<(), BindingError> {
-    let channel = lib.declare_class("Channel")?;
+pub(crate) fn build(lib: &mut LibraryBuilder, common: &CommonDefinitions) -> BackTraced<()> {
+    let channel = lib.declare_class("client_channel")?;
 
     let retry_strategy = build_retry_strategy(lib)?;
     let tls_client_config = build_tls_client_config(lib, common)?;
 
-    let create_tcp_client_fn = lib.declare_native_function("create_tcp_client")?;
-    let create_tcp_client_fn = create_tcp_client_fn
+    let tcp_client_create_fn = lib
+        .define_function("client_channel_create_tcp")?
         .param(
             "runtime",
-            Type::ClassRef(common.runtime_handle.declaration.clone()),
-            "runtime on which to create the channel",
+            common.runtime_handle.clone(),
+            "Runtime on which to create the channel",
         )?
-        .param("address", Type::String, "IP address of remote host")?
+        .param("address", StringType, "IP address of remote host")?
         .param(
             "max_queued_requests",
-            Type::Uint16,
+            Primitive::U16,
             "Maximum number of requests to queue before failing the next request",
         )?
         .param(
             "retry_strategy",
-            Type::Struct(retry_strategy.clone()),
+            retry_strategy.clone(),
             "Reconnection timing strategy",
         )?
         .param(
             "decode_level",
-            Type::Struct(common.decode_level.clone()),
+            common.decode_level.clone(),
             "Decode levels for this client",
         )?
-        .return_type(ReturnType::Type(
-            Type::ClassRef(channel.clone()),
-            "pointer to the created channel or NULL if an error occurred".into(),
-        ))?
+        .returns(channel.clone(), "Pointer to the created channel")?
         .fails_with(common.error_type.clone())?
-        .doc("create a new TCP channel instance")?
-        .build()?;
+        .doc("Create a new TCP channel instance")?
+        .build_static("create_tcp")?;
 
-    let create_tls_client_fn = lib.declare_native_function("create_tls_client")?;
-    let create_tls_client_fn = create_tls_client_fn
+    let rtu_client_create_fn = lib
+        .define_function("client_channel_create_rtu")?
         .param(
             "runtime",
-            Type::ClassRef(common.runtime_handle.declaration.clone()),
-            "runtime on which to create the channel",
-        )?
-        .param("address", Type::String, "IP address of remote host")?
-        .param(
-            "max_queued_requests",
-            Type::Uint16,
-            "Maximum number of requests to queue before failing the next request",
-        )?
-        .param(
-            "retry_strategy",
-            Type::Struct(retry_strategy),
-            "Reconnection timing strategy",
-        )?
-        .param(
-            "tls_config",
-            Type::Struct(tls_client_config),
-            "TLS client configuration",
-        )?
-        .param(
-            "decode_level",
-            Type::Struct(common.decode_level.clone()),
-            "Decode levels for this client",
-        )?
-        .return_type(ReturnType::Type(
-            Type::ClassRef(channel.clone()),
-            "pointer to the created channel or NULL if an error occurred".into(),
-        ))?
-        .fails_with(common.error_type.clone())?
-        .doc("create a new TLS channel instance")?
-        .build()?;
-
-    let create_rtu_client_fn = lib.declare_native_function("create_rtu_client")?;
-    let create_rtu_client_fn = create_rtu_client_fn
-        .param(
-            "runtime",
-            Type::ClassRef(common.runtime_handle.declaration.clone()),
+            common.runtime_handle.clone(),
             "runtime on which to create the channel",
         )?
         .param(
             "path",
-            Type::String,
+            StringType,
             "Path to the serial device. Generally /dev/tty0 on Linux and COM1 on Windows.",
         )?
         .param(
             "serial_params",
-            Type::Struct(common.serial_port_settings.clone()),
+            common.serial_port_settings.clone(),
             "Serial port settings",
         )?
         .param(
             "max_queued_requests",
-            Type::Uint16,
+            Primitive::U16,
             "Maximum number of requests to queue before failing the next request",
         )?
         .param(
             "open_retry_delay",
-            Type::Duration(DurationMapping::Milliseconds),
+            DurationType::Milliseconds,
             "Delay between attempts to open the serial port",
         )?
         .param(
             "decode_level",
-            Type::Struct(common.decode_level.clone()),
+            common.decode_level.clone(),
             "Decode levels for this client",
         )?
-        .return_type(ReturnType::Type(
-            Type::ClassRef(channel.clone()),
-            "pointer to the created channel or NULL if an error occurred".into(),
-        ))?
+        .returns(channel.clone(), "Pointer to the created channel")?
         .fails_with(common.error_type.clone())?
-        .doc("create a new tcp channel instance")?
-        .build()?;
+        .doc("Create a new RTU channel instance")?
+        .build_static("create_rtu")?;
 
-    let destroy_channel_fn = lib
-        .declare_native_function("channel_destroy")?
+    let tls_client_create_fn = lib
+        .define_function("client_channel_create_tls")?
         .param(
-            "channel",
-            Type::ClassRef(channel.clone()),
-            "channel to destroy",
+            "runtime",
+            common.runtime_handle.clone(),
+            "Runtime on which to create the channel",
         )?
-        .return_type(ReturnType::Void)?
-        .doc("destroy a channel instance")?
-        .build()?;
+        .param("address", StringType, "IP address of remote host")?
+        .param(
+            "max_queued_requests",
+            Primitive::U16,
+            "Maximum number of requests to queue before failing the next request",
+        )?
+        .param(
+            "retry_strategy",
+            retry_strategy,
+            "Reconnection timing strategy",
+        )?
+        .param("tls_config", tls_client_config, "TLS client configuration")?
+        .param(
+            "decode_level",
+            common.decode_level.clone(),
+            "Decode levels for this client",
+        )?
+        .returns(
+            channel.clone(),
+            "Pointer to the created channel or {null} if an error occurred",
+        )?
+        .fails_with(common.error_type.clone())?
+        .doc("Create a new TLS channel instance")?
+        .build_static("create_tls")?;
+
+    let destroy_channel_fn = lib.define_destructor(
+        channel.clone(),
+        "Shutdown a {class:client_channel} and release all resources",
+    )?;
 
     let bit_read_callback = build_bit_read_callback(lib, common)?;
     let register_read_callback = build_register_read_callback(lib, common)?;
     let write_callback = build_write_callback(lib, common)?;
 
-    let read_coils_fn = build_async_read_fn(
-        "channel_read_coils",
+    let read_coils_method = build_async_read_method(
+        "read_coils",
         lib,
         common,
-        &channel,
-        &bit_read_callback,
-        "start an asynchronous request to read coils",
+        channel.clone(),
+        bit_read_callback.clone(),
+        "Start an asynchronous request to read coils",
     )?;
 
-    let read_discrete_inputs_fn = build_async_read_fn(
-        "channel_read_discrete_inputs",
+    let read_discrete_inputs_method = build_async_read_method(
+        "read_discrete_inputs",
         lib,
         common,
-        &channel,
-        &bit_read_callback,
-        "start an asynchronous request to read discrete inputs",
+        channel.clone(),
+        bit_read_callback,
+        "Start an asynchronous request to read discrete inputs",
     )?;
 
-    let read_holding_registers_fn = build_async_read_fn(
-        "channel_read_holding_registers",
+    let read_holding_registers_method = build_async_read_method(
+        "read_holding_registers",
         lib,
         common,
-        &channel,
-        &register_read_callback,
-        "start an asynchronous request to read holding registers",
+        channel.clone(),
+        register_read_callback.clone(),
+        "Start an asynchronous request to read holding registers",
     )?;
 
-    let read_input_registers_fn = build_async_read_fn(
-        "channel_read_input_registers",
+    let read_input_registers_method = build_async_read_method(
+        "read_input_registers",
         lib,
         common,
-        &channel,
-        &register_read_callback,
-        "start an asynchronous request to read input registers",
+        channel.clone(),
+        register_read_callback,
+        "Start an asynchronous request to read input registers",
     )?;
 
-    let write_single_coil_fn = build_async_write_single_fn(
-        "channel_write_single_coil",
+    let write_single_coil_method = build_async_write_single_method(
+        "write_single_coil",
         lib,
         common,
-        &channel,
-        &write_callback,
-        &common.bit,
-        "write a single coil",
+        channel.clone(),
+        write_callback.clone(),
+        common.bit_value.clone(),
+        "Write a single coil",
     )?;
 
-    let write_single_register_fn = build_async_write_single_fn(
-        "channel_write_single_register",
+    let write_single_register_method = build_async_write_single_method(
+        "write_single_register",
         lib,
         common,
-        &channel,
-        &write_callback,
-        &common.register,
-        "write a single register",
+        channel.clone(),
+        write_callback.clone(),
+        common.register_value.clone(),
+        "Write a single register",
     )?;
 
-    let list_of_bit = build_list(lib, "Bit", Type::Bool)?;
-    let write_multiple_coils_fn = build_async_write_multiple_fn(
-        "channel_write_multiple_coils",
+    let list_of_bits = lib.define_collection("bit_list", Primitive::Bool, true)?;
+    let write_multiple_coils_method = build_async_write_multiple_method(
+        "write_multiple_coils",
         lib,
         common,
-        &channel,
-        &write_callback,
-        &list_of_bit,
-        "write multiple coils",
+        channel.clone(),
+        write_callback.clone(),
+        list_of_bits,
+        "Write multiple coils",
     )?;
 
-    let list_of_register = build_list(lib, "Register", Type::Uint16)?;
-    let write_multiple_registers_fn = build_async_write_multiple_fn(
-        "channel_write_multiple_registers",
+    let list_of_registers = lib.define_collection("register_list", Primitive::U16, true)?;
+    let write_multiple_registers_method = build_async_write_multiple_method(
+        "write_multiple_registers",
         lib,
         common,
-        &channel,
-        &write_callback,
-        &list_of_register,
-        "write multiple registers",
+        channel.clone(),
+        write_callback,
+        list_of_registers,
+        "Write multiple registers",
     )?;
 
     lib.define_class(&channel)?
         // abstract factory methods
-        .static_method("create_tcp_client", &create_tcp_client_fn)?
-        .static_method("create_rtu_client", &create_rtu_client_fn)?
-        .static_method("create_tls_client", &create_tls_client_fn)?
+        .static_method(tcp_client_create_fn)?
+        .static_method(rtu_client_create_fn)?
+        .static_method(tls_client_create_fn)?
         // read methods
-        .async_method("read_coils", &read_coils_fn)?
-        .async_method("read_discrete_inputs", &read_discrete_inputs_fn)?
-        .async_method("read_holding_registers", &read_holding_registers_fn)?
-        .async_method("read_input_registers", &read_input_registers_fn)?
+        .async_method(read_coils_method)?
+        .async_method(read_discrete_inputs_method)?
+        .async_method(read_holding_registers_method)?
+        .async_method(read_input_registers_method)?
         // write methods
-        .async_method("write_single_coil", &write_single_coil_fn)?
-        .async_method("write_single_register", &write_single_register_fn)?
-        .async_method("write_multiple_coils", &write_multiple_coils_fn)?
-        .async_method("write_multiple_registers", &write_multiple_registers_fn)?
+        .async_method(write_single_coil_method)?
+        .async_method(write_single_register_method)?
+        .async_method(write_multiple_coils_method)?
+        .async_method(write_multiple_registers_method)?
         // destructor
-        .destructor(&destroy_channel_fn)?
-        .custom_destroy("Shutdown")?
+        .destructor(destroy_channel_fn)?
+        .custom_destroy("shutdown")? // custom name of the destructor
         .doc("Abstract representation of a channel")?
         .build()?;
 
     Ok(())
 }
 
-fn build_async_write_single_fn(
+fn build_async_read_method(
     name: &str,
     lib: &mut LibraryBuilder,
     common: &CommonDefinitions,
-    channel: &ClassDeclarationHandle,
-    callback: &InterfaceHandle,
-    write_type: &NativeStructHandle,
+    channel: ClassDeclarationHandle,
+    callback: FutureInterfaceHandle,
     docs: &str,
-) -> Result<NativeFunctionHandle, BindingError> {
-    lib.declare_native_function(name)?
-        .param(
-            "channel",
-            Type::ClassRef(channel.clone()),
-            "channel on which to perform the write operation",
-        )?
+) -> BackTraced<FutureMethodHandle> {
+    let method = lib
+        .define_future_method(name, channel, callback)?
         .param(
             "param",
-            Type::Struct(common.request_param.clone()),
-            "parameters for the request",
-        )?
-        .param(
-            "value",
-            Type::Struct(write_type.clone()),
-            "Address and value to write",
-        )?
-        .param(
-            "callback",
-            Type::Interface(callback.clone()),
-            "callback invoked on completion",
-        )?
-        .return_type(ReturnType::void())?
-        .fails_with(common.error_type.clone())?
-        .doc(docs)?
-        .build()
-}
-
-fn build_async_write_multiple_fn(
-    name: &str,
-    lib: &mut LibraryBuilder,
-    common: &CommonDefinitions,
-    channel: &ClassDeclarationHandle,
-    callback: &InterfaceHandle,
-    list_type: &CollectionHandle,
-    docs: &str,
-) -> Result<NativeFunctionHandle, BindingError> {
-    lib.declare_native_function(name)?
-        .param(
-            "channel",
-            Type::ClassRef(channel.clone()),
-            "channel on which to perform the write operation",
-        )?
-        .param(
-            "param",
-            Type::Struct(common.request_param.clone()),
-            "parameters for the request",
-        )?
-        .param("start", Type::Uint16, "starting address")?
-        .param(
-            "items",
-            Type::Collection(list_type.clone()),
-            "list of items to write",
-        )?
-        .param(
-            "callback",
-            Type::Interface(callback.clone()),
-            "callback invoked on completion",
-        )?
-        .return_type(ReturnType::void())?
-        .fails_with(common.error_type.clone())?
-        .doc(docs)?
-        .build()
-}
-
-fn build_async_read_fn(
-    name: &str,
-    lib: &mut LibraryBuilder,
-    common: &CommonDefinitions,
-    channel: &ClassDeclarationHandle,
-    callback: &InterfaceHandle,
-    docs: &str,
-) -> Result<NativeFunctionHandle, BindingError> {
-    lib.declare_native_function(name)?
-        .param(
-            "channel",
-            Type::ClassRef(channel.clone()),
-            "channel on which to perform the read",
-        )?
-        .param(
-            "param",
-            Type::Struct(common.request_param.clone()),
-            "parameters for the request",
+            common.request_param.clone(),
+            "Parameters for the request",
         )?
         .param(
             "range",
-            Type::Struct(common.address_range.clone()),
-            "range of addresses to read",
+            common.address_range.clone(),
+            "Range of addresses to read",
         )?
-        .param(
-            "callback",
-            Type::Interface(callback.clone()),
-            "callback invoked on completion",
-        )?
-        .return_type(ReturnType::void())?
         .fails_with(common.error_type.clone())?
         .doc(docs)?
-        .build()
+        .build()?;
+
+    Ok(method)
+}
+
+fn build_async_write_single_method(
+    name: &str,
+    lib: &mut LibraryBuilder,
+    common: &CommonDefinitions,
+    channel: ClassDeclarationHandle,
+    callback: FutureInterfaceHandle,
+    write_type: UniversalStructHandle,
+    docs: &str,
+) -> BackTraced<FutureMethodHandle> {
+    let method = lib
+        .define_future_method(name, channel, callback)?
+        .param(
+            "param",
+            common.request_param.clone(),
+            "Parameters for the request",
+        )?
+        .param("value", write_type, "Address and value to write")?
+        .fails_with(common.error_type.clone())?
+        .doc(docs)?
+        .build()?;
+
+    Ok(method)
+}
+
+fn build_async_write_multiple_method(
+    name: &str,
+    lib: &mut LibraryBuilder,
+    common: &CommonDefinitions,
+    channel: ClassDeclarationHandle,
+    callback: FutureInterfaceHandle,
+    list_type: CollectionHandle,
+    docs: &str,
+) -> BackTraced<FutureMethodHandle> {
+    let method = lib
+        .define_future_method(name, channel, callback)?
+        .param(
+            "param",
+            common.request_param.clone(),
+            "Parameters for the request",
+        )?
+        .param("start", Primitive::U16, "Starting address")?
+        .param("items", list_type, "List of items to write")?
+        .fails_with(common.error_type.clone())?
+        .doc(docs)?
+        .build()?;
+
+    Ok(method)
 }
 
 fn build_bit_read_callback(
     lib: &mut LibraryBuilder,
     common: &CommonDefinitions,
-) -> Result<InterfaceHandle, BindingError> {
-    let bit_read_result =
-        build_callback_struct(lib, &common.bit, &common.bit_iterator, &common.error_info)?;
-    let bit_read_callback = lib
-        .define_interface(
-            "BitReadCallback",
-            "Callback for reading coils or input registers",
-        )?
-        .callback(
-            "on_complete",
-            "Called when the operation completes or fails",
-        )?
-        .param("result", Type::Struct(bit_read_result), "result")?
-        .return_type(ReturnType::void())?
-        .build()?
-        .destroy_callback("on_destroy")?
-        .build()?;
+) -> BackTraced<FutureInterfaceHandle> {
+    let future = lib.define_future_interface(
+        "bit_read_callback",
+        "Callback for reading coils or discrete inputs",
+        common.bit_iterator.clone(),
+        "response",
+        Some(common.error_info.clone()),
+    )?;
 
-    Ok(bit_read_callback)
+    Ok(future)
 }
 
 fn build_register_read_callback(
     lib: &mut LibraryBuilder,
     common: &CommonDefinitions,
-) -> Result<InterfaceHandle, BindingError> {
-    let read_result = build_callback_struct(
-        lib,
-        &common.register,
-        &common.register_iterator,
-        &common.error_info,
+) -> BackTraced<FutureInterfaceHandle> {
+    let future = lib.define_future_interface(
+        "register_read_callback",
+        "Callback for reading holding or input registers",
+        common.register_iterator.clone(),
+        "response",
+        Some(common.error_info.clone()),
     )?;
-    let read_callback = lib
-        .define_interface(
-            "RegisterReadCallback",
-            "Callback for reading holding or input registers",
-        )?
-        .callback(
-            "on_complete",
-            "Called when the operation completes or fails",
-        )?
-        .param("result", Type::Struct(read_result), "result")?
-        .return_type(ReturnType::void())?
-        .build()?
-        .destroy_callback("on_destroy")?
-        .build()?;
 
-    Ok(read_callback)
+    Ok(future)
 }
 
 fn build_write_callback(
     lib: &mut LibraryBuilder,
     common: &CommonDefinitions,
-) -> Result<InterfaceHandle, BindingError> {
-    lib.define_interface("WriteCallback", "Callback type for write operations")?
-        .callback(
-            "on_complete",
-            "Called when the operation completes or fails",
-        )?
-        .param(
-            "result",
-            Type::Struct(common.error_info.clone()),
-            "result of the operation",
-        )?
-        .return_type(ReturnType::void())?
-        .build()?
-        .destroy_callback("on_destroy")?
-        .build()
+) -> BackTraced<FutureInterfaceHandle> {
+    let future = lib.define_future_interface(
+        "write_callback",
+        "Callback for write operations",
+        common.nothing.clone(),
+        "response",
+        Some(common.error_info.clone()),
+    )?;
+
+    Ok(future)
 }
 
-fn build_callback_struct(
-    lib: &mut LibraryBuilder,
-    item_type: &NativeStructHandle,
-    iterator_type: &IteratorHandle,
-    error_info: &NativeStructHandle,
-) -> Result<NativeStructHandle, BindingError> {
-    let callback_struct =
-        lib.declare_native_struct(format!("{}ReadResult", item_type.declaration.name).as_str())?;
-    let callback_struct = lib
-        .define_native_struct(&callback_struct)?
+fn build_retry_strategy(lib: &mut LibraryBuilder) -> BackTraced<UniversalStructHandle> {
+    let min_delay_field = Name::create("min_delay")?;
+    let max_delay_field = Name::create("max_delay")?;
+
+    let retry_strategy = lib.declare_universal_struct("retry_strategy")?;
+    let retry_strategy = lib
+        .define_universal_struct(retry_strategy)?
         .add(
-            "result",
-            Type::Struct(error_info.clone()),
-            "error information",
-        )?
-        .add(
-            "iterator",
-            Type::Iterator(iterator_type.clone()),
-            "iterator valid when result.summary == Ok",
-        )?
-        .doc("Result type returned when asynchronous operation completes or fails")?
-        .build()?;
-
-    Ok(callback_struct)
-}
-
-fn build_list(
-    lib: &mut LibraryBuilder,
-    name: &str,
-    value_type: Type,
-) -> Result<CollectionHandle, BindingError> {
-    let list_class = lib.declare_class(&format!("{}List", name))?;
-
-    let create_fn = lib
-        .declare_native_function(&format!("{}_list_create", name.to_lowercase()))?
-        .param(
-            "size_hint",
-            Type::Uint32,
-            "Starting size of the list. Can be used to avoid multiple allocations if you already know how many items you're going to add.",
-        )?
-        .return_type(ReturnType::new(
-            Type::ClassRef(list_class.clone()),
-            "created list",
-        ))?
-        .doc(format!("create a {} list", name).as_str())?
-        .build()?;
-
-    let destroy_fn = lib
-        .declare_native_function(&format!("{}_list_destroy", name.to_lowercase()))?
-        .param(
-            "list",
-            Type::ClassRef(list_class.clone()),
-            "list to destroy",
-        )?
-        .return_type(ReturnType::void())?
-        .doc(format!("destroy a {} list", name).as_str())?
-        .build()?;
-
-    let add_fn = lib
-        .declare_native_function(&format!("{}_list_add", name.to_lowercase()))?
-        .param(
-            "list",
-            Type::ClassRef(list_class),
-            "list to which to add the item",
-        )?
-        .param("item", value_type, "item to add to the list")?
-        .return_type(ReturnType::void())?
-        .doc("Add an item to the list")?
-        .build()?;
-
-    lib.define_collection(&create_fn, &destroy_fn, &add_fn)
-}
-
-fn build_retry_strategy(lib: &mut LibraryBuilder) -> Result<NativeStructHandle, BindingError> {
-    let retry_strategy = lib.declare_native_struct("RetryStrategy")?;
-    lib.define_native_struct(&retry_strategy)?
-        .add(
-            "min_delay",
-            StructElementType::Duration(
-                DurationMapping::Milliseconds,
-                Some(std::time::Duration::from_secs(1)),
-            ),
+            &min_delay_field,
+            DurationType::Milliseconds,
             "Minimum delay between two retries",
         )?
         .add(
-            "max_delay",
-            StructElementType::Duration(
-                DurationMapping::Milliseconds,
-                Some(std::time::Duration::from_secs(10)),
-            ),
+            &max_delay_field,
+            DurationType::Milliseconds,
             "Maximum delay between two retries",
         )?
         .doc(doc("Retry strategy configuration.").details(
             "The strategy uses an exponential back-off with a minimum and maximum value.",
         ))?
-        .build()
+        .end_fields()?
+        .begin_initializer(
+            "init",
+            InitializerType::Normal,
+            "Initialize a retry strategy to defaults",
+        )?
+        .default(&min_delay_field, std::time::Duration::from_secs(1))?
+        .default(&max_delay_field, std::time::Duration::from_secs(10))?
+        .end_initializer()?
+        .build()?;
+
+    Ok(retry_strategy)
 }
 
 fn build_tls_client_config(
     lib: &mut LibraryBuilder,
     common: &CommonDefinitions,
-) -> Result<NativeStructHandle, BindingError> {
-    let tls_client_config = lib.declare_native_struct("TlsClientConfig")?;
-    lib.define_native_struct(&tls_client_config)?
-        .add("dns_name", Type::String, "Expected name to validate in the presented certificate (only in {enum:CertificateMode.AuthorityBased} mode)")?
+) -> BackTraced<FunctionArgStructHandle> {
+    let min_tls_version_field = Name::create("min_tls_version")?;
+    let certificate_mode_field = Name::create("certificate_mode")?;
+
+    let tls_client_config = lib.declare_function_argument_struct("tls_client_config")?;
+    let tls_client_config = lib.define_function_argument_struct(tls_client_config)?
+        .add("dns_name", StringType, "Expected name to validate in the presented certificate (only in {enum:certificate_mode.authority_based} mode)")?
         .add(
             "peer_cert_path",
-            Type::String,
+            StringType,
             "Path to the PEM-encoded certificate of the peer",
         )?
         .add(
             "local_cert_path",
-            Type::String,
+            StringType,
             "Path to the PEM-encoded local certificate",
         )?
         .add(
             "private_key_path",
-            Type::String,
+            StringType,
             "Path to the the PEM-encoded private key",
         )?
         .add(
             "password",
-            Type::String,
+            StringType,
             doc("Optional password if the private key file is encrypted").details("Only PKCS#8 encrypted files are supported.").details("Pass empty string if the file is not encrypted.")
         )?
         .add(
-            "min_tls_version",
-            StructElementType::Enum(common.min_tls_version.clone(), Some("V1_2".to_owned())),
+            &min_tls_version_field,
+            common.min_tls_version.clone(),
             "Minimum TLS version allowed",
         )?
-        .add("certificate_mode", StructElementType::Enum(common.certificate_mode.clone(), Some("AuthorityBased".to_owned())), "Certficate validation mode")?
+        .add(&certificate_mode_field, common.certificate_mode.clone(), "Certficate validation mode")?
         .doc("TLS client configuration")?
-        .build()
+        .end_fields()?
+        .begin_initializer("init", InitializerType::Normal, "Initialize a TLS client configuration")?
+        .default_variant(&min_tls_version_field, "v12")?
+        .default_variant(&certificate_mode_field, "authority_based")?
+        .end_initializer()?
+        .build()?;
+
+    Ok(tls_client_config)
 }

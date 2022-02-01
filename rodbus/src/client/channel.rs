@@ -7,11 +7,12 @@ use crate::client::requests::read_bits::ReadBits;
 use crate::client::requests::read_registers::ReadRegisters;
 use crate::client::requests::write_multiple::{MultipleWriteRequest, WriteMultiple};
 use crate::client::requests::write_single::SingleWrite;
+use crate::error::*;
 use crate::serial::client::SerialChannelTask;
 use crate::serial::SerialSettings;
 use crate::tokio;
 use crate::types::{AddressRange, BitIterator, Indexed, RegisterIterator, UnitId};
-use crate::{error::*, DecodeLevel};
+use crate::DecodeLevel;
 
 /// Async channel used to make requests
 #[derive(Debug, Clone)]

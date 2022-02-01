@@ -26,28 +26,28 @@ class ExampleWriteHandler implements WriteHandler {
     @Override
     public WriteResult writeSingleCoil(UShort index, boolean value, Database database) {
         if(database.updateCoil(index, value)) {
-            return WriteResult.createSuccess();
+            return WriteResult.successInit();
         } else {
-            return WriteResult.createException(ModbusException.ILLEGAL_DATA_ADDRESS);
+            return WriteResult.exceptionInit(ModbusException.ILLEGAL_DATA_ADDRESS);
         }
     }
 
     @Override
     public WriteResult writeSingleRegister(UShort index, UShort value, Database database) {
         if(database.updateHoldingRegister(index, value)) {
-            return WriteResult.createSuccess();
+            return WriteResult.successInit();
         } else {
-            return WriteResult.createException(ModbusException.ILLEGAL_DATA_ADDRESS);
+            return WriteResult.exceptionInit(ModbusException.ILLEGAL_DATA_ADDRESS);
         }
     }
 
     @Override
-    public WriteResult writeMultipleCoils(UShort start, List<Bit> it, Database database) {
-        WriteResult result = WriteResult.createSuccess();
+    public WriteResult writeMultipleCoils(UShort start, List<BitValue> it, Database database) {
+        WriteResult result = WriteResult.successInit();
 
-        for(Bit bit : it) {
+        for(BitValue bit : it) {
             if(!database.updateCoil(bit.index, bit.value)) {
-                result = WriteResult.createException(ModbusException.ILLEGAL_DATA_ADDRESS);
+                result = WriteResult.exceptionInit(ModbusException.ILLEGAL_DATA_ADDRESS);
             }
         }
 
@@ -55,12 +55,12 @@ class ExampleWriteHandler implements WriteHandler {
     }
 
     @Override
-    public WriteResult writeMultipleRegisters(UShort start, List<Register> it, Database database) {
-        WriteResult result = WriteResult.createSuccess();
+    public WriteResult writeMultipleRegisters(UShort start, List<RegisterValue> it, Database database) {
+        WriteResult result = WriteResult.successInit();
 
-        for(Register reg : it) {
+        for(RegisterValue reg : it) {
             if(!database.updateHoldingRegister(reg.index, reg.value)) {
-                result = WriteResult.createException(ModbusException.ILLEGAL_DATA_ADDRESS);
+                result = WriteResult.exceptionInit(ModbusException.ILLEGAL_DATA_ADDRESS);
             }
         }
 
@@ -163,7 +163,7 @@ public class ServerExample {
     private static Server createTcpServer(Runtime runtime, DeviceMap map) {
         // ANCHOR: tcp_server_create
         DecodeLevel decodeLevel = new DecodeLevel();
-        Server server = Server.createTcpServer(runtime, "127.0.0.1:502", ushort(100), map, decodeLevel);
+        Server server = Server.createTcp(runtime, "127.0.0.1:502", ushort(100), map, decodeLevel);
         // ANCHOR_END: tcp_server_create
 
         return server;
@@ -172,7 +172,7 @@ public class ServerExample {
     private static Server createRtuServer(Runtime runtime, DeviceMap map) {
         // ANCHOR: rtu_server_create
         DecodeLevel decodeLevel = new DecodeLevel();
-        Server server = Server.createRtuServer(runtime, "/dev/ttySIM1", new SerialPortSettings(), map, decodeLevel);
+        Server server = Server.createRtu(runtime, "/dev/ttySIM1", new SerialPortSettings(), map, decodeLevel);
         // ANCHOR_END: rtu_server_create
 
         return server;
@@ -181,7 +181,7 @@ public class ServerExample {
     private static Server createTlsServer(Runtime runtime, DeviceMap map, TlsServerConfig tlsConfig) {
         // ANCHOR: tls_server_create
         DecodeLevel decodeLevel = new DecodeLevel();
-        Server server = Server.createTlsServer(runtime, "127.0.0.1:802", ushort(10), map, tlsConfig, new TestAuthorizationHandler(), decodeLevel);
+        Server server = Server.createTls(runtime, "127.0.0.1:802", ushort(10), map, tlsConfig, new TestAuthorizationHandler(), decodeLevel);
         // ANCHOR_END: tls_server_create
 
         return server;
@@ -232,7 +232,7 @@ public class ServerExample {
                     // ANCHOR: update_coil
                     coilValue = !coilValue;
                     final boolean pointValue = coilValue;
-                    server.update(ubyte(1), db -> {
+                    server.updateDatabase(ubyte(1), db -> {
                         for(int i = 0; i < 10; i++) {
                             db.updateCoil(ushort(i), pointValue);
                         }
@@ -244,7 +244,7 @@ public class ServerExample {
                 {
                     discreteInputValue = !discreteInputValue;
                     final boolean pointValue = discreteInputValue;
-                    server.update(ubyte(1), db -> {
+                    server.updateDatabase(ubyte(1), db -> {
                         for(int i = 0; i < 10; i++) {
                             db.updateDiscreteInput(ushort(i), pointValue);
                         }
@@ -255,7 +255,7 @@ public class ServerExample {
                 {
                     holdingRegisterValue += 1;
                     final UShort pointValue = ushort(holdingRegisterValue);
-                    server.update(ubyte(1), db -> {
+                    server.updateDatabase(ubyte(1), db -> {
                         for(int i = 0; i < 10; i++) {
                             db.updateHoldingRegister(ushort(i), pointValue);
                         }
@@ -266,7 +266,7 @@ public class ServerExample {
                 {
                     inputRegisterValue += 1;
                     final UShort pointValue = ushort(inputRegisterValue);
-                    server.update(ubyte(1), db -> {
+                    server.updateDatabase(ubyte(1), db -> {
                         for(int i = 0; i < 10; i++) {
                             db.updateInputRegister(ushort(i), pointValue);
                         }

@@ -27,7 +27,6 @@ module.exports = {
                 'api/client/rtu_client',
                 'api/client/tls_client',
                 'api/client/requests',
-                'api/client/error',
             ]
         },
         {

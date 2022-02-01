@@ -4,18 +4,18 @@ use rodbus::AddressRange;
 use std::path::Path;
 use std::time::Duration;
 
-pub struct Channel {
+pub struct ClientChannel {
     pub(crate) inner: rodbus::client::Channel,
     pub(crate) runtime: crate::RuntimeHandle,
 }
 
-pub(crate) unsafe fn create_tcp_client(
+pub(crate) unsafe fn client_channel_create_tcp(
     runtime: *mut crate::Runtime,
     address: &std::ffi::CStr,
     max_queued_requests: u16,
     retry_strategy: ffi::RetryStrategy,
     decode_level: ffi::DecodeLevel,
-) -> Result<*mut crate::Channel, ffi::ParamError> {
+) -> Result<*mut crate::ClientChannel, ffi::ParamError> {
     let runtime = runtime.as_ref().ok_or(ffi::ParamError::NullParameter)?;
     let address = address.to_string_lossy().parse()?;
 
@@ -28,20 +28,20 @@ pub(crate) unsafe fn create_tcp_client(
 
     runtime.inner.spawn(task);
 
-    Ok(Box::into_raw(Box::new(Channel {
+    Ok(Box::into_raw(Box::new(ClientChannel {
         inner: handle,
         runtime: runtime.handle(),
     })))
 }
 
-pub(crate) unsafe fn create_rtu_client(
+pub(crate) unsafe fn client_channel_create_rtu(
     runtime: *mut crate::Runtime,
     path: &std::ffi::CStr,
     serial_params: ffi::SerialPortSettings,
     max_queued_requests: u16,
     open_retry_delay: Duration,
     decode_level: ffi::DecodeLevel,
-) -> Result<*mut crate::Channel, ffi::ParamError> {
+) -> Result<*mut crate::ClientChannel, ffi::ParamError> {
     let runtime = runtime.as_ref().ok_or(ffi::ParamError::NullParameter)?;
 
     let (handle, task) = rodbus::client::create_rtu_handle_and_task(
@@ -54,20 +54,20 @@ pub(crate) unsafe fn create_rtu_client(
 
     runtime.inner.spawn(task);
 
-    Ok(Box::into_raw(Box::new(Channel {
+    Ok(Box::into_raw(Box::new(ClientChannel {
         inner: handle,
         runtime: runtime.handle(),
     })))
 }
 
-pub(crate) unsafe fn create_tls_client(
+pub(crate) unsafe fn client_channel_create_tls(
     runtime: *mut crate::Runtime,
     address: &std::ffi::CStr,
     max_queued_requests: u16,
     retry_strategy: ffi::RetryStrategy,
     tls_config: ffi::TlsClientConfig,
     decode_level: ffi::DecodeLevel,
-) -> Result<*mut crate::Channel, ffi::ParamError> {
+) -> Result<*mut crate::ClientChannel, ffi::ParamError> {
     let runtime = runtime.as_ref().ok_or(ffi::ParamError::NullParameter)?;
     let address = address.to_string_lossy().parse()?;
 
@@ -101,20 +101,20 @@ pub(crate) unsafe fn create_tls_client(
 
     runtime.inner.spawn(task);
 
-    Ok(Box::into_raw(Box::new(Channel {
+    Ok(Box::into_raw(Box::new(ClientChannel {
         inner: handle,
         runtime: runtime.handle(),
     })))
 }
 
-pub(crate) unsafe fn channel_destroy(channel: *mut crate::Channel) {
+pub(crate) unsafe fn client_channel_destroy(channel: *mut crate::ClientChannel) {
     if !channel.is_null() {
         Box::from_raw(channel);
     };
 }
 
-pub(crate) unsafe fn channel_read_coils(
-    channel: *mut crate::Channel,
+pub(crate) unsafe fn client_channel_read_coils(
+    channel: *mut crate::ClientChannel,
     param: crate::ffi::RequestParam,
     range: crate::ffi::AddressRange,
     callback: crate::ffi::BitReadCallback,
@@ -131,8 +131,8 @@ pub(crate) unsafe fn channel_read_coils(
     Ok(())
 }
 
-pub(crate) unsafe fn channel_read_discrete_inputs(
-    channel: *mut crate::Channel,
+pub(crate) unsafe fn client_channel_read_discrete_inputs(
+    channel: *mut crate::ClientChannel,
     param: crate::ffi::RequestParam,
     range: crate::ffi::AddressRange,
     callback: crate::ffi::BitReadCallback,
@@ -149,8 +149,8 @@ pub(crate) unsafe fn channel_read_discrete_inputs(
     Ok(())
 }
 
-pub(crate) unsafe fn channel_read_holding_registers(
-    channel: *mut crate::Channel,
+pub(crate) unsafe fn client_channel_read_holding_registers(
+    channel: *mut crate::ClientChannel,
     param: crate::ffi::RequestParam,
     range: crate::ffi::AddressRange,
     callback: crate::ffi::RegisterReadCallback,
@@ -167,8 +167,8 @@ pub(crate) unsafe fn channel_read_holding_registers(
     Ok(())
 }
 
-pub(crate) unsafe fn channel_read_input_registers(
-    channel: *mut crate::Channel,
+pub(crate) unsafe fn client_channel_read_input_registers(
+    channel: *mut crate::ClientChannel,
     param: crate::ffi::RequestParam,
     range: crate::ffi::AddressRange,
     callback: crate::ffi::RegisterReadCallback,
@@ -185,10 +185,10 @@ pub(crate) unsafe fn channel_read_input_registers(
     Ok(())
 }
 
-pub(crate) unsafe fn channel_write_single_coil(
-    channel: *mut crate::Channel,
+pub(crate) unsafe fn client_channel_write_single_coil(
+    channel: *mut crate::ClientChannel,
     param: crate::ffi::RequestParam,
-    bit: crate::ffi::Bit,
+    bit: crate::ffi::BitValue,
     callback: crate::ffi::WriteCallback,
 ) -> Result<(), ffi::ParamError> {
     let channel = channel.as_ref().ok_or(ffi::ParamError::NullParameter)?;
@@ -202,10 +202,10 @@ pub(crate) unsafe fn channel_write_single_coil(
     Ok(())
 }
 
-pub(crate) unsafe fn channel_write_single_register(
-    channel: *mut crate::Channel,
+pub(crate) unsafe fn client_channel_write_single_register(
+    channel: *mut crate::ClientChannel,
     param: crate::ffi::RequestParam,
-    register: crate::ffi::Register,
+    register: crate::ffi::RegisterValue,
     callback: crate::ffi::WriteCallback,
 ) -> Result<(), ffi::ParamError> {
     let channel = channel.as_ref().ok_or(ffi::ParamError::NullParameter)?;
@@ -221,8 +221,8 @@ pub(crate) unsafe fn channel_write_single_register(
     Ok(())
 }
 
-pub(crate) unsafe fn channel_write_multiple_coils(
-    channel: *mut crate::Channel,
+pub(crate) unsafe fn client_channel_write_multiple_coils(
+    channel: *mut crate::ClientChannel,
     param: crate::ffi::RequestParam,
     start: u16,
     items: *mut crate::BitList,
@@ -241,8 +241,8 @@ pub(crate) unsafe fn channel_write_multiple_coils(
     Ok(())
 }
 
-pub(crate) unsafe fn channel_write_multiple_registers(
-    channel: *mut crate::Channel,
+pub(crate) unsafe fn client_channel_write_multiple_registers(
+    channel: *mut crate::ClientChannel,
     param: crate::ffi::RequestParam,
     start: u16,
     items: *mut crate::RegisterList,

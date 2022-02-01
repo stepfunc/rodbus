@@ -11,42 +11,42 @@ void on_log_message(rodbus_log_level_t level, const char *message, void *ctx) { 
 rodbus_write_result_t on_write_single_coil(uint16_t index, bool value, rodbus_database_t *db, void *ctx)
 {
     if (rodbus_database_update_coil(db, index, value)) {
-        return rodbus_write_result_success();
+        return rodbus_write_result_success_init();
     }
     else {
-        return rodbus_write_result_exception(RODBUS_MODBUS_EXCEPTION_ILLEGAL_DATA_ADDRESS);
+        return rodbus_write_result_exception_init(RODBUS_MODBUS_EXCEPTION_ILLEGAL_DATA_ADDRESS);
     }
 }
 
 rodbus_write_result_t on_write_single_register(uint16_t index, uint16_t value, rodbus_database_t *db, void *ctx)
 {
     if (rodbus_database_update_holding_register(db, index, value)) {
-        return rodbus_write_result_success();
+        return rodbus_write_result_success_init();
     }
     else {
-        return rodbus_write_result_exception(RODBUS_MODBUS_EXCEPTION_ILLEGAL_DATA_ADDRESS);
+        return rodbus_write_result_exception_init(RODBUS_MODBUS_EXCEPTION_ILLEGAL_DATA_ADDRESS);
     }
 }
 
-rodbus_write_result_t on_write_multiple_coils(uint16_t start, rodbus_bit_iterator_t *it, rodbus_database_t *db, void *ctx)
+rodbus_write_result_t on_write_multiple_coils(uint16_t start, rodbus_bit_value_iterator_t *it, rodbus_database_t *db, void *ctx)
 {
-    rodbus_write_result_t result = rodbus_write_result_success();
-    rodbus_bit_t *bit = NULL;
-    while ((bit = rodbus_next_bit(it))) {
+    rodbus_write_result_t result = rodbus_write_result_success_init();
+    rodbus_bit_value_t *bit = NULL;
+    while ((bit = rodbus_bit_value_iterator_next(it))) {
         if (!rodbus_database_update_coil(db, bit->index, bit->value)) {
-            result = rodbus_write_result_exception(RODBUS_MODBUS_EXCEPTION_ILLEGAL_DATA_ADDRESS);
+            result = rodbus_write_result_exception_init(RODBUS_MODBUS_EXCEPTION_ILLEGAL_DATA_ADDRESS);
         }
     }
     return result;
 }
 
-rodbus_write_result_t on_write_multiple_registers(uint16_t start, rodbus_register_iterator_t *it, rodbus_database_t *db, void *ctx)
+rodbus_write_result_t on_write_multiple_registers(uint16_t start, rodbus_register_value_iterator_t *it, rodbus_database_t *db, void *ctx)
 {
-    rodbus_write_result_t result = rodbus_write_result_success();
-    rodbus_register_t *reg = NULL;
-    while ((reg = rodbus_next_register(it))) {
+    rodbus_write_result_t result = rodbus_write_result_success_init();
+    rodbus_register_value_t *reg = NULL;
+    while ((reg = rodbus_register_value_iterator_next(it))) {
         if (!rodbus_database_update_holding_register(db, reg->index, reg->value)) {
-            result = rodbus_write_result_exception(RODBUS_MODBUS_EXCEPTION_ILLEGAL_DATA_ADDRESS);
+            result = rodbus_write_result_exception_init(RODBUS_MODBUS_EXCEPTION_ILLEGAL_DATA_ADDRESS);
         }
     }
     return result;
@@ -182,11 +182,11 @@ rodbus_device_map_t* build_device_map()
     rodbus_write_handler_t write_handler =
         rodbus_write_handler_init(&on_write_single_coil, &on_write_single_register, &on_write_multiple_coils, &on_write_multiple_registers, NULL, NULL);
 
-    rodbus_device_map_t* map = rodbus_device_map_new();
-    rodbus_map_add_endpoint(map,
-                            1,                                                      // Unit ID
-                            write_handler,                                          // Handler for write requests
-                            rodbus_database_callback_init(configure_db, NULL, NULL) // Callback for the initial state of the database
+    rodbus_device_map_t* map = rodbus_device_map_create();
+    rodbus_device_map_add_endpoint(map,
+                                   1,                                                      // Unit ID
+                                   write_handler,                                          // Handler for write requests
+                                   rodbus_database_callback_init(configure_db, NULL, NULL) // Callback for the initial state of the database
     );
     // ANCHOR_END: device_map_init
 
@@ -199,7 +199,7 @@ int run_tcp_channel(rodbus_runtime_t* runtime)
     rodbus_server_t* server = NULL;
     rodbus_device_map_t* map = build_device_map();
     rodbus_decode_level_t decode_level = rodbus_decode_level_init();
-    rodbus_param_error_t err = rodbus_create_tcp_server(runtime, "127.0.0.1:502", 100, map, decode_level, &server);
+    rodbus_param_error_t err = rodbus_server_create_tcp(runtime, "127.0.0.1:502", 100, map, decode_level, &server);
     rodbus_device_map_destroy(map);
 
     if (err) {
@@ -217,7 +217,7 @@ int run_rtu_channel(rodbus_runtime_t* runtime)
     rodbus_server_t* server = NULL;
     rodbus_device_map_t* map = build_device_map();
     rodbus_decode_level_t decode_level = rodbus_decode_level_init();
-    rodbus_param_error_t err = rodbus_create_rtu_server(runtime, "/dev/ttySIM1", rodbus_serial_port_settings_init(), map, decode_level, &server);
+    rodbus_param_error_t err = rodbus_server_create_rtu(runtime, "/dev/ttySIM1", rodbus_serial_port_settings_init(), map, decode_level, &server);
     rodbus_device_map_destroy(map);
 
     if (err) {
@@ -278,7 +278,7 @@ int run_tls_channel(rodbus_runtime_t* runtime, rodbus_tls_server_config_t tls_co
     rodbus_device_map_t* map = build_device_map();
     rodbus_authorization_handler_t auth_handler = get_auth_handler();
     rodbus_decode_level_t decode_level = rodbus_decode_level_init();
-    rodbus_param_error_t err = rodbus_create_tls_server(runtime, "127.0.0.1:802", 100, map, tls_config, auth_handler, decode_level, &server);
+    rodbus_param_error_t err = rodbus_server_create_tls(runtime, "127.0.0.1:802", 100, map, tls_config, auth_handler, decode_level, &server);
     rodbus_device_map_destroy(map);
 
     if (err) {
@@ -327,7 +327,7 @@ int main(int argc, char* argv[])
     rodbus_runtime_t *runtime = NULL;
     rodbus_runtime_config_t runtime_config = rodbus_runtime_config_init();
     runtime_config.num_core_threads = 4;
-    rodbus_param_error_t err = rodbus_runtime_new(runtime_config, &runtime);
+    rodbus_param_error_t err = rodbus_runtime_create(runtime_config, &runtime);
     if (err) {
         printf("Unable to initialize runtime: %s\n", rodbus_param_error_to_string(err));
         return -1;

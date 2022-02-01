@@ -95,7 +95,7 @@ impl RequestHandler for RequestHandlerWrapper {
     }
 
     fn write_multiple_coils(&mut self, values: WriteCoils) -> Result<(), ExceptionCode> {
-        let mut iterator = crate::BitIterator::new(values.iterator);
+        let mut iterator = crate::BitValueIterator::new(values.iterator);
 
         match self.write_handler.write_multiple_coils(
             values.range.start,
@@ -108,7 +108,7 @@ impl RequestHandler for RequestHandlerWrapper {
     }
 
     fn write_multiple_registers(&mut self, values: WriteRegisters) -> Result<(), ExceptionCode> {
-        let mut iterator = crate::RegisterIterator::new(values.iterator);
+        let mut iterator = crate::RegisterValueIterator::new(values.iterator);
 
         match self.write_handler.write_multiple_registers(
             values.range.start,
@@ -228,7 +228,7 @@ pub struct Server {
     map: ServerHandlerMap<RequestHandlerWrapper>,
 }
 
-pub(crate) unsafe fn device_map_new() -> *mut DeviceMap {
+pub(crate) unsafe fn device_map_create() -> *mut DeviceMap {
     Box::into_raw(Box::new(DeviceMap {
         inner: HashMap::new(),
     }))
@@ -240,7 +240,7 @@ pub(crate) unsafe fn device_map_destroy(map: *mut DeviceMap) {
     }
 }
 
-pub(crate) unsafe fn map_add_endpoint(
+pub(crate) unsafe fn device_map_add_endpoint(
     map: *mut DeviceMap,
     unit_id: u8,
     handler: ffi::WriteHandler,
@@ -264,7 +264,7 @@ pub(crate) unsafe fn map_add_endpoint(
     true
 }
 
-pub(crate) unsafe fn create_tcp_server(
+pub(crate) unsafe fn server_create_tcp(
     runtime: *mut crate::Runtime,
     address: &std::ffi::CStr,
     max_sessions: u16,
@@ -298,7 +298,7 @@ pub(crate) unsafe fn create_tcp_server(
     Ok(Box::into_raw(Box::new(server_handle)))
 }
 
-pub(crate) unsafe fn create_rtu_server(
+pub(crate) unsafe fn server_create_rtu(
     runtime: *mut crate::Runtime,
     path: &std::ffi::CStr,
     serial_params: ffi::SerialPortSettings,
@@ -329,7 +329,7 @@ pub(crate) unsafe fn create_rtu_server(
     Ok(Box::into_raw(Box::new(server_handle)))
 }
 
-pub(crate) unsafe fn create_tls_server(
+pub(crate) unsafe fn server_create_tls(
     runtime: *mut crate::Runtime,
     address: &std::ffi::CStr,
     max_sessions: u16,
@@ -411,31 +411,4 @@ pub(crate) unsafe fn server_update_database(
     }
 
     Ok(())
-}
-
-pub(crate) fn write_result_success() -> ffi::WriteResult {
-    ffi::WriteResultFields {
-        success: true,
-        exception: ffi::ModbusException::Unknown,
-        raw_exception: 0,
-    }
-    .into()
-}
-
-pub(crate) fn write_result_exception(exception: ffi::ModbusException) -> ffi::WriteResult {
-    ffi::WriteResultFields {
-        success: false,
-        exception,
-        raw_exception: 0,
-    }
-    .into()
-}
-
-pub(crate) fn write_result_raw_exception(raw_exception: u8) -> ffi::WriteResult {
-    ffi::WriteResultFields {
-        success: false,
-        exception: ffi::ModbusException::Unknown,
-        raw_exception,
-    }
-    .into()
 }

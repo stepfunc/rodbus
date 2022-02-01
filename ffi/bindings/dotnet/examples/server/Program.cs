@@ -22,11 +22,11 @@ namespace example
             {
                 if (database.UpdateCoil(index, value))
                 {
-                    return WriteResult.CreateSuccess();
+                    return WriteResult.SuccessInit();
                 }
                 else
                 {
-                    return WriteResult.CreateException(rodbus.ModbusException.IllegalDataAddress);
+                    return WriteResult.ExceptionInit(rodbus.ModbusException.IllegalDataAddress);
                 }
             }
 
@@ -34,38 +34,38 @@ namespace example
             {
                 if (database.UpdateHoldingRegister(index, value))
                 {
-                    return WriteResult.CreateSuccess();
+                    return WriteResult.SuccessInit();
                 }
                 else
                 {
-                    return WriteResult.CreateException(rodbus.ModbusException.IllegalDataAddress);
+                    return WriteResult.ExceptionInit(rodbus.ModbusException.IllegalDataAddress);
                 }
             }
 
-            public WriteResult WriteMultipleCoils(ushort start, ICollection<Bit> it, Database database)
+            public WriteResult WriteMultipleCoils(ushort start, ICollection<BitValue> it, Database database)
             {
-                var result = WriteResult.CreateSuccess();
+                var result = WriteResult.SuccessInit();
 
                 foreach (var bit in it)
                 {
                     if (!database.UpdateCoil(bit.Index, bit.Value))
                     {
-                        result = WriteResult.CreateException(rodbus.ModbusException.IllegalDataAddress);
+                        result = WriteResult.ExceptionInit(rodbus.ModbusException.IllegalDataAddress);
                     }
                 }
 
                 return result;
             }
 
-            public WriteResult WriteMultipleRegisters(ushort start, ICollection<Register> it, Database database)
+            public WriteResult WriteMultipleRegisters(ushort start, ICollection<RegisterValue> it, Database database)
             {
-                var result = WriteResult.CreateSuccess();
+                var result = WriteResult.SuccessInit();
 
                 foreach (var bit in it)
                 {
                     if (!database.UpdateHoldingRegister(bit.Index, bit.Value))
                     {
-                        result = WriteResult.CreateException(rodbus.ModbusException.IllegalDataAddress);
+                        result = WriteResult.ExceptionInit(rodbus.ModbusException.IllegalDataAddress);
                     }
                 }
 
@@ -133,7 +133,7 @@ namespace example
             // create the device map
             // ANCHOR: device_map_init
             var map = new DeviceMap();
-            map.AddEndpoint(1, new WriteHandler(), new DatabaseCallback((db) =>
+            map.AddEndpoint(1, new WriteHandler(), db =>
             {
                 for (ushort i = 0; i < 10; ++i)
                 {
@@ -142,7 +142,7 @@ namespace example
                     db.AddHoldingRegister(i, 0);
                     db.AddInputRegister(i, 0);
                 }
-            }));
+            });
             // ANCHOR_END: device_map_init
 
             if (args.Length != 1)
@@ -188,7 +188,7 @@ namespace example
         {
             // ANCHOR: tcp_server_create
             var decodeLevel = new DecodeLevel();
-            var server = Server.CreateTcpServer(runtime, "127.0.0.1:502", 100, map, decodeLevel);
+            var server = Server.CreateTcp(runtime, "127.0.0.1:502", 100, map, decodeLevel);
             // ANCHOR_END: tcp_server_create
 
             return server;
@@ -198,7 +198,7 @@ namespace example
         {
             // ANCHOR: rtu_server_create
             var decodeLevel = new DecodeLevel();
-            var server = Server.CreateRtuServer(runtime, "/dev/ttySIM1", new SerialPortSettings(), map, decodeLevel);
+            var server = Server.CreateRtu(runtime, "/dev/ttySIM1", new SerialPortSettings(), map, decodeLevel);
             // ANCHOR_END: rtu_server_create
 
             return server;
@@ -208,7 +208,7 @@ namespace example
         {
             // ANCHOR: tls_server_create
             var decodeLevel = new DecodeLevel();
-            var server = Server.CreateTlsServer(runtime, "127.0.0.1:802", 10, map, tlsConfig, new AuthorizationHandler(), decodeLevel);
+            var server = Server.CreateTls(runtime, "127.0.0.1:802", 10, map, tlsConfig, new AuthorizationHandler(), decodeLevel);
             // ANCHOR_END: tls_server_create
 
             return server;
@@ -258,45 +258,45 @@ namespace example
                         return;
                     case "uc":
                         // ANCHOR: update_coil
-                        server.Update(1, new DatabaseCallback((db) =>
+                        server.UpdateDatabase(1, db =>
                         {
                             coilValue = !coilValue;
                             for (ushort i = 0; i < 10; ++i)
                             {
                                 db.UpdateCoil(i, coilValue);
                             }
-                        }));
+                        });
                         // ANCHOR_END: update_coil
                         break;
                     case "udi":
-                        server.Update(1, new DatabaseCallback((db) =>
+                        server.UpdateDatabase(1, db =>
                         {
                             discreteInputValue = !discreteInputValue;
                             for (ushort i = 0; i < 10; ++i)
                             {
                                 db.UpdateDiscreteInput(i, discreteInputValue);
                             }
-                        }));
+                        });
                         break;
                     case "uhr":
-                        server.Update(1, new DatabaseCallback((db) =>
+                        server.UpdateDatabase(1, db =>
                         {
                             ++holdingRegisterValue;
                             for (ushort i = 0; i < 10; ++i)
                             {
                                 db.UpdateHoldingRegister(i, holdingRegisterValue);
                             }
-                        }));
+                        });
                         break;
                     case "uir":
-                        server.Update(1, new DatabaseCallback((db) =>
+                        server.UpdateDatabase(1, db =>
                         {
                             ++inputRegisterValue;
                             for (ushort i = 0; i < 10; ++i)
                             {
                                 db.UpdateInputRegister(i, inputRegisterValue);
                             }
-                        }));
+                        });
                         break;
                     default:
                         Console.WriteLine("Unknown command");

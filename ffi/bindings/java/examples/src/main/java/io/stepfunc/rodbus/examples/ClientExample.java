@@ -9,6 +9,7 @@ import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.time.Duration;
 import java.util.Arrays;
+import java.util.List;
 
 // ANCHOR: logging_interface
 class ConsoleLogger implements Logger {
@@ -41,7 +42,7 @@ public class ClientExample {
         }
 
         // initialize a Modbus client channel
-        Channel channel = createChannel(args[0], runtime);
+        ClientChannel channel = createChannel(args[0], runtime);
 
         try {
             run(channel);
@@ -52,7 +53,7 @@ public class ClientExample {
         }
     }
 
-    private static Channel createChannel(String type, Runtime runtime) {
+    private static ClientChannel createChannel(String type, Runtime runtime) {
         switch (type)
         {
             case "tcp": return createTcpChannel(runtime);
@@ -66,19 +67,19 @@ public class ClientExample {
         }
     }
 
-    private static Channel createTcpChannel(Runtime runtime) {
+    private static ClientChannel createTcpChannel(Runtime runtime) {
         // ANCHOR: create_tcp_channel
         DecodeLevel decodeLevel = new DecodeLevel();
-        Channel channel = Channel.createTcpClient(runtime, "127.0.0.1:502", ushort(100), new RetryStrategy(), decodeLevel);
+        ClientChannel channel = ClientChannel.createTcp(runtime, "127.0.0.1:502", ushort(100), new RetryStrategy(), decodeLevel);
         // ANCHOR_END: create_tcp_channel
 
         return channel;
     }
 
-    private static Channel createRtuChannel(Runtime runtime) {
+    private static ClientChannel createRtuChannel(Runtime runtime) {
         // ANCHOR: create_rtu_channel
         DecodeLevel decodeLevel = new DecodeLevel();
-        Channel channel = Channel.createRtuClient(
+        ClientChannel channel = ClientChannel.createRtu(
                 runtime,
                 "/dev/ttySIM0", // path
                 new SerialPortSettings(), // serial settings
@@ -91,10 +92,10 @@ public class ClientExample {
         return channel;
     }
 
-    private static Channel createTlsChannel(Runtime runtime, TlsClientConfig tlsConfig) {
+    private static ClientChannel createTlsChannel(Runtime runtime, TlsClientConfig tlsConfig) {
         // ANCHOR: create_tls_channel
         DecodeLevel decodeLevel = new DecodeLevel();
-        Channel channel = Channel.createTlsClient(runtime, "127.0.0.1:802", ushort(100), new RetryStrategy(), tlsConfig, decodeLevel);
+        ClientChannel channel = ClientChannel.createTls(runtime, "127.0.0.1:802", ushort(100), new RetryStrategy(), tlsConfig, decodeLevel);
         // ANCHOR_END: create_tls_channel
 
         return channel;
@@ -129,7 +130,7 @@ public class ClientExample {
         return tlsConfig;
     }
 
-    private static void run(Channel channel) throws Exception {
+    private static void run(ClientChannel channel) throws Exception {
         // ANCHOR: request_param
         final RequestParam param = new RequestParam(ubyte(1), Duration.ofSeconds(1));
         // ANCHOR_END: request_param
@@ -146,39 +147,39 @@ public class ClientExample {
                     return;
                 case "rc": {
                     // ANCHOR: read_coils
-                    channel.readCoils(param, range).thenAccept(ClientExample::handleBitResult);
+                    channel.readCoils(param, range).whenComplete(ClientExample::handleBitResult);
                     // ANCHOR_END: read_coils
                     break;
                 }
                 case "rdi": {
-                    channel.readDiscreteInputs(param, range).thenAccept(ClientExample::handleBitResult);
+                    channel.readDiscreteInputs(param, range).whenComplete(ClientExample::handleBitResult);
                     break;
                 }
                 case "rhr": {
-                    channel.readHoldingRegisters(param, range).thenAccept(ClientExample::handleRegisterResult);
+                    channel.readHoldingRegisters(param, range).whenComplete(ClientExample::handleRegisterResult);
                     break;
                 }
                 case "rir": {
-                    channel.readInputRegisters(param, range).thenAccept(ClientExample::handleRegisterResult);
+                    channel.readInputRegisters(param, range).whenComplete(ClientExample::handleRegisterResult);
                     break;
                 }
                 case "wsc": {
                     /// ANCHOR: write_single_coil
-                    channel.writeSingleCoil(param, new Bit(ushort(0), true)).thenAccept(ClientExample::handleWriteResult);
+                    channel.writeSingleCoil(param, new BitValue(ushort(0), true)).whenComplete(ClientExample::handleWriteResult);
                     /// ANCHOR_END: write_single_coil
                     break;
                 }
                 case "wsr": {
-                    channel.writeSingleRegister(param, new Register(ushort(0), ushort(76))).thenAccept(ClientExample::handleWriteResult);
+                    channel.writeSingleRegister(param, new RegisterValue(ushort(0), ushort(76))).whenComplete(ClientExample::handleWriteResult);
                     break;
                 }
                 case "wmc": {
-                    channel.writeMultipleCoils(param, ushort(0), Arrays.asList(true, false)).thenAccept(ClientExample::handleWriteResult);
+                    channel.writeMultipleCoils(param, ushort(0), Arrays.asList(true, false)).whenComplete(ClientExample::handleWriteResult);
                     break;
                 }
                 case "wmr": {
                     // ANCHOR: write_multiple_registers
-                    channel.writeMultipleRegisters(param, ushort(0), Arrays.asList(ushort(0xCA), ushort(0xFE))).thenAccept(ClientExample::handleWriteResult);
+                    channel.writeMultipleRegisters(param, ushort(0), Arrays.asList(ushort(0xCA), ushort(0xFE))).whenComplete(ClientExample::handleWriteResult);
                     // ANCHOR_END: write_multiple_registers
                     break;
                 }
@@ -190,43 +191,35 @@ public class ClientExample {
     }
 
     // ANCHOR: handle_bit_result
-    private static void handleBitResult(BitReadResult result) {
-        if (result.result.summary == Status.OK) {
+    private static void handleBitResult(List<BitValue> bits, Throwable ex) {
+        if (ex == null) {
             System.out.println("success!");
-            for(Bit bit : result.iterator) {
+            for(BitValue bit : bits) {
                 System.out.println("index: " + bit.index + " value: " + bit.value);
             }
-        } else if (result.result.summary == Status.EXCEPTION) {
-            System.out.println("Modbus exception: " + result.result.exception);
         } else {
-            System.out.println("error: " + result.result.summary);
+            System.out.println("error: " + ex.getMessage());
         }
     }
     // ANCHOR_END: handle_bit_result
 
-    private static void handleRegisterResult(RegisterReadResult result) {
-        // ANCHOR: error_handling
-        if (result.result.summary == Status.OK) {
+    private static void handleRegisterResult(List<RegisterValue> registers, Throwable ex) {
+        if (ex == null) {
             System.out.println("success!");
-            for(Register register : result.iterator) {
+            for(RegisterValue register : registers) {
                 System.out.println("index: " + register.index + " value: " + register.value);
             }
-        } else if (result.result.summary == Status.EXCEPTION) {
-            System.out.println("Modbus exception: " + result.result.exception);
         } else {
-            System.out.println("error: " + result.result.summary);
+            System.out.println("error: " + ex.getMessage());
         }
-        // ANCHOR_END: error_handling
     }
 
     // ANCHOR: handle_write_result
-    private static void handleWriteResult(ErrorInfo result) {
-        if (result.summary == Status.OK) {
+    private static void handleWriteResult(Nothing nothing, Throwable ex) {
+        if (ex == null) {
             System.out.println("success!");
-        } else if (result.summary == Status.EXCEPTION) {
-            System.out.println("Modbus exception: " + result.exception);
         } else {
-            System.out.println("error: " + result.summary);
+            System.out.println("error: " + ex.getMessage());
         }
     }
     /// ANCHOR_END: handle_write_result
