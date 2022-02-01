@@ -1,0 +1,139 @@
+---
+id: tls_server
+title: TLS Server
+sidebar_label: TLS Server
+slug: /api/outstation/tls_server
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+Creating a TLS server for outstation instances is exactly the same process as a [TCP server](./tcp_server.mdx),
+except that an extra `TlsServerConfig` and an `AuthorizationHandler` is required. For more details about TLS
+support and the configuration options, check the [TLS general information](../tls.mdx) page.
+
+## Examples
+
+### Certificate chain configuration
+
+<Tabs
+groupId="language"
+defaultValue="Rust"
+values={[
+{label: 'Rust', value: 'Rust'},
+{label: 'C', value: 'C'},
+{label: 'Java', value: 'Java'},
+{label: 'C#', value: 'C#'},
+]}>
+<TabItem value="Rust">
+
+```rust
+{{#include ../rodbus/examples/server.rs:handler_map_create}}
+
+{{#include ../rodbus/examples/server.rs:tls_ca_chain_config}}
+
+{{#include ../rodbus/examples/server.rs:tls_server_create}}
+```
+
+</TabItem>
+<TabItem value="C">
+
+```c
+{{#include ../ffi/bindings/c/server_example.c:auth_handler}}
+
+{{#include ../ffi/bindings/c/server_example.c:auth_handler_init}}
+
+{{#include ../ffi/bindings/c/server_example.c:device_map_init}}
+
+{{#include ../ffi/bindings/c/server_example.c:tls_ca_chain_config}}
+
+{{#include ../ffi/bindings/c/server_example.c:tls_server_create}}
+// check error
+```
+
+</TabItem>
+<TabItem value="Java">
+
+```java
+{{#include ../ffi/bindings/java/examples/src/main/java/io/stepfunc/rodbus/examples/ServerExample.java:auth_handler}}
+
+{{#include ../ffi/bindings/java/examples/src/main/java/io/stepfunc/rodbus/examples/ServerExample.java:tls_ca_chain_config}}
+
+{{#include ../ffi/bindings/java/examples/src/main/java/io/stepfunc/rodbus/examples/ServerExample.java:tls_server_create}}
+```
+
+</TabItem>
+<TabItem value="C#">
+
+```csharp
+{{#include ../ffi/bindings/dotnet/examples/server/Program.cs:auth_handler}}
+
+{{#include ../ffi/bindings/dotnet/examples/server/Program.cs:tls_ca_chain_config}}
+
+{{#include ../ffi/bindings/dotnet/examples/server/Program.cs:tls_server_create}}
+```
+
+</TabItem>
+</Tabs>
+
+### Self-signed certificate configuration
+
+<Tabs
+groupId="language"
+defaultValue="Rust"
+values={[
+{label: 'Rust', value: 'Rust'},
+{label: 'C', value: 'C'},
+{label: 'Java', value: 'Java'},
+{label: 'C#', value: 'C#'},
+]}>
+<TabItem value="Rust">
+
+```rust
+{{#include ../rodbus/examples/server.rs:handler_map_create}}
+
+{{#include ../rodbus/examples/server.rs:tls_self_signed_config}}
+
+{{#include ../rodbus/examples/server.rs:tls_server_create}}
+```
+
+</TabItem>
+<TabItem value="C">
+
+```c
+{{#include ../ffi/bindings/c/server_example.c:auth_handler}}
+
+{{#include ../ffi/bindings/c/server_example.c:auth_handler_init}}
+
+{{#include ../ffi/bindings/c/server_example.c:device_map_init}}
+
+{{#include ../ffi/bindings/c/server_example.c:tls_self_signed_config}}
+
+{{#include ../ffi/bindings/c/server_example.c:tls_server_create}}
+// check error
+```
+
+</TabItem>
+<TabItem value="Java">
+
+```java
+{{#include ../ffi/bindings/java/examples/src/main/java/io/stepfunc/rodbus/examples/ServerExample.java:auth_handler}}
+
+{{#include ../ffi/bindings/java/examples/src/main/java/io/stepfunc/rodbus/examples/ServerExample.java:tls_self_signed_config}}
+
+{{#include ../ffi/bindings/java/examples/src/main/java/io/stepfunc/rodbus/examples/ServerExample.java:tls_server_create}}
+```
+
+</TabItem>
+<TabItem value="C#">
+
+```csharp
+{{#include ../ffi/bindings/dotnet/examples/server/Program.cs:auth_handler}}
+
+{{#include ../ffi/bindings/dotnet/examples/server/Program.cs:tls_self_signed_config}}
+
+{{#include ../ffi/bindings/dotnet/examples/server/Program.cs:tls_server_create}}
+```
+
+</TabItem>
+</Tabs>

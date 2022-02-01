@@ -33,27 +33,15 @@ public class ClientExample {
         Runtime runtime = new Runtime(runtimeConfig);
         // ANCHOR_END: runtime_init
 
+        if (args.length != 1)
+        {
+            System.out.println("you must specify a transport type");
+            System.out.println("usage: client_example <channel> (tcp, rtu, tls-ca, tls-self-signed)");
+            System.exit(-1);
+        }
+
         // initialize a Modbus client channel
-        Channel channel = null;
-        if (!Arrays.asList(args).contains("--serial")) {
-            // ANCHOR: create_tcp_channel
-            DecodeLevel decodeLevel = new DecodeLevel();
-            channel = Channel.createTcpClient(runtime, "127.0.0.1:502", ushort(100), new RetryStrategy(), decodeLevel);
-            // ANCHOR_END: create_tcp_channel
-        }
-        else {
-            // ANCHOR: create_rtu_channel
-            DecodeLevel decodeLevel = new DecodeLevel();
-            channel = Channel.createRtuClient(
-                runtime,
-                "/dev/ttySIM0", // path
-                new SerialPortSettings(), // serial settings
-                ushort(1), // max queued requests
-                Duration.ofSeconds(1), // retry delay
-                decodeLevel // decode level
-            );
-            // ANCHOR_END: create_rtu_channel
-        }
+        Channel channel = createChannel(args[0], runtime);
 
         try {
             run(channel);
@@ -62,6 +50,83 @@ public class ClientExample {
             runtime.shutdown();
             // ANCHOR_END: runtime_shutdown
         }
+    }
+
+    private static Channel createChannel(String type, Runtime runtime) {
+        switch (type)
+        {
+            case "tcp": return createTcpChannel(runtime);
+            case "rtu": return createRtuChannel(runtime);
+            case "tls-ca": return createTlsChannel(runtime, getCaTlsConfig());
+            case "tls-self-signed": return createTlsChannel(runtime, getSelfSignedTlsConfig());
+            default:
+                System.out.println("unknown channel type: " + type);
+                System.exit(-1);
+                return null;
+        }
+    }
+
+    private static Channel createTcpChannel(Runtime runtime) {
+        // ANCHOR: create_tcp_channel
+        DecodeLevel decodeLevel = new DecodeLevel();
+        Channel channel = Channel.createTcpClient(runtime, "127.0.0.1:502", ushort(100), new RetryStrategy(), decodeLevel);
+        // ANCHOR_END: create_tcp_channel
+
+        return channel;
+    }
+
+    private static Channel createRtuChannel(Runtime runtime) {
+        // ANCHOR: create_rtu_channel
+        DecodeLevel decodeLevel = new DecodeLevel();
+        Channel channel = Channel.createRtuClient(
+                runtime,
+                "/dev/ttySIM0", // path
+                new SerialPortSettings(), // serial settings
+                ushort(1), // max queued requests
+                Duration.ofSeconds(1), // retry delay
+                decodeLevel // decode level
+        );
+        // ANCHOR_END: create_rtu_channel
+
+        return channel;
+    }
+
+    private static Channel createTlsChannel(Runtime runtime, TlsClientConfig tlsConfig) {
+        // ANCHOR: create_tls_channel
+        DecodeLevel decodeLevel = new DecodeLevel();
+        Channel channel = Channel.createTlsClient(runtime, "127.0.0.1:802", ushort(100), new RetryStrategy(), tlsConfig, decodeLevel);
+        // ANCHOR_END: create_tls_channel
+
+        return channel;
+    }
+
+    private static TlsClientConfig getCaTlsConfig() {
+        // ANCHOR: tls_ca_chain_config
+        TlsClientConfig tlsConfig = new TlsClientConfig(
+                "test.com",
+                "./certs/ca_chain/ca_cert.pem",
+                "./certs/ca_chain/entity1_cert.pem",
+                "./certs/ca_chain/entity1_key.pem",
+                "" // no password
+        );
+        // ANCHOR_END: tls_ca_chain_config
+
+        return tlsConfig;
+    }
+
+    private static TlsClientConfig getSelfSignedTlsConfig() {
+        // ANCHOR: tls_self_signed_config
+        TlsClientConfig tlsConfig = new TlsClientConfig(
+                "test.com",
+                "./certs/self_signed/entity2_cert.pem",
+                "./certs/self_signed/entity1_cert.pem",
+                "./certs/self_signed/entity1_key.pem",
+                "" // no password
+        );
+        tlsConfig.certificateMode = CertificateMode.SELF_SIGNED;
+        // ANCHOR_END: tls_self_signed_config
+
+        return tlsConfig;
     }
 
     private static void run(Channel channel) throws Exception {

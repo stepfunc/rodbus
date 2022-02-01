@@ -4,8 +4,8 @@ use oo_bindgen::callback::InterfaceHandle;
 use oo_bindgen::class::{ClassDeclarationHandle, ClassHandle};
 use oo_bindgen::error_type::ErrorType;
 use oo_bindgen::native_function::{NativeFunctionHandle, ReturnType, Type};
-use oo_bindgen::native_struct::NativeStructHandle;
-use oo_bindgen::{BindingError, LibraryBuilder};
+use oo_bindgen::native_struct::{NativeStructHandle, StructElementType};
+use oo_bindgen::{doc, BindingError, LibraryBuilder};
 
 pub(crate) fn build(
     lib: &mut LibraryBuilder,
@@ -38,6 +38,8 @@ pub(crate) fn build_server(
         .build()?;
 
     let handler_map = build_handler_map(lib, &database.declaration, &db_update_callback, common)?;
+    let tls_server_config = build_tls_server_config(lib, common)?;
+    let authorization_handler = build_authorization_handler(lib, common)?;
 
     let server = lib.declare_class("Server")?;
 
@@ -61,7 +63,9 @@ pub(crate) fn build_server(
             "handle to the server".into(),
         ))?
         .fails_with(common.error_type.clone())?
-        .doc("Launch a TCP server. When the maximum number of concurrent sessions is reached, the oldest session is closed.")?
+        .doc(doc("Launch a TCP server.")
+            .details("Recommended port for Modbus is 502.")
+            .details("When the maximum number of concurrent sessions is reached, the oldest session is closed."))?
         .build()?;
 
     let create_rtu_server_fn = lib
@@ -85,6 +89,41 @@ pub(crate) fn build_server(
         ))?
         .fails_with(common.error_type.clone())?
         .doc("Launch a TCP server. When the maximum number of concurrent sessions is reached, the oldest session is closed.")?
+        .build()?;
+
+    let create_tls_server_fn = lib
+        .declare_native_function("create_tls_server")?
+        .param(
+            "runtime",
+            Type::ClassRef(common.runtime_handle.declaration.clone()),
+            "runtime on which to spawn the server",
+        )?
+        .param("address", Type::String, "IPv4 or IPv6 host/port string")?
+        .param("max_sessions", Type::Uint16, "Maximum number of concurrent sessions")?
+        .param(
+            "endpoints",
+            Type::ClassRef(handler_map.declaration.clone()),
+            "map of endpoints which is emptied upon passing to this function",
+        )?
+        .param(
+            "tls_config",
+            Type::Struct(tls_server_config),
+            "TLS server configuration",
+        )?
+        .param(
+            "authorization_handler",
+            Type::Interface(authorization_handler),
+            "Authorization handler"
+        )?
+        .param("decode_level", Type::Struct(common.decode_level.clone()), "Decode levels for this server")?
+        .return_type(ReturnType::Type(
+            Type::ClassRef(server.clone()),
+            "handle to the server".into(),
+        ))?
+        .fails_with(common.error_type.clone())?
+        .doc(doc("Launch a Modbus Security (TLS) server.")
+            .details("Recommended port for Modbus Security is 802.")
+            .details("When the maximum number of concurrent sessions is reached, the oldest session is closed."))?
         .build()?;
 
     let destroy_fn = lib
@@ -113,6 +152,7 @@ pub(crate) fn build_server(
         .method("update", &update_fn)?
         .static_method("create_tcp_server", &create_tcp_server_fn)?
         .static_method("create_rtu_server", &create_rtu_server_fn)?
+        .static_method("create_tls_server", &create_tls_server_fn)?
         .custom_destroy("Shutdown")?
         .doc("Handle to the running server. The server remains alive until this reference is destroyed")?
         .build()
@@ -374,6 +414,190 @@ pub(crate) fn build_handler_map(
         .destructor(&destroy_map)?
         .method("add_endpoint", &map_add_endpoint)?
         .doc("Maps endpoint handlers to Modbus address")?
+        .build()
+}
+
+fn build_authorization_handler(
+    lib: &mut LibraryBuilder,
+    common: &CommonDefinitions,
+) -> Result<InterfaceHandle, BindingError> {
+    let auth_result = lib
+        .define_native_enum("AuthorizationResult")?
+        .push(
+            "Authorized",
+            "Client is authorized to perform the operation",
+        )?
+        .push(
+            "NotAuthorized",
+            "Client is non authorized to perform the operation",
+        )?
+        .doc("Authorization result used by {interface:AuthorizationHandler}")?
+        .build()?;
+
+    lib.define_interface(
+        "AuthorizationHandler",
+        "Modbus Security authorization handler",
+    )?
+    .callback("read_coils", "Authorize a Read Discrete Inputs request")?
+    .param("unit_id", Type::Uint8, "Target unit ID")?
+    .param(
+        "range",
+        Type::Struct(common.address_range.clone()),
+        "Range to read",
+    )?
+    .param("role", Type::String, "Authenticated Modbus role")?
+    .return_type(ReturnType::new(
+        Type::Enum(auth_result.clone()),
+        "Authorization result",
+    ))?
+    .build()?
+    .callback(
+        "read_discrete_inputs",
+        "Authorize a Read Discrete Inputs request",
+    )?
+    .param("unit_id", Type::Uint8, "Target unit ID")?
+    .param(
+        "range",
+        Type::Struct(common.address_range.clone()),
+        "Range to read",
+    )?
+    .param("role", Type::String, "Authenticated Modbus role")?
+    .return_type(ReturnType::new(
+        Type::Enum(auth_result.clone()),
+        "Authorization result",
+    ))?
+    .build()?
+    .callback(
+        "read_holding_registers",
+        "Authorize a Read Holding Registers request",
+    )?
+    .param("unit_id", Type::Uint8, "Target unit ID")?
+    .param(
+        "range",
+        Type::Struct(common.address_range.clone()),
+        "Range to read",
+    )?
+    .param("role", Type::String, "Authenticated Modbus role")?
+    .return_type(ReturnType::new(
+        Type::Enum(auth_result.clone()),
+        "Authorization result",
+    ))?
+    .build()?
+    .callback(
+        "read_input_registers",
+        "Authorize a Read Input Registers request",
+    )?
+    .param("unit_id", Type::Uint8, "Target unit ID")?
+    .param(
+        "range",
+        Type::Struct(common.address_range.clone()),
+        "Range to read",
+    )?
+    .param("role", Type::String, "Authenticated Modbus role")?
+    .return_type(ReturnType::new(
+        Type::Enum(auth_result.clone()),
+        "Authorization result",
+    ))?
+    .build()?
+    .callback("write_single_coil", "Authorize a Write Single Coil request")?
+    .param("unit_id", Type::Uint8, "Target unit ID")?
+    .param("index", Type::Uint16, "Target index")?
+    .param("role", Type::String, "Authenticated Modbus role")?
+    .return_type(ReturnType::new(
+        Type::Enum(auth_result.clone()),
+        "Authorization result",
+    ))?
+    .build()?
+    .callback(
+        "write_single_register",
+        "Authorize a Write Single Register request",
+    )?
+    .param("unit_id", Type::Uint8, "Target unit ID")?
+    .param("index", Type::Uint16, "Target index")?
+    .param("role", Type::String, "Authenticated Modbus role")?
+    .return_type(ReturnType::new(
+        Type::Enum(auth_result.clone()),
+        "Authorization result",
+    ))?
+    .build()?
+    .callback(
+        "write_multiple_coils",
+        "Authorize a Write Multiple Coils request",
+    )?
+    .param("unit_id", Type::Uint8, "Target unit ID")?
+    .param(
+        "range",
+        Type::Struct(common.address_range.clone()),
+        "Range to read",
+    )?
+    .param("role", Type::String, "Authenticated Modbus role")?
+    .return_type(ReturnType::new(
+        Type::Enum(auth_result.clone()),
+        "Authorization result",
+    ))?
+    .build()?
+    .callback(
+        "write_multiple_registers",
+        "Authorize a Write Multiple Registers request",
+    )?
+    .param("unit_id", Type::Uint8, "Target unit ID")?
+    .param(
+        "range",
+        Type::Struct(common.address_range.clone()),
+        "Range to read",
+    )?
+    .param("role", Type::String, "Authenticated Modbus role")?
+    .return_type(ReturnType::new(
+        Type::Enum(auth_result),
+        "Authorization result",
+    ))?
+    .build()?
+    .destroy_callback("on_destroy")?
+    .build()
+}
+
+fn build_tls_server_config(
+    lib: &mut LibraryBuilder,
+    common: &CommonDefinitions,
+) -> Result<NativeStructHandle, BindingError> {
+    let tls_server_config = lib.declare_native_struct("TlsServerConfig")?;
+    lib.define_native_struct(&tls_server_config)?
+        .add(
+            "peer_cert_path",
+            Type::String,
+            "Path to the PEM-encoded certificate of the peer",
+        )?
+        .add(
+            "local_cert_path",
+            Type::String,
+            "Path to the PEM-encoded local certificate",
+        )?
+        .add(
+            "private_key_path",
+            Type::String,
+            "Path to the the PEM-encoded private key",
+        )?
+        .add(
+            "password",
+            Type::String,
+            doc("Optional password if the private key file is encrypted")
+                .details("Only PKCS#8 encrypted files are supported.")
+                .details("Pass empty string if the file is not encrypted."),
+        )?
+        .add(
+            "min_tls_version",
+            StructElementType::Enum(common.min_tls_version.clone(), Some("V1_2".to_owned())),
+            "Minimum TLS version allowed",
+        )?
+        .add(
+            "certificate_mode",
+            StructElementType::Enum(
+                common.certificate_mode.clone(),
+                Some("AuthorityBased".to_owned()),
+            ),
+            "Certficate validation mode",
+        )?
+        .doc("TLS server configuration")?
         .build()
 }
 

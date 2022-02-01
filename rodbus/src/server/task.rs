@@ -2,6 +2,7 @@ use tracing::Instrument;
 
 use crate::common::phys::PhysLayer;
 use crate::decode::PduDecodeLevel;
+use crate::server::AuthorizationHandler;
 use crate::tokio;
 
 use crate::common::cursor::ReadCursor;
@@ -15,6 +16,7 @@ use crate::exception::ExceptionCode;
 use crate::server::handler::{RequestHandler, ServerHandlerMap};
 use crate::server::request::{Request, RequestDisplay};
 use crate::server::response::ErrorResponse;
+use std::sync::Arc;
 
 pub(crate) struct SessionTask<T, F, P>
 where
@@ -24,6 +26,7 @@ where
 {
     io: PhysLayer,
     handlers: ServerHandlerMap<T>,
+    auth: SessionAuthentication,
     shutdown: tokio::sync::mpsc::Receiver<()>,
     writer: F,
     reader: FramedReader<P>,
@@ -39,6 +42,7 @@ where
     pub(crate) fn new(
         io: PhysLayer,
         handlers: ServerHandlerMap<T>,
+        auth: SessionAuthentication,
         formatter: F,
         parser: P,
         shutdown: tokio::sync::mpsc::Receiver<()>,
@@ -47,6 +51,7 @@ where
         Self {
             io,
             handlers,
+            auth,
             shutdown,
             writer: formatter,
             reader: FramedReader::new(parser),
@@ -138,7 +143,13 @@ where
                 // get the reply data (or exception reply)
                 let reply_frame: &[u8] = {
                     let mut lock = handler.lock().unwrap();
-                    request.get_reply(frame.header, lock.as_mut(), &mut self.writer, self.decode)?
+                    request.get_reply(
+                        frame.header,
+                        lock.as_mut(),
+                        &self.auth,
+                        &mut self.writer,
+                        self.decode,
+                    )?
                 };
 
                 // reply with the bytes
@@ -156,6 +167,7 @@ where
                     request.get_reply(
                         frame.header,
                         lock.as_mut(),
+                        &self.auth,
                         &mut NullFrameFormatter,
                         self.decode,
                     )?;
@@ -166,4 +178,12 @@ where
 
         Ok(())
     }
+}
+
+/// Authentication of the session
+pub(crate) enum SessionAuthentication {
+    /// The request is not authenticated
+    Unauthenticated,
+    /// The request is authenticated with a Role ID
+    Authenticated(Arc<dyn AuthorizationHandler>, String),
 }

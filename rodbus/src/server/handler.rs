@@ -77,7 +77,8 @@ pub trait RequestHandler: Send + 'static {
     }
 }
 
-type ServerHandlerType<T> = Arc<Mutex<Box<T>>>;
+/// Server handler boxed inside a `Arc<Mutex>`.
+pub type ServerHandlerType<T> = Arc<Mutex<Box<T>>>;
 
 /// A type that hides the underlying map implementation
 /// and allows lookups of a [`RequestHandler`] from a [`UnitId`]
@@ -133,6 +134,190 @@ where
 
     pub(crate) fn iter_mut(&mut self) -> impl Iterator<Item = &mut ServerHandlerType<T>> {
         self.handlers.values_mut()
+    }
+}
+
+/// Authorization result
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
+pub enum AuthorizationResult {
+    /// Client is authorized to perform the operation
+    Authorized,
+    /// Client is non authorized to perform the operation
+    NotAuthorized,
+}
+
+/// Authorization handler used in Modbus Security protocol
+pub trait AuthorizationHandler: Send + Sync + 'static {
+    /// Moves an authorization handler implementation into a `Arc<Mutex<Box<AuthorizationHandler>>>`
+    /// suitable for passing to the server
+    fn wrap(self) -> Arc<dyn AuthorizationHandler>
+    where
+        Self: Sized,
+    {
+        Arc::new(self)
+    }
+
+    /// Authorize a Read Coils request
+    fn read_coils(
+        &self,
+        _unit_id: UnitId,
+        _range: AddressRange,
+        _role: &str,
+    ) -> AuthorizationResult {
+        AuthorizationResult::NotAuthorized
+    }
+
+    /// Authorize a Read Discrete Inputs request
+    fn read_discrete_inputs(
+        &self,
+        _unit_id: UnitId,
+        _range: AddressRange,
+        _role: &str,
+    ) -> AuthorizationResult {
+        AuthorizationResult::NotAuthorized
+    }
+
+    /// Authorize a Read Holding Registers request
+    fn read_holding_registers(
+        &self,
+        _unit_id: UnitId,
+        _range: AddressRange,
+        _role: &str,
+    ) -> AuthorizationResult {
+        AuthorizationResult::NotAuthorized
+    }
+
+    /// Authorize a Read Input Registers request
+    fn read_input_registers(
+        &self,
+        _unit_id: UnitId,
+        _range: AddressRange,
+        _role: &str,
+    ) -> AuthorizationResult {
+        AuthorizationResult::NotAuthorized
+    }
+
+    /// Authorize a Write Single Coil request
+    fn write_single_coil(&self, _unit_id: UnitId, _idx: u16, _role: &str) -> AuthorizationResult {
+        AuthorizationResult::NotAuthorized
+    }
+
+    /// Authorize a Write Single Register request
+    fn write_single_register(
+        &self,
+        _unit_id: UnitId,
+        _idx: u16,
+        _role: &str,
+    ) -> AuthorizationResult {
+        AuthorizationResult::NotAuthorized
+    }
+
+    /// Authorize a Write Multiple Coils request
+    fn write_multiple_coils(
+        &self,
+        _unit_id: UnitId,
+        _range: AddressRange,
+        _role: &str,
+    ) -> AuthorizationResult {
+        AuthorizationResult::NotAuthorized
+    }
+
+    /// Authorize a Write Multiple Registers request
+    fn write_multiple_registers(
+        &self,
+        _unit_id: UnitId,
+        _range: AddressRange,
+        _role: &str,
+    ) -> AuthorizationResult {
+        AuthorizationResult::NotAuthorized
+    }
+}
+
+/// Read-only authorization handler that blindly accepts
+/// all read requests.
+#[derive(Debug, Clone, Copy)]
+pub struct ReadOnlyAuthorizationHandler;
+
+impl ReadOnlyAuthorizationHandler {
+    /// Instantiate a new read-only authorization handler
+    pub fn create() -> Arc<dyn AuthorizationHandler> {
+        Arc::new(Self)
+    }
+}
+
+impl AuthorizationHandler for ReadOnlyAuthorizationHandler {
+    fn read_coils(
+        &self,
+        _unit_id: UnitId,
+        _range: AddressRange,
+        _role: &str,
+    ) -> AuthorizationResult {
+        AuthorizationResult::Authorized
+    }
+
+    /// Authorize a Read Discrete Inputs request
+    fn read_discrete_inputs(
+        &self,
+        _unit_id: UnitId,
+        _range: AddressRange,
+        _role: &str,
+    ) -> AuthorizationResult {
+        AuthorizationResult::Authorized
+    }
+
+    /// Authorize a Read Holding Registers request
+    fn read_holding_registers(
+        &self,
+        _unit_id: UnitId,
+        _range: AddressRange,
+        _role: &str,
+    ) -> AuthorizationResult {
+        AuthorizationResult::Authorized
+    }
+
+    /// Authorize a Read Input Registers request
+    fn read_input_registers(
+        &self,
+        _unit_id: UnitId,
+        _range: AddressRange,
+        _role: &str,
+    ) -> AuthorizationResult {
+        AuthorizationResult::Authorized
+    }
+
+    /// Authorize a Write Single Coil request
+    fn write_single_coil(&self, _unit_id: UnitId, _idx: u16, _role: &str) -> AuthorizationResult {
+        AuthorizationResult::NotAuthorized
+    }
+
+    /// Authorize a Write Single Register request
+    fn write_single_register(
+        &self,
+        _unit_id: UnitId,
+        _idx: u16,
+        _role: &str,
+    ) -> AuthorizationResult {
+        AuthorizationResult::NotAuthorized
+    }
+
+    /// Authorize a Write Multiple Coils request
+    fn write_multiple_coils(
+        &self,
+        _unit_id: UnitId,
+        _range: AddressRange,
+        _role: &str,
+    ) -> AuthorizationResult {
+        AuthorizationResult::NotAuthorized
+    }
+
+    /// Authorize a Write Multiple Registers request
+    fn write_multiple_registers(
+        &self,
+        _unit_id: UnitId,
+        _range: AddressRange,
+        _role: &str,
+    ) -> AuthorizationResult {
+        AuthorizationResult::NotAuthorized
     }
 }
 

@@ -4,7 +4,7 @@ use oo_bindgen::iterator::IteratorHandle;
 use oo_bindgen::native_enum::NativeEnumHandle;
 use oo_bindgen::native_function::{DurationMapping, ReturnType, Type};
 use oo_bindgen::native_struct::{NativeStructHandle, StructElementType};
-use oo_bindgen::{BindingError, LibraryBuilder};
+use oo_bindgen::{doc, BindingError, LibraryBuilder};
 
 pub(crate) struct CommonDefinitions {
     pub(crate) error_type: ErrorType,
@@ -19,6 +19,8 @@ pub(crate) struct CommonDefinitions {
     pub(crate) register_iterator: IteratorHandle,
     pub(crate) exception: NativeEnumHandle,
     pub(crate) serial_port_settings: NativeStructHandle,
+    pub(crate) min_tls_version: NativeEnumHandle,
+    pub(crate) certificate_mode: NativeEnumHandle,
 }
 
 impl CommonDefinitions {
@@ -42,6 +44,8 @@ impl CommonDefinitions {
             register_iterator: build_iterator(lib, &register)?,
             exception,
             serial_port_settings: build_serial_params(lib)?,
+            min_tls_version: build_min_tls_version(lib)?,
+            certificate_mode: build_certificate_mode(lib)?,
         })
     }
 }
@@ -75,6 +79,11 @@ fn build_error_type(lib: &mut LibraryBuilder) -> Result<ErrorType, BindingError>
         "InvalidUnitId",
         "The specified unit id is not associated to this server",
     )?
+    .add_error("InvalidPeerCertificate", "Invalid peer certificate file")?
+    .add_error("InvalidLocalCertificate", "Invalid local certificate file")?
+    .add_error("InvalidPrivateKey", "Invalid private key file")?
+    .add_error("InvalidDnsName", "Invalid DNS name")?
+    .add_error("MiscellaneousTlsError", "Miscellaneous tls error")?
     .doc("Error type used throughout the library")?
     .build()
 }
@@ -236,4 +245,29 @@ fn build_iterator(
         .build()?;
 
     lib.define_iterator_with_lifetime(&iterator_next_fn, value_type)
+}
+
+fn build_min_tls_version(lib: &mut LibraryBuilder) -> Result<NativeEnumHandle, BindingError> {
+    lib.define_native_enum("MinTlsVersion")?
+        .push("V1_2", "TLS 1.2")?
+        .push("V1_3", "TLS 1.3")?
+        .doc("Minimum TLS version to allow")?
+        .build()
+}
+
+fn build_certificate_mode(lib: &mut LibraryBuilder) -> Result<NativeEnumHandle, BindingError> {
+    lib.define_native_enum("CertificateMode")?
+        .push("AuthorityBased",
+        doc("Validates the peer certificate against one or more configured trust anchors")
+            .details("This mode uses the default certificate verifier in `rustls` to ensure that the chain of certificates presented by the peer is valid against one of the configured trust anchors.")
+            .details("The name verification is relaxed to allow for certificates that do not contain the SAN extension. In these cases the name is verified using the Common Name instead.")
+        )?
+        .push("SelfSigned",
+            doc("Validates that the peer presents a single certificate which is a byte-for-byte match against the configured peer certificate")
+                .details("The certificate is parsed only to ensure that the `NotBefore` and `NotAfter` are valid for the current system time.")
+        )?
+        .doc(
+            doc("Determines how the certificate(s) presented by the peer are validated")
+                .details("This validation always occurs **after** the handshake signature has been verified."))?
+        .build()
 }

@@ -1,4 +1,5 @@
 ### Next ###
+* Add Modbus Security (TLS) support. See [#52](https://github.com/stepfunc/rodbus/pull/52).
 * Add RTU support. See [#56](https://github.com/stepfunc/rodbus/pull/56).
 
 ### 0.9.1 ###

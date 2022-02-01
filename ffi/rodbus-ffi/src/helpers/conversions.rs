@@ -1,3 +1,7 @@
+use rodbus::client::{CertificateMode, MinTlsVersion, TlsError};
+use rodbus::server::AuthorizationResult;
+use rodbus::AddressRange;
+
 use crate::ffi;
 use std::ptr::null_mut;
 
@@ -103,6 +107,15 @@ impl std::convert::From<ffi::Register> for rodbus::Indexed<u16> {
     }
 }
 
+impl From<AddressRange> for ffi::AddressRange {
+    fn from(x: AddressRange) -> Self {
+        ffi::AddressRange {
+            start: x.start,
+            count: x.count,
+        }
+    }
+}
+
 impl From<ffi::SerialPortSettings> for rodbus::serial::SerialSettings {
     fn from(from: ffi::SerialPortSettings) -> Self {
         Self {
@@ -127,6 +140,45 @@ impl From<ffi::SerialPortSettings> for rodbus::serial::SerialSettings {
                 ffi::StopBits::One => rodbus::serial::StopBits::One,
                 ffi::StopBits::Two => rodbus::serial::StopBits::Two,
             },
+        }
+    }
+}
+
+impl From<ffi::AuthorizationResult> for AuthorizationResult {
+    fn from(x: ffi::AuthorizationResult) -> Self {
+        match x {
+            ffi::AuthorizationResult::Authorized => Self::Authorized,
+            ffi::AuthorizationResult::NotAuthorized => Self::NotAuthorized,
+        }
+    }
+}
+
+impl From<TlsError> for ffi::ParamError {
+    fn from(error: TlsError) -> Self {
+        match error {
+            TlsError::InvalidDnsName => ffi::ParamError::InvalidDnsName,
+            TlsError::InvalidPeerCertificate(_) => ffi::ParamError::InvalidPeerCertificate,
+            TlsError::InvalidLocalCertificate(_) => ffi::ParamError::InvalidLocalCertificate,
+            TlsError::InvalidPrivateKey(_) => ffi::ParamError::InvalidPrivateKey,
+            TlsError::Miscellaneous(_) => ffi::ParamError::MiscellaneousTlsError,
+        }
+    }
+}
+
+impl From<ffi::MinTlsVersion> for MinTlsVersion {
+    fn from(from: ffi::MinTlsVersion) -> Self {
+        match from {
+            ffi::MinTlsVersion::V1_2 => MinTlsVersion::V1_2,
+            ffi::MinTlsVersion::V1_3 => MinTlsVersion::V1_3,
+        }
+    }
+}
+
+impl From<ffi::CertificateMode> for CertificateMode {
+    fn from(from: ffi::CertificateMode) -> Self {
+        match from {
+            ffi::CertificateMode::AuthorityBased => CertificateMode::AuthorityBased,
+            ffi::CertificateMode::SelfSigned => CertificateMode::SelfSigned,
         }
     }
 }

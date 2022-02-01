@@ -72,6 +72,10 @@ impl FrameDestination {
             Self::Broadcast => UnitId::broadcast().value,
         }
     }
+
+    pub(crate) fn into_unit_id(self) -> UnitId {
+        UnitId::new(self.value())
+    }
 }
 
 impl std::fmt::Display for FrameDestination {

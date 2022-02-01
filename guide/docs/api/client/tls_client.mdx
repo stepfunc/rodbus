@@ -1,0 +1,115 @@
+---
+id: tls_client
+title: TLS Client
+sidebar_label: TLS Client
+slug: /api/master/tls_client
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+Creating a TLS client is exactly the same process as a [TCP client](./tcp_client.mdx),
+except that an extra `TlsClientConfig` is required. For more details about TLS support and the configuration options,
+check the [TLS general information](../tls.mdx) page.
+
+## Examples
+
+### Certificate chain configuration
+
+<Tabs
+groupId="language"
+defaultValue="Rust"
+values={[
+{label: 'Rust', value: 'Rust'},
+{label: 'C', value: 'C'},
+{label: 'Java', value: 'Java'},
+{label: 'C#', value: 'C#'},
+]}>
+<TabItem value="Rust">
+
+```rust
+{{#include ../rodbus/examples/client.rs:tls_ca_chain_config}}
+
+{{#include ../rodbus/examples/client.rs:create_tls_channel}}
+```
+
+</TabItem>
+<TabItem value="C">
+
+```c
+{{#include ../ffi/bindings/c/client_example.c:tls_ca_chain_config}}
+
+{{#include ../ffi/bindings/c/client_example.c:create_tls_channel}}
+// check error
+```
+
+</TabItem>
+<TabItem value="Java">
+
+```java
+{{#include ../ffi/bindings/java/examples/src/main/java/io/stepfunc/rodbus/examples/ClientExample.java:tls_ca_chain_config}}
+
+{{#include ../ffi/bindings/java/examples/src/main/java/io/stepfunc/rodbus/examples/ClientExample.java:create_tls_channel}}
+```
+
+</TabItem>
+<TabItem value="C#">
+
+```csharp
+{{#include ../ffi/bindings/dotnet/examples/client/Program.cs:tls_ca_chain_config}}
+
+{{#include ../ffi/bindings/dotnet/examples/client/Program.cs:create_tls_channel}}
+```
+
+</TabItem>
+</Tabs>
+
+### Self-signed certificate configuration
+
+<Tabs
+groupId="language"
+defaultValue="Rust"
+values={[
+{label: 'Rust', value: 'Rust'},
+{label: 'C', value: 'C'},
+{label: 'Java', value: 'Java'},
+{label: 'C#', value: 'C#'},
+]}>
+<TabItem value="Rust">
+
+```rust
+{{#include ../rodbus/examples/client.rs:tls_self_signed_config}}
+
+{{#include ../rodbus/examples/client.rs:create_tls_channel}}
+```
+
+</TabItem>
+<TabItem value="C">
+
+```c
+{{#include ../ffi/bindings/c/client_example.c:tls_self_signed_config}}
+
+{{#include ../ffi/bindings/c/client_example.c:create_tls_channel}}
+// check error
+```
+
+</TabItem>
+<TabItem value="Java">
+
+```java
+{{#include ../ffi/bindings/java/examples/src/main/java/io/stepfunc/rodbus/examples/ClientExample.java:tls_self_signed_config}}
+
+{{#include ../ffi/bindings/java/examples/src/main/java/io/stepfunc/rodbus/examples/ClientExample.java:create_tls_channel}}
+```
+
+</TabItem>
+<TabItem value="C#">
+
+```csharp
+{{#include ../ffi/bindings/dotnet/examples/client/Program.cs:tls_self_signed_config}}
+
+{{#include ../ffi/bindings/dotnet/examples/client/Program.cs:create_tls_channel}}
+```
+
+</TabItem>
+</Tabs>

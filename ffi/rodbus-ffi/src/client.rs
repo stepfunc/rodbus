@@ -1,8 +1,8 @@
-use std::time::Duration;
-
 use crate::ffi;
 use rodbus::client::{ReconnectStrategy, WriteMultiple};
 use rodbus::AddressRange;
+use std::path::Path;
+use std::time::Duration;
 
 pub struct Channel {
     pub(crate) inner: rodbus::client::Channel,
@@ -49,6 +49,53 @@ pub(crate) unsafe fn create_rtu_client(
         serial_params.into(),
         max_queued_requests as usize,
         open_retry_delay,
+        decode_level.into(),
+    );
+
+    runtime.inner.spawn(task);
+
+    Ok(Box::into_raw(Box::new(Channel {
+        inner: handle,
+        runtime: runtime.handle(),
+    })))
+}
+
+pub(crate) unsafe fn create_tls_client(
+    runtime: *mut crate::Runtime,
+    address: &std::ffi::CStr,
+    max_queued_requests: u16,
+    retry_strategy: ffi::RetryStrategy,
+    tls_config: ffi::TlsClientConfig,
+    decode_level: ffi::DecodeLevel,
+) -> Result<*mut crate::Channel, ffi::ParamError> {
+    let runtime = runtime.as_ref().ok_or(ffi::ParamError::NullParameter)?;
+    let address = address.to_string_lossy().parse()?;
+
+    let password = tls_config.password().to_string_lossy();
+    let optional_password = match password.as_ref() {
+        "" => None,
+        password => Some(password),
+    };
+
+    let tls_config = rodbus::client::TlsClientConfig::new(
+        &tls_config.dns_name().to_string_lossy(),
+        Path::new(tls_config.peer_cert_path().to_string_lossy().as_ref()),
+        Path::new(tls_config.local_cert_path().to_string_lossy().as_ref()),
+        Path::new(tls_config.private_key_path().to_string_lossy().as_ref()),
+        optional_password,
+        tls_config.min_tls_version().into(),
+        tls_config.certificate_mode().into(),
+    )
+    .map_err(|err| {
+        tracing::error!("TLS error: {}", err);
+        err
+    })?;
+
+    let (handle, task) = rodbus::client::create_tls_handle_and_task(
+        address,
+        max_queued_requests as usize,
+        retry_strategy.into(),
+        tls_config,
         decode_level.into(),
     );
 

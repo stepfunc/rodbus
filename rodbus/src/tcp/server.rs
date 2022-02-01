@@ -5,9 +5,12 @@ use tracing::Instrument;
 
 use crate::common::phys::PhysLayer;
 use crate::decode::DecodeLevel;
+use crate::server::task::SessionAuthentication;
+use crate::server::AuthorizationHandler;
 use crate::tcp::frame::{MbapFormatter, MbapParser};
-use crate::tokio;
+use crate::tcp::tls::TlsServerConfig;
 use crate::tokio::net::TcpListener;
+use crate::{tokio, PhysDecodeLevel};
 use std::net::SocketAddr;
 
 use crate::server::handler::{RequestHandler, ServerHandlerMap};
@@ -59,10 +62,37 @@ impl SessionTracker {
     }
 }
 
+#[derive(Clone)]
+pub(crate) enum TcpServerConnectionHandler {
+    Tcp,
+    Tls(TlsServerConfig, Arc<dyn AuthorizationHandler>),
+}
+
+impl TcpServerConnectionHandler {
+    async fn handle(
+        &mut self,
+        socket: crate::tokio::net::TcpStream,
+        level: PhysDecodeLevel,
+    ) -> Result<(PhysLayer, SessionAuthentication), String> {
+        match self {
+            Self::Tcp => Ok((
+                PhysLayer::new_tcp(socket, level),
+                SessionAuthentication::Unauthenticated,
+            )),
+            Self::Tls(config, auth_handler) => {
+                config
+                    .handle_connection(socket, level, auth_handler.clone())
+                    .await
+            }
+        }
+    }
+}
+
 pub(crate) struct ServerTask<T: RequestHandler> {
     listener: TcpListener,
     handlers: ServerHandlerMap<T>,
     tracker: SessionTrackerWrapper,
+    connection_handler: TcpServerConnectionHandler,
     decode: DecodeLevel,
 }
 
@@ -74,12 +104,14 @@ where
         max_sessions: usize,
         listener: TcpListener,
         handlers: ServerHandlerMap<T>,
+        connection_handler: TcpServerConnectionHandler,
         decode: DecodeLevel,
     ) -> Self {
         Self {
             listener,
             handlers,
             tracker: SessionTracker::wrapped(max_sessions),
+            connection_handler,
             decode,
         }
     }
@@ -107,33 +139,43 @@ where
         }
     }
 
-    async fn handle(&self, socket: tokio::net::TcpStream, addr: SocketAddr) {
-        let phys = PhysLayer::new_tcp(socket, self.decode.physical);
+    async fn handle(&mut self, socket: tokio::net::TcpStream, addr: SocketAddr) {
         let decode = self.decode;
         let handlers = self.handlers.clone();
+        let mut conn_handler = self.connection_handler.clone();
         let tracker = self.tracker.clone();
         let (tx, rx) = tokio::sync::mpsc::channel(1);
-
-        let id = self.tracker.lock().unwrap().add(tx);
-
-        tracing::info!("accepted connection {} from: {}", id, addr);
         let span = tracing::span::Span::current();
 
+        tracing::info!("accepted connection from: {}", addr);
+
+        // We first spawn the task so that multiple TLS handshakes can happen at the same time
         tokio::spawn(async move {
-            crate::server::task::SessionTask::new(
-                phys,
-                handlers,
-                MbapFormatter::new(decode.adu),
-                MbapParser::new(decode.adu),
-                rx,
-                decode.pdu,
-            )
-            .run()
-            .instrument(tracing::info_span!(parent: &span, "Session", "remote" = ?addr))
-            .await
-            .ok();
-            tracing::info!("shutdown session: {}", id);
-            tracker.lock().unwrap().remove(id);
+            match conn_handler.handle(socket, decode.physical).await {
+                Err(err) => {
+                    tracing::warn!("error from {}: {}", addr, err);
+                }
+                Ok((phys, auth)) => {
+                    let id = tracker.lock().unwrap().add(tx);
+                    tracing::info!("established session {} from: {}", id, addr);
+
+                    crate::server::task::SessionTask::new(
+                        phys,
+                        handlers,
+                        auth,
+                        MbapFormatter::new(decode.adu),
+                        MbapParser::new(decode.adu),
+                        rx,
+                        decode.pdu,
+                    )
+                    .run()
+                    .instrument(tracing::info_span!(parent: &span, "Session", "remote" = ?addr))
+                    .await
+                    .ok();
+                    tracing::info!("shutdown session: {}", id);
+                    tracker.lock().unwrap().remove(id);
+                }
+            }
         });
     }
 }
