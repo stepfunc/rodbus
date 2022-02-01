@@ -78,6 +78,7 @@ async fn run_rtu() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 async fn run_tls(tls_config: TlsClientConfig) -> Result<(), Box<dyn std::error::Error>> {
+    // ANCHOR: create_tls_channel
     let channel = spawn_tls_client_task(
         "127.0.0.1:802".parse()?,
         1,
@@ -89,6 +90,7 @@ async fn run_tls(tls_config: TlsClientConfig) -> Result<(), Box<dyn std::error::
             PhysDecodeLevel::Nothing,
         ),
     );
+    // ANCHOR_END: create_tls_channel
 
     run_channel(channel).await
 }
