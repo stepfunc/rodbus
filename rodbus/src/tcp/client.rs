@@ -6,7 +6,6 @@ use crate::client::Channel;
 use crate::common::phys::PhysLayer;
 use crate::decode::DecodeLevel;
 use crate::tcp::frame::{MbapFormatter, MbapParser};
-use crate::tcp::tls::TlsClientConfig;
 use crate::tokio;
 use crate::tokio::net::TcpStream;
 use crate::tokio::sync::mpsc::Receiver;
@@ -51,7 +50,8 @@ pub(crate) fn create_tcp_channel(
 
 pub(crate) enum TcpTaskConnectionHandler {
     Tcp,
-    Tls(TlsClientConfig),
+    #[cfg(feature = "tls")]
+    Tls(crate::tcp::tls::TlsClientConfig),
 }
 
 impl TcpTaskConnectionHandler {
@@ -63,6 +63,7 @@ impl TcpTaskConnectionHandler {
     ) -> Result<PhysLayer, String> {
         match self {
             Self::Tcp => Ok(PhysLayer::new_tcp(socket, level)),
+            #[cfg(feature = "tls")]
             Self::Tls(config) => config.handle_connection(socket, endpoint, level).await,
         }
     }

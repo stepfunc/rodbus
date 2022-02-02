@@ -18,12 +18,14 @@ pub(crate) mod response;
 pub(crate) mod task;
 pub(crate) mod types;
 
-// re-export to the public API
-pub use crate::tcp::tls::server::TlsServerConfig;
-pub use crate::tcp::tls::*;
 pub use handler::*;
-use std::sync::Arc;
 pub use types::*;
+
+// re-export to the public API
+#[cfg(feature = "tls")]
+pub use crate::tcp::tls::server::TlsServerConfig;
+#[cfg(feature = "tls")]
+pub use crate::tcp::tls::*;
 
 /// A handle to the server async task. The task is shutdown when the handle is dropped.
 #[derive(Debug)]
@@ -225,11 +227,12 @@ async fn create_rtu_server_task_impl<T: RequestHandler>(
 /// * `auth_handler` - Authorization handler
 /// * `tls_config` - TLS configuration
 /// * `decode` - Decode log level
+#[cfg(feature = "tls")]
 pub async fn spawn_tls_server_task<T: RequestHandler>(
     max_sessions: usize,
     addr: SocketAddr,
     handlers: ServerHandlerMap<T>,
-    auth_handler: Arc<dyn AuthorizationHandler>,
+    auth_handler: std::sync::Arc<dyn AuthorizationHandler>,
     tls_config: TlsServerConfig,
     decode: DecodeLevel,
 ) -> Result<ServerHandle, crate::tokio::io::Error> {
@@ -263,12 +266,13 @@ pub async fn spawn_tls_server_task<T: RequestHandler>(
 /// * `auth_handler` - Authorization handler
 /// * `tls_config` - TLS configuration
 /// * `decode` - Decode log level
+#[cfg(feature = "tls")]
 pub async fn create_tls_server_task<T: RequestHandler>(
     rx: tokio::sync::mpsc::Receiver<()>,
     max_sessions: usize,
     addr: SocketAddr,
     handlers: ServerHandlerMap<T>,
-    auth_handler: Arc<dyn AuthorizationHandler>,
+    auth_handler: std::sync::Arc<dyn AuthorizationHandler>,
     tls_config: TlsServerConfig,
     decode: DecodeLevel,
 ) -> Result<impl std::future::Future<Output = ()>, crate::tokio::io::Error> {
@@ -285,6 +289,7 @@ pub async fn create_tls_server_task<T: RequestHandler>(
     ))
 }
 
+#[cfg(feature = "tls")]
 #[allow(clippy::too_many_arguments)]
 async fn create_tls_server_task_impl<T: RequestHandler>(
     rx: tokio::sync::mpsc::Receiver<()>,
@@ -292,7 +297,7 @@ async fn create_tls_server_task_impl<T: RequestHandler>(
     addr: SocketAddr,
     listener: crate::tokio::net::TcpListener,
     handlers: ServerHandlerMap<T>,
-    auth_handler: Arc<dyn AuthorizationHandler>,
+    auth_handler: std::sync::Arc<dyn AuthorizationHandler>,
     tls_config: TlsServerConfig,
     decode: DecodeLevel,
 ) {

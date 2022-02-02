@@ -185,5 +185,6 @@ pub(crate) enum SessionAuthentication {
     /// The request is not authenticated
     Unauthenticated,
     /// The request is authenticated with a Role ID
+    #[allow(dead_code)] // when tls feature is disabled
     Authenticated(Arc<dyn AuthorizationHandler>, String),
 }
