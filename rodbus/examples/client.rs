@@ -34,7 +34,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
     match transport {
         "tcp" => run_tcp().await,
         "rtu" => run_rtu().await,
+        #[cfg(feature = "tls")]
         "tls-ca" => run_tls(get_ca_chain_config()?).await,
+        #[cfg(feature = "tls")]
         "tls-self-signed" => run_tls(get_self_signed_config()?).await,
         _ => {
             eprintln!(
@@ -77,6 +79,7 @@ async fn run_rtu() -> Result<(), Box<dyn std::error::Error>> {
     run_channel(channel).await
 }
 
+#[cfg(feature = "tls")]
 async fn run_tls(tls_config: TlsClientConfig) -> Result<(), Box<dyn std::error::Error>> {
     // ANCHOR: create_tls_channel
     let channel = spawn_tls_client_task(
@@ -95,6 +98,7 @@ async fn run_tls(tls_config: TlsClientConfig) -> Result<(), Box<dyn std::error::
     run_channel(channel).await
 }
 
+#[cfg(feature = "tls")]
 fn get_self_signed_config() -> Result<TlsClientConfig, Box<dyn std::error::Error>> {
     // ANCHOR: tls_self_signed_config
     let tls_config = TlsClientConfig::new(
@@ -111,6 +115,7 @@ fn get_self_signed_config() -> Result<TlsClientConfig, Box<dyn std::error::Error
     Ok(tls_config)
 }
 
+#[cfg(feature = "tls")]
 fn get_ca_chain_config() -> Result<TlsClientConfig, Box<dyn std::error::Error>> {
     // ANCHOR: tls_ca_chain_config
     let tls_config = TlsClientConfig::new(

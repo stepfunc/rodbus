@@ -13,8 +13,10 @@ pub(crate) mod task;
 pub use crate::client::channel::strategy::*;
 pub use crate::client::channel::*;
 pub use crate::client::requests::write_multiple::WriteMultiple;
+
+#[cfg(feature = "tls")]
 pub use crate::tcp::tls::client::TlsClientConfig;
-pub use crate::tcp::tls::server::TlsServerConfig;
+#[cfg(feature = "tls")]
 pub use crate::tcp::tls::*;
 
 /// Spawns a channel task onto the runtime that maintains a TCP connection and processes
@@ -116,6 +118,7 @@ pub fn create_rtu_handle_and_task(
 /// * `retry` - A boxed trait object that controls when the connection is retried on failure
 /// * `tls_config` - TLS configuration
 /// * `decode` - Decode log level
+#[cfg(feature = "tls")]
 pub fn spawn_tls_client_task(
     addr: SocketAddr,
     max_queued_requests: usize,
@@ -137,6 +140,7 @@ pub fn spawn_tls_client_task(
 /// * `retry` - A boxed trait object that controls when the connection is retried on failure
 /// * `tls_config` - TLS configuration
 /// * `decode` - Decode log level
+#[cfg(feature = "tls")]
 pub fn create_tls_handle_and_task(
     addr: SocketAddr,
     max_queued_requests: usize,

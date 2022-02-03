@@ -5,15 +5,15 @@ use tracing::Instrument;
 
 use crate::common::phys::PhysLayer;
 use crate::decode::DecodeLevel;
+use crate::server::handler::{RequestHandler, ServerHandlerMap};
 use crate::server::task::SessionAuthentication;
-use crate::server::AuthorizationHandler;
 use crate::tcp::frame::{MbapFormatter, MbapParser};
-use crate::tcp::tls::TlsServerConfig;
 use crate::tokio::net::TcpListener;
 use crate::{tokio, PhysDecodeLevel};
 use std::net::SocketAddr;
 
-use crate::server::handler::{RequestHandler, ServerHandlerMap};
+#[cfg(feature = "tls")]
+use crate::server::AuthorizationHandler;
 
 struct SessionTracker {
     max: usize,
@@ -65,7 +65,11 @@ impl SessionTracker {
 #[derive(Clone)]
 pub(crate) enum TcpServerConnectionHandler {
     Tcp,
-    Tls(TlsServerConfig, Arc<dyn AuthorizationHandler>),
+    #[cfg(feature = "tls")]
+    Tls(
+        crate::tcp::tls::TlsServerConfig,
+        Arc<dyn AuthorizationHandler>,
+    ),
 }
 
 impl TcpServerConnectionHandler {
@@ -79,6 +83,7 @@ impl TcpServerConnectionHandler {
                 PhysLayer::new_tcp(socket, level),
                 SessionAuthentication::Unauthenticated,
             )),
+            #[cfg(feature = "tls")]
             Self::Tls(config, auth_handler) => {
                 config
                     .handle_connection(socket, level, auth_handler.clone())
