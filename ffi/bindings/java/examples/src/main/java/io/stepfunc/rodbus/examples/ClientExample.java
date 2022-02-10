@@ -29,8 +29,7 @@ public class ClientExample {
 
         // initialize the runtime
         // ANCHOR: runtime_init
-        RuntimeConfig runtimeConfig = new RuntimeConfig();
-        runtimeConfig.numCoreThreads = ushort(4);
+        RuntimeConfig runtimeConfig = new RuntimeConfig().withNumCoreThreads(ushort(4));
         Runtime runtime = new Runtime(runtimeConfig);
         // ANCHOR_END: runtime_init
 
@@ -123,8 +122,7 @@ public class ClientExample {
                 "./certs/self_signed/entity1_cert.pem",
                 "./certs/self_signed/entity1_key.pem",
                 "" // no password
-        );
-        tlsConfig.certificateMode = CertificateMode.SELF_SIGNED;
+        ).withCertificateMode(CertificateMode.SELF_SIGNED);
         // ANCHOR_END: tls_self_signed_config
 
         return tlsConfig;

@@ -112,8 +112,7 @@ public class ServerExample {
         Logging.configure(new LoggingConfig(), new ConsoleLogger());
 
         // initialize the runtime
-        RuntimeConfig runtimeConfig = new RuntimeConfig();
-        runtimeConfig.numCoreThreads = ushort(4);
+        RuntimeConfig runtimeConfig = new RuntimeConfig().withNumCoreThreads(ushort(4));
         Runtime runtime = new Runtime(runtimeConfig);
 
         // create the device map
@@ -207,8 +206,7 @@ public class ServerExample {
                 "./certs/self_signed/entity2_cert.pem",
                 "./certs/self_signed/entity2_key.pem",
                 "" // no password
-        );
-        tlsConfig.certificateMode = CertificateMode.SELF_SIGNED;
+        ).withCertificateMode(CertificateMode.SELF_SIGNED);
         // ANCHOR_END: tls_self_signed_config
 
         return tlsConfig;
