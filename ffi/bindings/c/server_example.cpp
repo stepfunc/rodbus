@@ -6,7 +6,7 @@
 #include <string>
 
 class Logger : public rodbus::Logger {
-    void on_message(rodbus::LogLevel level, std::string message) override
+    void on_message(rodbus::LogLevel level, const char* message) override
     {
         std::cout << message;
     }
@@ -72,42 +72,42 @@ class WriterHandler : public rodbus::WriteHandler
 // ANCHOR: auth_handler
 class AuthorizationHandler : public rodbus::AuthorizationHandler
 {
-    rodbus::AuthorizationResult read_coils(uint8_t unit_id, const rodbus::AddressRange& range, std::string role) override
+    rodbus::AuthorizationResult read_coils(uint8_t unit_id, const rodbus::AddressRange& range, const char* role) override
     {
         return rodbus::AuthorizationResult::authorized;
     }
 
-    rodbus::AuthorizationResult read_discrete_inputs(uint8_t unit_id, const rodbus::AddressRange& range, std::string role) override
+    rodbus::AuthorizationResult read_discrete_inputs(uint8_t unit_id, const rodbus::AddressRange& range, const char* role) override
     {
         return rodbus::AuthorizationResult::authorized;
     }
 
-    rodbus::AuthorizationResult read_holding_registers(uint8_t unit_id, const rodbus::AddressRange& range, std::string role) override
+    rodbus::AuthorizationResult read_holding_registers(uint8_t unit_id, const rodbus::AddressRange& range, const char* role) override
     {
         return rodbus::AuthorizationResult::authorized;
     }
 
-    rodbus::AuthorizationResult read_input_registers(uint8_t unit_id, const rodbus::AddressRange& range, std::string role) override
+    rodbus::AuthorizationResult read_input_registers(uint8_t unit_id, const rodbus::AddressRange& range, const char* role) override
     {
         return rodbus::AuthorizationResult::authorized;
     }
 
-    rodbus::AuthorizationResult write_single_coil(uint8_t unit_id, uint16_t idx, std::string role) override
+    rodbus::AuthorizationResult write_single_coil(uint8_t unit_id, uint16_t idx, const char* role) override
     {
         return rodbus::AuthorizationResult::not_authorized;
     }
 
-    rodbus::AuthorizationResult write_single_register(uint8_t unit_id, uint16_t idx, std::string role) override
+    rodbus::AuthorizationResult write_single_register(uint8_t unit_id, uint16_t idx, const char* role) override
     {
         return rodbus::AuthorizationResult::not_authorized;
     }
 
-    rodbus::AuthorizationResult write_multiple_coils(uint8_t unit_id, const rodbus::AddressRange& range, std::string role) override
+    rodbus::AuthorizationResult write_multiple_coils(uint8_t unit_id, const rodbus::AddressRange& range, const char* role) override
     {
         return rodbus::AuthorizationResult::not_authorized;
     }
 
-    rodbus::AuthorizationResult write_multiple_registers(uint8_t unit_id, const rodbus::AddressRange& range, std::string role) override
+    rodbus::AuthorizationResult write_multiple_registers(uint8_t unit_id, const rodbus::AddressRange& range, const char* role) override
     {
         return rodbus::AuthorizationResult::not_authorized;
     }

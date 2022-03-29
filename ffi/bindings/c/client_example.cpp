@@ -7,7 +7,7 @@
 
 /// ANCHOR: logging_callback
 class Logger : public rodbus::Logger {
-    void on_message(rodbus::LogLevel level, std::string message) override
+    void on_message(rodbus::LogLevel level, const char* message) override
     {
         std::cout << message;
     }
