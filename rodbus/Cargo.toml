@@ -1,6 +1,6 @@
 [package]
 name = "rodbus"
-version = "1.0.0-alpha3"
+version = "1.0.0-alpha4"
 authors = ["Adam Crain <adam@stepfunc.io>", "Émile Grégoire <emile@stepfunc.io>"]
 edition = "2021"
 description = "A high-performance async implementation of the Modbus protocol using tokio"
