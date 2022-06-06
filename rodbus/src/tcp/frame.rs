@@ -175,7 +175,6 @@ impl FrameFormatter for MbapFormatter {
             cursor.write_u16_be(frame_length_value)?;
         }
         let total_length = constants::HEADER_LENGTH + adu_length;
-        drop(cursor);
 
         // Logging
         if self.decode.enabled() {
