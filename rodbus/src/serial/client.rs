@@ -6,7 +6,7 @@ use crate::serial::frame::{RtuFormatter, RtuParser};
 use crate::serial::SerialSettings;
 use crate::tokio::sync::mpsc::Receiver;
 
-use crate::client::message::Request;
+use crate::client::message::Command;
 use crate::client::task::{ClientLoop, SessionError};
 
 pub(crate) struct SerialChannelTask {
@@ -14,14 +14,13 @@ pub(crate) struct SerialChannelTask {
     serial_settings: SerialSettings,
     retry_delay: Duration,
     client_loop: ClientLoop<RtuFormatter, RtuParser>,
-    decode: DecodeLevel,
 }
 
 impl SerialChannelTask {
     pub(crate) fn new(
         path: &str,
         serial_settings: SerialSettings,
-        rx: Receiver<Request>,
+        rx: Receiver<Command>,
         retry_delay: Duration,
         decode: DecodeLevel,
     ) -> Self {
@@ -31,11 +30,10 @@ impl SerialChannelTask {
             retry_delay,
             client_loop: ClientLoop::new(
                 rx,
-                RtuFormatter::new(decode.adu),
-                RtuParser::new_response_parser(decode.adu),
-                decode.pdu,
+                RtuFormatter::new(),
+                RtuParser::new_response_parser(),
+                decode,
             ),
-            decode,
         }
     }
 
@@ -60,7 +58,7 @@ impl SerialChannelTask {
                     }
                 }
                 Ok(serial) => {
-                    let mut phys = PhysLayer::new_serial(serial, self.decode.physical);
+                    let mut phys = PhysLayer::new_serial(serial);
                     tracing::info!("serial port open");
                     match self.client_loop.run(&mut phys).await {
                         // the mpsc was closed, end the task

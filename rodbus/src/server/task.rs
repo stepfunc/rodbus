@@ -1,9 +1,8 @@
 use tracing::Instrument;
 
 use crate::common::phys::PhysLayer;
-use crate::decode::PduDecodeLevel;
 use crate::server::AuthorizationHandler;
-use crate::tokio;
+use crate::{tokio, DecodeLevel};
 
 use crate::common::cursor::ReadCursor;
 use crate::common::frame::{
@@ -30,7 +29,7 @@ where
     shutdown: tokio::sync::mpsc::Receiver<()>,
     writer: F,
     reader: FramedReader<P>,
-    decode: PduDecodeLevel,
+    decode: DecodeLevel,
 }
 
 impl<T, F, P> SessionTask<T, F, P>
@@ -46,7 +45,7 @@ where
         formatter: F,
         parser: P,
         shutdown: tokio::sync::mpsc::Receiver<()>,
-        decode: PduDecodeLevel,
+        decode: DecodeLevel,
     ) -> Self {
         Self {
             io,
@@ -66,8 +65,8 @@ where
     ) -> Result<(), RequestError> {
         // do not answer on broadcast
         if header.destination != FrameDestination::Broadcast {
-            let bytes = self.writer.error(header, err, self.decode)?;
-            self.io.write(bytes).await?;
+            let bytes = self.writer.error(header, err, self.decode.adu)?;
+            self.io.write(bytes, self.decode.physical).await?;
         }
         Ok(())
     }
@@ -80,7 +79,7 @@ where
 
     async fn run_one(&mut self) -> Result<(), RequestError> {
         crate::tokio::select! {
-            frame = self.reader.next_frame(&mut self.io) => {
+            frame = self.reader.next_frame(&mut self.io, self.decode) => {
                 let frame = frame?;
                 let tx_id = frame.header.tx_id;
                 self.handle_frame(frame)
@@ -125,8 +124,11 @@ where
             }
         };
 
-        if self.decode.enabled() {
-            tracing::info!("PDU RX - {}", RequestDisplay::new(self.decode, &request));
+        if self.decode.pdu.enabled() {
+            tracing::info!(
+                "PDU RX - {}",
+                RequestDisplay::new(self.decode.pdu, &request)
+            );
         }
 
         // if no addresses match, then don't respond
@@ -153,7 +155,7 @@ where
                 };
 
                 // reply with the bytes
-                self.io.write(reply_frame).await?;
+                self.io.write(reply_frame, self.decode.physical).await?;
             }
             FrameDestination::Broadcast => {
                 // check if broadcast is supported for this function code

@@ -33,28 +33,24 @@ enum ParseState {
 
 pub(crate) struct MbapParser {
     state: ParseState,
-    decode: AduDecodeLevel,
 }
 
 pub(crate) struct MbapFormatter {
     buffer: [u8; constants::MAX_FRAME_LENGTH],
-    decode: AduDecodeLevel,
 }
 
 impl MbapFormatter {
-    pub(crate) fn new(decode: AduDecodeLevel) -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             buffer: [0; constants::MAX_FRAME_LENGTH],
-            decode,
         }
     }
 }
 
 impl MbapParser {
-    pub(crate) fn new(decode: AduDecodeLevel) -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             state: ParseState::Begin,
-            decode,
         }
     }
 
@@ -98,7 +94,11 @@ impl FrameParser for MbapParser {
         constants::MAX_FRAME_LENGTH
     }
 
-    fn parse(&mut self, cursor: &mut ReadBuffer) -> Result<Option<Frame>, RequestError> {
+    fn parse(
+        &mut self,
+        cursor: &mut ReadBuffer,
+        decode_level: AduDecodeLevel,
+    ) -> Result<Option<Frame>, RequestError> {
         match self.state {
             ParseState::Header(header) => {
                 if cursor.len() < header.adu_length {
@@ -108,10 +108,10 @@ impl FrameParser for MbapParser {
                 let frame = Self::parse_body(&header, cursor)?;
                 self.state = ParseState::Begin;
 
-                if self.decode.enabled() {
+                if decode_level.enabled() {
                     tracing::info!(
                         "MBAP RX - {}",
-                        MbapDisplay::new(self.decode, header, frame.payload())
+                        MbapDisplay::new(decode_level, header, frame.payload())
                     );
                 }
 
@@ -123,7 +123,7 @@ impl FrameParser for MbapParser {
                 }
 
                 self.state = ParseState::Header(Self::parse_header(cursor)?);
-                self.parse(cursor)
+                self.parse(cursor, decode_level)
             }
         }
     }
@@ -138,6 +138,7 @@ impl FrameFormatter for MbapFormatter {
         &mut self,
         header: FrameHeader,
         msg: &dyn Serialize,
+        decode_level: AduDecodeLevel,
     ) -> Result<usize, RequestError> {
         let mut cursor = WriteCursor::new(self.buffer.as_mut());
 
@@ -177,7 +178,7 @@ impl FrameFormatter for MbapFormatter {
         let total_length = constants::HEADER_LENGTH + adu_length;
 
         // Logging
-        if self.decode.enabled() {
+        if decode_level.enabled() {
             let header = MbapHeader {
                 tx_id,
                 adu_length,
@@ -185,7 +186,7 @@ impl FrameFormatter for MbapFormatter {
             };
             tracing::info!(
                 "MBAP TX - {}",
-                MbapDisplay::new(self.decode, header, &self.buffer[start..total_length])
+                MbapDisplay::new(decode_level, header, &self.buffer[start..total_length])
             );
         }
 
@@ -236,11 +237,11 @@ mod tests {
     use std::task::Poll;
 
     use crate::common::phys::PhysLayer;
-    use crate::decode::PhysDecodeLevel;
     use crate::tokio::test::*;
 
     use crate::common::frame::FramedReader;
     use crate::error::*;
+    use crate::DecodeLevel;
 
     use super::*;
 
@@ -272,9 +273,9 @@ mod tests {
     fn test_segmented_parse(split_at: usize) {
         let (f1, f2) = SIMPLE_FRAME.split_at(split_at);
         let (io, mut io_handle) = io::mock();
-        let mut reader = FramedReader::new(MbapParser::new(AduDecodeLevel::Nothing));
-        let mut layer = PhysLayer::new_mock(io, PhysDecodeLevel::Nothing);
-        let mut task = spawn(reader.next_frame(&mut layer));
+        let mut reader = FramedReader::new(MbapParser::new());
+        let mut layer = PhysLayer::new_mock(io);
+        let mut task = spawn(reader.next_frame(&mut layer, DecodeLevel::nothing()));
 
         assert!(task.poll().is_pending());
         io_handle.read(f1);
@@ -289,9 +290,9 @@ mod tests {
 
     fn test_error(input: &[u8]) -> RequestError {
         let (io, mut io_handle) = io::mock();
-        let mut reader = FramedReader::new(MbapParser::new(AduDecodeLevel::Nothing));
-        let mut layer = PhysLayer::new_mock(io, PhysDecodeLevel::Nothing);
-        let mut task = spawn(reader.next_frame(&mut layer));
+        let mut reader = FramedReader::new(MbapParser::new());
+        let mut layer = PhysLayer::new_mock(io);
+        let mut task = spawn(reader.next_frame(&mut layer, DecodeLevel::nothing()));
 
         io_handle.read(input);
         if let Poll::Ready(frame) = task.poll() {
@@ -303,10 +304,12 @@ mod tests {
 
     #[test]
     fn correctly_formats_frame() {
-        let mut formatter = MbapFormatter::new(AduDecodeLevel::Nothing);
+        let mut formatter = MbapFormatter::new();
         let msg = MockMessage { a: 0x03, b: 0x04 };
         let header = FrameHeader::new_tcp_header(UnitId::new(42), TxId::new(7));
-        let size = formatter.format_impl(header, &msg).unwrap();
+        let size = formatter
+            .format_impl(header, &msg, AduDecodeLevel::Nothing)
+            .unwrap();
         let output = formatter.get_full_buffer_impl(size).unwrap();
 
         assert_eq!(output, SIMPLE_FRAME)
@@ -315,9 +318,9 @@ mod tests {
     #[test]
     fn can_parse_frame_from_stream() {
         let (io, mut io_handle) = io::mock();
-        let mut reader = FramedReader::new(MbapParser::new(AduDecodeLevel::Nothing));
-        let mut layer = PhysLayer::new_mock(io, PhysDecodeLevel::Nothing);
-        let mut task = spawn(reader.next_frame(&mut layer));
+        let mut reader = FramedReader::new(MbapParser::new());
+        let mut layer = PhysLayer::new_mock(io);
+        let mut task = spawn(reader.next_frame(&mut layer, DecodeLevel::nothing()));
 
         io_handle.read(SIMPLE_FRAME);
         if let Poll::Ready(frame) = task.poll() {
@@ -334,11 +337,11 @@ mod tests {
         let payload = &[0xCC; 253];
 
         let (io, mut io_handle) = io::mock();
-        let mut reader = FramedReader::new(MbapParser::new(AduDecodeLevel::Nothing));
+        let mut reader = FramedReader::new(MbapParser::new());
         let mut task = spawn(async {
             assert_eq!(
                 reader
-                    .next_frame(&mut PhysLayer::new_mock(io, PhysDecodeLevel::Nothing))
+                    .next_frame(&mut PhysLayer::new_mock(io), DecodeLevel::nothing())
                     .await
                     .unwrap()
                     .payload(),

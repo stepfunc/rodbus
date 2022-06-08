@@ -10,7 +10,6 @@ use crate::server::task::SessionAuthentication;
 use crate::server::AuthorizationHandler;
 use crate::tcp::tls::{load_certs, load_private_key, CertificateMode, MinTlsVersion, TlsError};
 use crate::tokio::net::TcpStream;
-use crate::PhysDecodeLevel;
 
 type RoleContainer = Arc<Mutex<Option<String>>>;
 type ConfigBuilderCallback =
@@ -100,7 +99,6 @@ impl TlsServerConfig {
     pub(crate) async fn handle_connection(
         &mut self,
         socket: TcpStream,
-        level: PhysDecodeLevel,
         auth_handler: Arc<dyn AuthorizationHandler>,
     ) -> Result<(PhysLayer, SessionAuthentication), String> {
         let role_container = Arc::new(Mutex::new(None));
@@ -110,7 +108,7 @@ impl TlsServerConfig {
         match connector.accept(socket).await {
             Err(err) => Err(format!("failed to establish TLS session: {}", err)),
             Ok(stream) => {
-                let layer = PhysLayer::new_tls(tokio_rustls::TlsStream::from(stream), level);
+                let layer = PhysLayer::new_tls(tokio_rustls::TlsStream::from(stream));
                 let role = role_container
                     .lock()
                     .unwrap()

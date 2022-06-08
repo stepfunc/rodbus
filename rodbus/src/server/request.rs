@@ -42,7 +42,7 @@ impl<'a> Request<'a> {
         handler: &mut T,
         auth: &SessionAuthentication,
         writer: &'b mut F,
-        level: PduDecodeLevel,
+        level: DecodeLevel,
     ) -> Result<&'b [u8], RequestError>
     where
         T: RequestHandler,
@@ -55,7 +55,7 @@ impl<'a> Request<'a> {
             auth: &SessionAuthentication,
             auth_fn: FnAuth,
             result: FnResult,
-            level: PduDecodeLevel,
+            level: DecodeLevel,
         ) -> Result<&'a [u8], RequestError>
         where
             T: Serialize + Loggable,
@@ -75,7 +75,7 @@ impl<'a> Request<'a> {
                             header,
                             function,
                             ExceptionCode::IllegalFunction,
-                            level,
+                            level.adu,
                         );
                     }
                 }
@@ -90,7 +90,7 @@ impl<'a> Request<'a> {
             // exception is written instead. This is all handled inside `FrameFormatter::format`.
             match result {
                 Ok(data) => writer.format(header, function, &data, level),
-                Err(ex) => writer.exception(header, function, ex, level),
+                Err(ex) => writer.exception(header, function, ex, level.adu),
             }
         }
 

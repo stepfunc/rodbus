@@ -4,7 +4,7 @@ use crate::decode::PduDecodeLevel;
 use crate::error::AduParseError;
 use crate::error::*;
 use crate::exception::ExceptionCode;
-use crate::tokio;
+use crate::{tokio, DecodeLevel};
 
 use crate::client::requests::read_bits::ReadBits;
 use crate::client::requests::read_registers::ReadRegisters;
@@ -14,6 +14,17 @@ use crate::common::cursor::{ReadCursor, WriteCursor};
 use crate::common::traits::Serialize;
 use crate::types::{Indexed, UnitId};
 use std::time::Duration;
+
+pub(crate) enum Setting {
+    DecodeLevel(DecodeLevel),
+}
+
+pub(crate) enum Command {
+    /// Execute a Modbus request
+    Request(Request),
+    /// Change a setting
+    Setting(Setting),
+}
 
 pub(crate) struct Request {
     pub(crate) id: UnitId,

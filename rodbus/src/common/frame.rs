@@ -4,11 +4,11 @@ use crate::common::buffer::ReadBuffer;
 use crate::common::function::FunctionCode;
 use crate::common::traits::Serialize;
 use crate::common::traits::{Loggable, LoggableDisplay};
-use crate::decode::PduDecodeLevel;
 use crate::error::{InternalError, RequestError};
 use crate::exception::ExceptionCode;
 use crate::server::response::{ErrorResponse, Response};
 use crate::types::UnitId;
+use crate::{AduDecodeLevel, DecodeLevel};
 
 pub(crate) mod constants {
     pub(crate) const MAX_ADU_LENGTH: usize = 253;
@@ -149,7 +149,11 @@ pub(crate) trait FrameParser {
     /// `Err` implies the input data is invalid
     /// `Ok(None)` implies that more data is required to complete parsing
     /// `Ok(Some(..))` will contain a fully parsed frame and will advance the cursor appropriately
-    fn parse(&mut self, cursor: &mut ReadBuffer) -> Result<Option<Frame>, RequestError>;
+    fn parse(
+        &mut self,
+        cursor: &mut ReadBuffer,
+        decode_level: AduDecodeLevel,
+    ) -> Result<Option<Frame>, RequestError>;
 
     /// Reset the parser state. Called whenever an error occurs
     fn reset(&mut self);
@@ -161,6 +165,7 @@ pub(crate) trait FrameFormatter {
         &mut self,
         header: FrameHeader,
         msg: &dyn Serialize,
+        decode_level: AduDecodeLevel,
     ) -> Result<usize, RequestError>;
     fn get_full_buffer_impl(&self, size: usize) -> Option<&[u8]>;
     fn get_payload_impl(&self, size: usize) -> Option<&[u8]>;
@@ -188,26 +193,26 @@ pub(crate) trait FrameFormatter {
         header: FrameHeader,
         function: FunctionCode,
         msg: &T,
-        level: PduDecodeLevel,
+        level: DecodeLevel,
     ) -> Result<&[u8], RequestError>
     where
         T: Serialize + Loggable,
     {
         let response = Response::new(function, msg);
-        match self.format_impl(header, &response) {
+        match self.format_impl(header, &response, level.adu) {
             Ok(count) => {
-                if level.enabled() {
+                if level.pdu.enabled() {
                     tracing::info!(
                         "PDU TX - {} {}",
                         function,
-                        LoggableDisplay::new(msg, self.get_payload(count)?, level)
+                        LoggableDisplay::new(msg, self.get_payload(count)?, level.pdu)
                     );
                 }
 
                 self.get_full_buffer(count)
             }
             Err(err) => match err {
-                RequestError::Exception(ex) => self.exception(header, function, ex, level),
+                RequestError::Exception(ex) => self.exception(header, function, ex, level.adu),
                 _ => Err(err),
             },
         }
@@ -219,7 +224,7 @@ pub(crate) trait FrameFormatter {
         header: FrameHeader,
         function: FunctionCode,
         ex: ExceptionCode,
-        level: PduDecodeLevel,
+        level: AduDecodeLevel,
     ) -> Result<&[u8], RequestError> {
         self.error(header, ErrorResponse::new(function, ex), level)
     }
@@ -229,7 +234,7 @@ pub(crate) trait FrameFormatter {
         &mut self,
         header: FrameHeader,
         response: ErrorResponse,
-        level: PduDecodeLevel,
+        level: AduDecodeLevel,
     ) -> Result<&[u8], RequestError> {
         if level.enabled() {
             tracing::warn!(
@@ -239,7 +244,7 @@ pub(crate) trait FrameFormatter {
             );
         }
 
-        let len = self.format_impl(header, &response)?;
+        let len = self.format_impl(header, &response, level)?;
         self.get_full_buffer(len)
     }
 }
@@ -251,6 +256,7 @@ impl FrameFormatter for NullFrameFormatter {
         &mut self,
         _header: FrameHeader,
         _msg: &dyn Serialize,
+        _decode_level: AduDecodeLevel,
     ) -> Result<usize, RequestError> {
         Ok(0)
     }
@@ -268,7 +274,7 @@ impl FrameFormatter for NullFrameFormatter {
         _header: FrameHeader,
         _function: FunctionCode,
         _msg: &T,
-        _level: PduDecodeLevel,
+        _level: DecodeLevel,
     ) -> Result<&[u8], RequestError>
     where
         T: Serialize + Loggable,
@@ -280,7 +286,7 @@ impl FrameFormatter for NullFrameFormatter {
         &mut self,
         _header: FrameHeader,
         _response: ErrorResponse,
-        _level: PduDecodeLevel,
+        _level: AduDecodeLevel,
     ) -> Result<&[u8], RequestError> {
         Ok(&[])
     }
@@ -303,12 +309,16 @@ impl<T: FrameParser> FramedReader<T> {
         }
     }
 
-    pub(crate) async fn next_frame(&mut self, io: &mut PhysLayer) -> Result<Frame, RequestError> {
+    pub(crate) async fn next_frame(
+        &mut self,
+        io: &mut PhysLayer,
+        decode_level: DecodeLevel,
+    ) -> Result<Frame, RequestError> {
         loop {
-            match self.parser.parse(&mut self.buffer) {
+            match self.parser.parse(&mut self.buffer, decode_level.adu) {
                 Ok(Some(frame)) => return Ok(frame),
                 Ok(None) => {
-                    self.buffer.read_some(io).await?;
+                    self.buffer.read_some(io, decode_level.physical).await?;
                 }
                 Err(err) => {
                     self.parser.reset();

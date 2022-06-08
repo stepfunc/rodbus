@@ -184,15 +184,15 @@ async fn create_rtu_server_task_impl<T: RequestHandler>(
     handlers: ServerHandlerMap<T>,
     decode: DecodeLevel,
 ) {
-    let phys = PhysLayer::new_serial(serial_stream, decode.physical);
+    let phys = PhysLayer::new_serial(serial_stream);
     let mut task = SessionTask::new(
         phys,
         handlers,
         SessionAuthentication::Unauthenticated,
-        RtuFormatter::new(decode.adu),
-        RtuParser::new_request_parser(decode.adu),
+        RtuFormatter::new(),
+        RtuParser::new_request_parser(),
         rx,
-        decode.pdu,
+        decode,
     );
 
     async {

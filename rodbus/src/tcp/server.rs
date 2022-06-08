@@ -8,8 +8,8 @@ use crate::decode::DecodeLevel;
 use crate::server::handler::{RequestHandler, ServerHandlerMap};
 use crate::server::task::SessionAuthentication;
 use crate::tcp::frame::{MbapFormatter, MbapParser};
+use crate::tokio;
 use crate::tokio::net::TcpListener;
-use crate::{tokio, PhysDecodeLevel};
 use std::net::SocketAddr;
 
 #[cfg(feature = "tls")]
@@ -76,18 +76,15 @@ impl TcpServerConnectionHandler {
     async fn handle(
         &mut self,
         socket: crate::tokio::net::TcpStream,
-        level: PhysDecodeLevel,
     ) -> Result<(PhysLayer, SessionAuthentication), String> {
         match self {
             Self::Tcp => Ok((
-                PhysLayer::new_tcp(socket, level),
+                PhysLayer::new_tcp(socket),
                 SessionAuthentication::Unauthenticated,
             )),
             #[cfg(feature = "tls")]
             Self::Tls(config, auth_handler) => {
-                config
-                    .handle_connection(socket, level, auth_handler.clone())
-                    .await
+                config.handle_connection(socket, auth_handler.clone()).await
             }
         }
     }
@@ -156,7 +153,7 @@ where
 
         // We first spawn the task so that multiple TLS handshakes can happen at the same time
         tokio::spawn(async move {
-            match conn_handler.handle(socket, decode.physical).await {
+            match conn_handler.handle(socket).await {
                 Err(err) => {
                     tracing::warn!("error from {}: {}", addr, err);
                 }
@@ -168,10 +165,10 @@ where
                         phys,
                         handlers,
                         auth,
-                        MbapFormatter::new(decode.adu),
-                        MbapParser::new(decode.adu),
+                        MbapFormatter::new(),
+                        MbapParser::new(),
                         rx,
-                        decode.pdu,
+                        decode,
                     )
                     .run()
                     .instrument(tracing::info_span!(parent: &span, "Session", "remote" = ?addr))

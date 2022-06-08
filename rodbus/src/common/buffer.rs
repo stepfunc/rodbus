@@ -4,6 +4,7 @@ use crate::common::phys::PhysLayer;
 use no_panic::no_panic;
 
 use crate::error::InternalError;
+use crate::PhysDecodeLevel;
 
 pub(crate) struct ReadBuffer {
     buffer: Vec<u8>,
@@ -85,7 +86,11 @@ impl ReadBuffer {
         Ok((b2 << 8) | b1)
     }
 
-    pub(crate) async fn read_some(&mut self, io: &mut PhysLayer) -> Result<usize, std::io::Error> {
+    pub(crate) async fn read_some(
+        &mut self,
+        io: &mut PhysLayer,
+        decode_level: PhysDecodeLevel,
+    ) -> Result<usize, std::io::Error> {
         // before we read any data, check to see if the buffer is empty and adjust the indices
         // this allows use to make the biggest read possible, and avoids subsequent buffer shifting later
         if self.is_empty() {
@@ -101,7 +106,7 @@ impl ReadBuffer {
             self.end = length;
         }
 
-        let count = io.read(&mut self.buffer[self.end..]).await?;
+        let count = io.read(&mut self.buffer[self.end..], decode_level).await?;
 
         if count == 0 {
             return Err(std::io::Error::from(std::io::ErrorKind::UnexpectedEof));
@@ -135,17 +140,27 @@ mod tests {
         let mut buffer = ReadBuffer::new(3);
 
         let (io, mut io_handle) = io::mock();
-        let mut phys = PhysLayer::new_mock(io, PhysDecodeLevel::Nothing);
+        let mut phys = PhysLayer::new_mock(io);
 
         {
             let buf_ref = &mut buffer;
-            let mut task = spawn(async { buf_ref.read_some(&mut phys).await.unwrap() });
+            let mut task = spawn(async {
+                buf_ref
+                    .read_some(&mut phys, PhysDecodeLevel::Nothing)
+                    .await
+                    .unwrap()
+            });
             assert_pending!(task.poll());
         }
 
         {
             let buf_ref = &mut buffer;
-            let mut task = spawn(async { buf_ref.read_some(&mut phys).await.unwrap() });
+            let mut task = spawn(async {
+                buf_ref
+                    .read_some(&mut phys, PhysDecodeLevel::Nothing)
+                    .await
+                    .unwrap()
+            });
             io_handle.read(&[0x01, 0x02, 0x03]);
             assert_ready_eq!(task.poll(), 3);
         }
@@ -155,7 +170,12 @@ mod tests {
 
         {
             let buf_ref = &mut buffer;
-            let mut task = spawn(async { buf_ref.read_some(&mut phys).await.unwrap() });
+            let mut task = spawn(async {
+                buf_ref
+                    .read_some(&mut phys, PhysDecodeLevel::Nothing)
+                    .await
+                    .unwrap()
+            });
             io_handle.read(&[0x04, 0x05]);
             assert_ready_eq!(task.poll(), 2);
         }
