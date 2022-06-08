@@ -6,7 +6,7 @@ use tracing::Instrument;
 use crate::common::phys::PhysLayer;
 use crate::decode::DecodeLevel;
 use crate::server::handler::{RequestHandler, ServerHandlerMap};
-use crate::server::task::SessionAuthentication;
+use crate::server::task::Authorization;
 use crate::tcp::frame::{MbapFormatter, MbapParser};
 use crate::tokio;
 use crate::tokio::net::TcpListener;
@@ -76,12 +76,9 @@ impl TcpServerConnectionHandler {
     async fn handle(
         &mut self,
         socket: crate::tokio::net::TcpStream,
-    ) -> Result<(PhysLayer, SessionAuthentication), String> {
+    ) -> Result<(PhysLayer, Authorization), String> {
         match self {
-            Self::Tcp => Ok((
-                PhysLayer::new_tcp(socket),
-                SessionAuthentication::Unauthenticated,
-            )),
+            Self::Tcp => Ok((PhysLayer::new_tcp(socket), Authorization::None)),
             #[cfg(feature = "tls")]
             Self::Tls(config, auth_handler) => {
                 config.handle_connection(socket, auth_handler.clone()).await

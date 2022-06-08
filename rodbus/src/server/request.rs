@@ -7,7 +7,7 @@ use crate::error::RequestError;
 use crate::exception::ExceptionCode;
 use crate::server::handler::RequestHandler;
 use crate::server::response::{BitWriter, RegisterWriter};
-use crate::server::task::SessionAuthentication;
+use crate::server::task::Authorization;
 use crate::server::*;
 use crate::types::*;
 
@@ -40,7 +40,7 @@ impl<'a> Request<'a> {
         &self,
         header: FrameHeader,
         handler: &mut T,
-        auth: &SessionAuthentication,
+        auth: &Authorization,
         writer: &'b mut F,
         level: DecodeLevel,
     ) -> Result<&'b [u8], RequestError>
@@ -52,7 +52,7 @@ impl<'a> Request<'a> {
             function: FunctionCode,
             header: FrameHeader,
             writer: &'a mut F,
-            auth: &SessionAuthentication,
+            auth: &Authorization,
             auth_fn: FnAuth,
             result: FnResult,
             level: DecodeLevel,
@@ -64,7 +64,7 @@ impl<'a> Request<'a> {
             FnResult: FnOnce() -> Result<T, ExceptionCode>,
         {
             // Check authorization
-            if let SessionAuthentication::Authenticated(handler, role) = auth {
+            if let Authorization::Handler(handler, role) = auth {
                 match auth_fn(handler.as_ref(), role) {
                     AuthorizationResult::Authorized => {
                         tracing::debug!("request authorized for \"{}\"", role)

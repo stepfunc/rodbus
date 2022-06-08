@@ -25,7 +25,7 @@ where
 {
     io: PhysLayer,
     handlers: ServerHandlerMap<T>,
-    auth: SessionAuthentication,
+    auth: Authorization,
     shutdown: tokio::sync::mpsc::Receiver<()>,
     writer: F,
     reader: FramedReader<P>,
@@ -41,7 +41,7 @@ where
     pub(crate) fn new(
         io: PhysLayer,
         handlers: ServerHandlerMap<T>,
-        auth: SessionAuthentication,
+        auth: Authorization,
         formatter: F,
         parser: P,
         shutdown: tokio::sync::mpsc::Receiver<()>,
@@ -182,11 +182,11 @@ where
     }
 }
 
-/// Authentication of the session
-pub(crate) enum SessionAuthentication {
-    /// The request is not authenticated
-    Unauthenticated,
-    /// The request is authenticated with a Role ID
+/// Determines how authorization of user defined requests are handled
+pub(crate) enum Authorization {
+    /// Requests do not require authorization checks (TCP / RTU)
+    None,
+    /// Requests are authorized using a user-supplied handler
     #[allow(dead_code)] // when tls feature is disabled
-    Authenticated(Arc<dyn AuthorizationHandler>, String),
+    Handler(Arc<dyn AuthorizationHandler>, String),
 }

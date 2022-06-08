@@ -7,7 +7,7 @@ use crate::common::phys::PhysLayer;
 use crate::decode::DecodeLevel;
 use crate::serial::frame::{RtuFormatter, RtuParser};
 use crate::serial::SerialSettings;
-use crate::server::task::{SessionAuthentication, SessionTask};
+use crate::server::task::{Authorization, SessionTask};
 use crate::tcp::server::{ServerTask, TcpServerConnectionHandler};
 use crate::tokio;
 
@@ -188,7 +188,7 @@ async fn create_rtu_server_task_impl<T: RequestHandler>(
     let mut task = SessionTask::new(
         phys,
         handlers,
-        SessionAuthentication::Unauthenticated,
+        Authorization::None,
         RtuFormatter::new(),
         RtuParser::new_request_parser(),
         rx,

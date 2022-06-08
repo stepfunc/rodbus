@@ -6,7 +6,7 @@ use tokio_rustls::rustls;
 use tokio_rustls::rustls::server::AllowAnyAuthenticatedClient;
 
 use crate::common::phys::PhysLayer;
-use crate::server::task::SessionAuthentication;
+use crate::server::task::Authorization;
 use crate::server::AuthorizationHandler;
 use crate::tcp::tls::{load_certs, load_private_key, CertificateMode, MinTlsVersion, TlsError};
 use crate::tokio::net::TcpStream;
@@ -100,7 +100,7 @@ impl TlsServerConfig {
         &mut self,
         socket: TcpStream,
         auth_handler: Arc<dyn AuthorizationHandler>,
-    ) -> Result<(PhysLayer, SessionAuthentication), String> {
+    ) -> Result<(PhysLayer, Authorization), String> {
         let role_container = Arc::new(Mutex::new(None));
         let tls_config = self.build(role_container.clone())?;
 
@@ -115,10 +115,7 @@ impl TlsServerConfig {
                     .clone()
                     .ok_or_else(|| "client did not present Modbus role".to_string())?;
 
-                Ok((
-                    layer,
-                    SessionAuthentication::Authenticated(auth_handler, role),
-                ))
+                Ok((layer, Authorization::Handler(auth_handler, role)))
             }
         }
     }
