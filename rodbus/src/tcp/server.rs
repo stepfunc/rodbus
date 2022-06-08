@@ -16,23 +16,23 @@ use std::net::SocketAddr;
 use crate::server::AuthorizationHandler;
 
 struct SessionTracker {
-    max: usize,
-    id: u64,
-    sessions: BTreeMap<u64, tokio::sync::mpsc::Sender<ServerSetting>>,
+    max_sessions: usize,
+    id: u128,
+    sessions: BTreeMap<u128, tokio::sync::mpsc::Sender<ServerSetting>>,
 }
 
 type SessionTrackerWrapper = Arc<Mutex<Box<SessionTracker>>>;
 
 impl SessionTracker {
-    fn new(max: usize) -> SessionTracker {
+    fn new(max_sessions: usize) -> SessionTracker {
         Self {
-            max,
+            max_sessions,
             id: 0,
             sessions: BTreeMap::new(),
         }
     }
 
-    fn get_next_id(&mut self) -> u64 {
+    fn get_next_id(&mut self) -> u128 {
         let ret = self.id;
         self.id += 1;
         ret
@@ -42,14 +42,17 @@ impl SessionTracker {
         Arc::new(Mutex::new(Box::new(Self::new(max))))
     }
 
-    pub(crate) fn add(&mut self, sender: tokio::sync::mpsc::Sender<ServerSetting>) -> u64 {
-        // TODO - this is so ugly. there's a nightly API on BTreeMap that has a remove_first
-        if !self.sessions.is_empty() && self.sessions.len() >= self.max {
-            let id = *self.sessions.keys().next().unwrap();
-            tracing::warn!("exceeded max connections, closing oldest session: {}", id);
-            // when the record drops, and there are no more senders,
-            // the other end will stop the task
-            self.sessions.remove(&id).unwrap();
+    pub(crate) fn add(&mut self, sender: tokio::sync::mpsc::Sender<ServerSetting>) -> u128 {
+        if self.sessions.len() >= self.max_sessions {
+            if let Some(oldest) = self.sessions.keys().next().copied() {
+                tracing::warn!(
+                    "exceeded max connections, closing oldest session: {}",
+                    oldest
+                );
+                // when the record drops, and there are no more senders,
+                // the other end will stop the task
+                self.sessions.remove(&oldest);
+            }
         }
 
         let id = self.get_next_id();
@@ -57,7 +60,7 @@ impl SessionTracker {
         id
     }
 
-    pub(crate) fn remove(&mut self, id: u64) {
+    pub(crate) fn remove(&mut self, id: u128) {
         self.sessions.remove(&id);
     }
 }
