@@ -17,6 +17,12 @@ use crate::server::request::{Request, RequestDisplay};
 use crate::server::response::ErrorResponse;
 use std::sync::Arc;
 
+/// Messages that can be sent to change server settings dynamically
+#[derive(Copy, Clone)]
+pub enum ServerSetting {
+    ChangeDecoding(DecodeLevel),
+}
+
 pub(crate) struct SessionTask<T, F, P>
 where
     T: RequestHandler,
@@ -26,7 +32,7 @@ where
     io: PhysLayer,
     handlers: ServerHandlerMap<T>,
     auth: Authorization,
-    shutdown: tokio::sync::mpsc::Receiver<()>,
+    commands: tokio::sync::mpsc::Receiver<ServerSetting>,
     writer: F,
     reader: FramedReader<P>,
     decode: DecodeLevel,
@@ -44,14 +50,14 @@ where
         auth: Authorization,
         formatter: F,
         parser: P,
-        shutdown: tokio::sync::mpsc::Receiver<()>,
+        commands: tokio::sync::mpsc::Receiver<ServerSetting>,
         decode: DecodeLevel,
     ) -> Self {
         Self {
             io,
             handlers,
             auth,
-            shutdown,
+            commands,
             writer: formatter,
             reader: FramedReader::new(parser),
             decode,
@@ -86,8 +92,22 @@ where
                     .instrument(tracing::info_span!("Transaction", tx_id=?tx_id))
                     .await
             }
-            _ = self.shutdown.recv() => {
-               Err(crate::error::RequestError::Shutdown)
+            cmd = self.commands.recv() => {
+               match cmd {
+                    None => Err(crate::error::RequestError::Shutdown),
+                    Some(setting) => {
+                        self.apply_setting(setting);
+                        Ok(())
+                    }
+               }
+            }
+        }
+    }
+
+    fn apply_setting(&mut self, setting: ServerSetting) {
+        match setting {
+            ServerSetting::ChangeDecoding(level) => {
+                self.decode = level;
             }
         }
     }

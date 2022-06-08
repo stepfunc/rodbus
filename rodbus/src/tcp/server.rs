@@ -6,7 +6,7 @@ use tracing::Instrument;
 use crate::common::phys::PhysLayer;
 use crate::decode::DecodeLevel;
 use crate::server::handler::{RequestHandler, ServerHandlerMap};
-use crate::server::task::Authorization;
+use crate::server::task::{Authorization, ServerSetting};
 use crate::tcp::frame::{MbapFormatter, MbapParser};
 use crate::tokio;
 use crate::tokio::net::TcpListener;
@@ -18,7 +18,7 @@ use crate::server::AuthorizationHandler;
 struct SessionTracker {
     max: usize,
     id: u64,
-    sessions: BTreeMap<u64, tokio::sync::mpsc::Sender<()>>,
+    sessions: BTreeMap<u64, tokio::sync::mpsc::Sender<ServerSetting>>,
 }
 
 type SessionTrackerWrapper = Arc<Mutex<Box<SessionTracker>>>;
@@ -42,7 +42,7 @@ impl SessionTracker {
         Arc::new(Mutex::new(Box::new(Self::new(max))))
     }
 
-    pub(crate) fn add(&mut self, sender: tokio::sync::mpsc::Sender<()>) -> u64 {
+    pub(crate) fn add(&mut self, sender: tokio::sync::mpsc::Sender<ServerSetting>) -> u64 {
         // TODO - this is so ugly. there's a nightly API on BTreeMap that has a remove_first
         if !self.sessions.is_empty() && self.sessions.len() >= self.max {
             let id = *self.sessions.keys().next().unwrap();
@@ -115,12 +115,34 @@ where
         }
     }
 
-    pub(crate) async fn run(&mut self, mut shutdown: tokio::sync::mpsc::Receiver<()>) {
+    async fn change_setting(&mut self, setting: ServerSetting) {
+        // first, change it locally so that it is applied to new sessions
+        match setting {
+            ServerSetting::ChangeDecoding(level) => {
+                tracing::info!("changed decoding level to {:?}", level);
+                self.decode = level;
+            }
+        }
+
+        let mut tracker = self.tracker.lock().unwrap();
+        for sender in tracker.sessions.values_mut() {
+            // best effort to send the setting to each session this isn't critical so we wouldn't
+            // want to slow the server down by awaiting it
+            let _ = sender.try_send(setting);
+        }
+    }
+
+    pub(crate) async fn run(&mut self, mut commands: tokio::sync::mpsc::Receiver<ServerSetting>) {
         loop {
             tokio::select! {
-               _ = shutdown.recv() => {
-                    tracing::info!("server shutdown");
-                    return; // shutdown signal
+               setting = commands.recv() => {
+                    match setting {
+                        Some(setting) => self.change_setting(setting).await,
+                        None => {
+                            tracing::info!("server shutdown");
+                            return; // shutdown signal
+                        }
+                    }
                }
                result = self.listener.accept() => {
                    match result {
@@ -143,7 +165,7 @@ where
         let handlers = self.handlers.clone();
         let mut conn_handler = self.connection_handler.clone();
         let tracker = self.tracker.clone();
-        let (tx, rx) = tokio::sync::mpsc::channel(1);
+        let (tx, rx) = tokio::sync::mpsc::channel(8); // all we do is change settings, so a constant is fine
         let span = tracing::span::Span::current();
 
         tracing::info!("accepted connection from: {}", addr);

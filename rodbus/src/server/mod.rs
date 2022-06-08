@@ -7,7 +7,7 @@ use crate::common::phys::PhysLayer;
 use crate::decode::DecodeLevel;
 use crate::serial::frame::{RtuFormatter, RtuParser};
 use crate::serial::SerialSettings;
-use crate::server::task::{Authorization, SessionTask};
+use crate::server::task::{Authorization, ServerSetting, SessionTask};
 use crate::tcp::server::{ServerTask, TcpServerConnectionHandler};
 use crate::tokio;
 
@@ -18,6 +18,10 @@ pub(crate) mod response;
 pub(crate) mod task;
 pub(crate) mod types;
 
+/// Fine for this to be a constant since the corresponding channel is only used to change settings
+pub(crate) const SERVER_SETTING_CHANNEL_CAPACITY: usize = 8;
+
+use crate::error::Shutdown;
 pub use handler::*;
 pub use types::*;
 
@@ -30,15 +34,21 @@ pub use crate::tcp::tls::*;
 /// A handle to the server async task. The task is shutdown when the handle is dropped.
 #[derive(Debug)]
 pub struct ServerHandle {
-    _tx: tokio::sync::mpsc::Sender<()>,
+    tx: tokio::sync::mpsc::Sender<ServerSetting>,
 }
 
 impl ServerHandle {
     /// Construct a [ServerHandle] from its fields
     ///
     /// This function is only required for the C bindings
-    pub fn new(tx: tokio::sync::mpsc::Sender<()>) -> Self {
-        ServerHandle { _tx: tx }
+    pub fn new(tx: tokio::sync::mpsc::Sender<ServerSetting>) -> Self {
+        ServerHandle { tx }
+    }
+
+    /// Change the decoding level for future sessions and all active sessions
+    pub async fn set_decode_level(&mut self, level: DecodeLevel) -> Result<(), Shutdown> {
+        self.tx.send(ServerSetting::ChangeDecoding(level)).await?;
+        Ok(())
     }
 }
 
@@ -60,7 +70,7 @@ pub async fn spawn_tcp_server_task<T: RequestHandler>(
 ) -> Result<ServerHandle, crate::tokio::io::Error> {
     let listener = crate::tokio::net::TcpListener::bind(addr).await?;
 
-    let (tx, rx) = tokio::sync::mpsc::channel(1);
+    let (tx, rx) = tokio::sync::mpsc::channel(SERVER_SETTING_CHANNEL_CAPACITY);
     tokio::spawn(create_tcp_server_task_impl(
         rx,
         max_sessions,
@@ -85,7 +95,7 @@ pub async fn spawn_tcp_server_task<T: RequestHandler>(
 /// * `handlers` - A map of handlers keyed by a unit id
 /// * `decode` - Decode log level
 pub async fn create_tcp_server_task<T: RequestHandler>(
-    rx: tokio::sync::mpsc::Receiver<()>,
+    rx: tokio::sync::mpsc::Receiver<ServerSetting>,
     max_sessions: usize,
     addr: SocketAddr,
     handlers: ServerHandlerMap<T>,
@@ -103,7 +113,7 @@ pub async fn create_tcp_server_task<T: RequestHandler>(
 }
 
 async fn create_tcp_server_task_impl<T: RequestHandler>(
-    rx: tokio::sync::mpsc::Receiver<()>,
+    rx: tokio::sync::mpsc::Receiver<ServerSetting>,
     max_sessions: usize,
     addr: SocketAddr,
     listener: crate::tokio::net::TcpListener,
@@ -138,7 +148,7 @@ pub fn spawn_rtu_server_task<T: RequestHandler>(
 ) -> Result<ServerHandle, crate::tokio::io::Error> {
     let serial = crate::serial::open(path, settings)?;
 
-    let (tx, rx) = tokio::sync::mpsc::channel(1);
+    let (tx, rx) = tokio::sync::mpsc::channel(SERVER_SETTING_CHANNEL_CAPACITY);
     tokio::spawn(create_rtu_server_task_impl(
         rx,
         path.to_string(),
@@ -160,7 +170,7 @@ pub fn spawn_rtu_server_task<T: RequestHandler>(
 /// * `handlers` - A map of handlers keyed by a unit id
 /// * `decode` - Decode log level
 pub fn create_rtu_server_task<T: RequestHandler>(
-    rx: tokio::sync::mpsc::Receiver<()>,
+    rx: tokio::sync::mpsc::Receiver<ServerSetting>,
     path: &str,
     settings: SerialSettings,
     handlers: ServerHandlerMap<T>,
@@ -178,7 +188,7 @@ pub fn create_rtu_server_task<T: RequestHandler>(
 }
 
 async fn create_rtu_server_task_impl<T: RequestHandler>(
-    rx: tokio::sync::mpsc::Receiver<()>,
+    rx: tokio::sync::mpsc::Receiver<ServerSetting>,
     path: String,
     serial_stream: SerialStream,
     handlers: ServerHandlerMap<T>,
@@ -238,7 +248,7 @@ pub async fn spawn_tls_server_task<T: RequestHandler>(
 ) -> Result<ServerHandle, crate::tokio::io::Error> {
     let listener = crate::tokio::net::TcpListener::bind(addr).await?;
 
-    let (tx, rx) = tokio::sync::mpsc::channel(1);
+    let (tx, rx) = tokio::sync::mpsc::channel(SERVER_SETTING_CHANNEL_CAPACITY);
     tokio::spawn(create_tls_server_task_impl(
         rx,
         max_sessions,
@@ -268,7 +278,7 @@ pub async fn spawn_tls_server_task<T: RequestHandler>(
 /// * `decode` - Decode log level
 #[cfg(feature = "tls")]
 pub async fn create_tls_server_task<T: RequestHandler>(
-    rx: tokio::sync::mpsc::Receiver<()>,
+    rx: tokio::sync::mpsc::Receiver<ServerSetting>,
     max_sessions: usize,
     addr: SocketAddr,
     handlers: ServerHandlerMap<T>,
@@ -292,7 +302,7 @@ pub async fn create_tls_server_task<T: RequestHandler>(
 #[cfg(feature = "tls")]
 #[allow(clippy::too_many_arguments)]
 async fn create_tls_server_task_impl<T: RequestHandler>(
-    rx: tokio::sync::mpsc::Receiver<()>,
+    rx: tokio::sync::mpsc::Receiver<ServerSetting>,
     max_sessions: usize,
     addr: SocketAddr,
     listener: crate::tokio::net::TcpListener,
