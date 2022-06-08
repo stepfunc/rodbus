@@ -1,8 +1,8 @@
 use tracing::Instrument;
 
 use crate::common::phys::PhysLayer;
-use crate::server::AuthorizationHandler;
-use crate::{tokio, DecodeLevel};
+use crate::server::{AuthorizationHandler, AuthorizationResult};
+use crate::{tokio, DecodeLevel, UnitId};
 
 use crate::common::cursor::ReadCursor;
 use crate::common::frame::{
@@ -189,4 +189,47 @@ pub(crate) enum Authorization {
     /// Requests are authorized using a user-supplied handler
     #[allow(dead_code)] // when tls feature is disabled
     Handler(Arc<dyn AuthorizationHandler>, String),
+}
+
+impl Authorization {
+    fn check_authorization(
+        handler: &dyn AuthorizationHandler,
+        unit_id: UnitId,
+        request: &Request,
+        role: &str,
+    ) -> AuthorizationResult {
+        match request {
+            Request::ReadCoils(x) => handler.read_coils(unit_id, x.inner, role),
+            Request::ReadDiscreteInputs(x) => handler.read_discrete_inputs(unit_id, x.inner, role),
+            Request::ReadHoldingRegisters(x) => {
+                handler.read_holding_registers(unit_id, x.inner, role)
+            }
+            Request::ReadInputRegisters(x) => handler.read_input_registers(unit_id, x.inner, role),
+            Request::WriteSingleCoil(x) => handler.write_single_coil(unit_id, x.index, role),
+            Request::WriteSingleRegister(x) => {
+                handler.write_single_register(unit_id, x.index, role)
+            }
+            Request::WriteMultipleCoils(x) => handler.write_multiple_coils(unit_id, x.range, role),
+            Request::WriteMultipleRegisters(x) => {
+                handler.write_multiple_registers(unit_id, x.range, role)
+            }
+        }
+    }
+
+    pub(crate) fn is_authorized(&self, unit_id: UnitId, request: &Request) -> AuthorizationResult {
+        match self {
+            Authorization::None => AuthorizationResult::Authorized,
+            Authorization::Handler(handler, role) => {
+                let result = Self::check_authorization(handler.as_ref(), unit_id, request, role);
+                if let AuthorizationResult::NotAuthorized = result {
+                    tracing::warn!(
+                        "Role \"{}\" not authorized for request: {:?}",
+                        role,
+                        request.get_function()
+                    );
+                }
+                result
+            }
+        }
+    }
 }

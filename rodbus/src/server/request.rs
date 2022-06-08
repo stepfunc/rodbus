@@ -11,6 +11,7 @@ use crate::server::task::Authorization;
 use crate::server::*;
 use crate::types::*;
 
+#[derive(Debug)]
 pub(crate) enum Request<'a> {
     ReadCoils(ReadBitsRange),
     ReadDiscreteInputs(ReadBitsRange),
@@ -48,39 +49,30 @@ impl<'a> Request<'a> {
         T: RequestHandler,
         F: FrameFormatter,
     {
-        fn serialize_result<'a, T, F, FnAuth, FnResult>(
+        // check authorization before doing anything else
+        if let AuthorizationResult::NotAuthorized =
+            auth.is_authorized(header.destination.into_unit_id(), self)
+        {
+            return writer.exception(
+                header,
+                self.get_function(),
+                ExceptionCode::IllegalFunction,
+                level.adu,
+            );
+        }
+
+        fn serialize_result<T, F, FnResult>(
             function: FunctionCode,
             header: FrameHeader,
-            writer: &'a mut F,
-            auth: &Authorization,
-            auth_fn: FnAuth,
+            writer: &mut F,
             result: FnResult,
             level: DecodeLevel,
-        ) -> Result<&'a [u8], RequestError>
+        ) -> Result<&[u8], RequestError>
         where
             T: Serialize + Loggable,
             F: FrameFormatter,
-            FnAuth: FnOnce(&dyn AuthorizationHandler, &str) -> AuthorizationResult,
             FnResult: FnOnce() -> Result<T, ExceptionCode>,
         {
-            // Check authorization
-            if let Authorization::Handler(handler, role) = auth {
-                match auth_fn(handler.as_ref(), role) {
-                    AuthorizationResult::Authorized => {
-                        tracing::debug!("request authorized for \"{}\"", role)
-                    }
-                    AuthorizationResult::NotAuthorized => {
-                        tracing::warn!("request not authorized for \"{}\"", role);
-                        return writer.exception(
-                            header,
-                            function,
-                            ExceptionCode::IllegalFunction,
-                            level.adu,
-                        );
-                    }
-                }
-            }
-
             // Generate the result
             let result = result();
 
@@ -100,10 +92,6 @@ impl<'a> Request<'a> {
                 function,
                 header,
                 writer,
-                auth,
-                |handler, role| {
-                    handler.read_coils(header.destination.into_unit_id(), range.inner, role)
-                },
                 || Ok(BitWriter::new(*range, |index| handler.read_coil(index))),
                 level,
             ),
@@ -111,14 +99,6 @@ impl<'a> Request<'a> {
                 function,
                 header,
                 writer,
-                auth,
-                |handler, role| {
-                    handler.read_discrete_inputs(
-                        header.destination.into_unit_id(),
-                        range.inner,
-                        role,
-                    )
-                },
                 || {
                     Ok(BitWriter::new(*range, |index| {
                         handler.read_discrete_input(index)
@@ -130,14 +110,6 @@ impl<'a> Request<'a> {
                 function,
                 header,
                 writer,
-                auth,
-                |handler, role| {
-                    handler.read_holding_registers(
-                        header.destination.into_unit_id(),
-                        range.inner,
-                        role,
-                    )
-                },
                 || {
                     Ok(RegisterWriter::new(*range, |index| {
                         handler.read_holding_register(index)
@@ -149,14 +121,6 @@ impl<'a> Request<'a> {
                 function,
                 header,
                 writer,
-                auth,
-                |handler, role| {
-                    handler.read_input_registers(
-                        header.destination.into_unit_id(),
-                        range.inner,
-                        role,
-                    )
-                },
                 || {
                     Ok(RegisterWriter::new(*range, |index| {
                         handler.read_input_register(index)
@@ -168,14 +132,6 @@ impl<'a> Request<'a> {
                 function,
                 header,
                 writer,
-                auth,
-                |handler, role| {
-                    handler.write_single_coil(
-                        header.destination.into_unit_id(),
-                        request.index,
-                        role,
-                    )
-                },
                 || handler.write_single_coil(*request).map(|_| *request),
                 level,
             ),
@@ -183,14 +139,6 @@ impl<'a> Request<'a> {
                 function,
                 header,
                 writer,
-                auth,
-                |handler, role| {
-                    handler.write_single_register(
-                        header.destination.into_unit_id(),
-                        request.index,
-                        role,
-                    )
-                },
                 || handler.write_single_register(*request).map(|_| *request),
                 level,
             ),
@@ -198,14 +146,6 @@ impl<'a> Request<'a> {
                 function,
                 header,
                 writer,
-                auth,
-                |handler, role| {
-                    handler.write_multiple_coils(
-                        header.destination.into_unit_id(),
-                        items.range,
-                        role,
-                    )
-                },
                 || handler.write_multiple_coils(*items).map(|_| items.range),
                 level,
             ),
@@ -213,14 +153,6 @@ impl<'a> Request<'a> {
                 function,
                 header,
                 writer,
-                auth,
-                |handler, role| {
-                    handler.write_multiple_registers(
-                        header.destination.into_unit_id(),
-                        items.range,
-                        role,
-                    )
-                },
                 || {
                     handler
                         .write_multiple_registers(*items)
