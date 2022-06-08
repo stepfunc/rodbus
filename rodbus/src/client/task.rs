@@ -94,7 +94,7 @@ where
             .await;
 
         if let Err(e) = &result {
-            tracing::warn!("error occurred making request: {}", e);
+            tracing::warn!("request error: {}", e);
         }
 
         result.as_ref().err().and_then(SessionError::from)
@@ -157,7 +157,7 @@ where
         }
     }
 
-    pub(crate) async fn fail_requests_for(&mut self, duration: Duration) -> Result<(), ()> {
+    pub(crate) async fn fail_requests_for(&mut self, duration: Duration) -> Result<(), Shutdown> {
         let deadline = Instant::now() + duration;
 
         loop {
@@ -180,7 +180,7 @@ where
                     }
                     None => {
                         // channel was closed
-                        return Err(())
+                        return Err(Shutdown)
                     }
                 }
             }
