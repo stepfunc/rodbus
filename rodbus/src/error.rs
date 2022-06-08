@@ -4,6 +4,14 @@ use crate::tokio;
 #[derive(Clone, Copy, Debug)]
 pub struct Shutdown;
 
+impl std::error::Error for Shutdown {}
+
+impl std::fmt::Display for Shutdown {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "task shutdown")
+    }
+}
+
 /// Top level error type for the client API
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum RequestError {
