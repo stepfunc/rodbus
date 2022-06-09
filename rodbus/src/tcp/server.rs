@@ -1,5 +1,5 @@
 use std::collections::BTreeMap;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use tracing::Instrument;
 
@@ -15,16 +15,18 @@ use std::net::SocketAddr;
 #[cfg(feature = "tls")]
 use crate::server::AuthorizationHandler;
 
+/// event sent back to the server task when a session ends
+struct SessionClose(u128);
+
 struct SessionTracker {
     max_sessions: usize,
     id: u128,
     sessions: BTreeMap<u128, tokio::sync::mpsc::Sender<ServerSetting>>,
 }
 
-type SessionTrackerWrapper = Arc<Mutex<Box<SessionTracker>>>;
-
 impl SessionTracker {
     fn new(max_sessions: usize) -> SessionTracker {
+        assert!(max_sessions > 0);
         Self {
             max_sessions,
             id: 0,
@@ -36,10 +38,6 @@ impl SessionTracker {
         let ret = self.id;
         self.id += 1;
         ret
-    }
-
-    pub(crate) fn wrapped(max: usize) -> SessionTrackerWrapper {
-        Arc::new(Mutex::new(Box::new(Self::new(max))))
     }
 
     pub(crate) fn add(&mut self, sender: tokio::sync::mpsc::Sender<ServerSetting>) -> u128 {
@@ -84,7 +82,11 @@ impl TcpServerConnectionHandler {
             Self::Tcp => Ok((PhysLayer::new_tcp(socket), Authorization::None)),
             #[cfg(feature = "tls")]
             Self::Tls(config, auth_handler) => {
-                config.handle_connection(socket, auth_handler.clone()).await
+                let res = config.handle_connection(socket, auth_handler.clone()).await;
+                if res.is_ok() {
+                    tracing::info!("completed TLS handshake");
+                }
+                res
             }
         }
     }
@@ -93,9 +95,11 @@ impl TcpServerConnectionHandler {
 pub(crate) struct ServerTask<T: RequestHandler> {
     listener: TcpListener,
     handlers: ServerHandlerMap<T>,
-    tracker: SessionTrackerWrapper,
+    tracker: SessionTracker,
     connection_handler: TcpServerConnectionHandler,
     decode: DecodeLevel,
+    tx: tokio::sync::mpsc::Sender<SessionClose>,
+    rx: tokio::sync::mpsc::Receiver<SessionClose>,
 }
 
 impl<T> ServerTask<T>
@@ -109,12 +113,16 @@ where
         connection_handler: TcpServerConnectionHandler,
         decode: DecodeLevel,
     ) -> Self {
+        let (tx, rx) = tokio::sync::mpsc::channel(8);
+
         Self {
             listener,
             handlers,
-            tracker: SessionTracker::wrapped(max_sessions),
+            tracker: SessionTracker::new(max_sessions),
             connection_handler,
             decode,
+            tx,
+            rx,
         }
     }
 
@@ -127,11 +135,10 @@ where
             }
         }
 
-        let mut tracker = self.tracker.lock().unwrap();
-        for sender in tracker.sessions.values_mut() {
+        for sender in self.tracker.sessions.values_mut() {
             // best effort to send the setting to each session this isn't critical so we wouldn't
             // want to slow the server down by awaiting it
-            let _ = sender.try_send(setting);
+            let _ = sender.send(setting).await;
         }
     }
 
@@ -147,6 +154,12 @@ where
                         }
                     }
                }
+               shutdown = self.rx.recv() => {
+                   // this will never be None b/c we always keep a tx live
+                   let id = shutdown.unwrap().0;
+
+                   self.tracker.remove(id);
+               }
                result = self.listener.accept() => {
                    match result {
                         Err(err) => {
@@ -154,8 +167,7 @@ where
                             return;
                         }
                         Ok((socket, addr)) => {
-                            self.handle(socket, addr)
-                                .await
+                            self.handle(socket, addr).await
                         }
                    }
                }
@@ -164,42 +176,69 @@ where
     }
 
     async fn handle(&mut self, socket: tokio::net::TcpStream, addr: SocketAddr) {
-        let decode = self.decode;
-        let handlers = self.handlers.clone();
-        let mut conn_handler = self.connection_handler.clone();
-        let tracker = self.tracker.clone();
         let (tx, rx) = tokio::sync::mpsc::channel(8); // all we do is change settings, so a constant is fine
-        let span = tracing::span::Span::current();
+        let id = self.tracker.add(tx);
+        tracing::info!(
+            "accepted connection from: {} - assigned session id: {}",
+            addr,
+            id
+        );
 
-        tracing::info!("accepted connection from: {}", addr);
+        #[allow(unused_mut)]
+        let mut notify_close = self.tx.clone();
+        let connection_handler = self.connection_handler.clone();
+        let handler_map = self.handlers.clone();
+        let decode_level = self.decode;
 
-        // We first spawn the task so that multiple TLS handshakes can happen at the same time
-        tokio::spawn(async move {
-            match conn_handler.handle(socket).await {
-                Err(err) => {
-                    tracing::warn!("error from {}: {}", addr, err);
-                }
-                Ok((phys, auth)) => {
-                    let id = tracker.lock().unwrap().add(tx);
-                    tracing::info!("established session {} from: {}", id, addr);
+        let session = async move {
+            run_session(
+                socket,
+                addr,
+                connection_handler,
+                decode_level,
+                handler_map,
+                rx,
+            )
+            .await;
 
-                    crate::server::task::SessionTask::new(
-                        phys,
-                        handlers,
-                        auth,
-                        MbapFormatter::new(),
-                        MbapParser::new(),
-                        rx,
-                        decode,
-                    )
-                    .run()
-                    .instrument(tracing::info_span!(parent: &span, "Session", "remote" = ?addr))
-                    .await
-                    .ok();
-                    tracing::info!("shutdown session: {}", id);
-                    tracker.lock().unwrap().remove(id);
-                }
-            }
-        });
+            // no matter what happens, we send the id back to the server
+            let _ = notify_close.send(SessionClose(id)).await;
+
+            tracing::info!("session shutdown");
+        };
+
+        let session =
+            session.instrument(tracing::info_span!("Session", "id" = ?id, "remote" = ?addr));
+
+        // spawn the session off onto another task
+        tokio::spawn(session);
+    }
+}
+
+async fn run_session<T: RequestHandler>(
+    socket: tokio::net::TcpStream,
+    addr: SocketAddr,
+    mut handler: TcpServerConnectionHandler,
+    decode: DecodeLevel,
+    handlers: ServerHandlerMap<T>,
+    commands: tokio::sync::mpsc::Receiver<ServerSetting>,
+) {
+    match handler.handle(socket).await {
+        Err(err) => {
+            tracing::warn!("error from {}: {}", addr, err);
+        }
+        Ok((phys, auth)) => {
+            let _ = crate::server::task::SessionTask::new(
+                phys,
+                handlers,
+                auth,
+                MbapFormatter::new(),
+                MbapParser::new(),
+                commands,
+                decode,
+            )
+            .run()
+            .await;
+        }
     }
 }
