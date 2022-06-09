@@ -156,6 +156,18 @@ namespace example
                 {
                     case "x":
                         return;
+                    case "ed":
+                        {
+                            try
+                            {
+                                
+                            }
+                            catch (Exception ex)
+                            {
+
+                            }
+                        }
+                        break;
                     case "rc":
                         {
                             // ANCHOR: read_coils

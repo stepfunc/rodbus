@@ -192,11 +192,20 @@ pub(crate) fn build(lib: &mut LibraryBuilder, common: &CommonDefinitions) -> Bac
         "Write multiple registers",
     )?;
 
+    let set_decode_level_fn = lib
+        .define_method("set_decode_level", channel.clone())?
+        .param("level", common.decode_level.clone(), "Decoding level")?
+        .fails_with(common.error_type.clone())?
+        .doc("Set the decoding level for the channel")?
+        .build()?;
+
     lib.define_class(&channel)?
         // abstract factory methods
         .static_method(tcp_client_create_fn)?
         .static_method(rtu_client_create_fn)?
         .static_method(tls_client_create_fn)?
+        // setting methods
+        .method(set_decode_level_fn)?
         // read methods
         .async_method(read_coils_method)?
         .async_method(read_discrete_inputs_method)?
