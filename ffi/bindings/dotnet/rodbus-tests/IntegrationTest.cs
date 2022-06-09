@@ -65,7 +65,8 @@ namespace rodbus_tests
     {
         private static readonly byte UNIT_ID = 1;
         private static readonly ushort NUM_POINTS = 10;
-        private static readonly string ENDPOINT = "127.0.0.1:20000";
+        // we use 50001 here since it's a large enough port it doesn't require root on Linux
+        private static readonly string ENDPOINT = "127.0.0.1:50001";
         private static readonly RequestParam param = new RequestParam(UNIT_ID, TimeSpan.FromSeconds(1));
 
         static void TestReadDiscreteInputs(ClientChannel client)

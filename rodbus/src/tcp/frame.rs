@@ -6,7 +6,7 @@ use crate::common::frame::{
     Frame, FrameDestination, FrameFormatter, FrameHeader, FrameParser, TxId,
 };
 use crate::common::traits::Serialize;
-use crate::decode::AduDecodeLevel;
+use crate::decode::FrameDecodeLevel;
 use crate::error::{FrameParseError, InternalError, InvalidRequest, RequestError};
 use crate::types::UnitId;
 
@@ -97,7 +97,7 @@ impl FrameParser for MbapParser {
     fn parse(
         &mut self,
         cursor: &mut ReadBuffer,
-        decode_level: AduDecodeLevel,
+        decode_level: FrameDecodeLevel,
     ) -> Result<Option<Frame>, RequestError> {
         match self.state {
             ParseState::Header(header) => {
@@ -138,7 +138,7 @@ impl FrameFormatter for MbapFormatter {
         &mut self,
         header: FrameHeader,
         msg: &dyn Serialize,
-        decode_level: AduDecodeLevel,
+        decode_level: FrameDecodeLevel,
     ) -> Result<usize, RequestError> {
         let mut cursor = WriteCursor::new(self.buffer.as_mut());
 
@@ -203,13 +203,13 @@ impl FrameFormatter for MbapFormatter {
 }
 
 struct MbapDisplay<'a> {
-    level: AduDecodeLevel,
+    level: FrameDecodeLevel,
     header: MbapHeader,
     data: &'a [u8],
 }
 
 impl<'a> MbapDisplay<'a> {
-    fn new(level: AduDecodeLevel, header: MbapHeader, data: &'a [u8]) -> Self {
+    fn new(level: FrameDecodeLevel, header: MbapHeader, data: &'a [u8]) -> Self {
         MbapDisplay {
             level,
             header,
@@ -308,7 +308,7 @@ mod tests {
         let msg = MockMessage { a: 0x03, b: 0x04 };
         let header = FrameHeader::new_tcp_header(UnitId::new(42), TxId::new(7));
         let size = formatter
-            .format_impl(header, &msg, AduDecodeLevel::Nothing)
+            .format_impl(header, &msg, FrameDecodeLevel::Nothing)
             .unwrap();
         let output = formatter.get_full_buffer_impl(size).unwrap();
 

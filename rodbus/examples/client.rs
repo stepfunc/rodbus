@@ -69,8 +69,8 @@ async fn run_rtu() -> Result<(), Box<dyn std::error::Error>> {
         1,                         // max queued requests
         Duration::from_secs(1),    // retry delay
         DecodeLevel::new(
-            PduDecodeLevel::DataValues,
-            AduDecodeLevel::Payload,
+            AppDecodeLevel::DataValues,
+            FrameDecodeLevel::Payload,
             PhysDecodeLevel::Nothing,
         ),
     );
@@ -88,8 +88,8 @@ async fn run_tls(tls_config: TlsClientConfig) -> Result<(), Box<dyn std::error::
         default_reconnect_strategy(),
         tls_config,
         DecodeLevel::new(
-            PduDecodeLevel::DataValues,
-            AduDecodeLevel::Nothing,
+            AppDecodeLevel::DataValues,
+            FrameDecodeLevel::Nothing,
             PhysDecodeLevel::Nothing,
         ),
     );
@@ -174,8 +174,8 @@ async fn run_channel(mut channel: Channel) -> Result<(), Box<dyn std::error::Err
                 // enable decoding
                 let _ = channel
                     .set_decode_level(DecodeLevel::new(
-                        PduDecodeLevel::DataValues,
-                        AduDecodeLevel::Header,
+                        AppDecodeLevel::DataValues,
+                        FrameDecodeLevel::Header,
                         PhysDecodeLevel::Length,
                     ))
                     .await;

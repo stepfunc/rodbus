@@ -170,16 +170,16 @@ impl From<ffi::LogLevel> for tracing::Level {
 impl From<ffi::DecodeLevel> for DecodeLevel {
     fn from(level: ffi::DecodeLevel) -> Self {
         DecodeLevel {
-            pdu: match level.pdu() {
-                ffi::PduDecodeLevel::Nothing => PduDecodeLevel::Nothing,
-                ffi::PduDecodeLevel::FunctionCode => PduDecodeLevel::FunctionCode,
-                ffi::PduDecodeLevel::DataHeaders => PduDecodeLevel::DataHeaders,
-                ffi::PduDecodeLevel::DataValues => PduDecodeLevel::DataValues,
+            app: match level.app() {
+                ffi::AppDecodeLevel::Nothing => AppDecodeLevel::Nothing,
+                ffi::AppDecodeLevel::FunctionCode => AppDecodeLevel::FunctionCode,
+                ffi::AppDecodeLevel::DataHeaders => AppDecodeLevel::DataHeaders,
+                ffi::AppDecodeLevel::DataValues => AppDecodeLevel::DataValues,
             },
-            adu: match level.adu() {
-                ffi::AduDecodeLevel::Nothing => AduDecodeLevel::Nothing,
-                ffi::AduDecodeLevel::Header => AduDecodeLevel::Header,
-                ffi::AduDecodeLevel::Payload => AduDecodeLevel::Payload,
+            frame: match level.frame() {
+                ffi::FrameDecodeLevel::Nothing => FrameDecodeLevel::Nothing,
+                ffi::FrameDecodeLevel::Header => FrameDecodeLevel::Header,
+                ffi::FrameDecodeLevel::Payload => FrameDecodeLevel::Payload,
             },
             physical: match level.physical() {
                 ffi::PhysDecodeLevel::Nothing => PhysDecodeLevel::Nothing,

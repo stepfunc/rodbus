@@ -71,7 +71,7 @@ where
     ) -> Result<(), RequestError> {
         // do not answer on broadcast
         if header.destination != FrameDestination::Broadcast {
-            let bytes = self.writer.error(header, err, self.decode.adu)?;
+            let bytes = self.writer.error(header, err, self.decode.frame)?;
             self.io.write(bytes, self.decode.physical).await?;
         }
         Ok(())
@@ -144,10 +144,10 @@ where
             }
         };
 
-        if self.decode.pdu.enabled() {
+        if self.decode.app.enabled() {
             tracing::info!(
                 "PDU RX - {}",
-                RequestDisplay::new(self.decode.pdu, &request)
+                RequestDisplay::new(self.decode.app, &request)
             );
         }
 

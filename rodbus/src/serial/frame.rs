@@ -3,7 +3,7 @@ use crate::common::cursor::WriteCursor;
 use crate::common::frame::{Frame, FrameDestination, FrameFormatter, FrameHeader, FrameParser};
 use crate::common::function::FunctionCode;
 use crate::common::traits::Serialize;
-use crate::decode::AduDecodeLevel;
+use crate::decode::FrameDecodeLevel;
 use crate::error::{FrameParseError, RequestError};
 use crate::types::UnitId;
 
@@ -116,7 +116,7 @@ impl FrameParser for RtuParser {
     fn parse(
         &mut self,
         cursor: &mut ReadBuffer,
-        decode_level: AduDecodeLevel,
+        decode_level: FrameDecodeLevel,
     ) -> Result<Option<Frame>, RequestError> {
         match self.state {
             ParseState::Start => {
@@ -227,7 +227,7 @@ impl FrameFormatter for RtuFormatter {
         &mut self,
         header: FrameHeader,
         msg: &dyn Serialize,
-        decode_level: AduDecodeLevel,
+        decode_level: FrameDecodeLevel,
     ) -> Result<usize, RequestError> {
         // Do some validation
         if let FrameDestination::UnitId(unit_id) = header.destination {
@@ -283,14 +283,19 @@ impl FrameFormatter for RtuFormatter {
 }
 
 struct RtuDisplay<'a> {
-    level: AduDecodeLevel,
+    level: FrameDecodeLevel,
     destination: FrameDestination,
     data: &'a [u8],
     crc: u16,
 }
 
 impl<'a> RtuDisplay<'a> {
-    fn new(level: AduDecodeLevel, destination: FrameDestination, data: &'a [u8], crc: u16) -> Self {
+    fn new(
+        level: FrameDecodeLevel,
+        destination: FrameDestination,
+        data: &'a [u8],
+        crc: u16,
+    ) -> Self {
         RtuDisplay {
             level,
             destination,
@@ -728,7 +733,7 @@ mod tests {
         let msg = MockMessage { frame };
         let header = FrameHeader::new_rtu_header(FrameDestination::UnitId(UnitId::new(42)));
         let size = formatter
-            .format_impl(header, &msg, AduDecodeLevel::Nothing)
+            .format_impl(header, &msg, FrameDecodeLevel::Nothing)
             .unwrap();
         let output = formatter.get_full_buffer_impl(size).unwrap();
 

@@ -48,8 +48,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         addr,
         ServerHandlerMap::single(UnitId::new(1), handler),
         DecodeLevel::new(
-            PduDecodeLevel::Nothing,
-            AduDecodeLevel::Nothing,
+            AppDecodeLevel::Nothing,
+            FrameDecodeLevel::Nothing,
             PhysDecodeLevel::Nothing,
         ),
     )
@@ -63,8 +63,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             10,
             default_reconnect_strategy(),
             DecodeLevel::new(
-                PduDecodeLevel::Nothing,
-                AduDecodeLevel::Nothing,
+                AppDecodeLevel::Nothing,
+                FrameDecodeLevel::Nothing,
                 PhysDecodeLevel::Nothing,
             ),
         );

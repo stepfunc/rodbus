@@ -2,7 +2,7 @@ use crate::common::cursor::ReadCursor;
 use crate::common::frame::{FrameFormatter, FrameHeader};
 use crate::common::function::FunctionCode;
 use crate::common::traits::{Loggable, Parse, Serialize};
-use crate::decode::PduDecodeLevel;
+use crate::decode::AppDecodeLevel;
 use crate::error::RequestError;
 use crate::exception::ExceptionCode;
 use crate::server::handler::RequestHandler;
@@ -57,7 +57,7 @@ impl<'a> Request<'a> {
                 header,
                 self.get_function(),
                 ExceptionCode::IllegalFunction,
-                level.adu,
+                level.frame,
             );
         }
 
@@ -82,7 +82,7 @@ impl<'a> Request<'a> {
             // exception is written instead. This is all handled inside `FrameFormatter::format`.
             match result {
                 Ok(data) => writer.format(header, function, &data, level),
-                Err(ex) => writer.exception(header, function, ex, level.adu),
+                Err(ex) => writer.exception(header, function, ex, level.frame),
             }
         }
 
@@ -225,11 +225,11 @@ impl<'a> Request<'a> {
 
 pub(crate) struct RequestDisplay<'a, 'b> {
     request: &'a Request<'b>,
-    level: PduDecodeLevel,
+    level: AppDecodeLevel,
 }
 
 impl<'a, 'b> RequestDisplay<'a, 'b> {
-    pub(crate) fn new(level: PduDecodeLevel, request: &'a Request<'b>) -> Self {
+    pub(crate) fn new(level: AppDecodeLevel, request: &'a Request<'b>) -> Self {
         Self { request, level }
     }
 }

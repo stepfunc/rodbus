@@ -38,7 +38,7 @@ impl Loggable for AddressRange {
     fn log(
         &self,
         payload: &[u8],
-        level: crate::decode::PduDecodeLevel,
+        level: crate::decode::AppDecodeLevel,
         f: &mut std::fmt::Formatter,
     ) -> std::fmt::Result {
         if level.data_headers() {
@@ -72,7 +72,7 @@ impl Loggable for Indexed<bool> {
     fn log(
         &self,
         payload: &[u8],
-        level: crate::decode::PduDecodeLevel,
+        level: crate::decode::AppDecodeLevel,
         f: &mut std::fmt::Formatter,
     ) -> std::fmt::Result {
         if level.data_headers() {
@@ -111,7 +111,7 @@ impl Loggable for Indexed<u16> {
     fn log(
         &self,
         payload: &[u8],
-        level: crate::decode::PduDecodeLevel,
+        level: crate::decode::AppDecodeLevel,
         f: &mut std::fmt::Formatter,
     ) -> std::fmt::Result {
         if level.data_headers() {
@@ -199,7 +199,7 @@ where
     fn log(
         &self,
         payload: &[u8],
-        level: crate::decode::PduDecodeLevel,
+        level: crate::decode::AppDecodeLevel,
         f: &mut std::fmt::Formatter,
     ) -> std::fmt::Result {
         if level.data_headers() {
@@ -244,7 +244,7 @@ where
     fn log(
         &self,
         payload: &[u8],
-        level: crate::decode::PduDecodeLevel,
+        level: crate::decode::AppDecodeLevel,
         f: &mut std::fmt::Formatter,
     ) -> std::fmt::Result {
         if level.data_headers() {

@@ -1,6 +1,6 @@
 use crate::common::function::FunctionCode;
 use crate::common::traits::Loggable;
-use crate::decode::PduDecodeLevel;
+use crate::decode::AppDecodeLevel;
 use crate::error::AduParseError;
 use crate::error::*;
 use crate::exception::ExceptionCode;
@@ -53,7 +53,7 @@ impl Request {
         }
     }
 
-    pub(crate) fn handle_response(self, payload: &[u8], decode: PduDecodeLevel) {
+    pub(crate) fn handle_response(self, payload: &[u8], decode: AppDecodeLevel) {
         let expected_function = self.details.function();
         let mut cursor = ReadCursor::new(payload);
         let function = match cursor.read_u8() {
@@ -140,7 +140,7 @@ impl RequestDetails {
         }
     }
 
-    fn handle_response(self, cursor: ReadCursor, decode: PduDecodeLevel) {
+    fn handle_response(self, cursor: ReadCursor, decode: AppDecodeLevel) {
         let function = self.function();
         match self {
             RequestDetails::ReadCoils(x) => x.handle_response(cursor, function, decode),
@@ -176,7 +176,7 @@ impl Loggable for RequestDetails {
     fn log(
         &self,
         _payload: &[u8],
-        level: PduDecodeLevel,
+        level: AppDecodeLevel,
         f: &mut std::fmt::Formatter,
     ) -> std::fmt::Result {
         write!(f, "{}", RequestDetailsDisplay::new(level, self))
@@ -185,11 +185,11 @@ impl Loggable for RequestDetails {
 
 pub(crate) struct RequestDetailsDisplay<'a> {
     request: &'a RequestDetails,
-    level: PduDecodeLevel,
+    level: AppDecodeLevel,
 }
 
 impl<'a> RequestDetailsDisplay<'a> {
-    pub(crate) fn new(level: PduDecodeLevel, request: &'a RequestDetails) -> Self {
+    pub(crate) fn new(level: AppDecodeLevel, request: &'a RequestDetails) -> Self {
         Self { request, level }
     }
 }

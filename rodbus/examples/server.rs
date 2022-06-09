@@ -188,8 +188,8 @@ async fn run_rtu() -> Result<(), Box<dyn std::error::Error>> {
         SerialSettings::default(),
         map,
         DecodeLevel::new(
-            PduDecodeLevel::DataValues,
-            AduDecodeLevel::Payload,
+            AppDecodeLevel::DataValues,
+            FrameDecodeLevel::Payload,
             PhysDecodeLevel::Data,
         ),
     )?;
@@ -276,8 +276,8 @@ async fn run_server(
                 // enable decoding
                 server
                     .set_decode_level(DecodeLevel::new(
-                        PduDecodeLevel::DataValues,
-                        AduDecodeLevel::Header,
+                        AppDecodeLevel::DataValues,
+                        FrameDecodeLevel::Header,
                         PhysDecodeLevel::Length,
                     ))
                     .await?;

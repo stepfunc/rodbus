@@ -16,11 +16,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.joou.Unsigned.*;
 
-public class IntegrationTest {
+class IntegrationTest {
     static final UByte UNIT_ID = ubyte(1);
     static final Duration TIMEOUT = Duration.ofSeconds(1);
     static final int NUM_POINTS = 10;
-    static final String ENDPOINT = "127.0.0.1:20000";
+    // we use 50001 here since it's a large enough port it doesn't require root on Linux
+    static final String ENDPOINT = "127.0.0.1:50001";
 
     static class TestWriteHandler implements WriteHandler {
         @Override
@@ -65,7 +66,7 @@ public class IntegrationTest {
     }
 
     @Test
-    public void clientAndServerCommunication() throws ExecutionException, InterruptedException {
+    void clientAndServerCommunication() throws ExecutionException, InterruptedException {
         final RuntimeConfig runtimeConfig = new RuntimeConfig();
         Runtime runtime = new Runtime(runtimeConfig);
 
@@ -104,11 +105,11 @@ public class IntegrationTest {
 
         assertThat(result).hasSize(3);
         assertThat(result.get(0).index).isEqualTo(ushort(2));
-        assertThat(result.get(0).value).isEqualTo(false);
+        assertThat(result.get(0).value).isFalse();
         assertThat(result.get(1).index).isEqualTo(ushort(3));
-        assertThat(result.get(1).value).isEqualTo(true);
+        assertThat(result.get(1).value).isTrue();
         assertThat(result.get(2).index).isEqualTo(ushort(4));
-        assertThat(result.get(2).value).isEqualTo(false);
+        assertThat(result.get(2).value).isFalse();
 
         // ======
 
@@ -156,9 +157,9 @@ public class IntegrationTest {
 
         assertThat(readResult).hasSize(2);
         assertThat(readResult.get(0).index).isEqualTo(ushort(0));
-        assertThat(readResult.get(0).value).isEqualTo(false);
+        assertThat(readResult.get(0).value).isFalse();
         assertThat(readResult.get(1).index).isEqualTo(ushort(1));
-        assertThat(readResult.get(1).value).isEqualTo(true);
+        assertThat(readResult.get(1).value).isTrue();
     }
 
     private void testWriteSingleRegister(ClientChannel client) throws ExecutionException, InterruptedException {
@@ -193,11 +194,11 @@ public class IntegrationTest {
 
         assertThat(readResult).hasSize(3);
         assertThat(readResult.get(0).index).isEqualTo(ushort(0));
-        assertThat(readResult.get(0).value).isEqualTo(true);
+        assertThat(readResult.get(0).value).isTrue();
         assertThat(readResult.get(1).index).isEqualTo(ushort(1));
-        assertThat(readResult.get(1).value).isEqualTo(false);
+        assertThat(readResult.get(1).value).isFalse();
         assertThat(readResult.get(2).index).isEqualTo(ushort(2));
-        assertThat(readResult.get(2).value).isEqualTo(true);
+        assertThat(readResult.get(2).value).isTrue();
     }
 
     private void testWriteMultipleRegisters(ClientChannel client) throws ExecutionException, InterruptedException {
