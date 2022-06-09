@@ -26,16 +26,16 @@ pub(crate) struct RuntimeHandle {
 }
 
 impl RuntimeHandle {
-    /*pub(crate) fn block_on<F: Future>(&self, future: F) -> Result<F::Output, ffi::ParamError> {
+    pub(crate) fn block_on<F: Future>(&self, future: F) -> Result<F::Output, ffi::ParamError> {
         let inner = self
             .inner
             .upgrade()
             .ok_or(ffi::ParamError::RuntimeDestroyed)?;
-        if Handle::try_current().is_ok() {
+        if tokio::runtime::Handle::try_current().is_ok() {
             return Err(ffi::ParamError::RuntimeCannotBlockWithinAsync);
         }
         Ok(inner.block_on(future))
-    }*/
+    }
 
     pub(crate) fn spawn<F>(&self, future: F) -> Result<(), ffi::ParamError>
     where

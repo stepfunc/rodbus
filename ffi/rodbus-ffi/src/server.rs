@@ -1,5 +1,6 @@
-use crate::ffi;
 use crate::Database;
+use crate::{ffi, RuntimeHandle};
+use rodbus::error::Shutdown;
 use rodbus::server::ServerHandle;
 use rodbus::AddressRange;
 use rodbus::{ExceptionCode, Indexed, UnitId};
@@ -223,8 +224,8 @@ impl AuthorizationHandler for AuthorizationHandlerWrapper {
 }
 
 pub struct Server {
-    // never used but we have to hang onto it otherwise the server shuts down
-    _server: ServerHandle,
+    inner: ServerHandle,
+    runtime: RuntimeHandle,
     map: ServerHandlerMap<RequestHandlerWrapper>,
 }
 
@@ -291,7 +292,8 @@ pub(crate) unsafe fn server_create_tcp(
     runtime.inner.spawn(task);
 
     let server_handle = Server {
-        _server: ServerHandle::new(tx),
+        inner: ServerHandle::new(tx),
+        runtime: runtime.handle(),
         map: handler_map,
     };
 
@@ -322,7 +324,8 @@ pub(crate) unsafe fn server_create_rtu(
     runtime.inner.spawn(task);
 
     let server_handle = Server {
-        _server: ServerHandle::new(tx),
+        inner: ServerHandle::new(tx),
+        runtime: runtime.handle(),
         map: handler_map,
     };
 
@@ -381,7 +384,8 @@ pub(crate) unsafe fn server_create_tls(
     runtime.inner.spawn(task);
 
     let server_handle = Server {
-        _server: ServerHandle::new(tx),
+        inner: ServerHandle::new(tx),
+        runtime: runtime.handle(),
         map: handler_map,
     };
 
@@ -411,4 +415,21 @@ pub(crate) unsafe fn server_update_database(
     }
 
     Ok(())
+}
+
+pub(crate) unsafe fn server_set_decode_level(
+    server: *mut crate::Server,
+    level: ffi::DecodeLevel,
+) -> Result<(), ffi::ParamError> {
+    let server = server.as_mut().ok_or(ffi::ParamError::NullParameter)?;
+    server
+        .runtime
+        .block_on(server.inner.set_decode_level(level.into()))??;
+    Ok(())
+}
+
+impl From<rodbus::error::Shutdown> for ffi::ParamError {
+    fn from(_: Shutdown) -> Self {
+        ffi::ParamError::Shutdown
+    }
 }

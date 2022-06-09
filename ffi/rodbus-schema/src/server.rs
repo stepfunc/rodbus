@@ -138,11 +138,19 @@ pub(crate) fn build_server(
         .doc("Update the database associated with a particular unit id. If the unit id exists, lock the database and call user code to perform the transaction")?
         .build()?;
 
+    let set_decode_level_fn = lib
+        .define_method("set_decode_level", server.clone())?
+        .param("level", common.decode_level.clone(), "Decoding level")?
+        .fails_with(common.error_type.clone())?
+        .doc("Set the decoding level for the server")?
+        .build()?;
+
     let server = lib.define_class(&server)?
         .static_method(tcp_constructor)?
         .static_method(rtu_constructor)?
         .static_method(tls_constructor)?
         .method(update_fn)?
+        .method(set_decode_level_fn)?
         .destructor(destructor)?
         .custom_destroy("shutdown")?
         .doc("Handle to the running server. The server remains alive until this reference is destroyed")?
