@@ -1,6 +1,5 @@
 use crate::Database;
 use crate::{ffi, RuntimeHandle};
-use rodbus::error::Shutdown;
 use rodbus::server::ServerHandle;
 use rodbus::AddressRange;
 use rodbus::{ExceptionCode, Indexed, UnitId};
@@ -426,10 +425,4 @@ pub(crate) unsafe fn server_set_decode_level(
         .runtime
         .block_on(server.inner.set_decode_level(level.into()))??;
     Ok(())
-}
-
-impl From<rodbus::error::Shutdown> for ffi::ParamError {
-    fn from(_: Shutdown) -> Self {
-        ffi::ParamError::Shutdown
-    }
 }
