@@ -26,7 +26,12 @@ struct SessionTracker {
 
 impl SessionTracker {
     fn new(max_sessions: usize) -> SessionTracker {
-        assert!(max_sessions > 0);
+        let max_sessions = if max_sessions == 0 {
+            tracing::warn!("Max sessions to 0, defaulting to 1");
+            1
+        } else {
+            max_sessions
+        };
         Self {
             max_sessions,
             id: 0,
