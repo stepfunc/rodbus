@@ -86,6 +86,15 @@ int run_channel(rodbus::ClientChannel& channel)
         if (cmd == "x") {
             return 0;
         }
+        else if (cmd == "ed") {
+            // enable decoding
+            channel.set_decode_level(
+                rodbus::DecodeLevel(rodbus::AppDecodeLevel::data_values, rodbus::FrameDecodeLevel::header, rodbus::PhysDecodeLevel::length));
+        }
+        else if (cmd == "dd") {
+            // disable decoding
+            channel.set_decode_level(rodbus::DecodeLevel::nothing());
+        }
         else if (cmd == "rc") {
             /// ANCHOR: read_coils
             channel.read_coils(param, range, std::make_unique<BitReadCallback>());
@@ -143,8 +152,8 @@ int run_tcp_channel(rodbus::Runtime& runtime)
         runtime,
         "127.0.0.1:502",
         100,
-        rodbus::RetryStrategy(),
-        rodbus::DecodeLevel()
+        rodbus::RetryStrategy(), 
+        rodbus::DecodeLevel::nothing()
     );
     // ANCHOR_END: create_tcp_channel
 
@@ -160,7 +169,7 @@ int run_rtu_channel(rodbus::Runtime& runtime)
         rodbus::SerialPortSettings(),
         1,
         std::chrono::seconds(1),
-        rodbus::DecodeLevel()
+        rodbus::DecodeLevel::nothing()
     );
     // ANCHOR_END: create_rtu_channel
 
@@ -176,7 +185,7 @@ int run_tls_channel(rodbus::Runtime& runtime, const rodbus::TlsClientConfig& tls
         100,
         rodbus::RetryStrategy(),
         tls_config,
-        rodbus::DecodeLevel()
+        rodbus::DecodeLevel::nothing()
     );
     // ANCHOR_END: create_tls_channel
 

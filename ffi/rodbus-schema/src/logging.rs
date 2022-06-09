@@ -197,7 +197,8 @@ pub fn define(
         .add(&physical_field, phys_decode_level_enum, "Controls the logging of physical layer read/write")?
         .doc("Controls the decoding of transmitted and received data at the application, frame, and physical layer")?
         .end_fields()?
-        .begin_initializer("init", InitializerType::Normal, "Initialize log levels to defaults")?
+        .add_full_initializer("build")?
+        .begin_initializer("nothing", InitializerType::Static, "Initialize log levels to defaults which is to decode nothing")?
         .default_variant(&app_field, NOTHING)?
         .default_variant(&frame_field, NOTHING)?
         .default_variant(&physical_field, NOTHING)?

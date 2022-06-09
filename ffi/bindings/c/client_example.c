@@ -162,7 +162,7 @@ int run_tcp_channel(rodbus_runtime_t* runtime)
 {
     // ANCHOR: create_tcp_channel
     rodbus_client_channel_t* channel = NULL;
-    rodbus_decode_level_t decode_level = rodbus_decode_level_init();
+    rodbus_decode_level_t decode_level = rodbus_decode_level_nothing();
     rodbus_param_error_t err = rodbus_client_channel_create_tcp(runtime, "127.0.0.1:502", 1, rodbus_retry_strategy_init(), decode_level, &channel);
     if (err) {
         printf("Unable to initialize channel: %s\n", rodbus_param_error_to_string(err));
@@ -177,7 +177,7 @@ int run_rtu_channel(rodbus_runtime_t* runtime)
 {
     // ANCHOR: create_rtu_channel
     rodbus_client_channel_t* channel = NULL;
-    rodbus_decode_level_t decode_level = rodbus_decode_level_init();
+    rodbus_decode_level_t decode_level = rodbus_decode_level_nothing();
     rodbus_param_error_t err = rodbus_client_channel_create_rtu(runtime,
         "/dev/ttySIM0", // path
         rodbus_serial_port_settings_init(), // serial settings
@@ -230,7 +230,7 @@ int run_tls_channel(rodbus_runtime_t* runtime, rodbus_tls_client_config_t tls_co
 {
     // ANCHOR: create_tls_channel
     rodbus_client_channel_t* channel = NULL;
-    rodbus_decode_level_t decode_level = rodbus_decode_level_init();
+    rodbus_decode_level_t decode_level = rodbus_decode_level_nothing();
     rodbus_param_error_t err = rodbus_client_channel_create_tls(runtime, "127.0.0.1:802", 100, rodbus_retry_strategy_init(), tls_config, decode_level, &channel);
     if (err) {
         printf("Unable to initialize channel: %s\n", rodbus_param_error_to_string(err));

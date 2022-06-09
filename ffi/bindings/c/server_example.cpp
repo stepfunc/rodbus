@@ -129,6 +129,15 @@ int run_server(rodbus::Server& server)
         if (cmd == "x") {
             return 0;
         }
+        else if (cmd == "ed") {
+            // enable decoding
+            server.set_decode_level(
+                rodbus::DecodeLevel(rodbus::AppDecodeLevel::data_values, rodbus::FrameDecodeLevel::header, rodbus::PhysDecodeLevel::length));
+        }
+        else if (cmd == "dd") {
+            // disable decoding
+            server.set_decode_level(rodbus::DecodeLevel::nothing());
+        }
         else if (cmd == "uc") {
             // ANCHOR: update_coil
             auto transaction = rodbus::functional::database_callback([&](rodbus::Database& db) {
@@ -202,7 +211,7 @@ int run_tcp_server(rodbus::Runtime& runtime)
     auto device_map = create_device_map();
 
     // ANCHOR: tcp_server_create
-    auto server = rodbus::Server::create_tcp(runtime, "127.0.0.1:502", 100, device_map, rodbus::DecodeLevel());
+    auto server = rodbus::Server::create_tcp(runtime, "127.0.0.1:502", 100, device_map, rodbus::DecodeLevel::nothing());
     // ANCHOR_END: tcp_server_create
 
     return run_server(server);
@@ -213,7 +222,7 @@ int run_rtu_server(rodbus::Runtime& runtime)
     auto device_map = create_device_map();
 
     // ANCHOR: rtu_server_create
-    auto server = rodbus::Server::create_rtu(runtime, "/dev/ttySIM1", rodbus::SerialPortSettings(), device_map, rodbus::DecodeLevel());
+    auto server = rodbus::Server::create_rtu(runtime, "/dev/ttySIM1", rodbus::SerialPortSettings(), device_map, rodbus::DecodeLevel::nothing());
     // ANCHOR_END: rtu_server_create
 
     return run_server(server);
@@ -224,7 +233,7 @@ int run_tls_server(rodbus::Runtime& runtime, const rodbus::TlsServerConfig& tls_
     auto device_map = create_device_map();
 
     // ANCHOR: tls_server_create
-    auto server = rodbus::Server::create_tls(runtime, "127.0.0.1:802", 100, device_map, tls_config, std::make_unique<AuthorizationHandler>(), rodbus::DecodeLevel());
+    auto server = rodbus::Server::create_tls(runtime, "127.0.0.1:802", 100, device_map, tls_config, std::make_unique<AuthorizationHandler>(), rodbus::DecodeLevel::nothing());
     // ANCHOR_END: tls_server_create
 
     return run_server(server);
