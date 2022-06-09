@@ -15,6 +15,9 @@ pub(crate) mod constants {
         HEADER_LENGTH + crate::common::frame::constants::MAX_ADU_LENGTH + CRC_LENGTH;
 }
 
+/// precomputes the CRC table as a constant!
+const CRC: crc::Crc<u16> = crc::Crc::<u16>::new(&crc::CRC_16_MODBUS);
+
 #[derive(Clone, Copy)]
 enum ParserType {
     Request,
@@ -191,8 +194,7 @@ impl FrameParser for RtuParser {
 
                 // Calculate CRC
                 let expected_crc = {
-                    let crc = crc::Crc::<u16>::new(&crc::CRC_16_MODBUS);
-                    let mut digest = crc.digest();
+                    let mut digest = CRC.digest();
                     digest.update(&[destination.value()]);
                     digest.update(frame.payload());
                     digest.finalize()
@@ -247,7 +249,7 @@ impl FrameFormatter for RtuFormatter {
         };
 
         // Calculate the CRC
-        let crc = crc::Crc::<u16>::new(&crc::CRC_16_MODBUS).checksum(&self.buffer[0..end_position]);
+        let crc = CRC.checksum(&self.buffer[0..end_position]);
 
         // Write the CRC
         {
@@ -535,7 +537,7 @@ mod tests {
         }
 
         // Write the correct CRC
-        let crc = crc::Crc::<u16>::new(&crc::CRC_16_MODBUS).checksum(&huge_response);
+        let crc = CRC.checksum(&huge_response);
         huge_response.push((crc & 0x00FF) as u8);
         huge_response.push(((crc & 0xFF00) >> 8) as u8);
 
@@ -557,7 +559,7 @@ mod tests {
         }
 
         // Write the correct CRC
-        let crc = crc::Crc::<u16>::new(&crc::CRC_16_MODBUS).checksum(&huge_response);
+        let crc = CRC.checksum(&huge_response);
         huge_response.push((crc & 0x00FF) as u8);
         huge_response.push(((crc & 0xFF00) >> 8) as u8);
 
