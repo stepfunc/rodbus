@@ -1,7 +1,7 @@
 use crate::common::cursor::{ReadCursor, WriteCursor};
 use crate::common::function::FunctionCode;
 use crate::common::traits::Serialize;
-use crate::decode::PduDecodeLevel;
+use crate::decode::AppDecodeLevel;
 use crate::error::RequestError;
 use crate::tokio;
 use crate::types::{AddressRange, BitIterator, BitIteratorDisplay, Indexed, ReadBitsRange};
@@ -48,7 +48,7 @@ impl ReadBits {
         self,
         mut cursor: ReadCursor,
         function: FunctionCode,
-        decode: PduDecodeLevel,
+        decode: AppDecodeLevel,
     ) {
         let result = Self::parse_bits_response(self.request.get(), &mut cursor);
 

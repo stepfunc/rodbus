@@ -69,8 +69,8 @@ async fn run_rtu() -> Result<(), Box<dyn std::error::Error>> {
         1,                         // max queued requests
         Duration::from_secs(1),    // retry delay
         DecodeLevel::new(
-            PduDecodeLevel::DataValues,
-            AduDecodeLevel::Payload,
+            AppDecodeLevel::DataValues,
+            FrameDecodeLevel::Payload,
             PhysDecodeLevel::Nothing,
         ),
     );
@@ -88,8 +88,8 @@ async fn run_tls(tls_config: TlsClientConfig) -> Result<(), Box<dyn std::error::
         default_reconnect_strategy(),
         tls_config,
         DecodeLevel::new(
-            PduDecodeLevel::DataValues,
-            AduDecodeLevel::Nothing,
+            AppDecodeLevel::DataValues,
+            FrameDecodeLevel::Nothing,
             PhysDecodeLevel::Nothing,
         ),
     );
@@ -132,6 +132,35 @@ fn get_ca_chain_config() -> Result<TlsClientConfig, Box<dyn std::error::Error>> 
     Ok(tls_config)
 }
 
+fn print_read_result<T>(result: Result<Vec<Indexed<T>>, RequestError>)
+where
+    T: std::fmt::Display,
+{
+    match result {
+        Ok(coils) => {
+            for bit in coils {
+                println!("index: {} value: {}", bit.index, bit.value);
+            }
+        }
+        Err(rodbus::error::RequestError::Exception(exception)) => {
+            println!("Modbus exception: {}", exception);
+        }
+        Err(err) => println!("read error: {}", err),
+    }
+}
+
+fn print_write_result<T>(result: Result<T, RequestError>) {
+    match result {
+        Ok(_) => {
+            println!("write successful");
+        }
+        Err(rodbus::error::RequestError::Exception(exception)) => {
+            println!("Modbus exception: {}", exception);
+        }
+        Err(err) => println!("writer error: {}", err),
+    }
+}
+
 async fn run_channel(mut channel: Channel) -> Result<(), Box<dyn std::error::Error>> {
     // ANCHOR: request_param
     let params = RequestParam::new(UnitId::new(1), Duration::from_secs(1));
@@ -141,105 +170,59 @@ async fn run_channel(mut channel: Channel) -> Result<(), Box<dyn std::error::Err
     loop {
         match reader.next().await.unwrap()?.as_str() {
             "x" => return Ok(()),
+            "ed" => {
+                // enable decoding
+                channel
+                    .set_decode_level(DecodeLevel::new(
+                        AppDecodeLevel::DataValues,
+                        FrameDecodeLevel::Header,
+                        PhysDecodeLevel::Length,
+                    ))
+                    .await?;
+            }
+            "dd" => {
+                // disable decoded
+                channel.set_decode_level(DecodeLevel::nothing()).await?;
+            }
             "rc" => {
                 // ANCHOR: read_coils
                 let result = channel
                     .read_coils(params, AddressRange::try_from(0, 5).unwrap())
                     .await;
-
-                match result {
-                    Ok(coils) => {
-                        for bit in coils {
-                            println!("index: {} value: {}", bit.index, bit.value);
-                        }
-                    }
-                    Err(rodbus::error::RequestError::Exception(exception)) => {
-                        println!("Modbus exception: {}", exception);
-                    }
-                    Err(err) => println!("error: {}", err),
-                }
                 // ANCHOR_END: read_coils
+                print_read_result(result);
             }
             "rdi" => {
                 let result = channel
                     .read_discrete_inputs(params, AddressRange::try_from(0, 5).unwrap())
                     .await;
-
-                match result {
-                    Ok(coils) => {
-                        for bit in coils {
-                            println!("index: {} value: {}", bit.index, bit.value);
-                        }
-                    }
-                    Err(rodbus::error::RequestError::Exception(exception)) => {
-                        println!("Modbus exception: {}", exception);
-                    }
-                    Err(err) => println!("error: {}", err),
-                }
+                print_read_result(result);
             }
             "rhr" => {
                 let result = channel
                     .read_holding_registers(params, AddressRange::try_from(0, 5).unwrap())
                     .await;
-
-                // ANCHOR: error_handling
-                match result {
-                    Ok(regs) => {
-                        for bit in regs {
-                            println!("index: {} value: {}", bit.index, bit.value);
-                        }
-                    }
-                    Err(rodbus::error::RequestError::Exception(exception)) => {
-                        println!("Modbus exception: {}", exception);
-                    }
-                    Err(err) => println!("error: {}", err),
-                }
-                // ANCHOR_END: error_handling
+                print_read_result(result);
             }
             "rir" => {
                 let result = channel
                     .read_input_registers(params, AddressRange::try_from(0, 5).unwrap())
                     .await;
-
-                match result {
-                    Ok(regs) => {
-                        for bit in regs {
-                            println!("index: {} value: {}", bit.index, bit.value);
-                        }
-                    }
-                    Err(rodbus::error::RequestError::Exception(exception)) => {
-                        println!("Modbus exception: {}", exception);
-                    }
-                    Err(err) => println!("error: {}", err),
-                }
+                print_read_result(result);
             }
             "wsc" => {
                 // ANCHOR: write_single_coil
                 let result = channel
                     .write_single_coil(params, Indexed::new(0, true))
                     .await;
-
-                match result {
-                    Ok(_) => println!("success"),
-                    Err(rodbus::error::RequestError::Exception(exception)) => {
-                        println!("Modbus exception: {}", exception);
-                    }
-                    Err(err) => println!("error: {}", err),
-                }
                 // ANCHOR_END: write_single_coil
+                print_write_result(result);
             }
             "wsr" => {
                 let result = channel
                     .write_single_register(params, Indexed::new(0, 76))
                     .await;
-
-                match result {
-                    Ok(_) => println!("success"),
-                    Err(rodbus::error::RequestError::Exception(exception)) => {
-                        println!("Modbus exception: {}", exception);
-                    }
-                    Err(err) => println!("error: {}", err),
-                }
+                print_write_result(result);
             }
             "wmc" => {
                 let result = channel
@@ -248,14 +231,7 @@ async fn run_channel(mut channel: Channel) -> Result<(), Box<dyn std::error::Err
                         WriteMultiple::from(0, vec![true, false]).unwrap(),
                     )
                     .await;
-
-                match result {
-                    Ok(_) => println!("success"),
-                    Err(rodbus::error::RequestError::Exception(exception)) => {
-                        println!("Modbus exception: {}", exception);
-                    }
-                    Err(err) => println!("error: {}", err),
-                }
+                print_write_result(result);
             }
             "wmr" => {
                 // ANCHOR: write_multiple_registers
@@ -265,14 +241,7 @@ async fn run_channel(mut channel: Channel) -> Result<(), Box<dyn std::error::Err
                         WriteMultiple::from(0, vec![0xCA, 0xFE]).unwrap(),
                     )
                     .await;
-
-                match result {
-                    Ok(_) => println!("success"),
-                    Err(rodbus::error::RequestError::Exception(exception)) => {
-                        println!("Modbus exception: {}", exception);
-                    }
-                    Err(err) => println!("error: {}", err),
-                }
+                print_write_result(result);
                 // ANCHOR_END: write_multiple_registers
             }
             _ => println!("unknown command"),

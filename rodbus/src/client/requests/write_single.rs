@@ -3,7 +3,7 @@ use std::fmt::Display;
 use crate::client::message::Promise;
 use crate::common::cursor::{ReadCursor, WriteCursor};
 use crate::common::function::FunctionCode;
-use crate::decode::PduDecodeLevel;
+use crate::decode::AppDecodeLevel;
 use crate::error::AduParseError;
 use crate::error::RequestError;
 use crate::types::{coil_from_u16, coil_to_u16, Indexed};
@@ -41,7 +41,7 @@ where
         self,
         cursor: ReadCursor,
         function: FunctionCode,
-        decode: PduDecodeLevel,
+        decode: AppDecodeLevel,
     ) {
         let result = self.parse_all(cursor);
 

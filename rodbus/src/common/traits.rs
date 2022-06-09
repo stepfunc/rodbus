@@ -1,5 +1,5 @@
 use crate::common::cursor::*;
-use crate::decode::PduDecodeLevel;
+use crate::decode::AppDecodeLevel;
 use crate::error::*;
 
 pub(crate) trait Serialize {
@@ -10,7 +10,7 @@ pub(crate) trait Loggable: Serialize {
     fn log(
         &self,
         payload: &[u8],
-        level: PduDecodeLevel,
+        level: AppDecodeLevel,
         f: &mut std::fmt::Formatter,
     ) -> std::fmt::Result;
 }
@@ -18,11 +18,11 @@ pub(crate) trait Loggable: Serialize {
 pub(crate) struct LoggableDisplay<'a, 'b, T: Loggable> {
     loggable: &'a T,
     payload: &'b [u8],
-    level: PduDecodeLevel,
+    level: AppDecodeLevel,
 }
 
 impl<'a, 'b, T: Loggable> LoggableDisplay<'a, 'b, T> {
-    pub(crate) fn new(loggable: &'a T, payload: &'b [u8], level: PduDecodeLevel) -> Self {
+    pub(crate) fn new(loggable: &'a T, payload: &'b [u8], level: AppDecodeLevel) -> Self {
         Self {
             loggable,
             payload,

@@ -1,5 +1,17 @@
 use crate::tokio;
 
+/// The task processing requests has terminated
+#[derive(Clone, Copy, Debug)]
+pub struct Shutdown;
+
+impl std::error::Error for Shutdown {}
+
+impl std::fmt::Display for Shutdown {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "task shutdown")
+    }
+}
+
 /// Top level error type for the client API
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum RequestError {
@@ -88,6 +100,12 @@ impl From<InvalidRange> for InvalidRequest {
 impl<T> From<tokio::sync::mpsc::error::SendError<T>> for RequestError {
     fn from(_: tokio::sync::mpsc::error::SendError<T>) -> Self {
         RequestError::Shutdown
+    }
+}
+
+impl<T> From<tokio::sync::mpsc::error::SendError<T>> for Shutdown {
+    fn from(_: tokio::sync::mpsc::error::SendError<T>) -> Self {
+        Shutdown
     }
 }
 

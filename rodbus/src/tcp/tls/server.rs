@@ -6,11 +6,10 @@ use tokio_rustls::rustls;
 use tokio_rustls::rustls::server::AllowAnyAuthenticatedClient;
 
 use crate::common::phys::PhysLayer;
-use crate::server::task::SessionAuthentication;
+use crate::server::task::Authorization;
 use crate::server::AuthorizationHandler;
 use crate::tcp::tls::{load_certs, load_private_key, CertificateMode, MinTlsVersion, TlsError};
 use crate::tokio::net::TcpStream;
-use crate::PhysDecodeLevel;
 
 type RoleContainer = Arc<Mutex<Option<String>>>;
 type ConfigBuilderCallback =
@@ -100,9 +99,8 @@ impl TlsServerConfig {
     pub(crate) async fn handle_connection(
         &mut self,
         socket: TcpStream,
-        level: PhysDecodeLevel,
         auth_handler: Arc<dyn AuthorizationHandler>,
-    ) -> Result<(PhysLayer, SessionAuthentication), String> {
+    ) -> Result<(PhysLayer, Authorization), String> {
         let role_container = Arc::new(Mutex::new(None));
         let tls_config = self.build(role_container.clone())?;
 
@@ -110,17 +108,14 @@ impl TlsServerConfig {
         match connector.accept(socket).await {
             Err(err) => Err(format!("failed to establish TLS session: {}", err)),
             Ok(stream) => {
-                let layer = PhysLayer::new_tls(tokio_rustls::TlsStream::from(stream), level);
+                let layer = PhysLayer::new_tls(tokio_rustls::TlsStream::from(stream));
                 let role = role_container
                     .lock()
                     .unwrap()
                     .clone()
                     .ok_or_else(|| "client did not present Modbus role".to_string())?;
 
-                Ok((
-                    layer,
-                    SessionAuthentication::Authenticated(auth_handler, role),
-                ))
+                Ok((layer, Authorization::Handler(auth_handler, role)))
             }
         }
     }

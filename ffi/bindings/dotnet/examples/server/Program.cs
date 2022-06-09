@@ -186,9 +186,8 @@ namespace example
 
         private static Server CreateTcpServer(Runtime runtime, DeviceMap map)
         {
-            // ANCHOR: tcp_server_create
-            var decodeLevel = new DecodeLevel();
-            var server = Server.CreateTcp(runtime, "127.0.0.1:502", 100, map, decodeLevel);
+            // ANCHOR: tcp_server_create            
+            var server = Server.CreateTcp(runtime, "127.0.0.1:502", 100, map, DecodeLevel.Nothing());
             // ANCHOR_END: tcp_server_create
 
             return server;
@@ -196,9 +195,8 @@ namespace example
 
         private static Server CreateRtuServer(Runtime runtime, DeviceMap map)
         {
-            // ANCHOR: rtu_server_create
-            var decodeLevel = new DecodeLevel();
-            var server = Server.CreateRtu(runtime, "/dev/ttySIM1", new SerialPortSettings(), map, decodeLevel);
+            // ANCHOR: rtu_server_create            
+            var server = Server.CreateRtu(runtime, "/dev/ttySIM1", new SerialPortSettings(), map, DecodeLevel.Nothing());
             // ANCHOR_END: rtu_server_create
 
             return server;
@@ -206,9 +204,8 @@ namespace example
 
         private static Server CreateTlsServer(Runtime runtime, DeviceMap map, TlsServerConfig tlsConfig)
         {
-            // ANCHOR: tls_server_create
-            var decodeLevel = new DecodeLevel();
-            var server = Server.CreateTls(runtime, "127.0.0.1:802", 10, map, tlsConfig, new AuthorizationHandler(), decodeLevel);
+            // ANCHOR: tls_server_create            
+            var server = Server.CreateTls(runtime, "127.0.0.1:802", 10, map, tlsConfig, new AuthorizationHandler(), DecodeLevel.Nothing());
             // ANCHOR_END: tls_server_create
 
             return server;

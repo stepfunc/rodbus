@@ -68,8 +68,7 @@ public class ClientExample {
 
     private static ClientChannel createTcpChannel(Runtime runtime) {
         // ANCHOR: create_tcp_channel
-        DecodeLevel decodeLevel = new DecodeLevel();
-        ClientChannel channel = ClientChannel.createTcp(runtime, "127.0.0.1:502", ushort(100), new RetryStrategy(), decodeLevel);
+        ClientChannel channel = ClientChannel.createTcp(runtime, "127.0.0.1:502", ushort(100), new RetryStrategy(), DecodeLevel.nothing());
         // ANCHOR_END: create_tcp_channel
 
         return channel;
@@ -77,14 +76,13 @@ public class ClientExample {
 
     private static ClientChannel createRtuChannel(Runtime runtime) {
         // ANCHOR: create_rtu_channel
-        DecodeLevel decodeLevel = new DecodeLevel();
         ClientChannel channel = ClientChannel.createRtu(
                 runtime,
                 "/dev/ttySIM0", // path
                 new SerialPortSettings(), // serial settings
                 ushort(1), // max queued requests
                 Duration.ofSeconds(1), // retry delay
-                decodeLevel // decode level
+                DecodeLevel.nothing() // decode level
         );
         // ANCHOR_END: create_rtu_channel
 
@@ -93,8 +91,7 @@ public class ClientExample {
 
     private static ClientChannel createTlsChannel(Runtime runtime, TlsClientConfig tlsConfig) {
         // ANCHOR: create_tls_channel
-        DecodeLevel decodeLevel = new DecodeLevel();
-        ClientChannel channel = ClientChannel.createTls(runtime, "127.0.0.1:802", ushort(100), new RetryStrategy(), tlsConfig, decodeLevel);
+        ClientChannel channel = ClientChannel.createTls(runtime, "127.0.0.1:802", ushort(100), new RetryStrategy(), tlsConfig, DecodeLevel.nothing());
         // ANCHOR_END: create_tls_channel
 
         return channel;
@@ -143,6 +140,16 @@ public class ClientExample {
             switch (line) {
                 case "x":
                     return;
+                case "ed": {
+                    // enable decoding
+                    channel.setDecodeLevel(new DecodeLevel(AppDecodeLevel.DATA_VALUES, FrameDecodeLevel.HEADER, PhysDecodeLevel.LENGTH));
+                    break;
+                }
+                case "dd": {
+                    // disable decoding
+                    channel.setDecodeLevel(DecodeLevel.nothing());
+                    break;
+                }
                 case "rc": {
                     // ANCHOR: read_coils
                     channel.readCoils(param, range).whenComplete(ClientExample::handleBitResult);

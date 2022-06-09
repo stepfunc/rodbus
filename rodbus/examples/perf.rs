@@ -3,19 +3,17 @@ use std::str::FromStr;
 use std::time::Duration;
 
 use rodbus::client::*;
+use rodbus::constants::limits::MAX_READ_REGISTERS_COUNT;
 use rodbus::error::RequestError;
 use rodbus::server::*;
 use rodbus::*;
 
-struct Handler {
-    coils: [bool; 100],
-}
+struct Handler;
+
 impl RequestHandler for Handler {
-    fn read_coil(&self, address: u16) -> Result<bool, ExceptionCode> {
-        match self.coils.get(address as usize) {
-            Some(x) => Ok(*x),
-            None => Err(ExceptionCode::IllegalDataAddress),
-        }
+    fn read_holding_register(&self, address: u16) -> Result<u16, ExceptionCode> {
+        // value is always the address
+        Ok(address)
     }
 }
 
@@ -43,18 +41,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let addr = SocketAddr::from_str("127.0.0.1:40000")?;
 
-    let handler = Handler {
-        coils: [false; 100],
-    }
-    .wrap();
+    let handler = Handler {}.wrap();
 
     let _handle = spawn_tcp_server_task(
         num_sessions,
         addr,
         ServerHandlerMap::single(UnitId::new(1), handler),
         DecodeLevel::new(
-            PduDecodeLevel::Nothing,
-            AduDecodeLevel::Nothing,
+            AppDecodeLevel::Nothing,
+            FrameDecodeLevel::Nothing,
             PhysDecodeLevel::Nothing,
         ),
     )
@@ -68,8 +63,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             10,
             default_reconnect_strategy(),
             DecodeLevel::new(
-                PduDecodeLevel::Nothing,
-                AduDecodeLevel::Nothing,
+                AppDecodeLevel::Nothing,
+                FrameDecodeLevel::Nothing,
                 PhysDecodeLevel::Nothing,
             ),
         );
@@ -87,7 +82,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let handle: tokio::task::JoinHandle<Result<(), RequestError>> = tokio::spawn(async move {
             for _ in 0..num_requests {
                 if let Err(err) = channel
-                    .read_coils(params, AddressRange::try_from(0, 100).unwrap())
+                    .read_holding_registers(
+                        params,
+                        AddressRange::try_from(0, MAX_READ_REGISTERS_COUNT).unwrap(),
+                    )
                     .await
                 {
                     println!("failure: {}", err);
@@ -108,10 +106,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let num_total_requests = num_sessions * num_requests;
     let seconds = elapsed.as_secs_f64();
     let requests_per_sec: f64 = (num_total_requests as f64) / seconds;
+    let registers_per_sec = requests_per_sec * (MAX_READ_REGISTERS_COUNT as f64);
 
     println!(
-        "performed {} requests in {} seconds - ({:.1} requests/sec)",
-        num_total_requests, seconds, requests_per_sec
+        "performed {} requests in {} seconds - ({:.1} requests/sec) == ({:.1} registers/sec)",
+        num_total_requests, seconds, requests_per_sec, registers_per_sec
     );
 
     Ok(())

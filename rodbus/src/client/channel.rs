@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use tracing::Instrument;
 
-use crate::client::message::{Promise, Request, RequestDetails};
+use crate::client::message::{Command, Promise, Request, RequestDetails, Setting};
 use crate::client::requests::read_bits::ReadBits;
 use crate::client::requests::read_registers::ReadRegisters;
 use crate::client::requests::write_multiple::{MultipleWriteRequest, WriteMultiple};
@@ -17,7 +17,7 @@ use crate::DecodeLevel;
 /// Async channel used to make requests
 #[derive(Debug, Clone)]
 pub struct Channel {
-    pub(crate) tx: tokio::sync::mpsc::Sender<Request>,
+    pub(crate) tx: tokio::sync::mpsc::Sender<Command>,
 }
 
 /// Request parameters to dispatch the request to the proper device
@@ -270,6 +270,14 @@ impl Channel {
         self.tx.send(request).await?;
         rx.await?
     }
+
+    /// Dynamically change the protocol decoding level of the channel
+    pub async fn set_decode_level(&mut self, level: DecodeLevel) -> Result<(), Shutdown> {
+        self.tx
+            .send(Command::Setting(Setting::DecodeLevel(level)))
+            .await?;
+        Ok(())
+    }
 }
 
 /// Callback-based session
@@ -279,7 +287,7 @@ impl Channel {
 /// interacting with the channel directly.
 #[derive(Debug, Clone)]
 pub struct CallbackSession {
-    tx: tokio::sync::mpsc::Sender<Request>,
+    tx: tokio::sync::mpsc::Sender<Command>,
     param: RequestParam,
 }
 
@@ -420,13 +428,15 @@ impl CallbackSession {
         .await;
     }
 
-    async fn send(&mut self, request: Request) {
-        if let Err(tokio::sync::mpsc::error::SendError(x)) = self.tx.send(request).await {
-            x.details.fail(RequestError::Shutdown);
+    async fn send(&mut self, command: Command) {
+        if let Err(tokio::sync::mpsc::error::SendError(Command::Request(req))) =
+            self.tx.send(command).await
+        {
+            req.details.fail(RequestError::Shutdown);
         }
     }
 }
 
-fn wrap(param: RequestParam, details: RequestDetails) -> Request {
-    Request::new(param.id, param.response_timeout, details)
+fn wrap(param: RequestParam, details: RequestDetails) -> Command {
+    Command::Request(Request::new(param.id, param.response_timeout, details))
 }

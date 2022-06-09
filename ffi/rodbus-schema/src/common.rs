@@ -84,6 +84,7 @@ fn build_error_type(lib: &mut LibraryBuilder) -> BackTraced<ErrorTypeHandle> {
         .add_error("invalid_private_key", "Invalid private key file")?
         .add_error("invalid_dns_name", "Invalid DNS name")?
         .add_error("other_tls_error", "Other tls error")?
+        .add_error("shutdown", "The task has been shutdown")?
         .doc("Error type used throughout the library")?
         .build()?;
 

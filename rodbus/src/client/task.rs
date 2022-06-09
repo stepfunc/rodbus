@@ -3,11 +3,10 @@ use std::time::Duration;
 use tracing::Instrument;
 
 use crate::common::phys::PhysLayer;
-use crate::decode::PduDecodeLevel;
-use crate::tokio;
 use crate::tokio::time::Instant;
+use crate::{tokio, DecodeLevel};
 
-use crate::client::message::Request;
+use crate::client::message::{Command, Request, Setting};
 use crate::common::frame::{FrameFormatter, FrameHeader, FrameParser, FramedReader, TxId};
 use crate::error::*;
 
@@ -40,11 +39,11 @@ where
     F: FrameFormatter,
     P: FrameParser,
 {
-    rx: tokio::sync::mpsc::Receiver<Request>,
+    rx: tokio::sync::mpsc::Receiver<Command>,
     formatter: F,
     reader: FramedReader<P>,
     tx_id: TxId,
-    decode: PduDecodeLevel,
+    decode: DecodeLevel,
 }
 
 impl<F, P> ClientLoop<F, P>
@@ -53,10 +52,10 @@ where
     P: FrameParser,
 {
     pub(crate) fn new(
-        rx: tokio::sync::mpsc::Receiver<Request>,
+        rx: tokio::sync::mpsc::Receiver<Command>,
         formatter: F,
         parser: P,
-        decode: PduDecodeLevel,
+        decode: DecodeLevel,
     ) -> Self {
         Self {
             rx,
@@ -68,9 +67,16 @@ where
     }
 
     pub(crate) async fn run(&mut self, io: &mut PhysLayer) -> SessionError {
-        while let Some(request) = self.rx.recv().await {
-            if let Some(err) = self.run_one_request(io, request).await {
-                return err;
+        while let Some(cmd) = self.rx.recv().await {
+            match cmd {
+                Command::Setting(setting) => {
+                    self.change_setting(setting);
+                }
+                Command::Request(request) => {
+                    if let Some(err) = self.run_one_request(io, request).await {
+                        return err;
+                    }
+                }
             }
         }
         SessionError::Shutdown
@@ -88,7 +94,7 @@ where
             .await;
 
         if let Err(e) = &result {
-            tracing::warn!("error occurred making request: {}", e);
+            tracing::warn!("request error: {}", e);
         }
 
         result.as_ref().err().and_then(SessionError::from)
@@ -107,7 +113,7 @@ where
             self.decode,
         )?;
 
-        io.write(bytes).await?;
+        io.write(bytes, self.decode.physical).await?;
 
         let deadline = Instant::now() + request.timeout;
 
@@ -118,7 +124,7 @@ where
                     request.details.fail(RequestError::ResponseTimeout);
                     return Ok(());
                 }
-                x = self.reader.next_frame(io) => match x {
+                x = self.reader.next_frame(io, self.decode) => match x {
                     Ok(frame) => frame,
                     Err(err) => {
                         request.details.fail(err);
@@ -138,27 +144,43 @@ where
             break frame;
         };
 
-        request.handle_response(response.payload(), self.decode);
+        request.handle_response(response.payload(), self.decode.app);
         Ok(())
     }
 
-    pub(crate) async fn fail_requests_for(&mut self, duration: Duration) -> Result<(), ()> {
+    pub(crate) fn change_setting(&mut self, setting: Setting) {
+        match setting {
+            Setting::DecodeLevel(level) => {
+                tracing::info!("Decode level changed: {:?}", level);
+                self.decode = level;
+            }
+        }
+    }
+
+    pub(crate) async fn fail_requests_for(&mut self, duration: Duration) -> Result<(), Shutdown> {
         let deadline = Instant::now() + duration;
 
         loop {
             tokio::select! {
                 _ = tokio::time::sleep_until(deadline) => {
-                    // Timeout occured
+                    // Timeout occurred
                     return Ok(())
                 }
                 x = self.rx.recv() => match x {
-                    Some(request) => {
-                        // fail request, do another iteration
-                        request.details.fail(RequestError::NoConnection)
+                    Some(cmd) => {
+                        match cmd {
+                            Command::Request(req) => {
+                                // fail request, do another iteration
+                                req.details.fail(RequestError::NoConnection)
+                            }
+                            Command::Setting(setting) => {
+                                self.change_setting(setting);
+                            }
+                        }
                     }
                     None => {
                         // channel was closed
-                        return Err(())
+                        return Err(Shutdown)
                     }
                 }
             }
@@ -192,18 +214,18 @@ mod tests {
     }
 
     impl ClientFixture {
-        fn new() -> (Self, tokio::sync::mpsc::Sender<Request>) {
+        fn new() -> (Self, tokio::sync::mpsc::Sender<Command>) {
             let (tx, rx) = tokio::sync::mpsc::channel(10);
             let (io, io_handle) = io::mock();
             (
                 Self {
                     client: ClientLoop::new(
                         rx,
-                        MbapFormatter::new(AduDecodeLevel::Nothing),
-                        MbapParser::new(AduDecodeLevel::Nothing),
-                        PduDecodeLevel::Nothing,
+                        MbapFormatter::new(),
+                        MbapParser::new(),
+                        DecodeLevel::nothing(),
                     ),
-                    io: PhysLayer::new_mock(io, PhysDecodeLevel::Nothing),
+                    io: PhysLayer::new_mock(io),
                     io_handle,
                 },
                 tx,
@@ -212,7 +234,7 @@ mod tests {
 
         fn read_coils(
             &mut self,
-            tx: &mut tokio::sync::mpsc::Sender<Request>,
+            tx: &mut tokio::sync::mpsc::Sender<Command>,
             range: AddressRange,
             timeout: Duration,
         ) -> tokio::sync::oneshot::Receiver<Result<Vec<Indexed<bool>>, RequestError>> {
@@ -223,7 +245,7 @@ mod tests {
             ));
             let request = Request::new(UnitId::new(1), timeout, details);
 
-            let mut task = spawn(tx.send(request));
+            let mut task = spawn(tx.send(Command::Request(request)));
             match task.poll() {
                 Poll::Ready(result) => match result {
                     Ok(()) => response_rx,
@@ -252,10 +274,10 @@ mod tests {
     where
         T: Serialize + Loggable + Sized,
     {
-        let mut fmt = MbapFormatter::new(AduDecodeLevel::Nothing);
+        let mut fmt = MbapFormatter::new();
         let header = FrameHeader::new_tcp_header(UnitId::new(1), TxId::new(0));
         let bytes = fmt
-            .format(header, function, payload, PduDecodeLevel::Nothing)
+            .format(header, function, payload, DecodeLevel::nothing())
             .unwrap();
         Vec::from(bytes)
     }

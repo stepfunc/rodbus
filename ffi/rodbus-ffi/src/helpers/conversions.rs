@@ -1,4 +1,5 @@
-use rodbus::client::{CertificateMode, MinTlsVersion, TlsError};
+use rodbus::client::{CertificateMode, MinTlsVersion, ReconnectStrategy, TlsError};
+use rodbus::error::Shutdown;
 use rodbus::server::AuthorizationResult;
 use rodbus::AddressRange;
 
@@ -20,7 +21,7 @@ impl From<rodbus::error::RequestError> for ffi::RequestError {
     }
 }
 
-impl<'a> From<rodbus::ExceptionCode> for ffi::RequestError {
+impl From<rodbus::ExceptionCode> for ffi::RequestError {
     fn from(x: rodbus::ExceptionCode) -> Self {
         match x {
             rodbus::ExceptionCode::Acknowledge => ffi::RequestError::ModbusExceptionAcknowledge,
@@ -138,5 +139,17 @@ impl From<ffi::CertificateMode> for CertificateMode {
             ffi::CertificateMode::AuthorityBased => CertificateMode::AuthorityBased,
             ffi::CertificateMode::SelfSigned => CertificateMode::SelfSigned,
         }
+    }
+}
+
+impl From<ffi::RetryStrategy> for Box<dyn ReconnectStrategy + Send> {
+    fn from(from: ffi::RetryStrategy) -> Self {
+        rodbus::client::doubling_reconnect_strategy(from.min_delay(), from.max_delay())
+    }
+}
+
+impl From<rodbus::error::Shutdown> for ffi::ParamError {
+    fn from(_: Shutdown) -> Self {
+        ffi::ParamError::Shutdown
     }
 }

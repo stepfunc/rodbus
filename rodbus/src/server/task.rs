@@ -1,9 +1,8 @@
 use tracing::Instrument;
 
 use crate::common::phys::PhysLayer;
-use crate::decode::PduDecodeLevel;
-use crate::server::AuthorizationHandler;
-use crate::tokio;
+use crate::server::{AuthorizationHandler, AuthorizationResult};
+use crate::{tokio, DecodeLevel, UnitId};
 
 use crate::common::cursor::ReadCursor;
 use crate::common::frame::{
@@ -18,6 +17,12 @@ use crate::server::request::{Request, RequestDisplay};
 use crate::server::response::ErrorResponse;
 use std::sync::Arc;
 
+/// Messages that can be sent to change server settings dynamically
+#[derive(Copy, Clone)]
+pub enum ServerSetting {
+    ChangeDecoding(DecodeLevel),
+}
+
 pub(crate) struct SessionTask<T, F, P>
 where
     T: RequestHandler,
@@ -26,11 +31,11 @@ where
 {
     io: PhysLayer,
     handlers: ServerHandlerMap<T>,
-    auth: SessionAuthentication,
-    shutdown: tokio::sync::mpsc::Receiver<()>,
+    auth: Authorization,
+    commands: tokio::sync::mpsc::Receiver<ServerSetting>,
     writer: F,
     reader: FramedReader<P>,
-    decode: PduDecodeLevel,
+    decode: DecodeLevel,
 }
 
 impl<T, F, P> SessionTask<T, F, P>
@@ -42,17 +47,17 @@ where
     pub(crate) fn new(
         io: PhysLayer,
         handlers: ServerHandlerMap<T>,
-        auth: SessionAuthentication,
+        auth: Authorization,
         formatter: F,
         parser: P,
-        shutdown: tokio::sync::mpsc::Receiver<()>,
-        decode: PduDecodeLevel,
+        commands: tokio::sync::mpsc::Receiver<ServerSetting>,
+        decode: DecodeLevel,
     ) -> Self {
         Self {
             io,
             handlers,
             auth,
-            shutdown,
+            commands,
             writer: formatter,
             reader: FramedReader::new(parser),
             decode,
@@ -66,8 +71,8 @@ where
     ) -> Result<(), RequestError> {
         // do not answer on broadcast
         if header.destination != FrameDestination::Broadcast {
-            let bytes = self.writer.error(header, err, self.decode)?;
-            self.io.write(bytes).await?;
+            let bytes = self.writer.error(header, err, self.decode.frame)?;
+            self.io.write(bytes, self.decode.physical).await?;
         }
         Ok(())
     }
@@ -80,15 +85,29 @@ where
 
     async fn run_one(&mut self) -> Result<(), RequestError> {
         crate::tokio::select! {
-            frame = self.reader.next_frame(&mut self.io) => {
+            frame = self.reader.next_frame(&mut self.io, self.decode) => {
                 let frame = frame?;
                 let tx_id = frame.header.tx_id;
                 self.handle_frame(frame)
                     .instrument(tracing::info_span!("Transaction", tx_id=?tx_id))
                     .await
             }
-            _ = self.shutdown.recv() => {
-               Err(crate::error::RequestError::Shutdown)
+            cmd = self.commands.recv() => {
+               match cmd {
+                    None => Err(crate::error::RequestError::Shutdown),
+                    Some(setting) => {
+                        self.apply_setting(setting);
+                        Ok(())
+                    }
+               }
+            }
+        }
+    }
+
+    fn apply_setting(&mut self, setting: ServerSetting) {
+        match setting {
+            ServerSetting::ChangeDecoding(level) => {
+                self.decode = level;
             }
         }
     }
@@ -125,8 +144,11 @@ where
             }
         };
 
-        if self.decode.enabled() {
-            tracing::info!("PDU RX - {}", RequestDisplay::new(self.decode, &request));
+        if self.decode.app.enabled() {
+            tracing::info!(
+                "PDU RX - {}",
+                RequestDisplay::new(self.decode.app, &request)
+            );
         }
 
         // if no addresses match, then don't respond
@@ -153,7 +175,7 @@ where
                 };
 
                 // reply with the bytes
-                self.io.write(reply_frame).await?;
+                self.io.write(reply_frame, self.decode.physical).await?;
             }
             FrameDestination::Broadcast => {
                 // check if broadcast is supported for this function code
@@ -180,11 +202,54 @@ where
     }
 }
 
-/// Authentication of the session
-pub(crate) enum SessionAuthentication {
-    /// The request is not authenticated
-    Unauthenticated,
-    /// The request is authenticated with a Role ID
+/// Determines how authorization of user defined requests are handled
+pub(crate) enum Authorization {
+    /// Requests do not require authorization checks (TCP / RTU)
+    None,
+    /// Requests are authorized using a user-supplied handler
     #[allow(dead_code)] // when tls feature is disabled
-    Authenticated(Arc<dyn AuthorizationHandler>, String),
+    Handler(Arc<dyn AuthorizationHandler>, String),
+}
+
+impl Authorization {
+    fn check_authorization(
+        handler: &dyn AuthorizationHandler,
+        unit_id: UnitId,
+        request: &Request,
+        role: &str,
+    ) -> AuthorizationResult {
+        match request {
+            Request::ReadCoils(x) => handler.read_coils(unit_id, x.inner, role),
+            Request::ReadDiscreteInputs(x) => handler.read_discrete_inputs(unit_id, x.inner, role),
+            Request::ReadHoldingRegisters(x) => {
+                handler.read_holding_registers(unit_id, x.inner, role)
+            }
+            Request::ReadInputRegisters(x) => handler.read_input_registers(unit_id, x.inner, role),
+            Request::WriteSingleCoil(x) => handler.write_single_coil(unit_id, x.index, role),
+            Request::WriteSingleRegister(x) => {
+                handler.write_single_register(unit_id, x.index, role)
+            }
+            Request::WriteMultipleCoils(x) => handler.write_multiple_coils(unit_id, x.range, role),
+            Request::WriteMultipleRegisters(x) => {
+                handler.write_multiple_registers(unit_id, x.range, role)
+            }
+        }
+    }
+
+    pub(crate) fn is_authorized(&self, unit_id: UnitId, request: &Request) -> AuthorizationResult {
+        match self {
+            Authorization::None => AuthorizationResult::Authorized,
+            Authorization::Handler(handler, role) => {
+                let result = Self::check_authorization(handler.as_ref(), unit_id, request, role);
+                if let AuthorizationResult::NotAuthorized = result {
+                    tracing::warn!(
+                        "Role \"{}\" not authorized for request: {:?}",
+                        role,
+                        request.get_function()
+                    );
+                }
+                result
+            }
+        }
+    }
 }

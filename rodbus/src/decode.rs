@@ -1,20 +1,19 @@
-/// Controls the decoding of transmitted and received data at the application, transport, and link layer
+/// Controls the decoding of transmitted and received data at the application, frame, and physical layer
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub struct DecodeLevel {
-    /// Controls the protocol data unit decoding
-    pub pdu: PduDecodeLevel,
-    /// Controls the application data unit decoding
-    ///
-    /// On TCP, this is the MBAP decoding. On serial, this controls
-    /// the serial line PDU.
-    pub adu: AduDecodeLevel,
+    /// Controls decoding of the application layer (PDU)
+    pub app: AppDecodeLevel,
+    /// Controls decoding of frames (MBAP / Serial PDU)
+    pub frame: FrameDecodeLevel,
     /// Controls the logging of physical layer read/write
     pub physical: PhysDecodeLevel,
 }
 
-/// Controls how transmitted and received Protocol Data Units (PDUs) are decoded at the INFO log level
+/// Controls how transmitted and received message at the application layer are decoded at the INFO log level
+///
+/// Application-layer messages are referred to as Protocol Data Units (PDUs) in the specification.
 #[derive(Copy, Clone, Debug, PartialEq)]
-pub enum PduDecodeLevel {
+pub enum AppDecodeLevel {
     /// Decode nothing
     Nothing,
     /// Decode the function code only
@@ -25,11 +24,14 @@ pub enum PduDecodeLevel {
     DataValues,
 }
 
-/// Controls how the transmitted and received Application Data Units (ADUs) are decoded at the INFO log level
+/// Controls how the transmitted and received frames are decoded at the INFO log level
+///
+/// Transport-specific framing wraps the application-layer traffic. You'll see these frames
+/// called "ADUs" in the Modbus specification.
 ///
 /// On TCP, this is the MBAP decoding. On serial, this controls the serial line PDU.
 #[derive(Copy, Clone, Debug, PartialEq)]
-pub enum AduDecodeLevel {
+pub enum FrameDecodeLevel {
     /// Decode nothing
     Nothing,
     /// Decode the header
@@ -56,82 +58,86 @@ impl DecodeLevel {
     }
 
     /// construct a `DecodeLevel` from its fields
-    pub fn new(pdu: PduDecodeLevel, adu: AduDecodeLevel, physical: PhysDecodeLevel) -> Self {
-        DecodeLevel { pdu, adu, physical }
+    pub fn new(pdu: AppDecodeLevel, adu: FrameDecodeLevel, physical: PhysDecodeLevel) -> Self {
+        DecodeLevel {
+            app: pdu,
+            frame: adu,
+            physical,
+        }
     }
 }
 
 impl Default for DecodeLevel {
     fn default() -> Self {
         Self {
-            pdu: PduDecodeLevel::Nothing,
-            adu: AduDecodeLevel::Nothing,
+            app: AppDecodeLevel::Nothing,
+            frame: FrameDecodeLevel::Nothing,
             physical: PhysDecodeLevel::Nothing,
         }
     }
 }
 
-impl From<PduDecodeLevel> for DecodeLevel {
-    fn from(pdu: PduDecodeLevel) -> Self {
+impl From<AppDecodeLevel> for DecodeLevel {
+    fn from(pdu: AppDecodeLevel) -> Self {
         Self {
-            pdu,
-            adu: AduDecodeLevel::Nothing,
+            app: pdu,
+            frame: FrameDecodeLevel::Nothing,
             physical: PhysDecodeLevel::Nothing,
         }
     }
 }
 
-impl PduDecodeLevel {
+impl AppDecodeLevel {
     pub(crate) fn enabled(&self) -> bool {
         self.header()
     }
 
     pub(crate) fn header(&self) -> bool {
         match self {
-            PduDecodeLevel::Nothing => false,
-            PduDecodeLevel::FunctionCode => true,
-            PduDecodeLevel::DataHeaders => true,
-            PduDecodeLevel::DataValues => true,
+            AppDecodeLevel::Nothing => false,
+            AppDecodeLevel::FunctionCode => true,
+            AppDecodeLevel::DataHeaders => true,
+            AppDecodeLevel::DataValues => true,
         }
     }
 
     pub(crate) fn data_headers(&self) -> bool {
         match self {
-            PduDecodeLevel::Nothing => false,
-            PduDecodeLevel::FunctionCode => false,
-            PduDecodeLevel::DataHeaders => true,
-            PduDecodeLevel::DataValues => true,
+            AppDecodeLevel::Nothing => false,
+            AppDecodeLevel::FunctionCode => false,
+            AppDecodeLevel::DataHeaders => true,
+            AppDecodeLevel::DataValues => true,
         }
     }
 
     pub(crate) fn data_values(&self) -> bool {
         match self {
-            PduDecodeLevel::Nothing => false,
-            PduDecodeLevel::FunctionCode => false,
-            PduDecodeLevel::DataHeaders => false,
-            PduDecodeLevel::DataValues => true,
+            AppDecodeLevel::Nothing => false,
+            AppDecodeLevel::FunctionCode => false,
+            AppDecodeLevel::DataHeaders => false,
+            AppDecodeLevel::DataValues => true,
         }
     }
 }
 
-impl AduDecodeLevel {
+impl FrameDecodeLevel {
     pub(crate) fn enabled(&self) -> bool {
         self.header_enabled()
     }
 
     pub(crate) fn header_enabled(&self) -> bool {
         match self {
-            AduDecodeLevel::Nothing => false,
-            AduDecodeLevel::Header => true,
-            AduDecodeLevel::Payload => true,
+            FrameDecodeLevel::Nothing => false,
+            FrameDecodeLevel::Header => true,
+            FrameDecodeLevel::Payload => true,
         }
     }
 
     pub(crate) fn payload_enabled(&self) -> bool {
         match self {
-            AduDecodeLevel::Nothing => false,
-            AduDecodeLevel::Header => false,
-            AduDecodeLevel::Payload => true,
+            FrameDecodeLevel::Nothing => false,
+            FrameDecodeLevel::Header => false,
+            FrameDecodeLevel::Payload => true,
         }
     }
 }

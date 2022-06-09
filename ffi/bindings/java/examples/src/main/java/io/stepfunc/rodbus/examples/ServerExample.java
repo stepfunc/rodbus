@@ -161,8 +161,7 @@ public class ServerExample {
 
     private static Server createTcpServer(Runtime runtime, DeviceMap map) {
         // ANCHOR: tcp_server_create
-        DecodeLevel decodeLevel = new DecodeLevel();
-        Server server = Server.createTcp(runtime, "127.0.0.1:502", ushort(100), map, decodeLevel);
+        Server server = Server.createTcp(runtime, "127.0.0.1:502", ushort(100), map, DecodeLevel.nothing());
         // ANCHOR_END: tcp_server_create
 
         return server;
@@ -170,8 +169,7 @@ public class ServerExample {
 
     private static Server createRtuServer(Runtime runtime, DeviceMap map) {
         // ANCHOR: rtu_server_create
-        DecodeLevel decodeLevel = new DecodeLevel();
-        Server server = Server.createRtu(runtime, "/dev/ttySIM1", new SerialPortSettings(), map, decodeLevel);
+        Server server = Server.createRtu(runtime, "/dev/ttySIM1", new SerialPortSettings(), map, DecodeLevel.nothing());
         // ANCHOR_END: rtu_server_create
 
         return server;
@@ -179,8 +177,7 @@ public class ServerExample {
 
     private static Server createTlsServer(Runtime runtime, DeviceMap map, TlsServerConfig tlsConfig) {
         // ANCHOR: tls_server_create
-        DecodeLevel decodeLevel = new DecodeLevel();
-        Server server = Server.createTls(runtime, "127.0.0.1:802", ushort(10), map, tlsConfig, new TestAuthorizationHandler(), decodeLevel);
+        Server server = Server.createTls(runtime, "127.0.0.1:802", ushort(10), map, tlsConfig, new TestAuthorizationHandler(), DecodeLevel.nothing());
         // ANCHOR_END: tls_server_create
 
         return server;

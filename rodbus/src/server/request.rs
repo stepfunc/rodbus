@@ -2,15 +2,16 @@ use crate::common::cursor::ReadCursor;
 use crate::common::frame::{FrameFormatter, FrameHeader};
 use crate::common::function::FunctionCode;
 use crate::common::traits::{Loggable, Parse, Serialize};
-use crate::decode::PduDecodeLevel;
+use crate::decode::AppDecodeLevel;
 use crate::error::RequestError;
 use crate::exception::ExceptionCode;
 use crate::server::handler::RequestHandler;
 use crate::server::response::{BitWriter, RegisterWriter};
-use crate::server::task::SessionAuthentication;
+use crate::server::task::Authorization;
 use crate::server::*;
 use crate::types::*;
 
+#[derive(Debug)]
 pub(crate) enum Request<'a> {
     ReadCoils(ReadBitsRange),
     ReadDiscreteInputs(ReadBitsRange),
@@ -40,47 +41,38 @@ impl<'a> Request<'a> {
         &self,
         header: FrameHeader,
         handler: &mut T,
-        auth: &SessionAuthentication,
+        auth: &Authorization,
         writer: &'b mut F,
-        level: PduDecodeLevel,
+        level: DecodeLevel,
     ) -> Result<&'b [u8], RequestError>
     where
         T: RequestHandler,
         F: FrameFormatter,
     {
-        fn serialize_result<'a, T, F, FnAuth, FnResult>(
+        // check authorization before doing anything else
+        if let AuthorizationResult::NotAuthorized =
+            auth.is_authorized(header.destination.into_unit_id(), self)
+        {
+            return writer.exception(
+                header,
+                self.get_function(),
+                ExceptionCode::IllegalFunction,
+                level.frame,
+            );
+        }
+
+        fn serialize_result<T, F, FnResult>(
             function: FunctionCode,
             header: FrameHeader,
-            writer: &'a mut F,
-            auth: &SessionAuthentication,
-            auth_fn: FnAuth,
+            writer: &mut F,
             result: FnResult,
-            level: PduDecodeLevel,
-        ) -> Result<&'a [u8], RequestError>
+            level: DecodeLevel,
+        ) -> Result<&[u8], RequestError>
         where
             T: Serialize + Loggable,
             F: FrameFormatter,
-            FnAuth: FnOnce(&dyn AuthorizationHandler, &str) -> AuthorizationResult,
             FnResult: FnOnce() -> Result<T, ExceptionCode>,
         {
-            // Check authorization
-            if let SessionAuthentication::Authenticated(handler, role) = auth {
-                match auth_fn(handler.as_ref(), role) {
-                    AuthorizationResult::Authorized => {
-                        tracing::debug!("request authorized for \"{}\"", role)
-                    }
-                    AuthorizationResult::NotAuthorized => {
-                        tracing::warn!("request not authorized for \"{}\"", role);
-                        return writer.exception(
-                            header,
-                            function,
-                            ExceptionCode::IllegalFunction,
-                            level,
-                        );
-                    }
-                }
-            }
-
             // Generate the result
             let result = result();
 
@@ -90,7 +82,7 @@ impl<'a> Request<'a> {
             // exception is written instead. This is all handled inside `FrameFormatter::format`.
             match result {
                 Ok(data) => writer.format(header, function, &data, level),
-                Err(ex) => writer.exception(header, function, ex, level),
+                Err(ex) => writer.exception(header, function, ex, level.frame),
             }
         }
 
@@ -100,10 +92,6 @@ impl<'a> Request<'a> {
                 function,
                 header,
                 writer,
-                auth,
-                |handler, role| {
-                    handler.read_coils(header.destination.into_unit_id(), range.inner, role)
-                },
                 || Ok(BitWriter::new(*range, |index| handler.read_coil(index))),
                 level,
             ),
@@ -111,14 +99,6 @@ impl<'a> Request<'a> {
                 function,
                 header,
                 writer,
-                auth,
-                |handler, role| {
-                    handler.read_discrete_inputs(
-                        header.destination.into_unit_id(),
-                        range.inner,
-                        role,
-                    )
-                },
                 || {
                     Ok(BitWriter::new(*range, |index| {
                         handler.read_discrete_input(index)
@@ -130,14 +110,6 @@ impl<'a> Request<'a> {
                 function,
                 header,
                 writer,
-                auth,
-                |handler, role| {
-                    handler.read_holding_registers(
-                        header.destination.into_unit_id(),
-                        range.inner,
-                        role,
-                    )
-                },
                 || {
                     Ok(RegisterWriter::new(*range, |index| {
                         handler.read_holding_register(index)
@@ -149,14 +121,6 @@ impl<'a> Request<'a> {
                 function,
                 header,
                 writer,
-                auth,
-                |handler, role| {
-                    handler.read_input_registers(
-                        header.destination.into_unit_id(),
-                        range.inner,
-                        role,
-                    )
-                },
                 || {
                     Ok(RegisterWriter::new(*range, |index| {
                         handler.read_input_register(index)
@@ -168,14 +132,6 @@ impl<'a> Request<'a> {
                 function,
                 header,
                 writer,
-                auth,
-                |handler, role| {
-                    handler.write_single_coil(
-                        header.destination.into_unit_id(),
-                        request.index,
-                        role,
-                    )
-                },
                 || handler.write_single_coil(*request).map(|_| *request),
                 level,
             ),
@@ -183,14 +139,6 @@ impl<'a> Request<'a> {
                 function,
                 header,
                 writer,
-                auth,
-                |handler, role| {
-                    handler.write_single_register(
-                        header.destination.into_unit_id(),
-                        request.index,
-                        role,
-                    )
-                },
                 || handler.write_single_register(*request).map(|_| *request),
                 level,
             ),
@@ -198,14 +146,6 @@ impl<'a> Request<'a> {
                 function,
                 header,
                 writer,
-                auth,
-                |handler, role| {
-                    handler.write_multiple_coils(
-                        header.destination.into_unit_id(),
-                        items.range,
-                        role,
-                    )
-                },
                 || handler.write_multiple_coils(*items).map(|_| items.range),
                 level,
             ),
@@ -213,14 +153,6 @@ impl<'a> Request<'a> {
                 function,
                 header,
                 writer,
-                auth,
-                |handler, role| {
-                    handler.write_multiple_registers(
-                        header.destination.into_unit_id(),
-                        items.range,
-                        role,
-                    )
-                },
                 || {
                     handler
                         .write_multiple_registers(*items)
@@ -293,11 +225,11 @@ impl<'a> Request<'a> {
 
 pub(crate) struct RequestDisplay<'a, 'b> {
     request: &'a Request<'b>,
-    level: PduDecodeLevel,
+    level: AppDecodeLevel,
 }
 
 impl<'a, 'b> RequestDisplay<'a, 'b> {
-    pub(crate) fn new(level: PduDecodeLevel, request: &'a Request<'b>) -> Self {
+    pub(crate) fn new(level: AppDecodeLevel, request: &'a Request<'b>) -> Self {
         Self { request, level }
     }
 }

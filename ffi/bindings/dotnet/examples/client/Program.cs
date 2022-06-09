@@ -76,9 +76,8 @@ namespace example
 
         private static ClientChannel CreateTcpChannel(Runtime runtime)
         {
-            // ANCHOR: create_tcp_channel
-            var decodeLevel = new DecodeLevel();
-            var channel = ClientChannel.CreateTcp(runtime, "127.0.0.1:502", 1, new RetryStrategy(), decodeLevel);
+            // ANCHOR: create_tcp_channel            
+            var channel = ClientChannel.CreateTcp(runtime, "127.0.0.1:502", 1, new RetryStrategy(), DecodeLevel.Nothing());
             // ANCHOR_END: create_tcp_channel
 
             return channel;
@@ -86,15 +85,14 @@ namespace example
 
         private static ClientChannel CreateRtuChannel(Runtime runtime)
         {
-            // ANCHOR: create_rtu_channel
-            var decodeLevel = new DecodeLevel();
+            // ANCHOR: create_rtu_channel            
             var channel = ClientChannel.CreateRtu(
                 runtime, // runtime
                 "/dev/ttySIM0", // path
                 new SerialPortSettings(), // serial settings
                 1, // max queued requests
                 TimeSpan.FromSeconds(1), // retry delay
-                decodeLevel // decode level
+                DecodeLevel.Nothing()
             );
             // ANCHOR_END: create_rtu_channel
 
@@ -103,9 +101,8 @@ namespace example
 
         private static ClientChannel CreateTlsChannel(Runtime runtime, TlsClientConfig tlsConfig)
         {
-            // ANCHOR: create_tls_channel
-            var decodeLevel = new DecodeLevel();
-            var channel = ClientChannel.CreateTls(runtime, "127.0.0.1:802", 100, new RetryStrategy(), tlsConfig, decodeLevel);
+            // ANCHOR: create_tls_channel            
+            var channel = ClientChannel.CreateTls(runtime, "127.0.0.1:802", 100, new RetryStrategy(), tlsConfig, DecodeLevel.Nothing());
             // ANCHOR_END: create_tls_channel
 
             return channel;
@@ -156,6 +153,12 @@ namespace example
                 {
                     case "x":
                         return;
+                    case "ed":
+                        channel.SetDecodeLevel(new DecodeLevel(AppDecodeLevel.DataValues, FrameDecodeLevel.Header, PhysDecodeLevel.Length));
+                        break;
+                    case "dd":
+                        channel.SetDecodeLevel(DecodeLevel.Nothing());
+                        break;
                     case "rc":
                         {
                             // ANCHOR: read_coils

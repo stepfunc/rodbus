@@ -3,7 +3,7 @@ use crate::common::cursor::WriteCursor;
 use crate::common::frame::{Frame, FrameDestination, FrameFormatter, FrameHeader, FrameParser};
 use crate::common::function::FunctionCode;
 use crate::common::traits::Serialize;
-use crate::decode::AduDecodeLevel;
+use crate::decode::FrameDecodeLevel;
 use crate::error::{FrameParseError, RequestError};
 use crate::types::UnitId;
 
@@ -41,37 +41,32 @@ enum LengthMode {
 pub(crate) struct RtuParser {
     state: ParseState,
     parser_type: ParserType,
-    decode: AduDecodeLevel,
 }
 
 pub(crate) struct RtuFormatter {
     buffer: [u8; constants::MAX_FRAME_LENGTH],
-    decode: AduDecodeLevel,
 }
 
 impl RtuFormatter {
-    pub(crate) fn new(decode: AduDecodeLevel) -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             buffer: [0; constants::MAX_FRAME_LENGTH],
-            decode,
         }
     }
 }
 
 impl RtuParser {
-    pub(crate) fn new_request_parser(decode: AduDecodeLevel) -> Self {
+    pub(crate) fn new_request_parser() -> Self {
         Self {
             state: ParseState::Start,
             parser_type: ParserType::Request,
-            decode,
         }
     }
 
-    pub(crate) fn new_response_parser(decode: AduDecodeLevel) -> Self {
+    pub(crate) fn new_response_parser() -> Self {
         Self {
             state: ParseState::Start,
             parser_type: ParserType::Response,
-            decode,
         }
     }
 
@@ -118,7 +113,11 @@ impl FrameParser for RtuParser {
         constants::MAX_FRAME_LENGTH
     }
 
-    fn parse(&mut self, cursor: &mut ReadBuffer) -> Result<Option<Frame>, RequestError> {
+    fn parse(
+        &mut self,
+        cursor: &mut ReadBuffer,
+        decode_level: FrameDecodeLevel,
+    ) -> Result<Option<Frame>, RequestError> {
         match self.state {
             ParseState::Start => {
                 if cursor.len() < 2 {
@@ -153,7 +152,7 @@ impl FrameParser for RtuParser {
                     }
                 };
 
-                self.parse(cursor)
+                self.parse(cursor, decode_level)
             }
             ParseState::ReadToOffsetForLength(destination, offset) => {
                 if cursor.len() < constants::FUNCTION_CODE_LENGTH + offset {
@@ -165,7 +164,7 @@ impl FrameParser for RtuParser {
                     cursor.peek_at(constants::FUNCTION_CODE_LENGTH + offset - 1)? as usize;
                 self.state = ParseState::ReadFullBody(destination, offset + extra_bytes_to_read);
 
-                self.parse(cursor)
+                self.parse(cursor, decode_level)
             }
             ParseState::ReadFullBody(destination, length) => {
                 if constants::FUNCTION_CODE_LENGTH + length
@@ -205,10 +204,10 @@ impl FrameParser for RtuParser {
                     ));
                 }
 
-                if self.decode.enabled() {
+                if decode_level.enabled() {
                     tracing::info!(
                         "RTU RX - {}",
-                        RtuDisplay::new(self.decode, destination, frame.payload(), received_crc)
+                        RtuDisplay::new(decode_level, destination, frame.payload(), received_crc)
                     );
                 }
 
@@ -228,6 +227,7 @@ impl FrameFormatter for RtuFormatter {
         &mut self,
         header: FrameHeader,
         msg: &dyn Serialize,
+        decode_level: FrameDecodeLevel,
     ) -> Result<usize, RequestError> {
         // Do some validation
         if let FrameDestination::UnitId(unit_id) = header.destination {
@@ -257,11 +257,11 @@ impl FrameFormatter for RtuFormatter {
         }
 
         // Logging
-        if self.decode.enabled() {
+        if decode_level.enabled() {
             tracing::info!(
                 "RTU TX - {}",
                 RtuDisplay::new(
-                    self.decode,
+                    decode_level,
                     header.destination,
                     &self.buffer[constants::HEADER_LENGTH..end_position],
                     crc
@@ -283,14 +283,19 @@ impl FrameFormatter for RtuFormatter {
 }
 
 struct RtuDisplay<'a> {
-    level: AduDecodeLevel,
+    level: FrameDecodeLevel,
     destination: FrameDestination,
     data: &'a [u8],
     crc: u16,
 }
 
 impl<'a> RtuDisplay<'a> {
-    fn new(level: AduDecodeLevel, destination: FrameDestination, data: &'a [u8], crc: u16) -> Self {
+    fn new(
+        level: FrameDecodeLevel,
+        destination: FrameDestination,
+        data: &'a [u8],
+        crc: u16,
+    ) -> Self {
         RtuDisplay {
             level,
             destination,
@@ -322,8 +327,8 @@ mod tests {
 
     use crate::common::frame::FramedReader;
     use crate::common::phys::PhysLayer;
-    use crate::decode::PhysDecodeLevel;
     use crate::tokio::test::*;
+    use crate::DecodeLevel;
 
     use super::*;
 
@@ -485,8 +490,8 @@ mod tests {
 
     fn assert_can_parse_frame<T: FrameParser>(mut reader: FramedReader<T>, frame: &[u8]) {
         let (io, mut io_handle) = io::mock();
-        let mut layer = PhysLayer::new_mock(io, PhysDecodeLevel::Nothing);
-        let mut task = spawn(reader.next_frame(&mut layer));
+        let mut layer = PhysLayer::new_mock(io);
+        let mut task = spawn(reader.next_frame(&mut layer, DecodeLevel::nothing()));
 
         io_handle.read(frame);
         if let Poll::Ready(received_frame) = task.poll() {
@@ -508,7 +513,7 @@ mod tests {
     #[test]
     fn can_parse_request_frames() {
         for request in ALL_REQUESTS {
-            let reader = FramedReader::new(RtuParser::new_request_parser(AduDecodeLevel::Nothing));
+            let reader = FramedReader::new(RtuParser::new_request_parser());
             assert_can_parse_frame(reader, request);
         }
     }
@@ -516,7 +521,7 @@ mod tests {
     #[test]
     fn can_parse_response_frames() {
         for response in ALL_RESPONSES {
-            let reader = FramedReader::new(RtuParser::new_response_parser(AduDecodeLevel::Nothing));
+            let reader = FramedReader::new(RtuParser::new_response_parser());
             assert_can_parse_frame(reader, response);
         }
     }
@@ -539,7 +544,7 @@ mod tests {
         huge_response.push((crc & 0x00FF) as u8);
         huge_response.push(((crc & 0xFF00) >> 8) as u8);
 
-        let reader = FramedReader::new(RtuParser::new_response_parser(AduDecodeLevel::Nothing));
+        let reader = FramedReader::new(RtuParser::new_response_parser());
         assert_can_parse_frame(reader, &huge_response);
     }
 
@@ -561,7 +566,7 @@ mod tests {
         huge_response.push((crc & 0x00FF) as u8);
         huge_response.push(((crc & 0xFF00) >> 8) as u8);
 
-        let reader = FramedReader::new(RtuParser::new_response_parser(AduDecodeLevel::Nothing));
+        let reader = FramedReader::new(RtuParser::new_response_parser());
         assert_can_parse_frame(reader, &huge_response);
     }
 
@@ -570,8 +575,8 @@ mod tests {
         frame: &[u8],
     ) {
         let (io, mut io_handle) = io::mock();
-        let mut layer = PhysLayer::new_mock(io, PhysDecodeLevel::Nothing);
-        let mut task = spawn(reader.next_frame(&mut layer));
+        let mut layer = PhysLayer::new_mock(io);
+        let mut task = spawn(reader.next_frame(&mut layer, DecodeLevel::nothing()));
 
         // Send bytes to parser byte per byte
         for byte in frame.into_iter().take(frame.len() - 1) {
@@ -600,7 +605,7 @@ mod tests {
     #[test]
     fn can_parse_request_frames_byte_per_byte() {
         for request in ALL_REQUESTS {
-            let reader = FramedReader::new(RtuParser::new_request_parser(AduDecodeLevel::Nothing));
+            let reader = FramedReader::new(RtuParser::new_request_parser());
             assert_can_parse_frame_byte_per_byte(reader, request);
         }
     }
@@ -608,14 +613,14 @@ mod tests {
     #[test]
     fn can_parse_response_frames_byte_per_byte() {
         for response in ALL_RESPONSES {
-            let reader = FramedReader::new(RtuParser::new_response_parser(AduDecodeLevel::Nothing));
+            let reader = FramedReader::new(RtuParser::new_response_parser());
             assert_can_parse_frame_byte_per_byte(reader, response);
         }
     }
 
     fn assert_can_parse_two_frames<T: FrameParser>(mut reader: FramedReader<T>, frame: &[u8]) {
         let (io, mut io_handle) = io::mock();
-        let mut layer = PhysLayer::new_mock(io, PhysDecodeLevel::Nothing);
+        let mut layer = PhysLayer::new_mock(io);
 
         // Build single array with two identical frames
         let duplicate_frames = frame
@@ -629,7 +634,7 @@ mod tests {
 
         // First frame
         {
-            let mut task = spawn(reader.next_frame(&mut layer));
+            let mut task = spawn(reader.next_frame(&mut layer, DecodeLevel::nothing()));
             if let Poll::Ready(received_frame) = task.poll() {
                 let received_frame = received_frame.unwrap();
                 assert_eq!(received_frame.header.tx_id, None);
@@ -648,7 +653,7 @@ mod tests {
 
         // Second frame
         {
-            let mut task = spawn(reader.next_frame(&mut layer));
+            let mut task = spawn(reader.next_frame(&mut layer, DecodeLevel::nothing()));
             if let Poll::Ready(received_frame) = task.poll() {
                 let received_frame = received_frame.unwrap();
                 assert_eq!(received_frame.header.tx_id, None);
@@ -669,7 +674,7 @@ mod tests {
     #[test]
     fn can_parse_two_request_frames() {
         for request in ALL_REQUESTS {
-            let reader = FramedReader::new(RtuParser::new_request_parser(AduDecodeLevel::Nothing));
+            let reader = FramedReader::new(RtuParser::new_request_parser());
             assert_can_parse_two_frames(reader, request);
         }
     }
@@ -677,7 +682,7 @@ mod tests {
     #[test]
     fn can_parse_two_response_frames() {
         for response in ALL_RESPONSES {
-            let reader = FramedReader::new(RtuParser::new_response_parser(AduDecodeLevel::Nothing));
+            let reader = FramedReader::new(RtuParser::new_response_parser());
             assert_can_parse_two_frames(reader, response);
         }
     }
@@ -692,10 +697,10 @@ mod tests {
             0xFF, 0xFF, // wrong crc
         ];
 
-        let mut reader = FramedReader::new(RtuParser::new_request_parser(AduDecodeLevel::Nothing));
+        let mut reader = FramedReader::new(RtuParser::new_request_parser());
         let (io, mut io_handle) = io::mock();
-        let mut layer = PhysLayer::new_mock(io, PhysDecodeLevel::Nothing);
-        let mut task = spawn(reader.next_frame(&mut layer));
+        let mut layer = PhysLayer::new_mock(io);
+        let mut task = spawn(reader.next_frame(&mut layer, DecodeLevel::nothing()));
 
         io_handle.read(READ_COILS_REQUEST_WRONG_CRC);
         if let Poll::Ready(received_frame) = task.poll() {
@@ -724,10 +729,12 @@ mod tests {
     }
 
     fn assert_frame_formatting(frame: &[u8]) {
-        let mut formatter = RtuFormatter::new(AduDecodeLevel::Nothing);
+        let mut formatter = RtuFormatter::new();
         let msg = MockMessage { frame };
         let header = FrameHeader::new_rtu_header(FrameDestination::UnitId(UnitId::new(42)));
-        let size = formatter.format_impl(header, &msg).unwrap();
+        let size = formatter
+            .format_impl(header, &msg, FrameDecodeLevel::Nothing)
+            .unwrap();
         let output = formatter.get_full_buffer_impl(size).unwrap();
 
         assert_eq!(output, frame);

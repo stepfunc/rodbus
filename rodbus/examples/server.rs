@@ -188,8 +188,8 @@ async fn run_rtu() -> Result<(), Box<dyn std::error::Error>> {
         SerialSettings::default(),
         map,
         DecodeLevel::new(
-            PduDecodeLevel::DataValues,
-            AduDecodeLevel::Payload,
+            AppDecodeLevel::DataValues,
+            FrameDecodeLevel::Payload,
             PhysDecodeLevel::Data,
         ),
     )?;
@@ -265,13 +265,27 @@ fn get_ca_chain_config() -> Result<TlsServerConfig, Box<dyn std::error::Error>> 
 }
 
 async fn run_server(
-    _server: ServerHandle,
+    mut server: ServerHandle,
     handler: ServerHandlerType<SimpleHandler>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut reader = FramedRead::new(tokio::io::stdin(), LinesCodec::new());
     loop {
         match reader.next().await.unwrap()?.as_str() {
             "x" => return Ok(()),
+            "ed" => {
+                // enable decoding
+                server
+                    .set_decode_level(DecodeLevel::new(
+                        AppDecodeLevel::DataValues,
+                        FrameDecodeLevel::Header,
+                        PhysDecodeLevel::Length,
+                    ))
+                    .await?;
+            }
+            "dd" => {
+                // disable decoding
+                server.set_decode_level(DecodeLevel::nothing()).await?;
+            }
             "uc" => {
                 let mut handler = handler.lock().unwrap();
                 for coil in handler.coils_as_mut() {

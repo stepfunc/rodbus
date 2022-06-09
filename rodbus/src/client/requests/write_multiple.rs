@@ -2,7 +2,7 @@ use crate::client::message::Promise;
 use crate::common::cursor::{ReadCursor, WriteCursor};
 use crate::common::function::FunctionCode;
 use crate::common::traits::{Parse, Serialize};
-use crate::decode::PduDecodeLevel;
+use crate::decode::AppDecodeLevel;
 use crate::error::RequestError;
 use crate::error::{AduParseError, InvalidRequest};
 use crate::types::{AddressRange, Indexed};
@@ -106,7 +106,7 @@ where
         self,
         cursor: ReadCursor,
         function: FunctionCode,
-        decode: PduDecodeLevel,
+        decode: AppDecodeLevel,
     ) {
         let result = self.parse_all(cursor);
 

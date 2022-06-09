@@ -1,4 +1,4 @@
-use crate::decode::PduDecodeLevel;
+use crate::decode::AppDecodeLevel;
 use crate::error::{AduParseError, InvalidRange};
 
 use crate::common::cursor::ReadCursor;
@@ -70,7 +70,7 @@ pub struct BitIterator<'a> {
 
 pub(crate) struct BitIteratorDisplay<'a, 'b> {
     iterator: &'a BitIterator<'b>,
-    level: PduDecodeLevel,
+    level: AppDecodeLevel,
 }
 
 /// Zero-copy type used to iterate over a collection of registers
@@ -83,7 +83,7 @@ pub struct RegisterIterator<'a> {
 
 pub(crate) struct RegisterIteratorDisplay<'a, 'b> {
     iterator: &'a RegisterIterator<'b>,
-    level: PduDecodeLevel,
+    level: AppDecodeLevel,
 }
 
 impl std::fmt::Display for UnitId {
@@ -108,7 +108,7 @@ impl<'a> BitIterator<'a> {
 }
 
 impl<'a, 'b> BitIteratorDisplay<'a, 'b> {
-    pub(crate) fn new(level: PduDecodeLevel, iterator: &'a BitIterator<'b>) -> Self {
+    pub(crate) fn new(level: AppDecodeLevel, iterator: &'a BitIterator<'b>) -> Self {
         Self { iterator, level }
     }
 }
@@ -144,7 +144,7 @@ impl<'a> RegisterIterator<'a> {
 }
 
 impl<'a, 'b> RegisterIteratorDisplay<'a, 'b> {
-    pub(crate) fn new(level: PduDecodeLevel, iterator: &'a RegisterIterator<'b>) -> Self {
+    pub(crate) fn new(level: AppDecodeLevel, iterator: &'a RegisterIterator<'b>) -> Self {
         Self { iterator, level }
     }
 }

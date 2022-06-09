@@ -1,5 +1,5 @@
 use crate::ffi;
-use rodbus::client::{ReconnectStrategy, WriteMultiple};
+use rodbus::client::WriteMultiple;
 use rodbus::AddressRange;
 use std::path::Path;
 use std::time::Duration;
@@ -261,8 +261,13 @@ pub(crate) unsafe fn client_channel_write_multiple_registers(
     Ok(())
 }
 
-impl From<ffi::RetryStrategy> for Box<dyn ReconnectStrategy + Send> {
-    fn from(from: ffi::RetryStrategy) -> Self {
-        rodbus::client::doubling_reconnect_strategy(from.min_delay(), from.max_delay())
-    }
+pub(crate) unsafe fn client_channel_set_decode_level(
+    channel: *mut crate::ClientChannel,
+    level: ffi::DecodeLevel,
+) -> Result<(), ffi::ParamError> {
+    let channel = channel.as_mut().ok_or(ffi::ParamError::NullParameter)?;
+    channel
+        .runtime
+        .spawn(channel.inner.set_decode_level(level.into()))?;
+    Ok(())
 }

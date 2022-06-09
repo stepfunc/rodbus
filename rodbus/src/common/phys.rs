@@ -6,7 +6,6 @@ use tokio_serial::SerialPort;
 
 pub(crate) struct PhysLayer {
     layer: PhysLayerImpl,
-    level: PhysDecodeLevel,
 }
 
 // encapsulates all possible physical layers as an enum
@@ -34,44 +33,38 @@ impl std::fmt::Debug for PhysLayer {
 }
 
 impl PhysLayer {
-    pub(crate) fn new_tcp(socket: crate::tokio::net::TcpStream, level: PhysDecodeLevel) -> Self {
+    pub(crate) fn new_tcp(socket: crate::tokio::net::TcpStream) -> Self {
         Self {
             layer: PhysLayerImpl::Tcp(socket),
-            level,
         }
     }
 
-    pub(crate) fn new_serial(stream: tokio_serial::SerialStream, level: PhysDecodeLevel) -> Self {
+    pub(crate) fn new_serial(stream: tokio_serial::SerialStream) -> Self {
         let calculate_inter_character_delay = calculate_inter_character_delay(&stream);
         Self {
             layer: PhysLayerImpl::Serial(stream, calculate_inter_character_delay, None),
-            level,
         }
     }
 
     #[cfg(feature = "tls")]
-    pub(crate) fn new_tls(
-        socket: tokio_rustls::TlsStream<crate::tokio::net::TcpStream>,
-        level: PhysDecodeLevel,
-    ) -> Self {
+    pub(crate) fn new_tls(socket: tokio_rustls::TlsStream<crate::tokio::net::TcpStream>) -> Self {
         Self {
             layer: PhysLayerImpl::Tls(Box::new(socket)),
-            level,
         }
     }
 
     #[cfg(test)]
-    pub(crate) fn new_mock(
-        mock: tokio_mock::mock::test::io::MockIO,
-        level: PhysDecodeLevel,
-    ) -> Self {
+    pub(crate) fn new_mock(mock: tokio_mock::mock::test::io::MockIO) -> Self {
         Self {
             layer: PhysLayerImpl::Mock(mock),
-            level,
         }
     }
 
-    pub(crate) async fn read(&mut self, buffer: &mut [u8]) -> Result<usize, std::io::Error> {
+    pub(crate) async fn read(
+        &mut self,
+        buffer: &mut [u8],
+        decode_level: PhysDecodeLevel,
+    ) -> Result<usize, std::io::Error> {
         let length = match &mut self.layer {
             PhysLayerImpl::Tcp(x) => x.read(buffer).await?,
             PhysLayerImpl::Serial(x, _, _) => x.read(buffer).await?,
@@ -81,18 +74,22 @@ impl PhysLayer {
             PhysLayerImpl::Mock(x) => x.read(buffer).await?,
         };
 
-        if self.level.enabled() {
+        if decode_level.enabled() {
             if let Some(x) = buffer.get(0..length) {
-                tracing::info!("PHYS RX - {}", PhysDisplay::new(self.level, x))
+                tracing::info!("PHYS RX - {}", PhysDisplay::new(decode_level, x))
             }
         }
 
         Ok(length)
     }
 
-    pub(crate) async fn write(&mut self, data: &[u8]) -> Result<(), std::io::Error> {
-        if self.level.enabled() {
-            tracing::info!("PHYS TX - {}", PhysDisplay::new(self.level, data));
+    pub(crate) async fn write(
+        &mut self,
+        data: &[u8],
+        decode_level: PhysDecodeLevel,
+    ) -> Result<(), std::io::Error> {
+        if decode_level.enabled() {
+            tracing::info!("PHYS TX - {}", PhysDisplay::new(decode_level, data));
         }
 
         match &mut self.layer {

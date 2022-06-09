@@ -71,7 +71,7 @@ async fn run() -> Result<(), Error> {
         args.address,
         1,
         default_reconnect_strategy(),
-        PduDecodeLevel::DataValues.into(),
+        AppDecodeLevel::DataValues.into(),
     );
     let params = RequestParam::new(args.id, Duration::from_secs(1));
 

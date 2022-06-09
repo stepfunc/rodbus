@@ -9,10 +9,9 @@ use crate::tcp::frame::{MbapFormatter, MbapParser};
 use crate::tokio;
 use crate::tokio::net::TcpStream;
 use crate::tokio::sync::mpsc::Receiver;
-use crate::PhysDecodeLevel;
 
 use crate::client::channel::ReconnectStrategy;
-use crate::client::message::Request;
+use crate::client::message::Command;
 use crate::client::task::{ClientLoop, SessionError};
 
 pub(crate) fn spawn_tcp_channel(
@@ -59,12 +58,11 @@ impl TcpTaskConnectionHandler {
         &mut self,
         socket: TcpStream,
         endpoint: &SocketAddr,
-        level: PhysDecodeLevel,
     ) -> Result<PhysLayer, String> {
         match self {
-            Self::Tcp => Ok(PhysLayer::new_tcp(socket, level)),
+            Self::Tcp => Ok(PhysLayer::new_tcp(socket)),
             #[cfg(feature = "tls")]
-            Self::Tls(config) => config.handle_connection(socket, endpoint, level).await,
+            Self::Tls(config) => config.handle_connection(socket, endpoint).await,
         }
     }
 }
@@ -74,13 +72,12 @@ pub(crate) struct TcpChannelTask {
     connect_retry: Box<dyn ReconnectStrategy + Send>,
     connection_handler: TcpTaskConnectionHandler,
     client_loop: ClientLoop<MbapFormatter, MbapParser>,
-    decode: DecodeLevel,
 }
 
 impl TcpChannelTask {
     pub(crate) fn new(
         addr: SocketAddr,
-        rx: Receiver<Request>,
+        rx: Receiver<Command>,
         connection_handler: TcpTaskConnectionHandler,
         connect_retry: Box<dyn ReconnectStrategy + Send>,
         decode: DecodeLevel,
@@ -89,13 +86,7 @@ impl TcpChannelTask {
             addr,
             connect_retry,
             connection_handler,
-            client_loop: ClientLoop::new(
-                rx,
-                MbapFormatter::new(decode.adu),
-                MbapParser::new(decode.adu),
-                decode.pdu,
-            ),
-            decode,
+            client_loop: ClientLoop::new(rx, MbapFormatter::new(), MbapParser::new(), decode),
         }
     }
 
@@ -117,11 +108,7 @@ impl TcpChannelTask {
                     }
                 }
                 Ok(socket) => {
-                    match self
-                        .connection_handler
-                        .handle(socket, &self.addr, self.decode.physical)
-                        .await
-                    {
+                    match self.connection_handler.handle(socket, &self.addr).await {
                         Err(err) => {
                             let delay = self.connect_retry.next_delay();
                             tracing::warn!(

@@ -13,7 +13,7 @@ use crate::tcp::client::{TcpChannelTask, TcpTaskConnectionHandler};
 use crate::tcp::tls::{load_certs, load_private_key, CertificateMode, MinTlsVersion, TlsError};
 use crate::tokio;
 use crate::tokio::net::TcpStream;
-use crate::{DecodeLevel, PhysDecodeLevel};
+use crate::DecodeLevel;
 
 /// TLS configuration
 pub struct TlsClientConfig {
@@ -143,7 +143,6 @@ impl TlsClientConfig {
         &mut self,
         socket: TcpStream,
         endpoint: &SocketAddr,
-        level: PhysDecodeLevel,
     ) -> Result<PhysLayer, String> {
         let connector = tokio_rustls::TlsConnector::from(self.config.clone());
         match connector.connect(self.dns_name.clone(), socket).await {
@@ -151,10 +150,7 @@ impl TlsClientConfig {
                 "failed to establish TLS session with {}: {}",
                 endpoint, err
             )),
-            Ok(stream) => Ok(PhysLayer::new_tls(
-                tokio_rustls::TlsStream::from(stream),
-                level,
-            )),
+            Ok(stream) => Ok(PhysLayer::new_tls(tokio_rustls::TlsStream::from(stream))),
         }
     }
 }
