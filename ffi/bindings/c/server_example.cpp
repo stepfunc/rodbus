@@ -122,7 +122,6 @@ int run_server(rodbus::Server& server)
     auto holding_register_value = 0;
     auto input_register_value = 0;
 
-    char cbuf[10];
     while (true) {
         std::string cmd;
         std::getline(std::cin, cmd);
@@ -130,7 +129,7 @@ int run_server(rodbus::Server& server)
         if (cmd == "x") {
             return 0;
         }
-        else if (cbuf == "uc") {
+        else if (cmd == "uc") {
             // ANCHOR: update_coil
             auto transaction = rodbus::functional::database_callback([&](rodbus::Database& db) {
                 coil_value = !coil_value;
@@ -142,7 +141,7 @@ int run_server(rodbus::Server& server)
             server.update_database(1, transaction);
             // ANCHOR_END: update_coil
         }
-        else if (cbuf == "udi") {
+        else if (cmd == "udi") {
             auto transaction = rodbus::functional::database_callback([&](rodbus::Database& db) {
                 discrete_input_value = !discrete_input_value;
 
@@ -152,7 +151,7 @@ int run_server(rodbus::Server& server)
             });
             server.update_database(1, transaction);
         }
-        else if (cbuf == "uhr") {
+        else if (cmd == "uhr") {
             auto transaction = rodbus::functional::database_callback([&](rodbus::Database& db) {
                 ++holding_register_value;
 
@@ -162,7 +161,7 @@ int run_server(rodbus::Server& server)
             });
             server.update_database(1, transaction);
         }
-        else if (cbuf == "uir") {
+        else if (cmd == "uir") {
             auto transaction = rodbus::functional::database_callback([&](rodbus::Database& db) {
                 ++input_register_value;
 
