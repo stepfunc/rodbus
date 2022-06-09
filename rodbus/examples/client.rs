@@ -172,17 +172,17 @@ async fn run_channel(mut channel: Channel) -> Result<(), Box<dyn std::error::Err
             "x" => return Ok(()),
             "ed" => {
                 // enable decoding
-                let _ = channel
+                channel
                     .set_decode_level(DecodeLevel::new(
                         AppDecodeLevel::DataValues,
                         FrameDecodeLevel::Header,
                         PhysDecodeLevel::Length,
                     ))
-                    .await;
+                    .await?;
             }
             "dd" => {
                 // disable decoded
-                let _ = channel.set_decode_level(DecodeLevel::nothing()).await;
+                channel.set_decode_level(DecodeLevel::nothing()).await?;
             }
             "rc" => {
                 // ANCHOR: read_coils
