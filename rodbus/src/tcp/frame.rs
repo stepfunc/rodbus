@@ -142,9 +142,8 @@ impl FrameFormatter for MbapFormatter {
     ) -> Result<usize, RequestError> {
         let mut cursor = WriteCursor::new(self.buffer.as_mut());
 
-        let tx_id = header
-            .tx_id
-            .ok_or(RequestError::Internal(InternalError::MissingTxId))?;
+        // this is matter of configuration and will always be present in TCP/TLS mode
+        let tx_id = header.tx_id.expect("TCP requires tx ids");
 
         let unit_id = match header.destination {
             FrameDestination::UnitId(unit_id) => unit_id,

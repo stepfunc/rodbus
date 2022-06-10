@@ -147,8 +147,6 @@ pub enum InternalError {
     BadSeekOperation,
     /// Byte count would exceed maximum allowed size in the ADU of u8
     BadByteCount(usize),
-    /// Trying to send a MBAP frame without a TX ID
-    MissingTxId,
 }
 
 impl std::error::Error for InternalError {}
@@ -184,9 +182,6 @@ impl std::fmt::Display for InternalError {
                 "Byte count of in ADU {} exceeds maximum size of u8",
                 size
             ),
-            InternalError::MissingTxId => {
-                write!(f, "Trying to send a MBAP frame without a transaction ID")
-            }
         }
     }
 }

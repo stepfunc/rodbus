@@ -234,7 +234,10 @@ impl FrameFormatter for RtuFormatter {
         // Do some validation
         if let FrameDestination::UnitId(unit_id) = header.destination {
             if unit_id.is_rtu_reserved() {
-                tracing::warn!("sending a message to a reserved unit ID {} violates Modbus RTU spec. Sending it nevertheless.", unit_id)
+                tracing::warn!(
+                    "Sending a message to a reserved unit ID {} violates Modbus RTU spec",
+                    unit_id
+                )
             }
         }
 

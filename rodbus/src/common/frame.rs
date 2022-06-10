@@ -91,6 +91,7 @@ impl std::fmt::Display for FrameDestination {
 #[derive(Copy, Clone)]
 pub(crate) struct FrameHeader {
     pub(crate) destination: FrameDestination,
+    /// Transaction ids are not used in RTU
     pub(crate) tx_id: Option<TxId>,
 }
 
