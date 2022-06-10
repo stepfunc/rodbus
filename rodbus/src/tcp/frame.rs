@@ -2,12 +2,10 @@ use std::convert::TryFrom;
 
 use crate::common::buffer::ReadBuffer;
 use crate::common::cursor::WriteCursor;
-use crate::common::frame::{
-    Frame, FrameDestination, FrameFormatter, FrameHeader, FrameParser, TxId,
-};
+use crate::common::frame::{Frame, FrameFormatter, FrameHeader, FrameParser, TxId};
 use crate::common::traits::Serialize;
 use crate::decode::FrameDecodeLevel;
-use crate::error::{FrameParseError, InvalidRequest, RequestError};
+use crate::error::{FrameParseError, RequestError};
 use crate::types::UnitId;
 
 pub(crate) mod constants {
@@ -143,23 +141,16 @@ impl FrameFormatter for MbapFormatter {
         let mut cursor = WriteCursor::new(self.buffer.as_mut());
 
         // this is matter of configuration and will always be present in TCP/TLS mode
-        let tx_id = header.tx_id.expect("TCP requires tx ids");
+        let tx_id = header.tx_id.expect("TCP requires tx id");
 
-        let unit_id = match header.destination {
-            FrameDestination::UnitId(unit_id) => unit_id,
-            FrameDestination::Broadcast => {
-                return Err(RequestError::BadRequest(
-                    InvalidRequest::BroadcastNotSupported,
-                ))
-            }
-        };
+        let unit_id = header.destination.into_unit_id();
 
         // Write header
         cursor.write_u16_be(tx_id.to_u16())?;
         cursor.write_u16_be(0)?; // protocol id
         let len_pos = cursor.position();
         cursor.seek_from_current(2)?; // write the length later
-        cursor.write_u8(unit_id.value)?;
+        cursor.write_u8(unit_id.value)?; // unit id
 
         let start = cursor.position();
         let adu_length: usize = {
@@ -200,15 +191,15 @@ impl FrameFormatter for MbapFormatter {
 struct MbapDisplay<'a> {
     level: FrameDecodeLevel,
     header: MbapHeader,
-    data: &'a [u8],
+    payload: &'a [u8],
 }
 
 impl<'a> MbapDisplay<'a> {
-    fn new(level: FrameDecodeLevel, header: MbapHeader, data: &'a [u8]) -> Self {
+    fn new(level: FrameDecodeLevel, header: MbapHeader, payload: &'a [u8]) -> Self {
         MbapDisplay {
             level,
             header,
-            data,
+            payload,
         }
     }
 }
@@ -217,11 +208,11 @@ impl<'a> std::fmt::Display for MbapDisplay<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(
             f,
-            "tx_id: {} unit: {} (len = {})",
+            "tx_id: {} unit: {} len: {}",
             self.header.tx_id, self.header.unit_id, self.header.adu_length
         )?;
         if self.level.payload_enabled() {
-            crate::common::phys::format_bytes(f, self.data)?;
+            crate::common::phys::format_bytes(f, self.payload)?;
         }
         Ok(())
     }
@@ -234,7 +225,7 @@ mod tests {
     use crate::common::phys::PhysLayer;
     use crate::tokio::test::*;
 
-    use crate::common::frame::FramedReader;
+    use crate::common::frame::{FrameDestination, FramedReader};
     use crate::error::*;
     use crate::DecodeLevel;
 

@@ -281,8 +281,6 @@ pub enum InvalidRequest {
     CountTooBigForU16(usize),
     /// Count too big for specific request
     CountTooBigForType(u16, u16),
-    /// Broadcast is not supported on this type of link (only supported on RTU)
-    BroadcastNotSupported,
 }
 
 impl std::error::Error for InvalidRequest {}
@@ -302,9 +300,6 @@ impl std::fmt::Display for InvalidRequest {
                 "the request count of {} exceeds maximum allowed count of {} for this type",
                 count, max
             ),
-            InvalidRequest::BroadcastNotSupported => {
-                write!(f, "broadcast is not supported on this link",)
-            }
         }
     }
 }
