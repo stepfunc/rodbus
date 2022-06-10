@@ -71,7 +71,7 @@ pub(crate) struct TcpChannelTask {
     addr: SocketAddr,
     connect_retry: Box<dyn ReconnectStrategy + Send>,
     connection_handler: TcpTaskConnectionHandler,
-    client_loop: ClientLoop<MbapParser>,
+    client_loop: ClientLoop,
 }
 
 impl TcpChannelTask {
@@ -89,7 +89,7 @@ impl TcpChannelTask {
             client_loop: ClientLoop::new(
                 rx,
                 Box::new(MbapFormatter::new()),
-                MbapParser::new(),
+                Box::new(MbapParser::new()),
                 decode,
             ),
         }

@@ -493,7 +493,7 @@ mod tests {
         WRITE_MULTIPLE_REGISTERS_RESPONSE,
     ];
 
-    fn assert_can_parse_frame<T: FrameParser>(mut reader: FramedReader<T>, frame: &[u8]) {
+    fn assert_can_parse_frame(mut reader: FramedReader, frame: &[u8]) {
         let (io, mut io_handle) = io::mock();
         let mut layer = PhysLayer::new_mock(io);
         let mut task = spawn(reader.next_frame(&mut layer, DecodeLevel::nothing()));
@@ -518,7 +518,7 @@ mod tests {
     #[test]
     fn can_parse_request_frames() {
         for request in ALL_REQUESTS {
-            let reader = FramedReader::new(RtuParser::new_request_parser());
+            let reader = FramedReader::new(Box::new(RtuParser::new_request_parser()));
             assert_can_parse_frame(reader, request);
         }
     }
@@ -526,7 +526,7 @@ mod tests {
     #[test]
     fn can_parse_response_frames() {
         for response in ALL_RESPONSES {
-            let reader = FramedReader::new(RtuParser::new_response_parser());
+            let reader = FramedReader::new(Box::new(RtuParser::new_response_parser()));
             assert_can_parse_frame(reader, response);
         }
     }
@@ -549,7 +549,7 @@ mod tests {
         huge_response.push((crc & 0x00FF) as u8);
         huge_response.push(((crc & 0xFF00) >> 8) as u8);
 
-        let reader = FramedReader::new(RtuParser::new_response_parser());
+        let reader = FramedReader::new(Box::new(RtuParser::new_response_parser()));
         assert_can_parse_frame(reader, &huge_response);
     }
 
@@ -571,14 +571,11 @@ mod tests {
         huge_response.push((crc & 0x00FF) as u8);
         huge_response.push(((crc & 0xFF00) >> 8) as u8);
 
-        let reader = FramedReader::new(RtuParser::new_response_parser());
+        let reader = FramedReader::new(Box::new(RtuParser::new_response_parser()));
         assert_can_parse_frame(reader, &huge_response);
     }
 
-    fn assert_can_parse_frame_byte_per_byte<T: FrameParser>(
-        mut reader: FramedReader<T>,
-        frame: &[u8],
-    ) {
+    fn assert_can_parse_frame_byte_per_byte(mut reader: FramedReader, frame: &[u8]) {
         let (io, mut io_handle) = io::mock();
         let mut layer = PhysLayer::new_mock(io);
         let mut task = spawn(reader.next_frame(&mut layer, DecodeLevel::nothing()));
@@ -610,7 +607,7 @@ mod tests {
     #[test]
     fn can_parse_request_frames_byte_per_byte() {
         for request in ALL_REQUESTS {
-            let reader = FramedReader::new(RtuParser::new_request_parser());
+            let reader = FramedReader::new(Box::new(RtuParser::new_request_parser()));
             assert_can_parse_frame_byte_per_byte(reader, request);
         }
     }
@@ -618,12 +615,12 @@ mod tests {
     #[test]
     fn can_parse_response_frames_byte_per_byte() {
         for response in ALL_RESPONSES {
-            let reader = FramedReader::new(RtuParser::new_response_parser());
+            let reader = FramedReader::new(Box::new(RtuParser::new_response_parser()));
             assert_can_parse_frame_byte_per_byte(reader, response);
         }
     }
 
-    fn assert_can_parse_two_frames<T: FrameParser>(mut reader: FramedReader<T>, frame: &[u8]) {
+    fn assert_can_parse_two_frames(mut reader: FramedReader, frame: &[u8]) {
         let (io, mut io_handle) = io::mock();
         let mut layer = PhysLayer::new_mock(io);
 
@@ -679,7 +676,7 @@ mod tests {
     #[test]
     fn can_parse_two_request_frames() {
         for request in ALL_REQUESTS {
-            let reader = FramedReader::new(RtuParser::new_request_parser());
+            let reader = FramedReader::new(Box::new(RtuParser::new_request_parser()));
             assert_can_parse_two_frames(reader, request);
         }
     }
@@ -687,7 +684,7 @@ mod tests {
     #[test]
     fn can_parse_two_response_frames() {
         for response in ALL_RESPONSES {
-            let reader = FramedReader::new(RtuParser::new_response_parser());
+            let reader = FramedReader::new(Box::new(RtuParser::new_response_parser()));
             assert_can_parse_two_frames(reader, response);
         }
     }
@@ -702,7 +699,7 @@ mod tests {
             0xFF, 0xFF, // wrong crc
         ];
 
-        let mut reader = FramedReader::new(RtuParser::new_request_parser());
+        let mut reader = FramedReader::new(Box::new(RtuParser::new_request_parser()));
         let (io, mut io_handle) = io::mock();
         let mut layer = PhysLayer::new_mock(io);
         let mut task = spawn(reader.next_frame(&mut layer, DecodeLevel::nothing()));

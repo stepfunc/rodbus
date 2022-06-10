@@ -238,7 +238,7 @@ async fn run_session<T: RequestHandler>(
                 handlers,
                 auth,
                 Box::new(MbapFormatter::new()),
-                MbapParser::new(),
+                Box::new(MbapParser::new()),
                 commands,
                 decode,
             )
