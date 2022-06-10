@@ -3,8 +3,8 @@ use crate::common::phys::PhysLayer;
 use crate::common::buffer::ReadBuffer;
 use crate::common::function::FunctionCode;
 use crate::common::pdu::Pdu;
-use crate::common::traits::Serialize;
-use crate::common::traits::{Loggable, LoggableDisplay};
+use crate::common::traits::MessageDisplay;
+use crate::common::traits::{Message, Serialize};
 use crate::error::{InternalError, RequestError};
 use crate::exception::ExceptionCode;
 use crate::server::response::ErrorResponse;
@@ -191,16 +191,13 @@ pub(crate) trait FrameFormatter {
     }
 
     // try to serialize a pdu, and if it fails with an exception code, write the exception instead
-    fn format<T>(
+    fn format(
         &mut self,
         header: FrameHeader,
         function: FunctionCode,
-        msg: &T,
+        msg: &dyn Message,
         level: DecodeLevel,
-    ) -> Result<&[u8], RequestError>
-    where
-        T: Serialize + Loggable,
-    {
+    ) -> Result<&[u8], RequestError> {
         let pdu = Pdu::new(function, msg);
         match self.format_impl(header, &pdu, level.frame) {
             Ok(count) => {
@@ -208,7 +205,7 @@ pub(crate) trait FrameFormatter {
                     tracing::info!(
                         "PDU TX - {} {}",
                         function,
-                        LoggableDisplay::new(msg, self.get_payload(count)?, level.app)
+                        MessageDisplay::new(msg, self.get_payload(count)?, level.app)
                     );
                 }
 
@@ -272,16 +269,13 @@ impl FrameFormatter for NullFrameFormatter {
         None
     }
 
-    fn format<T>(
+    fn format(
         &mut self,
         _header: FrameHeader,
         _function: FunctionCode,
-        _msg: &T,
+        _msg: &dyn Message,
         _level: DecodeLevel,
-    ) -> Result<&[u8], RequestError>
-    where
-        T: Serialize + Loggable,
-    {
+    ) -> Result<&[u8], RequestError> {
         Ok(&[])
     }
 

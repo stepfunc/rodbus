@@ -15,29 +15,29 @@ pub(crate) trait Loggable {
     ) -> std::fmt::Result;
 }
 
-pub(crate) struct LoggableDisplay<'a, 'b> {
-    loggable: &'a dyn Loggable,
+/// Blank trait and implementation for anything that is both Serialize and Loggable
+pub(crate) trait Message: Serialize + Loggable {}
+impl<T> Message for T where T: Serialize + Loggable {}
+
+pub(crate) struct MessageDisplay<'a, 'b> {
+    message: &'a dyn Message,
     payload: &'b [u8],
     level: AppDecodeLevel,
 }
 
-impl<'a, 'b> LoggableDisplay<'a, 'b> {
-    pub(crate) fn new(
-        loggable: &'a dyn Loggable,
-        payload: &'b [u8],
-        level: AppDecodeLevel,
-    ) -> Self {
+impl<'a, 'b> MessageDisplay<'a, 'b> {
+    pub(crate) fn new(message: &'a dyn Message, payload: &'b [u8], level: AppDecodeLevel) -> Self {
         Self {
-            loggable,
+            message,
             payload,
             level,
         }
     }
 }
 
-impl std::fmt::Display for LoggableDisplay<'_, '_> {
+impl std::fmt::Display for MessageDisplay<'_, '_> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        self.loggable.log(self.payload, self.level, f)
+        self.message.log(self.payload, self.level, f)
     }
 }
 
