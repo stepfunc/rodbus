@@ -2,11 +2,12 @@ use crate::common::phys::PhysLayer;
 
 use crate::common::buffer::ReadBuffer;
 use crate::common::function::FunctionCode;
+use crate::common::pdu::Pdu;
 use crate::common::traits::Serialize;
 use crate::common::traits::{Loggable, LoggableDisplay};
 use crate::error::{InternalError, RequestError};
 use crate::exception::ExceptionCode;
-use crate::server::response::{ErrorResponse, Response};
+use crate::server::response::ErrorResponse;
 use crate::types::UnitId;
 use crate::{DecodeLevel, FrameDecodeLevel};
 
@@ -29,9 +30,9 @@ impl TxId {
     }
 
     pub(crate) fn next(&mut self) -> TxId {
-        if self.value == u16::max_value() {
+        if self.value == u16::MAX {
             self.value = 0;
-            TxId::new(u16::max_value())
+            TxId::new(u16::MAX)
         } else {
             let ret = self.value;
             self.value += 1;
@@ -167,6 +168,7 @@ pub(crate) trait FrameFormatter {
         msg: &dyn Serialize,
         decode_level: FrameDecodeLevel,
     ) -> Result<usize, RequestError>;
+
     fn get_full_buffer_impl(&self, size: usize) -> Option<&[u8]>;
     fn get_payload_impl(&self, size: usize) -> Option<&[u8]>;
 
@@ -187,7 +189,7 @@ pub(crate) trait FrameFormatter {
         }
     }
 
-    // try to serialize a successful response, and if it fails with an exception code, write the exception instead
+    // try to serialize a pdu, and if it fails with an exception code, write the exception instead
     fn format<T>(
         &mut self,
         header: FrameHeader,
@@ -198,8 +200,8 @@ pub(crate) trait FrameFormatter {
     where
         T: Serialize + Loggable,
     {
-        let response = Response::new(function, msg);
-        match self.format_impl(header, &response, level.frame) {
+        let pdu = Pdu::new(function, msg);
+        match self.format_impl(header, &pdu, level.frame) {
             Ok(count) => {
                 if level.app.enabled() {
                     tracing::info!(
