@@ -34,26 +34,24 @@ impl SessionError {
     }
 }
 
-pub(crate) struct ClientLoop<F, P>
+pub(crate) struct ClientLoop<P>
 where
-    F: FrameFormatter,
     P: FrameParser,
 {
     rx: tokio::sync::mpsc::Receiver<Command>,
-    formatter: F,
+    formatter: Box<dyn FrameFormatter>,
     reader: FramedReader<P>,
     tx_id: TxId,
     decode: DecodeLevel,
 }
 
-impl<F, P> ClientLoop<F, P>
+impl<P> ClientLoop<P>
 where
-    F: FrameFormatter,
     P: FrameParser,
 {
     pub(crate) fn new(
         rx: tokio::sync::mpsc::Receiver<Command>,
-        formatter: F,
+        formatter: Box<dyn FrameFormatter>,
         parser: P,
         decode: DecodeLevel,
     ) -> Self {
@@ -208,7 +206,7 @@ mod tests {
     use crate::types::{AddressRange, Indexed, ReadBitsRange, UnitId};
 
     struct ClientFixture {
-        client: ClientLoop<MbapFormatter, MbapParser>,
+        client: ClientLoop<MbapParser>,
         io: PhysLayer,
         io_handle: io::Handle,
     }
@@ -221,7 +219,7 @@ mod tests {
                 Self {
                     client: ClientLoop::new(
                         rx,
-                        MbapFormatter::new(),
+                        Box::new(MbapFormatter::new()),
                         MbapParser::new(),
                         DecodeLevel::nothing(),
                     ),

@@ -161,7 +161,7 @@ pub(crate) trait FrameParser {
     fn reset(&mut self);
 }
 
-pub(crate) trait FrameFormatter {
+pub(crate) trait FrameFormatter: Send {
     // internal only
     fn format_impl(
         &mut self,

@@ -23,32 +23,30 @@ pub enum ServerSetting {
     ChangeDecoding(DecodeLevel),
 }
 
-pub(crate) struct SessionTask<T, F, P>
+pub(crate) struct SessionTask<T, P>
 where
     T: RequestHandler,
-    F: FrameFormatter,
     P: FrameParser,
 {
     io: PhysLayer,
     handlers: ServerHandlerMap<T>,
     auth: Authorization,
     commands: tokio::sync::mpsc::Receiver<ServerSetting>,
-    writer: F,
+    writer: Box<dyn FrameFormatter>,
     reader: FramedReader<P>,
     decode: DecodeLevel,
 }
 
-impl<T, F, P> SessionTask<T, F, P>
+impl<T, P> SessionTask<T, P>
 where
     T: RequestHandler,
-    F: FrameFormatter,
     P: FrameParser,
 {
     pub(crate) fn new(
         io: PhysLayer,
         handlers: ServerHandlerMap<T>,
         auth: Authorization,
-        formatter: F,
+        formatter: Box<dyn FrameFormatter>,
         parser: P,
         commands: tokio::sync::mpsc::Receiver<ServerSetting>,
         decode: DecodeLevel,
@@ -169,7 +167,7 @@ where
                         frame.header,
                         lock.as_mut(),
                         &self.auth,
-                        &mut self.writer,
+                        self.writer.as_mut(),
                         self.decode,
                     )?
                 };

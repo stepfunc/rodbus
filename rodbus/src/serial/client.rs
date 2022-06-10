@@ -13,7 +13,7 @@ pub(crate) struct SerialChannelTask {
     path: String,
     serial_settings: SerialSettings,
     retry_delay: Duration,
-    client_loop: ClientLoop<RtuFormatter, RtuParser>,
+    client_loop: ClientLoop<RtuParser>,
 }
 
 impl SerialChannelTask {
@@ -30,7 +30,7 @@ impl SerialChannelTask {
             retry_delay,
             client_loop: ClientLoop::new(
                 rx,
-                RtuFormatter::new(),
+                Box::new(RtuFormatter::new()),
                 RtuParser::new_response_parser(),
                 decode,
             ),

@@ -37,17 +37,14 @@ impl<'a> Request<'a> {
         }
     }
 
-    pub(crate) fn get_reply<'b, F>(
+    pub(crate) fn get_reply<'b>(
         &self,
         header: FrameHeader,
         handler: &mut dyn RequestHandler,
         auth: &Authorization,
-        writer: &'b mut F,
+        writer: &'b mut dyn FrameFormatter,
         level: DecodeLevel,
-    ) -> Result<&'b [u8], RequestError>
-    where
-        F: FrameFormatter,
-    {
+    ) -> Result<&'b [u8], RequestError> {
         // check authorization before doing anything else
         if let AuthorizationResult::NotAuthorized =
             auth.is_authorized(header.destination.into_unit_id(), self)
@@ -60,16 +57,15 @@ impl<'a> Request<'a> {
             );
         }
 
-        fn serialize_result<T, F, FnResult>(
+        fn serialize_result<T, FnResult>(
             function: FunctionCode,
             header: FrameHeader,
-            writer: &mut F,
+            writer: &mut dyn FrameFormatter,
             result: FnResult,
             level: DecodeLevel,
         ) -> Result<&[u8], RequestError>
         where
             T: Serialize + Loggable,
-            F: FrameFormatter,
             FnResult: FnOnce() -> Result<T, ExceptionCode>,
         {
             // Generate the result
@@ -77,7 +73,7 @@ impl<'a> Request<'a> {
 
             // Serialize the result or the exception
             // Note: the `data` in `Ok(data)` might be something that generate the data as it is written
-            // (e.g. `BitWriter`). If this fails during the serialization, it is abandonned and an
+            // (e.g. `BitWriter`). If this fails during the serialization, it is abandoned and an
             // exception is written instead. This is all handled inside `FrameFormatter::format`.
             match result {
                 Ok(data) => writer.format(header, function, &data, level),

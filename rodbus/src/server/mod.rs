@@ -199,7 +199,7 @@ async fn create_rtu_server_task_impl<T: RequestHandler>(
         phys,
         handlers,
         Authorization::None,
-        RtuFormatter::new(),
+        Box::new(RtuFormatter::new()),
         RtuParser::new_request_parser(),
         rx,
         decode,
