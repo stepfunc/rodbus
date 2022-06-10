@@ -6,7 +6,7 @@ pub(crate) trait Serialize {
     fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError>;
 }
 
-pub(crate) trait Loggable: Serialize {
+pub(crate) trait Loggable {
     fn log(
         &self,
         payload: &[u8],
