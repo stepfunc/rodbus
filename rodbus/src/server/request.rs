@@ -1,7 +1,7 @@
 use crate::common::cursor::ReadCursor;
 use crate::common::frame::{FrameFormatter, FrameHeader};
 use crate::common::function::FunctionCode;
-use crate::common::traits::{Loggable, Parse, Serialize};
+use crate::common::traits::{Message, Parse};
 use crate::decode::AppDecodeLevel;
 use crate::error::RequestError;
 use crate::exception::ExceptionCode;
@@ -57,102 +57,78 @@ impl<'a> Request<'a> {
             );
         }
 
-        fn serialize_result<T, FnResult>(
+        fn write_result<T>(
             function: FunctionCode,
             header: FrameHeader,
             writer: &mut dyn FrameFormatter,
-            result: FnResult,
+            result: Result<T, ExceptionCode>,
             level: DecodeLevel,
         ) -> Result<&[u8], RequestError>
         where
-            T: Serialize + Loggable,
-            FnResult: FnOnce() -> Result<T, ExceptionCode>,
+            T: Message,
         {
-            // Generate the result
-            let result = result();
-
-            // Serialize the result or the exception
-            // Note: the `data` in `Ok(data)` might be something that generate the data as it is written
-            // (e.g. `BitWriter`). If this fails during the serialization, it is abandoned and an
-            // exception is written instead. This is all handled inside `FrameFormatter::format`.
             match result {
-                Ok(data) => writer.format(header, function, &data, level),
+                Ok(response) => writer.format(header, function, &response, level),
                 Err(ex) => writer.exception(header, function, ex, level.frame),
             }
         }
 
         let function = self.get_function();
+
+        // make a first pass effort to serialize a response
         match self {
-            Request::ReadCoils(range) => serialize_result(
-                function,
+            Request::ReadCoils(range) => writer.format(
                 header,
-                writer,
-                || Ok(BitWriter::new(*range, |index| handler.read_coil(index))),
+                function,
+                &BitWriter::new(*range, |i| handler.read_coil(i)),
                 level,
             ),
-            Request::ReadDiscreteInputs(range) => serialize_result(
-                function,
+            Request::ReadDiscreteInputs(range) => writer.format(
                 header,
-                writer,
-                || {
-                    Ok(BitWriter::new(*range, |index| {
-                        handler.read_discrete_input(index)
-                    }))
-                },
+                function,
+                &BitWriter::new(*range, |i| handler.read_discrete_input(i)),
                 level,
             ),
-            Request::ReadHoldingRegisters(range) => serialize_result(
-                function,
+            Request::ReadHoldingRegisters(range) => writer.format(
                 header,
-                writer,
-                || {
-                    Ok(RegisterWriter::new(*range, |index| {
-                        handler.read_holding_register(index)
-                    }))
-                },
+                function,
+                &RegisterWriter::new(*range, |i| handler.read_holding_register(i)),
                 level,
             ),
-            Request::ReadInputRegisters(range) => serialize_result(
-                function,
+            Request::ReadInputRegisters(range) => writer.format(
                 header,
-                writer,
-                || {
-                    Ok(RegisterWriter::new(*range, |index| {
-                        handler.read_input_register(index)
-                    }))
-                },
+                function,
+                &RegisterWriter::new(*range, |i| handler.read_input_register(i)),
                 level,
             ),
-            Request::WriteSingleCoil(request) => serialize_result(
+            Request::WriteSingleCoil(request) => write_result(
                 function,
                 header,
                 writer,
-                || handler.write_single_coil(*request).map(|_| *request),
+                handler.write_single_coil(*request).map(|_| *request),
                 level,
             ),
-            Request::WriteSingleRegister(request) => serialize_result(
+            Request::WriteSingleRegister(request) => write_result(
                 function,
                 header,
                 writer,
-                || handler.write_single_register(*request).map(|_| *request),
+                handler.write_single_register(*request).map(|_| *request),
                 level,
             ),
-            Request::WriteMultipleCoils(items) => serialize_result(
+            Request::WriteMultipleCoils(items) => write_result(
                 function,
                 header,
                 writer,
-                || handler.write_multiple_coils(*items).map(|_| items.range),
+                handler.write_multiple_coils(*items).map(|_| items.range),
                 level,
             ),
-            Request::WriteMultipleRegisters(items) => serialize_result(
+            Request::WriteMultipleRegisters(items) => write_result(
                 function,
                 header,
                 writer,
-                || {
-                    handler
-                        .write_multiple_registers(*items)
-                        .map(|_| items.range)
-                },
+                handler
+                    .write_multiple_registers(*items)
+                    .map(|_| items.range),
                 level,
             ),
         }
