@@ -15,14 +15,18 @@ pub(crate) trait Loggable {
     ) -> std::fmt::Result;
 }
 
-pub(crate) struct LoggableDisplay<'a, 'b, T: Loggable> {
-    loggable: &'a T,
+pub(crate) struct LoggableDisplay<'a, 'b> {
+    loggable: &'a dyn Loggable,
     payload: &'b [u8],
     level: AppDecodeLevel,
 }
 
-impl<'a, 'b, T: Loggable> LoggableDisplay<'a, 'b, T> {
-    pub(crate) fn new(loggable: &'a T, payload: &'b [u8], level: AppDecodeLevel) -> Self {
+impl<'a, 'b> LoggableDisplay<'a, 'b> {
+    pub(crate) fn new(
+        loggable: &'a dyn Loggable,
+        payload: &'b [u8],
+        level: AppDecodeLevel,
+    ) -> Self {
         Self {
             loggable,
             payload,
@@ -31,7 +35,7 @@ impl<'a, 'b, T: Loggable> LoggableDisplay<'a, 'b, T> {
     }
 }
 
-impl<T: Loggable> std::fmt::Display for LoggableDisplay<'_, '_, T> {
+impl std::fmt::Display for LoggableDisplay<'_, '_> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         self.loggable.log(self.payload, self.level, f)
     }
