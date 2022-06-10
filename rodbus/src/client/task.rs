@@ -7,7 +7,7 @@ use crate::tokio::time::Instant;
 use crate::{tokio, DecodeLevel};
 
 use crate::client::message::{Command, Request, Setting};
-use crate::common::frame::{FrameFormatter, FrameHeader, FrameParser, FramedReader, TxId};
+use crate::common::frame::{FrameFormatter, FrameHeader, FramedReader, TxId};
 use crate::error::*;
 
 /**
@@ -46,13 +46,13 @@ impl ClientLoop {
     pub(crate) fn new(
         rx: tokio::sync::mpsc::Receiver<Command>,
         formatter: Box<dyn FrameFormatter>,
-        parser: Box<dyn FrameParser>,
+        reader: FramedReader,
         decode: DecodeLevel,
     ) -> Self {
         Self {
             rx,
             formatter,
-            reader: FramedReader::new(parser),
+            reader,
             tx_id: TxId::default(),
             decode,
         }
@@ -195,7 +195,6 @@ mod tests {
     use crate::error::FrameParseError;
     use crate::server::response::BitWriter;
     use crate::tcp::frame::MbapFormatter;
-    use crate::tcp::frame::MbapParser;
     use crate::tokio::test::*;
     use crate::types::{AddressRange, Indexed, ReadBitsRange, UnitId};
 
@@ -214,7 +213,7 @@ mod tests {
                     client: ClientLoop::new(
                         rx,
                         Box::new(MbapFormatter::new()),
-                        Box::new(MbapParser::new()),
+                        FramedReader::tcp(),
                         DecodeLevel::nothing(),
                     ),
                     io: PhysLayer::new_mock(io),

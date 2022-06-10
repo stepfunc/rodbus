@@ -259,7 +259,7 @@ mod tests {
     fn test_segmented_parse(split_at: usize) {
         let (f1, f2) = SIMPLE_FRAME.split_at(split_at);
         let (io, mut io_handle) = io::mock();
-        let mut reader = FramedReader::new(Box::new(MbapParser::new()));
+        let mut reader = FramedReader::tcp();
         let mut layer = PhysLayer::new_mock(io);
         let mut task = spawn(reader.next_frame(&mut layer, DecodeLevel::nothing()));
 
@@ -276,7 +276,7 @@ mod tests {
 
     fn test_error(input: &[u8]) -> RequestError {
         let (io, mut io_handle) = io::mock();
-        let mut reader = FramedReader::new(Box::new(MbapParser::new()));
+        let mut reader = FramedReader::tcp();
         let mut layer = PhysLayer::new_mock(io);
         let mut task = spawn(reader.next_frame(&mut layer, DecodeLevel::nothing()));
 
@@ -304,7 +304,7 @@ mod tests {
     #[test]
     fn can_parse_frame_from_stream() {
         let (io, mut io_handle) = io::mock();
-        let mut reader = FramedReader::new(Box::new(MbapParser::new()));
+        let mut reader = FramedReader::tcp();
         let mut layer = PhysLayer::new_mock(io);
         let mut task = spawn(reader.next_frame(&mut layer, DecodeLevel::nothing()));
 
@@ -323,7 +323,7 @@ mod tests {
         let payload = &[0xCC; 253];
 
         let (io, mut io_handle) = io::mock();
-        let mut reader = FramedReader::new(Box::new(MbapParser::new()));
+        let mut reader = FramedReader::tcp();
         let mut task = spawn(async {
             assert_eq!(
                 reader

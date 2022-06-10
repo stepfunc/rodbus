@@ -3,11 +3,12 @@ use std::sync::Arc;
 
 use tracing::Instrument;
 
+use crate::common::frame::FramedReader;
 use crate::common::phys::PhysLayer;
 use crate::decode::DecodeLevel;
 use crate::server::handler::{RequestHandler, ServerHandlerMap};
 use crate::server::task::{Authorization, ServerSetting};
-use crate::tcp::frame::{MbapFormatter, MbapParser};
+use crate::tcp::frame::MbapFormatter;
 use crate::tokio;
 use crate::tokio::net::TcpListener;
 use std::net::SocketAddr;
@@ -238,7 +239,7 @@ async fn run_session<T: RequestHandler>(
                 handlers,
                 auth,
                 Box::new(MbapFormatter::new()),
-                Box::new(MbapParser::new()),
+                FramedReader::tcp(),
                 commands,
                 decode,
             )

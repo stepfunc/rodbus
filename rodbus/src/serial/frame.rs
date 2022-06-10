@@ -518,7 +518,7 @@ mod tests {
     #[test]
     fn can_parse_request_frames() {
         for request in ALL_REQUESTS {
-            let reader = FramedReader::new(Box::new(RtuParser::new_request_parser()));
+            let reader = FramedReader::rtu_request();
             assert_can_parse_frame(reader, request);
         }
     }
@@ -526,7 +526,7 @@ mod tests {
     #[test]
     fn can_parse_response_frames() {
         for response in ALL_RESPONSES {
-            let reader = FramedReader::new(Box::new(RtuParser::new_response_parser()));
+            let reader = FramedReader::rtu_response();
             assert_can_parse_frame(reader, response);
         }
     }
@@ -549,7 +549,7 @@ mod tests {
         huge_response.push((crc & 0x00FF) as u8);
         huge_response.push(((crc & 0xFF00) >> 8) as u8);
 
-        let reader = FramedReader::new(Box::new(RtuParser::new_response_parser()));
+        let reader = FramedReader::rtu_response();
         assert_can_parse_frame(reader, &huge_response);
     }
 
@@ -571,7 +571,7 @@ mod tests {
         huge_response.push((crc & 0x00FF) as u8);
         huge_response.push(((crc & 0xFF00) >> 8) as u8);
 
-        let reader = FramedReader::new(Box::new(RtuParser::new_response_parser()));
+        let reader = FramedReader::rtu_response();
         assert_can_parse_frame(reader, &huge_response);
     }
 
@@ -607,7 +607,7 @@ mod tests {
     #[test]
     fn can_parse_request_frames_byte_per_byte() {
         for request in ALL_REQUESTS {
-            let reader = FramedReader::new(Box::new(RtuParser::new_request_parser()));
+            let reader = FramedReader::rtu_request();
             assert_can_parse_frame_byte_per_byte(reader, request);
         }
     }
@@ -615,7 +615,7 @@ mod tests {
     #[test]
     fn can_parse_response_frames_byte_per_byte() {
         for response in ALL_RESPONSES {
-            let reader = FramedReader::new(Box::new(RtuParser::new_response_parser()));
+            let reader = FramedReader::rtu_response();
             assert_can_parse_frame_byte_per_byte(reader, response);
         }
     }
@@ -676,7 +676,7 @@ mod tests {
     #[test]
     fn can_parse_two_request_frames() {
         for request in ALL_REQUESTS {
-            let reader = FramedReader::new(Box::new(RtuParser::new_request_parser()));
+            let reader = FramedReader::rtu_request();
             assert_can_parse_two_frames(reader, request);
         }
     }
@@ -684,7 +684,7 @@ mod tests {
     #[test]
     fn can_parse_two_response_frames() {
         for response in ALL_RESPONSES {
-            let reader = FramedReader::new(Box::new(RtuParser::new_response_parser()));
+            let reader = FramedReader::rtu_response();
             assert_can_parse_two_frames(reader, response);
         }
     }
@@ -699,7 +699,7 @@ mod tests {
             0xFF, 0xFF, // wrong crc
         ];
 
-        let mut reader = FramedReader::new(Box::new(RtuParser::new_request_parser()));
+        let mut reader = FramedReader::rtu_request();
         let (io, mut io_handle) = io::mock();
         let mut layer = PhysLayer::new_mock(io);
         let mut task = spawn(reader.next_frame(&mut layer, DecodeLevel::nothing()));

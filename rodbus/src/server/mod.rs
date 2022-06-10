@@ -5,7 +5,7 @@ use tracing::Instrument;
 
 use crate::common::phys::PhysLayer;
 use crate::decode::DecodeLevel;
-use crate::serial::frame::{RtuFormatter, RtuParser};
+use crate::serial::frame::RtuFormatter;
 use crate::serial::SerialSettings;
 use crate::server::task::{Authorization, ServerSetting, SessionTask};
 use crate::tcp::server::{ServerTask, TcpServerConnectionHandler};
@@ -21,6 +21,7 @@ pub(crate) mod types;
 /// Fine for this to be a constant since the corresponding channel is only used to change settings
 pub(crate) const SERVER_SETTING_CHANNEL_CAPACITY: usize = 8;
 
+use crate::common::frame::FramedReader;
 use crate::error::Shutdown;
 pub use handler::*;
 pub use types::*;
@@ -200,7 +201,7 @@ async fn create_rtu_server_task_impl<T: RequestHandler>(
         handlers,
         Authorization::None,
         Box::new(RtuFormatter::new()),
-        Box::new(RtuParser::new_request_parser()),
+        FramedReader::rtu_request(),
         rx,
         decode,
     );

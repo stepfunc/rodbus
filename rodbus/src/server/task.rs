@@ -6,8 +6,7 @@ use crate::{tokio, DecodeLevel, UnitId};
 
 use crate::common::cursor::ReadCursor;
 use crate::common::frame::{
-    Frame, FrameDestination, FrameFormatter, FrameHeader, FrameParser, FramedReader,
-    NullFrameFormatter,
+    Frame, FrameDestination, FrameFormatter, FrameHeader, FramedReader, NullFrameFormatter,
 };
 use crate::common::function::FunctionCode;
 use crate::error::*;
@@ -44,8 +43,8 @@ where
         io: PhysLayer,
         handlers: ServerHandlerMap<T>,
         auth: Authorization,
-        formatter: Box<dyn FrameFormatter>,
-        parser: Box<dyn FrameParser>,
+        writer: Box<dyn FrameFormatter>,
+        reader: FramedReader,
         commands: tokio::sync::mpsc::Receiver<ServerSetting>,
         decode: DecodeLevel,
     ) -> Self {
@@ -54,8 +53,8 @@ where
             handlers,
             auth,
             commands,
-            writer: formatter,
-            reader: FramedReader::new(parser),
+            writer,
+            reader,
             decode,
         }
     }

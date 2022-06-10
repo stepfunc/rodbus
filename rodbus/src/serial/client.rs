@@ -2,12 +2,13 @@ use std::time::Duration;
 
 use crate::common::phys::PhysLayer;
 use crate::decode::DecodeLevel;
-use crate::serial::frame::{RtuFormatter, RtuParser};
+use crate::serial::frame::RtuFormatter;
 use crate::serial::SerialSettings;
 use crate::tokio::sync::mpsc::Receiver;
 
 use crate::client::message::Command;
 use crate::client::task::{ClientLoop, SessionError};
+use crate::common::frame::FramedReader;
 
 pub(crate) struct SerialChannelTask {
     path: String,
@@ -31,7 +32,7 @@ impl SerialChannelTask {
             client_loop: ClientLoop::new(
                 rx,
                 Box::new(RtuFormatter::new()),
-                Box::new(RtuParser::new_response_parser()),
+                FramedReader::rtu_response(),
                 decode,
             ),
         }

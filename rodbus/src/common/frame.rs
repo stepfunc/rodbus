@@ -7,7 +7,9 @@ use crate::common::traits::MessageDisplay;
 use crate::common::traits::{Message, Serialize};
 use crate::error::{InternalError, RequestError};
 use crate::exception::ExceptionCode;
+use crate::serial::frame::RtuParser;
 use crate::server::response::ErrorResponse;
+use crate::tcp::frame::MbapParser;
 use crate::types::UnitId;
 use crate::{DecodeLevel, FrameDecodeLevel};
 
@@ -295,7 +297,19 @@ pub(crate) struct FramedReader {
 }
 
 impl FramedReader {
-    pub(crate) fn new(parser: Box<dyn FrameParser>) -> Self {
+    pub(crate) fn tcp() -> Self {
+        Self::new(Box::new(MbapParser::new()))
+    }
+
+    pub(crate) fn rtu_request() -> Self {
+        Self::new(Box::new(RtuParser::new_request_parser()))
+    }
+
+    pub(crate) fn rtu_response() -> Self {
+        Self::new(Box::new(RtuParser::new_response_parser()))
+    }
+
+    fn new(parser: Box<dyn FrameParser>) -> Self {
         let size = parser.max_frame_size();
         Self {
             parser,
