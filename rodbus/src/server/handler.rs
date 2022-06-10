@@ -62,18 +62,36 @@ pub trait RequestHandler: Send + 'static {
     fn write_multiple_registers(&mut self, _values: WriteRegisters) -> Result<(), ExceptionCode> {
         Err(ExceptionCode::IllegalFunction)
     }
+}
 
-    /// Helper function to convert an Option<T> to Result<T, ExceptionCode::IllegalDataAddress>
-    ///
-    /// This is useful when looking up requested values in a map where the value may not be present
-    fn convert<T>(x: Option<&T>) -> Result<T, ExceptionCode>
-    where
-        T: Copy,
-    {
-        match x {
-            Some(x) => Ok(*x),
+/// Trait useful for converting None into IllegalDataAddress
+pub trait IllegalAddressConversion<T> {
+    /// convert into a Result of the value
+    fn to_result(self) -> Result<T, ExceptionCode>;
+}
+
+impl<T> IllegalAddressConversion<T> for Option<&T>
+where
+    T: Copy,
+{
+    fn to_result(self) -> Result<T, ExceptionCode> {
+        match self {
             None => Err(ExceptionCode::IllegalDataAddress),
+            Some(x) => Ok(*x),
         }
+    }
+}
+
+/// Helper function to convert an Option<T> to Result<T, ExceptionCode::IllegalDataAddress>
+///
+/// This is useful when looking up requested values in a map where the value may not be present
+pub fn convert<T>(x: Option<&T>) -> Result<T, ExceptionCode>
+where
+    T: Copy,
+{
+    match x {
+        Some(x) => Ok(*x),
+        None => Err(ExceptionCode::IllegalDataAddress),
     }
 }
 

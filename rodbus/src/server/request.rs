@@ -37,16 +37,15 @@ impl<'a> Request<'a> {
         }
     }
 
-    pub(crate) fn get_reply<'b, T, F>(
+    pub(crate) fn get_reply<'b, F>(
         &self,
         header: FrameHeader,
-        handler: &mut T,
+        handler: &mut dyn RequestHandler,
         auth: &Authorization,
         writer: &'b mut F,
         level: DecodeLevel,
     ) -> Result<&'b [u8], RequestError>
     where
-        T: RequestHandler,
         F: FrameFormatter,
     {
         // check authorization before doing anything else
