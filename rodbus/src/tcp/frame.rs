@@ -7,7 +7,7 @@ use crate::common::frame::{
 };
 use crate::common::traits::Serialize;
 use crate::decode::FrameDecodeLevel;
-use crate::error::{FrameParseError, InternalError, InvalidRequest, RequestError};
+use crate::error::{FrameParseError, InvalidRequest, RequestError};
 use crate::types::UnitId;
 
 pub(crate) mod constants {
@@ -156,7 +156,8 @@ impl FrameFormatter for MbapFormatter {
 
         // Write header
         cursor.write_u16_be(tx_id.to_u16())?;
-        cursor.write_u16_be(0)?;
+        cursor.write_u16_be(0)?; // protocol id
+        let len_pos = cursor.position();
         cursor.seek_from_current(2)?; // write the length later
         cursor.write_u8(unit_id.value)?;
 
@@ -166,14 +167,9 @@ impl FrameFormatter for MbapFormatter {
             cursor.position() - start
         };
 
-        {
-            // write the resulting length
-            let frame_length_value = u16::try_from(adu_length + 1)
-                .map_err(|_err| InternalError::AduTooBig(adu_length))?;
-
-            cursor.seek_from_start(4)?;
-            cursor.write_u16_be(frame_length_value)?;
-        }
+        // write the resulting length
+        cursor.seek_from_start(len_pos)?;
+        cursor.write_u16_be(u16::try_from(adu_length + 1).expect("unexpected adu length"))?;
         let total_length = constants::HEADER_LENGTH + adu_length;
 
         // Logging

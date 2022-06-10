@@ -137,8 +137,6 @@ pub enum InvalidRange {
 pub enum InternalError {
     /// Insufficient space for write operation
     InsufficientWriteSpace(usize, usize), // written vs remaining space
-    /// ADU size is larger than the maximum allowed size
-    AduTooBig(usize),
     /// The calculated frame size exceeds what is allowed by the spec
     FrameTooBig(usize, usize), // calculate size vs allowed maximum
     /// Attempted to read more bytes than present
@@ -158,11 +156,6 @@ impl std::fmt::Display for InternalError {
                 f,
                 "attempted to write {} bytes with {} bytes remaining",
                 written, remaining
-            ),
-            InternalError::AduTooBig(size) => write!(
-                f,
-                "ADU length of {} exceeds the maximum allowed length",
-                size
             ),
             InternalError::FrameTooBig(size, max) => write!(
                 f,
