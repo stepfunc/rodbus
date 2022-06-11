@@ -19,6 +19,7 @@ pub(crate) trait Loggable {
 pub(crate) trait Message: Serialize + Loggable {}
 impl<T> Message for T where T: Serialize + Loggable {}
 
+/*
 pub(crate) struct MessageDisplay<'a, 'b> {
     message: &'a dyn Message,
     payload: &'b [u8],
@@ -40,6 +41,7 @@ impl std::fmt::Display for MessageDisplay<'_, '_> {
         self.message.log(self.payload, self.level, f)
     }
 }
+*/
 
 pub(crate) trait Parse: Sized {
     fn parse(cursor: &mut ReadCursor) -> Result<Self, RequestError>;

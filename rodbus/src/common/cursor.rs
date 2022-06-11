@@ -1,4 +1,5 @@
 use crate::error::{AduParseError, InternalError};
+use std::ops::Range;
 
 #[cfg(feature = "no-panic")]
 use no_panic::no_panic;
@@ -70,6 +71,11 @@ impl<'a> ReadCursor<'a> {
 }
 
 impl<'a> WriteCursor<'a> {
+    #[cfg_attr(feature = "no-panic", no_panic)]
+    pub(crate) fn get(&self, range: Range<usize>) -> Option<&[u8]> {
+        self.dest.get(range)
+    }
+
     #[cfg_attr(feature = "no-panic", no_panic)]
     pub(crate) fn new(dest: &'a mut [u8]) -> WriteCursor<'a> {
         WriteCursor { dest, pos: 0 }

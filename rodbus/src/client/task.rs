@@ -7,7 +7,8 @@ use crate::tokio::time::Instant;
 use crate::{tokio, DecodeLevel};
 
 use crate::client::message::{Command, Request, Setting};
-use crate::common::frame::{FrameFormatter, FrameHeader, FramedReader, TxId};
+use crate::common::frame::{FrameHeader, FrameWriter, FramedReader, TxId};
+use crate::common::pdu::Pdu;
 use crate::error::*;
 
 /**
@@ -36,7 +37,7 @@ impl SessionError {
 
 pub(crate) struct ClientLoop {
     rx: tokio::sync::mpsc::Receiver<Command>,
-    formatter: Box<dyn FrameFormatter>,
+    writer: FrameWriter,
     reader: FramedReader,
     tx_id: TxId,
     decode: DecodeLevel,
@@ -45,13 +46,13 @@ pub(crate) struct ClientLoop {
 impl ClientLoop {
     pub(crate) fn new(
         rx: tokio::sync::mpsc::Receiver<Command>,
-        formatter: Box<dyn FrameFormatter>,
+        writer: FrameWriter,
         reader: FramedReader,
         decode: DecodeLevel,
     ) -> Self {
         Self {
             rx,
-            formatter,
+            writer,
             reader,
             tx_id: TxId::default(),
             decode,
@@ -98,10 +99,9 @@ impl ClientLoop {
         request: Request,
         tx_id: TxId,
     ) -> Result<(), RequestError> {
-        let bytes = self.formatter.format(
+        let bytes = self.writer.format(
             FrameHeader::new_tcp_header(request.id, tx_id),
-            request.details.function(),
-            &request.details,
+            &Pdu::new(request.details.function(), &request.details),
             self.decode,
         )?;
 
@@ -194,7 +194,6 @@ mod tests {
 
     use crate::error::FrameParseError;
     use crate::server::response::BitWriter;
-    use crate::tcp::frame::MbapFormatter;
     use crate::tokio::test::*;
     use crate::types::{AddressRange, Indexed, ReadBitsRange, UnitId};
 
@@ -212,7 +211,7 @@ mod tests {
                 Self {
                     client: ClientLoop::new(
                         rx,
-                        Box::new(MbapFormatter::new()),
+                        FrameWriter::tcp(),
                         FramedReader::tcp(),
                         DecodeLevel::nothing(),
                     ),
@@ -265,10 +264,10 @@ mod tests {
     where
         T: Serialize + Loggable + Sized,
     {
-        let mut fmt = MbapFormatter::new();
+        let mut fmt = FrameWriter::tcp();
         let header = FrameHeader::new_tcp_header(UnitId::new(1), TxId::new(0));
         let bytes = fmt
-            .format(header, function, payload, DecodeLevel::nothing())
+            .format(header, &Pdu::new(function, payload), DecodeLevel::nothing())
             .unwrap();
         Vec::from(bytes)
     }

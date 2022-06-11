@@ -1,8 +1,6 @@
-use std::convert::TryFrom;
-
 use crate::common::buffer::ReadBuffer;
 use crate::common::cursor::WriteCursor;
-use crate::common::frame::{Frame, FrameFormatter, FrameHeader, FrameParser, TxId};
+use crate::common::frame::{Frame, FrameHeader, FrameInfo, FrameParser, TxId};
 use crate::common::traits::Serialize;
 use crate::decode::FrameDecodeLevel;
 use crate::error::{FrameParseError, RequestError};
@@ -31,18 +29,6 @@ enum ParseState {
 
 pub(crate) struct MbapParser {
     state: ParseState,
-}
-
-pub(crate) struct MbapFormatter {
-    buffer: [u8; constants::MAX_FRAME_LENGTH],
-}
-
-impl MbapFormatter {
-    pub(crate) fn new() -> Self {
-        Self {
-            buffer: [0; constants::MAX_FRAME_LENGTH],
-        }
-    }
 }
 
 impl MbapParser {
@@ -131,61 +117,35 @@ impl FrameParser for MbapParser {
     }
 }
 
-impl FrameFormatter for MbapFormatter {
-    fn format_impl(
-        &mut self,
-        header: FrameHeader,
-        msg: &dyn Serialize,
-        decode_level: FrameDecodeLevel,
-    ) -> Result<usize, RequestError> {
-        let mut cursor = WriteCursor::new(self.buffer.as_mut());
+pub(crate) fn format_mbap(
+    cursor: &mut WriteCursor,
+    header: FrameHeader,
+    msg: &dyn Serialize,
+) -> Result<FrameInfo, RequestError> {
+    // this is matter of configuration and will always be present in TCP/TLS mode
+    let tx_id = header.tx_id.expect("TCP requires tx id");
 
-        // this is matter of configuration and will always be present in TCP/TLS mode
-        let tx_id = header.tx_id.expect("TCP requires tx id");
+    let unit_id = header.destination.into_unit_id();
 
-        let unit_id = header.destination.into_unit_id();
+    // Write header
+    cursor.write_u16_be(tx_id.to_u16())?;
+    cursor.write_u16_be(0)?; // protocol id
+    let len_pos = cursor.position();
+    cursor.seek_from_current(2)?; // write the length later
+    cursor.write_u8(unit_id.value)?; // unit id
 
-        // Write header
-        cursor.write_u16_be(tx_id.to_u16())?;
-        cursor.write_u16_be(0)?; // protocol id
-        let len_pos = cursor.position();
-        cursor.seek_from_current(2)?; // write the length later
-        cursor.write_u8(unit_id.value)?; // unit id
+    let start_pdu = cursor.position();
+    msg.serialize(cursor)?;
+    let end_pdu = cursor.position();
 
-        let start = cursor.position();
-        let adu_length: usize = {
-            msg.serialize(&mut cursor)?;
-            cursor.position() - start
-        };
+    let mbap_len_field = (end_pdu - start_pdu + 1) as u16;
 
-        // write the resulting length
-        cursor.seek_from_start(len_pos)?;
-        cursor.write_u16_be(u16::try_from(adu_length + 1).expect("unexpected adu length"))?;
-        let total_length = constants::HEADER_LENGTH + adu_length;
+    // seek back and write the length, restore to the end of the pdu
+    cursor.seek_from_start(len_pos)?;
+    cursor.write_u16_be(mbap_len_field)?;
+    cursor.seek_from_start(end_pdu)?;
 
-        // Logging
-        if decode_level.enabled() {
-            let header = MbapHeader {
-                tx_id,
-                adu_length,
-                unit_id,
-            };
-            tracing::info!(
-                "MBAP TX - {}",
-                MbapDisplay::new(decode_level, header, &self.buffer[start..total_length])
-            );
-        }
-
-        Ok(total_length)
-    }
-
-    fn get_full_buffer_impl(&self, size: usize) -> Option<&[u8]> {
-        self.buffer.get(..size)
-    }
-
-    fn get_payload_impl(&self, size: usize) -> Option<&[u8]> {
-        self.buffer.get(7..size)
-    }
+    Ok(FrameInfo::new(start_pdu..end_pdu))
 }
 
 struct MbapDisplay<'a> {
@@ -225,7 +185,7 @@ mod tests {
     use crate::common::phys::PhysLayer;
     use crate::tokio::test::*;
 
-    use crate::common::frame::{FrameDestination, FramedReader};
+    use crate::common::frame::{FrameDestination, FrameWriter, FramedReader};
     use crate::error::*;
     use crate::DecodeLevel;
 
@@ -290,13 +250,12 @@ mod tests {
 
     #[test]
     fn correctly_formats_frame() {
-        let mut formatter = MbapFormatter::new();
+        let mut formatter = FrameWriter::tcp();
         let msg = MockMessage { a: 0x03, b: 0x04 };
         let header = FrameHeader::new_tcp_header(UnitId::new(42), TxId::new(7));
-        let size = formatter
-            .format_impl(header, &msg, FrameDecodeLevel::Nothing)
+        let output = formatter
+            .format(header, &msg, DecodeLevel::nothing())
             .unwrap();
-        let output = formatter.get_full_buffer_impl(size).unwrap();
 
         assert_eq!(output, SIMPLE_FRAME)
     }

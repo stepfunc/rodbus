@@ -5,9 +5,7 @@ use crate::server::{AuthorizationHandler, AuthorizationResult};
 use crate::{tokio, DecodeLevel, UnitId};
 
 use crate::common::cursor::ReadCursor;
-use crate::common::frame::{
-    Frame, FrameDestination, FrameFormatter, FrameHeader, FramedReader, NullFrameFormatter,
-};
+use crate::common::frame::{Frame, FrameDestination, FrameHeader, FrameWriter, FramedReader};
 use crate::common::function::FunctionCode;
 use crate::error::*;
 use crate::exception::ExceptionCode;
@@ -30,7 +28,7 @@ where
     handlers: ServerHandlerMap<T>,
     auth: Authorization,
     commands: tokio::sync::mpsc::Receiver<ServerSetting>,
-    writer: Box<dyn FrameFormatter>,
+    writer: FrameWriter,
     reader: FramedReader,
     decode: DecodeLevel,
 }
@@ -43,7 +41,7 @@ where
         io: PhysLayer,
         handlers: ServerHandlerMap<T>,
         auth: Authorization,
-        writer: Box<dyn FrameFormatter>,
+        writer: FrameWriter,
         reader: FramedReader,
         commands: tokio::sync::mpsc::Receiver<ServerSetting>,
         decode: DecodeLevel,
@@ -66,7 +64,7 @@ where
     ) -> Result<(), RequestError> {
         // do not answer on broadcast
         if header.destination != FrameDestination::Broadcast {
-            let bytes = self.writer.error(header, err, self.decode.frame)?;
+            let bytes = self.writer.format(header, &err, self.decode)?;
             self.io.write(bytes, self.decode.physical).await?;
         }
         Ok(())
@@ -164,7 +162,7 @@ where
                         frame.header,
                         lock.as_mut(),
                         &self.auth,
-                        self.writer.as_mut(),
+                        &mut self.writer,
                         self.decode,
                     )?
                 };
@@ -185,7 +183,7 @@ where
                         frame.header,
                         lock.as_mut(),
                         &self.auth,
-                        &mut NullFrameFormatter,
+                        &mut FrameWriter::none(),
                         self.decode,
                     )?;
                     // do not write a response

@@ -1,6 +1,7 @@
 use crate::common::cursor::ReadCursor;
-use crate::common::frame::{FrameFormatter, FrameHeader};
+use crate::common::frame::{FrameHeader, FrameWriter};
 use crate::common::function::FunctionCode;
+use crate::common::pdu::Pdu;
 use crate::common::traits::{Message, Parse};
 use crate::decode::AppDecodeLevel;
 use crate::error::RequestError;
@@ -42,25 +43,25 @@ impl<'a> Request<'a> {
         header: FrameHeader,
         handler: &mut dyn RequestHandler,
         auth: &Authorization,
-        writer: &'b mut dyn FrameFormatter,
+        writer: &'b mut FrameWriter,
         level: DecodeLevel,
     ) -> Result<&'b [u8], RequestError> {
         // check authorization before doing anything else
         if let AuthorizationResult::NotAuthorized =
             auth.is_authorized(header.destination.into_unit_id(), self)
         {
-            return writer.exception(
+            return writer.format_ex(
                 header,
                 self.get_function(),
                 ExceptionCode::IllegalFunction,
-                level.frame,
+                level,
             );
         }
 
         fn write_result<T>(
             function: FunctionCode,
             header: FrameHeader,
-            writer: &mut dyn FrameFormatter,
+            writer: &mut FrameWriter,
             result: Result<T, ExceptionCode>,
             level: DecodeLevel,
         ) -> Result<&[u8], RequestError>
@@ -68,8 +69,11 @@ impl<'a> Request<'a> {
             T: Message,
         {
             match result {
-                Ok(response) => writer.format(header, function, &response, level),
-                Err(ex) => writer.exception(header, function, ex, level.frame),
+                Ok(response) => {
+                    let response = Pdu::new(function, &response);
+                    writer.format(header, &response, level)
+                }
+                Err(ex) => writer.format_ex(header, function, ex, level),
             }
         }
 
@@ -77,60 +81,40 @@ impl<'a> Request<'a> {
 
         // make a first pass effort to serialize a response
         match self {
-            Request::ReadCoils(range) => writer.format(
-                header,
-                function,
-                &BitWriter::new(*range, |i| handler.read_coil(i)),
-                level,
-            ),
-            Request::ReadDiscreteInputs(range) => writer.format(
-                header,
-                function,
-                &BitWriter::new(*range, |i| handler.read_discrete_input(i)),
-                level,
-            ),
-            Request::ReadHoldingRegisters(range) => writer.format(
-                header,
-                function,
-                &RegisterWriter::new(*range, |i| handler.read_holding_register(i)),
-                level,
-            ),
-            Request::ReadInputRegisters(range) => writer.format(
-                header,
-                function,
-                &RegisterWriter::new(*range, |i| handler.read_input_register(i)),
-                level,
-            ),
-            Request::WriteSingleCoil(request) => write_result(
-                function,
-                header,
-                writer,
-                handler.write_single_coil(*request).map(|_| *request),
-                level,
-            ),
-            Request::WriteSingleRegister(request) => write_result(
-                function,
-                header,
-                writer,
-                handler.write_single_register(*request).map(|_| *request),
-                level,
-            ),
-            Request::WriteMultipleCoils(items) => write_result(
-                function,
-                header,
-                writer,
-                handler.write_multiple_coils(*items).map(|_| items.range),
-                level,
-            ),
-            Request::WriteMultipleRegisters(items) => write_result(
-                function,
-                header,
-                writer,
-                handler
+            Request::ReadCoils(range) => {
+                let bits = BitWriter::new(*range, |i| handler.read_coil(i));
+                writer.format(header, &Pdu::new(function, &bits), level)
+            }
+            Request::ReadDiscreteInputs(range) => {
+                let bits = BitWriter::new(*range, |i| handler.read_discrete_input(i));
+                writer.format(header, &Pdu::new(function, &bits), level)
+            }
+            Request::ReadHoldingRegisters(range) => {
+                let registers = RegisterWriter::new(*range, |i| handler.read_holding_register(i));
+                writer.format(header, &Pdu::new(function, &registers), level)
+            }
+            Request::ReadInputRegisters(range) => {
+                let registers = RegisterWriter::new(*range, |i| handler.read_input_register(i));
+                writer.format(header, &Pdu::new(function, &registers), level)
+            }
+            Request::WriteSingleCoil(request) => {
+                let result = handler.write_single_coil(*request).map(|_| *request);
+                write_result(function, header, writer, result, level)
+            }
+            Request::WriteSingleRegister(request) => {
+                let result = handler.write_single_register(*request).map(|_| *request);
+                write_result(function, header, writer, result, level)
+            }
+            Request::WriteMultipleCoils(items) => {
+                let result = handler.write_multiple_coils(*items).map(|_| items.range);
+                write_result(function, header, writer, result, level)
+            }
+            Request::WriteMultipleRegisters(items) => {
+                let result = handler
                     .write_multiple_registers(*items)
-                    .map(|_| items.range),
-                level,
-            ),
+                    .map(|_| items.range);
+                write_result(function, header, writer, result, level)
+            }
         }
     }
 

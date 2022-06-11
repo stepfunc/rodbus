@@ -1,6 +1,6 @@
 use crate::common::buffer::ReadBuffer;
 use crate::common::cursor::WriteCursor;
-use crate::common::frame::{Frame, FrameDestination, FrameFormatter, FrameHeader, FrameParser};
+use crate::common::frame::{Frame, FrameDestination, FrameHeader, FrameInfo, FrameParser};
 use crate::common::function::FunctionCode;
 use crate::common::traits::Serialize;
 use crate::decode::FrameDecodeLevel;
@@ -44,18 +44,6 @@ enum LengthMode {
 pub(crate) struct RtuParser {
     state: ParseState,
     parser_type: ParserType,
-}
-
-pub(crate) struct RtuFormatter {
-    buffer: [u8; constants::MAX_FRAME_LENGTH],
-}
-
-impl RtuFormatter {
-    pub(crate) fn new() -> Self {
-        Self {
-            buffer: [0; constants::MAX_FRAME_LENGTH],
-        }
-    }
 }
 
 impl RtuParser {
@@ -224,67 +212,32 @@ impl FrameParser for RtuParser {
     }
 }
 
-impl FrameFormatter for RtuFormatter {
-    fn format_impl(
-        &mut self,
-        header: FrameHeader,
-        msg: &dyn Serialize,
-        decode_level: FrameDecodeLevel,
-    ) -> Result<usize, RequestError> {
-        // Do some validation
-        if let FrameDestination::UnitId(unit_id) = header.destination {
-            if unit_id.is_rtu_reserved() {
-                tracing::warn!(
-                    "Sending a message to a reserved unit ID {} violates Modbus RTU spec",
-                    unit_id
-                )
-            }
+pub(crate) fn format_rtu_pdu(
+    cursor: &mut WriteCursor,
+    header: FrameHeader,
+    msg: &dyn Serialize,
+) -> Result<FrameInfo, RequestError> {
+    // Do some validation
+    if let FrameDestination::UnitId(unit_id) = header.destination {
+        if unit_id.is_rtu_reserved() {
+            tracing::warn!(
+                "Sending a message to a reserved unit ID {} violates Modbus RTU spec",
+                unit_id
+            )
         }
-
-        // Write the message
-        let end_position = {
-            let mut cursor = WriteCursor::new(self.buffer.as_mut());
-
-            cursor.write_u8(header.destination.value())?;
-            msg.serialize(&mut cursor)?;
-
-            cursor.position()
-        };
-
-        // Calculate the CRC
-        let crc = CRC.checksum(&self.buffer[0..end_position]);
-
-        // Write the CRC
-        {
-            let mut cursor = WriteCursor::new(self.buffer.as_mut());
-            cursor.seek_from_start(end_position)?;
-            cursor.write_u16_le(crc)?;
-        }
-
-        // Logging
-        if decode_level.enabled() {
-            tracing::info!(
-                "RTU TX - {}",
-                RtuDisplay::new(
-                    decode_level,
-                    header.destination,
-                    &self.buffer[constants::HEADER_LENGTH..end_position],
-                    crc
-                )
-            );
-        }
-
-        Ok(end_position + constants::CRC_LENGTH)
     }
 
-    fn get_full_buffer_impl(&self, size: usize) -> Option<&[u8]> {
-        self.buffer.get(..size)
-    }
+    // Write the message
+    let start_frame = cursor.position();
+    cursor.write_u8(header.destination.value())?;
+    let start_pdu = cursor.position();
+    msg.serialize(cursor)?;
+    let end_pdu = cursor.position();
+    // Write the CRC
+    let crc = CRC.checksum(cursor.get(start_frame..end_pdu).unwrap());
+    cursor.write_u16_le(crc)?;
 
-    fn get_payload_impl(&self, size: usize) -> Option<&[u8]> {
-        self.buffer
-            .get(constants::HEADER_LENGTH..size - constants::CRC_LENGTH)
-    }
+    Ok(FrameInfo::new(start_pdu..end_pdu))
 }
 
 struct RtuDisplay<'a> {
@@ -330,7 +283,7 @@ impl<'a> std::fmt::Display for RtuDisplay<'a> {
 mod tests {
     use std::task::Poll;
 
-    use crate::common::frame::FramedReader;
+    use crate::common::frame::{FrameWriter, FramedReader};
     use crate::common::phys::PhysLayer;
     use crate::tokio::test::*;
     use crate::DecodeLevel;
@@ -731,13 +684,12 @@ mod tests {
     }
 
     fn assert_frame_formatting(frame: &[u8]) {
-        let mut formatter = RtuFormatter::new();
+        let mut formatter = FrameWriter::rtu();
         let msg = MockMessage { frame };
         let header = FrameHeader::new_rtu_header(FrameDestination::UnitId(UnitId::new(42)));
-        let size = formatter
-            .format_impl(header, &msg, FrameDecodeLevel::Nothing)
+        let output = formatter
+            .format(header, &msg, DecodeLevel::nothing())
             .unwrap();
-        let output = formatter.get_full_buffer_impl(size).unwrap();
 
         assert_eq!(output, frame);
     }

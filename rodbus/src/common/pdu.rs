@@ -1,15 +1,15 @@
 use crate::common::cursor::WriteCursor;
 use crate::common::function::FunctionCode;
-use crate::common::traits::{Message, Serialize};
+use crate::common::traits::Serialize;
 use crate::RequestError;
 
 pub(crate) struct Pdu<'a> {
     function: FunctionCode,
-    body: &'a dyn Message,
+    body: &'a dyn Serialize,
 }
 
 impl<'a> Pdu<'a> {
-    pub(crate) fn new(function: FunctionCode, body: &'a dyn Message) -> Self {
+    pub(crate) fn new(function: FunctionCode, body: &'a dyn Serialize) -> Self {
         Self { function, body }
     }
 }
