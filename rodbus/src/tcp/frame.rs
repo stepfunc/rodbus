@@ -1,6 +1,6 @@
 use crate::common::buffer::ReadBuffer;
 use crate::common::cursor::WriteCursor;
-use crate::common::frame::{Frame, FrameHeader, FrameInfo, TxId};
+use crate::common::frame::{Frame, FrameHeader, FrameInfo, FrameType, TxId};
 use crate::common::traits::Serialize;
 use crate::decode::FrameDecodeLevel;
 use crate::error::{FrameParseError, RequestError};
@@ -15,7 +15,7 @@ pub(crate) mod constants {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-struct MbapHeader {
+pub(crate) struct MbapHeader {
     tx_id: TxId,
     adu_length: usize,
     unit_id: UnitId,
@@ -139,17 +139,23 @@ pub(crate) fn format_mbap(
     cursor.write_u16_be(mbap_len_field)?;
     cursor.seek_from_start(end_pdu)?;
 
-    Ok(FrameInfo::new(start_pdu..end_pdu))
+    let header = MbapHeader {
+        tx_id,
+        adu_length: mbap_len_field as usize,
+        unit_id,
+    };
+
+    Ok(FrameInfo::new(FrameType::Mbap(header), start_pdu..end_pdu))
 }
 
-struct MbapDisplay<'a> {
+pub(crate) struct MbapDisplay<'a> {
     level: FrameDecodeLevel,
     header: MbapHeader,
     payload: &'a [u8],
 }
 
 impl<'a> MbapDisplay<'a> {
-    fn new(level: FrameDecodeLevel, header: MbapHeader, payload: &'a [u8]) -> Self {
+    pub(crate) fn new(level: FrameDecodeLevel, header: MbapHeader, payload: &'a [u8]) -> Self {
         MbapDisplay {
             level,
             header,

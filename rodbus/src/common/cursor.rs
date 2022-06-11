@@ -15,6 +15,14 @@ pub(crate) struct WriteCursor<'a> {
     pos: usize,
 }
 
+impl<'a> std::ops::Index<Range<usize>> for WriteCursor<'a> {
+    type Output = [u8];
+
+    fn index(&self, index: Range<usize>) -> &Self::Output {
+        &self.dest[index]
+    }
+}
+
 impl<'a> ReadCursor<'a> {
     #[cfg_attr(feature = "no-panic", no_panic)]
     pub(crate) fn new(src: &'a [u8]) -> ReadCursor {

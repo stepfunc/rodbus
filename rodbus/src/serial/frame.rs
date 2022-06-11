@@ -1,6 +1,6 @@
 use crate::common::buffer::ReadBuffer;
 use crate::common::cursor::WriteCursor;
-use crate::common::frame::{Frame, FrameDestination, FrameHeader, FrameInfo};
+use crate::common::frame::{Frame, FrameDestination, FrameHeader, FrameInfo, FrameType};
 use crate::common::function::FunctionCode;
 use crate::common::traits::Serialize;
 use crate::decode::FrameDecodeLevel;
@@ -218,27 +218,30 @@ pub(crate) fn format_rtu_pdu(
     let crc = CRC.checksum(cursor.get(start_frame..end_pdu).unwrap());
     cursor.write_u16_le(crc)?;
 
-    Ok(FrameInfo::new(start_pdu..end_pdu))
+    Ok(FrameInfo::new(
+        FrameType::Rtu(header.destination, crc),
+        start_pdu..end_pdu,
+    ))
 }
 
-struct RtuDisplay<'a> {
+pub(crate) struct RtuDisplay<'a> {
     level: FrameDecodeLevel,
     destination: FrameDestination,
-    data: &'a [u8],
+    payload: &'a [u8],
     crc: u16,
 }
 
 impl<'a> RtuDisplay<'a> {
-    fn new(
+    pub(crate) fn new(
         level: FrameDecodeLevel,
         destination: FrameDestination,
-        data: &'a [u8],
+        payload: &'a [u8],
         crc: u16,
     ) -> Self {
         RtuDisplay {
             level,
             destination,
-            data,
+            payload,
             crc,
         }
     }
@@ -248,13 +251,13 @@ impl<'a> std::fmt::Display for RtuDisplay<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(
             f,
-            "dest: {} crc: {:#06X} (len = {})",
+            "dest: {} crc: {:#06X} (payload len = {})",
             self.destination,
             self.crc,
-            self.data.len() - 1,
+            self.payload.len(),
         )?;
         if self.level.payload_enabled() {
-            crate::common::phys::format_bytes(f, self.data)?;
+            crate::common::phys::format_bytes(f, self.payload)?;
         }
         Ok(())
     }

@@ -6,9 +6,9 @@ use crate::common::cursor::WriteCursor;
 use crate::common::function::FunctionCode;
 use crate::common::traits::Serialize;
 use crate::error::RequestError;
-use crate::serial::frame::RtuParser;
+use crate::serial::frame::{RtuDisplay, RtuParser};
 use crate::server::response::ErrorResponse;
-use crate::tcp::frame::MbapParser;
+use crate::tcp::frame::{MbapDisplay, MbapHeader, MbapParser};
 use crate::types::UnitId;
 use crate::{DecodeLevel, ExceptionCode, FrameDecodeLevel};
 
@@ -189,14 +189,25 @@ impl FrameParser {
     }
 }
 
+pub(crate) enum FrameType {
+    Mbap(MbapHeader),
+    // destination and CRC
+    Rtu(FrameDestination, u16),
+}
+
 pub(crate) struct FrameInfo {
+    /// Information about the frame header
+    pub(crate) frame_type: FrameType,
     /// Range that represents where the PDU resides within the buffer
-    pub(crate) _payload: Range<usize>,
+    pub(crate) payload: Range<usize>,
 }
 
 impl FrameInfo {
-    pub(crate) fn new(payload: Range<usize>) -> Self {
-        Self { _payload: payload }
+    pub(crate) fn new(frame_type: FrameType, payload: Range<usize>) -> Self {
+        Self {
+            frame_type,
+            payload,
+        }
     }
 }
 
@@ -219,22 +230,14 @@ impl FormatType {
     }
 }
 
-struct FrameWriterImpl {
-    format_type: FormatType,
-    buffer: [u8; constants::MAX_FRAME_LENGTH],
-}
-
 pub(crate) struct FrameWriter {
-    inner: Option<FrameWriterImpl>,
+    inner: Option<(FormatType, [u8; constants::MAX_FRAME_LENGTH])>,
 }
 
 impl FrameWriter {
     fn new(format_type: FormatType) -> Self {
         Self {
-            inner: Some(FrameWriterImpl {
-                format_type,
-                buffer: [0; constants::MAX_FRAME_LENGTH],
-            }),
+            inner: Some((format_type, [0; constants::MAX_FRAME_LENGTH])),
         }
     }
 
@@ -252,17 +255,37 @@ impl FrameWriter {
         &mut self,
         header: FrameHeader,
         msg: &dyn Serialize,
-        _decode_level: DecodeLevel,
+        decode_level: DecodeLevel,
     ) -> Result<&[u8], RequestError> {
         match self.inner.as_mut() {
             None => Ok(&[]),
-            Some(inner) => {
+            Some((format_type, buffer)) => {
                 let end = {
-                    let mut cursor = WriteCursor::new(inner.buffer.as_mut());
-                    inner.format_type.format(&mut cursor, header, msg)?;
+                    let mut cursor = WriteCursor::new(buffer);
+                    let info = format_type.format(&mut cursor, header, msg)?;
+
+                    if decode_level.frame.enabled() {
+                        let payload = &cursor[info.payload];
+
+                        match info.frame_type {
+                            FrameType::Mbap(header) => {
+                                tracing::info!(
+                                    "MBAP Tx: {}",
+                                    MbapDisplay::new(decode_level.frame, header, payload)
+                                );
+                            }
+                            FrameType::Rtu(dest, crc) => {
+                                tracing::info!(
+                                    "RTU Tx: {}",
+                                    RtuDisplay::new(decode_level.frame, dest, payload, crc)
+                                );
+                            }
+                        }
+                    }
+
                     cursor.position()
                 };
-                Ok(&inner.buffer[..end])
+                Ok(&buffer[..end])
             }
         }
     }
