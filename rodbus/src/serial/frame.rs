@@ -1,6 +1,6 @@
 use crate::common::buffer::ReadBuffer;
 use crate::common::cursor::WriteCursor;
-use crate::common::frame::{Frame, FrameDestination, FrameHeader, FrameInfo, FrameParser};
+use crate::common::frame::{Frame, FrameDestination, FrameHeader, FrameInfo};
 use crate::common::function::FunctionCode;
 use crate::common::traits::Serialize;
 use crate::decode::FrameDecodeLevel;
@@ -97,10 +97,8 @@ impl RtuParser {
             },
         }
     }
-}
 
-impl FrameParser for RtuParser {
-    fn parse(
+    pub(crate) fn parse(
         &mut self,
         cursor: &mut ReadBuffer,
         decode_level: FrameDecodeLevel,
@@ -201,7 +199,7 @@ impl FrameParser for RtuParser {
         }
     }
 
-    fn reset(&mut self) {
+    pub(crate) fn reset(&mut self) {
         self.state = ParseState::Start;
     }
 }

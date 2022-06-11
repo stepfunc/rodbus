@@ -1,6 +1,6 @@
 use crate::common::buffer::ReadBuffer;
 use crate::common::cursor::WriteCursor;
-use crate::common::frame::{Frame, FrameHeader, FrameInfo, FrameParser, TxId};
+use crate::common::frame::{Frame, FrameHeader, FrameInfo, TxId};
 use crate::common::traits::Serialize;
 use crate::decode::FrameDecodeLevel;
 use crate::error::{FrameParseError, RequestError};
@@ -55,13 +55,13 @@ impl MbapParser {
         }
 
         // must be > 0 b/c the 1-byte unit identifier counts towards length
-        if length == 0 {
-            return Err(FrameParseError::MbapLengthZero.into());
-        }
+        let adu_length = length
+            .checked_sub(1)
+            .ok_or(FrameParseError::MbapLengthZero)?;
 
         Ok(MbapHeader {
             tx_id,
-            adu_length: length - 1,
+            adu_length,
             unit_id,
         })
     }
@@ -71,10 +71,8 @@ impl MbapParser {
         frame.set(cursor.read(header.adu_length)?);
         Ok(frame)
     }
-}
 
-impl FrameParser for MbapParser {
-    fn parse(
+    pub(crate) fn parse(
         &mut self,
         cursor: &mut ReadBuffer,
         decode_level: FrameDecodeLevel,
@@ -108,7 +106,7 @@ impl FrameParser for MbapParser {
         }
     }
 
-    fn reset(&mut self) {
+    pub(crate) fn reset(&mut self) {
         self.state = ParseState::Begin;
     }
 }

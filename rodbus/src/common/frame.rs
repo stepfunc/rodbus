@@ -157,21 +157,36 @@ impl Frame {
 }
 
 ///  Defines an interface for parsing frames (TCP or RTU)
-pub(crate) trait FrameParser: Send {
+pub(crate) enum FrameParser {
+    Rtu(RtuParser),
+    Tcp(MbapParser),
+}
+
+impl FrameParser {
     /// Parse bytes using the provided cursor. Advancing the cursor always implies that the bytes
     /// are consumed and can be discarded,
     ///
     /// `Err` implies the input data is invalid
     /// `Ok(None)` implies that more data is required to complete parsing
     /// `Ok(Some(..))` will contain a fully parsed frame and will advance the cursor appropriately
-    fn parse(
+    pub(crate) fn parse(
         &mut self,
         cursor: &mut ReadBuffer,
         decode_level: FrameDecodeLevel,
-    ) -> Result<Option<Frame>, RequestError>;
+    ) -> Result<Option<Frame>, RequestError> {
+        match self {
+            FrameParser::Rtu(x) => x.parse(cursor, decode_level),
+            FrameParser::Tcp(x) => x.parse(cursor, decode_level),
+        }
+    }
 
     /// Reset the parser state. Called whenever an error occurs
-    fn reset(&mut self);
+    pub(crate) fn reset(&mut self) {
+        match self {
+            FrameParser::Rtu(x) => x.reset(),
+            FrameParser::Tcp(x) => x.reset(),
+        }
+    }
 }
 
 pub(crate) struct FrameInfo {
@@ -266,24 +281,24 @@ impl FrameWriter {
 }
 
 pub(crate) struct FramedReader {
-    parser: Box<dyn FrameParser>,
+    parser: FrameParser,
     buffer: ReadBuffer,
 }
 
 impl FramedReader {
     pub(crate) fn tcp() -> Self {
-        Self::new(Box::new(MbapParser::new()))
+        Self::new(FrameParser::Tcp(MbapParser::new()))
     }
 
     pub(crate) fn rtu_request() -> Self {
-        Self::new(Box::new(RtuParser::new_request_parser()))
+        Self::new(FrameParser::Rtu(RtuParser::new_request_parser()))
     }
 
     pub(crate) fn rtu_response() -> Self {
-        Self::new(Box::new(RtuParser::new_response_parser()))
+        Self::new(FrameParser::Rtu(RtuParser::new_response_parser()))
     }
 
-    fn new(parser: Box<dyn FrameParser>) -> Self {
+    fn new(parser: FrameParser) -> Self {
         Self {
             parser,
             buffer: ReadBuffer::new(),
