@@ -156,10 +156,8 @@ impl Frame {
     }
 }
 
-///  Defines an interface for reading and writing complete frames (TCP or RTU)
+///  Defines an interface for parsing frames (TCP or RTU)
 pub(crate) trait FrameParser: Send {
-    fn max_frame_size(&self) -> usize;
-
     /// Parse bytes using the provided cursor. Advancing the cursor always implies that the bytes
     /// are consumed and can be discarded,
     ///
@@ -286,10 +284,9 @@ impl FramedReader {
     }
 
     fn new(parser: Box<dyn FrameParser>) -> Self {
-        let size = parser.max_frame_size();
         Self {
             parser,
-            buffer: ReadBuffer::new(size),
+            buffer: ReadBuffer::new(),
         }
     }
 

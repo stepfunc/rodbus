@@ -74,10 +74,6 @@ impl MbapParser {
 }
 
 impl FrameParser for MbapParser {
-    fn max_frame_size(&self) -> usize {
-        constants::MAX_FRAME_LENGTH
-    }
-
     fn parse(
         &mut self,
         cursor: &mut ReadBuffer,

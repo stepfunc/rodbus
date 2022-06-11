@@ -100,10 +100,6 @@ impl RtuParser {
 }
 
 impl FrameParser for RtuParser {
-    fn max_frame_size(&self) -> usize {
-        constants::MAX_FRAME_LENGTH
-    }
-
     fn parse(
         &mut self,
         cursor: &mut ReadBuffer,
@@ -125,8 +121,6 @@ impl FrameParser for RtuParser {
                 if unit_id.is_rtu_reserved() {
                     tracing::warn!("received reserved unit ID {}, violating Modbus RTU spec. Passing it through nevertheless.", unit_id);
                 }
-
-                tracing::debug!("UnitID: {}", unit_id);
 
                 // We don't consume the function code to avoid an unecessary copy of the receive buffer later on
                 let raw_function_code = cursor.peek_at(0)?;
