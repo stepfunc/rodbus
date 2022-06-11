@@ -211,17 +211,6 @@ pub(crate) fn format_rtu_pdu(
     header: FrameHeader,
     msg: &dyn Serialize,
 ) -> Result<FrameInfo, RequestError> {
-    // Do some validation
-    if let FrameDestination::UnitId(unit_id) = header.destination {
-        if unit_id.is_rtu_reserved() {
-            tracing::warn!(
-                "Sending a message to a reserved unit ID {} violates Modbus RTU spec",
-                unit_id
-            )
-        }
-    }
-
-    // Write the message
     let start_frame = cursor.position();
     cursor.write_u8(header.destination.value())?;
     let start_pdu = cursor.position();
