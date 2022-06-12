@@ -5,13 +5,14 @@ use crate::server::{AuthorizationHandler, AuthorizationResult};
 use crate::{tokio, DecodeLevel, UnitId};
 
 use crate::common::cursor::ReadCursor;
-use crate::common::frame::{Frame, FrameDestination, FrameHeader, FrameWriter, FramedReader};
+use crate::common::frame::{
+    Frame, FrameDestination, FrameHeader, FrameWriter, FramedReader, FunctionField,
+};
 use crate::common::function::FunctionCode;
 use crate::error::*;
 use crate::exception::ExceptionCode;
 use crate::server::handler::{RequestHandler, ServerHandlerMap};
 use crate::server::request::{Request, RequestDisplay};
-use crate::server::response::ErrorResponse;
 use std::sync::Arc;
 
 /// Messages that can be sent to change server settings dynamically
@@ -60,11 +61,22 @@ where
     async fn reply_with_error(
         &mut self,
         header: FrameHeader,
-        err: ErrorResponse,
+        func: FunctionCode,
+        ex: ExceptionCode,
+    ) -> Result<(), RequestError> {
+        self.reply_with_error_generic(header, FunctionField::Exception(func), ex)
+            .await
+    }
+
+    async fn reply_with_error_generic(
+        &mut self,
+        header: FrameHeader,
+        func: FunctionField,
+        ex: ExceptionCode,
     ) -> Result<(), RequestError> {
         // do not answer on broadcast
         if header.destination != FrameDestination::Broadcast {
-            let bytes = self.writer.format(header, &err, self.decode)?;
+            let bytes = self.writer.format_generic(header, func, &ex, self.decode)?;
             self.io.write(bytes, self.decode.physical).await?;
         }
         Ok(())
@@ -118,7 +130,11 @@ where
                 None => {
                     tracing::warn!("received unknown function code: {}", value);
                     return self
-                        .reply_with_error(frame.header, ErrorResponse::unknown_function(value))
+                        .reply_with_error_generic(
+                            frame.header,
+                            FunctionField::unknown(value),
+                            ExceptionCode::IllegalFunction,
+                        )
                         .await;
                 }
             },
@@ -129,10 +145,7 @@ where
             Err(err) => {
                 tracing::warn!("error parsing {:?} request: {}", function, err);
                 return self
-                    .reply_with_error(
-                        frame.header,
-                        ErrorResponse::new(function, ExceptionCode::IllegalDataValue),
-                    )
+                    .reply_with_error(frame.header, function, ExceptionCode::IllegalDataValue)
                     .await;
             }
         };

@@ -1,6 +1,7 @@
 use crate::common::cursor::*;
 use crate::decode::AppDecodeLevel;
 use crate::error::*;
+use crate::ExceptionCode;
 
 pub(crate) trait Serialize {
     fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError>;
@@ -14,10 +15,6 @@ pub(crate) trait Loggable {
         f: &mut std::fmt::Formatter,
     ) -> std::fmt::Result;
 }
-
-/// Blank trait and implementation for anything that is both Serialize and Loggable
-pub(crate) trait Message: Serialize + Loggable {}
-impl<T> Message for T where T: Serialize + Loggable {}
 
 /*
 pub(crate) struct MessageDisplay<'a, 'b> {
@@ -45,4 +42,15 @@ impl std::fmt::Display for MessageDisplay<'_, '_> {
 
 pub(crate) trait Parse: Sized {
     fn parse(cursor: &mut ReadCursor) -> Result<Self, RequestError>;
+}
+
+impl Loggable for ExceptionCode {
+    fn log(
+        &self,
+        _payload: &[u8],
+        _level: AppDecodeLevel,
+        f: &mut std::fmt::Formatter,
+    ) -> std::fmt::Result {
+        write!(f, "{:?}", self)
+    }
 }

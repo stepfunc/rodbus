@@ -267,7 +267,7 @@ impl<'a> std::fmt::Display for RtuDisplay<'a> {
 mod tests {
     use std::task::Poll;
 
-    use crate::common::frame::{FrameWriter, FramedReader};
+    use crate::common::frame::FramedReader;
     use crate::common::phys::PhysLayer;
     use crate::tokio::test::*;
     use crate::DecodeLevel;
@@ -668,14 +668,17 @@ mod tests {
     }
 
     fn assert_frame_formatting(frame: &[u8]) {
-        let mut formatter = FrameWriter::rtu();
+        let mut buffer: [u8; 256] = [0; 256];
+        let mut cursor = WriteCursor::new(&mut buffer);
         let msg = MockMessage { frame };
-        let header = FrameHeader::new_rtu_header(FrameDestination::UnitId(UnitId::new(42)));
-        let output = formatter
-            .format(header, &msg, DecodeLevel::nothing())
-            .unwrap();
-
-        assert_eq!(output, frame);
+        let _ = format_rtu_pdu(
+            &mut cursor,
+            FrameHeader::new_rtu_header(FrameDestination::UnitId(UnitId::new(42))),
+            &msg,
+        )
+        .unwrap();
+        let end = cursor.position();
+        assert_eq!(&buffer[..end], frame);
     }
 
     #[test]

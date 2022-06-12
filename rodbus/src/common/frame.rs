@@ -4,10 +4,10 @@ use std::ops::Range;
 use crate::common::buffer::ReadBuffer;
 use crate::common::cursor::WriteCursor;
 use crate::common::function::FunctionCode;
-use crate::common::traits::Serialize;
+use crate::common::pdu::Pdu;
+use crate::common::traits::{Loggable, Serialize};
 use crate::error::RequestError;
 use crate::serial::frame::{RtuDisplay, RtuParser};
-use crate::server::response::ErrorResponse;
 use crate::tcp::frame::{MbapDisplay, MbapHeader, MbapParser};
 use crate::types::UnitId;
 use crate::{DecodeLevel, ExceptionCode, FrameDecodeLevel};
@@ -234,11 +234,45 @@ pub(crate) struct FrameWriter {
     inner: Option<(FormatType, [u8; constants::MAX_FRAME_LENGTH])>,
 }
 
+#[derive(Copy, Clone, Debug)]
+pub(crate) enum FunctionField {
+    Valid(FunctionCode),
+    Exception(FunctionCode),
+    UnknownFunction(u8),
+}
+
+impl FunctionField {
+    pub(crate) fn unknown(fc: u8) -> Self {
+        Self::UnknownFunction(fc)
+    }
+
+    pub(crate) fn get_value(&self) -> u8 {
+        match self {
+            FunctionField::Valid(x) => x.get_value(),
+            FunctionField::Exception(x) => x.get_value() | 0x80,
+            FunctionField::UnknownFunction(x) => x | 0x80,
+        }
+    }
+}
+
 impl FrameWriter {
     fn new(format_type: FormatType) -> Self {
         Self {
             inner: Some((format_type, [0; constants::MAX_FRAME_LENGTH])),
         }
+    }
+
+    pub(crate) fn format<T>(
+        &mut self,
+        header: FrameHeader,
+        function: FunctionCode,
+        body: &T,
+        decode_level: DecodeLevel,
+    ) -> Result<&[u8], RequestError>
+    where
+        T: Serialize + Loggable,
+    {
+        self.format_generic(header, FunctionField::Valid(function), body, decode_level)
     }
 
     pub(crate) fn format_ex(
@@ -248,21 +282,31 @@ impl FrameWriter {
         ex: ExceptionCode,
         decode_level: DecodeLevel,
     ) -> Result<&[u8], RequestError> {
-        self.format(header, &ErrorResponse::new(function, ex), decode_level)
+        self.format_generic(
+            header,
+            FunctionField::Exception(function),
+            &ex,
+            decode_level,
+        )
     }
 
-    pub(crate) fn format(
+    pub(crate) fn format_generic<T>(
         &mut self,
         header: FrameHeader,
-        msg: &dyn Serialize,
+        function: FunctionField,
+        body: &T,
         decode_level: DecodeLevel,
-    ) -> Result<&[u8], RequestError> {
+    ) -> Result<&[u8], RequestError>
+    where
+        T: Serialize + Loggable,
+    {
         match self.inner.as_mut() {
             None => Ok(&[]),
             Some((format_type, buffer)) => {
                 let end = {
+                    let pdu = Pdu::new(function, body);
                     let mut cursor = WriteCursor::new(buffer);
-                    let info = format_type.format(&mut cursor, header, msg)?;
+                    let info = format_type.format(&mut cursor, header, &pdu)?;
 
                     if decode_level.frame.enabled() {
                         let payload = &cursor[info.payload];

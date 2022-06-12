@@ -8,7 +8,6 @@ use crate::{tokio, DecodeLevel};
 
 use crate::client::message::{Command, Request, Setting};
 use crate::common::frame::{FrameHeader, FrameWriter, FramedReader, TxId};
-use crate::common::pdu::Pdu;
 use crate::error::*;
 
 /**
@@ -101,7 +100,8 @@ impl ClientLoop {
     ) -> Result<(), RequestError> {
         let bytes = self.writer.format(
             FrameHeader::new_tcp_header(request.id, tx_id),
-            &Pdu::new(request.details.function(), &request.details),
+            request.details.function(),
+            &request.details,
             self.decode,
         )?;
 
@@ -267,7 +267,7 @@ mod tests {
         let mut fmt = FrameWriter::tcp();
         let header = FrameHeader::new_tcp_header(UnitId::new(1), TxId::new(0));
         let bytes = fmt
-            .format(header, &Pdu::new(function, payload), DecodeLevel::nothing())
+            .format(header, function, payload, DecodeLevel::nothing())
             .unwrap();
         Vec::from(bytes)
     }

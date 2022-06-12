@@ -185,7 +185,7 @@ mod tests {
     use crate::common::phys::PhysLayer;
     use crate::tokio::test::*;
 
-    use crate::common::frame::{FrameDestination, FrameWriter, FramedReader};
+    use crate::common::frame::{FrameDestination, FramedReader};
     use crate::error::*;
     use crate::DecodeLevel;
 
@@ -250,14 +250,17 @@ mod tests {
 
     #[test]
     fn correctly_formats_frame() {
-        let mut formatter = FrameWriter::tcp();
+        let mut buffer: [u8; 256] = [0; 256];
+        let mut cursor = WriteCursor::new(&mut buffer);
         let msg = MockMessage { a: 0x03, b: 0x04 };
-        let header = FrameHeader::new_tcp_header(UnitId::new(42), TxId::new(7));
-        let output = formatter
-            .format(header, &msg, DecodeLevel::nothing())
-            .unwrap();
-
-        assert_eq!(output, SIMPLE_FRAME)
+        let _ = format_mbap(
+            &mut cursor,
+            FrameHeader::new_tcp_header(UnitId::new(42), TxId::new(7)),
+            &msg,
+        )
+        .unwrap();
+        let pos = cursor.position();
+        assert_eq!(&buffer[..pos], SIMPLE_FRAME)
     }
 
     #[test]

@@ -1,8 +1,7 @@
 use crate::common::cursor::ReadCursor;
 use crate::common::frame::{FrameHeader, FrameWriter};
 use crate::common::function::FunctionCode;
-use crate::common::pdu::Pdu;
-use crate::common::traits::{Message, Parse};
+use crate::common::traits::{Loggable, Parse, Serialize};
 use crate::decode::AppDecodeLevel;
 use crate::error::RequestError;
 use crate::exception::ExceptionCode;
@@ -66,13 +65,10 @@ impl<'a> Request<'a> {
             level: DecodeLevel,
         ) -> Result<&[u8], RequestError>
         where
-            T: Message,
+            T: Serialize + Loggable,
         {
             match result {
-                Ok(response) => {
-                    let response = Pdu::new(function, &response);
-                    writer.format(header, &response, level)
-                }
+                Ok(response) => writer.format(header, function, &response, level),
                 Err(ex) => writer.format_ex(header, function, ex, level),
             }
         }
@@ -83,19 +79,19 @@ impl<'a> Request<'a> {
         match self {
             Request::ReadCoils(range) => {
                 let bits = BitWriter::new(*range, |i| handler.read_coil(i));
-                writer.format(header, &Pdu::new(function, &bits), level)
+                writer.format(header, function, &bits, level)
             }
             Request::ReadDiscreteInputs(range) => {
                 let bits = BitWriter::new(*range, |i| handler.read_discrete_input(i));
-                writer.format(header, &Pdu::new(function, &bits), level)
+                writer.format(header, function, &bits, level)
             }
             Request::ReadHoldingRegisters(range) => {
                 let registers = RegisterWriter::new(*range, |i| handler.read_holding_register(i));
-                writer.format(header, &Pdu::new(function, &registers), level)
+                writer.format(header, function, &registers, level)
             }
             Request::ReadInputRegisters(range) => {
                 let registers = RegisterWriter::new(*range, |i| handler.read_input_register(i));
-                writer.format(header, &Pdu::new(function, &registers), level)
+                writer.format(header, function, &registers, level)
             }
             Request::WriteSingleCoil(request) => {
                 let result = handler.write_single_coil(*request).map(|_| *request);
