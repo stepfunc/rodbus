@@ -1,6 +1,8 @@
 use crate::common::buffer::ReadBuffer;
 use crate::common::cursor::WriteCursor;
-use crate::common::frame::{Frame, FrameDestination, FrameHeader, FrameInfo, FrameType};
+use crate::common::frame::{
+    Frame, FrameDestination, FrameHeader, FrameInfo, FrameType, FunctionField,
+};
 use crate::common::function::FunctionCode;
 use crate::common::traits::Serialize;
 use crate::decode::FrameDecodeLevel;
@@ -207,20 +209,22 @@ impl RtuParser {
 pub(crate) fn format_rtu_pdu(
     cursor: &mut WriteCursor,
     header: FrameHeader,
+    function: FunctionField,
     msg: &dyn Serialize,
 ) -> Result<FrameInfo, RequestError> {
     let start_frame = cursor.position();
     cursor.write_u8(header.destination.value())?;
-    let start_pdu = cursor.position();
+    cursor.write_u8(function.get_value())?;
+    let start_pdu_body = cursor.position();
     msg.serialize(cursor)?;
-    let end_pdu = cursor.position();
+    let end_pdu_body = cursor.position();
     // Write the CRC
-    let crc = CRC.checksum(cursor.get(start_frame..end_pdu).unwrap());
+    let crc = CRC.checksum(cursor.get(start_frame..end_pdu_body).unwrap());
     cursor.write_u16_le(crc)?;
 
     Ok(FrameInfo::new(
         FrameType::Rtu(header.destination, crc),
-        start_pdu..end_pdu,
+        start_pdu_body..end_pdu_body,
     ))
 }
 
@@ -674,6 +678,7 @@ mod tests {
         let _ = format_rtu_pdu(
             &mut cursor,
             FrameHeader::new_rtu_header(FrameDestination::UnitId(UnitId::new(42))),
+            FunctionField::Valid(FunctionCode::ReadCoils),
             &msg,
         )
         .unwrap();

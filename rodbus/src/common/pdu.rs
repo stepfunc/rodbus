@@ -8,12 +8,6 @@ pub(crate) struct Pdu<'a> {
     body: &'a dyn Serialize,
 }
 
-impl<'a> Pdu<'a> {
-    pub(crate) fn new(function: FunctionField, body: &'a dyn Serialize) -> Self {
-        Self { function, body }
-    }
-}
-
 impl<'a> Serialize for Pdu<'a> {
     fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
         cursor.write_u8(self.function.get_value())?;

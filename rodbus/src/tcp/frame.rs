@@ -1,6 +1,6 @@
 use crate::common::buffer::ReadBuffer;
 use crate::common::cursor::WriteCursor;
-use crate::common::frame::{Frame, FrameHeader, FrameInfo, FrameType, TxId};
+use crate::common::frame::{Frame, FrameHeader, FrameInfo, FrameType, FunctionField, TxId};
 use crate::common::traits::Serialize;
 use crate::decode::FrameDecodeLevel;
 use crate::error::{FrameParseError, RequestError};
@@ -114,6 +114,7 @@ impl MbapParser {
 pub(crate) fn format_mbap(
     cursor: &mut WriteCursor,
     header: FrameHeader,
+    function: FunctionField,
     msg: &dyn Serialize,
 ) -> Result<FrameInfo, RequestError> {
     // this is matter of configuration and will always be present in TCP/TLS mode
@@ -129,6 +130,8 @@ pub(crate) fn format_mbap(
     cursor.write_u8(unit_id.value)?; // unit id
 
     let start_pdu = cursor.position();
+    cursor.write_u8(function.get_value())?;
+    let start_pdu_body = cursor.position();
     msg.serialize(cursor)?;
     let end_pdu = cursor.position();
 
@@ -145,7 +148,10 @@ pub(crate) fn format_mbap(
         unit_id,
     };
 
-    Ok(FrameInfo::new(FrameType::Mbap(header), start_pdu..end_pdu))
+    Ok(FrameInfo::new(
+        FrameType::Mbap(header),
+        start_pdu_body..end_pdu,
+    ))
 }
 
 pub(crate) struct MbapDisplay<'a> {
@@ -186,23 +192,24 @@ mod tests {
     use crate::tokio::test::*;
 
     use crate::common::frame::{FrameDestination, FramedReader};
+    use crate::common::function::FunctionCode;
     use crate::error::*;
     use crate::DecodeLevel;
 
     use super::*;
 
-    //                            |   tx id  |  proto id |  length  | unit |  payload  |
-    const SIMPLE_FRAME: &[u8] = &[0x00, 0x07, 0x00, 0x00, 0x00, 0x03, 0x2A, 0x03, 0x04];
+    //                            |   tx id  |  proto id |  length  | unit | fc | body      |
+    const SIMPLE_FRAME: &[u8] = &[0x00, 0x07, 0x00, 0x00, 0x00, 0x03, 0x2A, 0x01, 0xCA, 0xFE];
 
-    struct MockMessage {
-        a: u8,
-        b: u8,
+    struct MockBody {
+        body: &'static [u8],
     }
 
-    impl Serialize for MockMessage {
+    impl Serialize for MockBody {
         fn serialize(self: &Self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
-            cursor.write_u8(self.a)?;
-            cursor.write_u8(self.b)?;
+            for b in self.body {
+                cursor.write_u8(*b)?;
+            }
             Ok(())
         }
     }
@@ -252,10 +259,13 @@ mod tests {
     fn correctly_formats_frame() {
         let mut buffer: [u8; 256] = [0; 256];
         let mut cursor = WriteCursor::new(&mut buffer);
-        let msg = MockMessage { a: 0x03, b: 0x04 };
+        let msg = MockBody {
+            body: &[0xCA, 0xFE],
+        };
         let _ = format_mbap(
             &mut cursor,
             FrameHeader::new_tcp_header(UnitId::new(42), TxId::new(7)),
+            FunctionField::Valid(FunctionCode::ReadCoils),
             &msg,
         )
         .unwrap();

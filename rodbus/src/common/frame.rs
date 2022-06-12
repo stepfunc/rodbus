@@ -4,7 +4,6 @@ use std::ops::Range;
 use crate::common::buffer::ReadBuffer;
 use crate::common::cursor::WriteCursor;
 use crate::common::function::FunctionCode;
-use crate::common::pdu::Pdu;
 use crate::common::traits::{Loggable, LoggableDisplay, Serialize};
 use crate::error::RequestError;
 use crate::serial::frame::{RtuDisplay, RtuParser};
@@ -198,15 +197,15 @@ pub(crate) enum FrameType {
 pub(crate) struct FrameInfo {
     /// Information about the frame header
     pub(crate) frame_type: FrameType,
-    /// Range that represents where the PDU resides within the buffer
-    pub(crate) payload: Range<usize>,
+    /// Range that represents where the PDU body (after function) resides within the buffer
+    pub(crate) pdu_body: Range<usize>,
 }
 
 impl FrameInfo {
-    pub(crate) fn new(frame_type: FrameType, payload: Range<usize>) -> Self {
+    pub(crate) fn new(frame_type: FrameType, pdu_body: Range<usize>) -> Self {
         Self {
             frame_type,
-            payload,
+            pdu_body,
         }
     }
 }
@@ -221,11 +220,12 @@ impl FormatType {
         &self,
         cursor: &mut WriteCursor,
         header: FrameHeader,
-        msg: &dyn Serialize,
+        function: FunctionField,
+        body: &dyn Serialize,
     ) -> Result<FrameInfo, RequestError> {
         match self {
-            FormatType::Tcp => crate::tcp::frame::format_mbap(cursor, header, msg),
-            FormatType::Rtu => crate::serial::frame::format_rtu_pdu(cursor, header, msg),
+            FormatType::Tcp => crate::tcp::frame::format_mbap(cursor, header, function, body),
+            FormatType::Rtu => crate::serial::frame::format_rtu_pdu(cursor, header, function, body),
         }
     }
 }
@@ -322,19 +322,18 @@ impl FrameWriter {
             None => return Ok(&[]),
         };
 
-        let (frame_type, frame_bytes, payload_bytes) = {
-            let pdu = Pdu::new(function, body);
+        let (frame_type, frame_bytes, pdu_body) = {
             let mut cursor = WriteCursor::new(buffer);
-            let info = format_type.format(&mut cursor, header, &pdu)?;
+            let info = format_type.format(&mut cursor, header, function, body)?;
             let end = cursor.position();
-            (info.frame_type, &buffer[..end], &buffer[info.payload])
+            (info.frame_type, &buffer[..end], &buffer[info.pdu_body])
         };
 
         if decode_level.app.enabled() {
             tracing::info!(
                 "PDU tx: {} {}",
                 function,
-                LoggableDisplay::ngit add ew(body, payload_bytes, decode_level.app)
+                LoggableDisplay::new(body, pdu_body, decode_level.app)
             );
         }
 
