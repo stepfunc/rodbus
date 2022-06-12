@@ -220,7 +220,7 @@ mod tests {
             frame.header.destination,
             FrameDestination::new_unit_id(0x2A)
         );
-        assert_eq!(frame.payload(), &[0x03, 0x04]);
+        assert_eq!(frame.payload(), &[0x01, 0xCA, 0xFE]);
     }
 
     fn test_segmented_parse(split_at: usize) {
