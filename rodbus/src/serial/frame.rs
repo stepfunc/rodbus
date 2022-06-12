@@ -269,6 +269,7 @@ impl<'a> std::fmt::Display for RtuDisplay<'a> {
 
 #[cfg(test)]
 mod tests {
+    use crate::common::function::FunctionCode;
     use std::task::Poll;
 
     use crate::common::frame::FramedReader;
@@ -412,26 +413,62 @@ mod tests {
         0x46, 0x16, // crc
     ];
 
-    const ALL_REQUESTS: &[&[u8]] = &[
-        READ_COILS_REQUEST,
-        READ_DISCRETE_INPUTS_REQUEST,
-        READ_HOLDING_REGISTERS_REQUEST,
-        READ_INPUT_REGISTERS_REQUEST,
-        WRITE_SINGLE_COIL_REQUEST,
-        WRITE_SINGLE_REGISTER_REQUEST,
-        WRITE_MULTIPLE_COILS_REQUEST,
-        WRITE_MULTIPLE_REGISTERS_REQUEST,
+    const ALL_REQUESTS: &[(FunctionCode, &[u8])] = &[
+        (FunctionCode::ReadCoils, READ_COILS_REQUEST),
+        (
+            FunctionCode::ReadDiscreteInputs,
+            READ_DISCRETE_INPUTS_REQUEST,
+        ),
+        (
+            FunctionCode::ReadHoldingRegisters,
+            READ_HOLDING_REGISTERS_REQUEST,
+        ),
+        (
+            FunctionCode::ReadInputRegisters,
+            READ_INPUT_REGISTERS_REQUEST,
+        ),
+        (FunctionCode::WriteSingleCoil, WRITE_SINGLE_COIL_REQUEST),
+        (
+            FunctionCode::WriteSingleRegister,
+            WRITE_SINGLE_REGISTER_REQUEST,
+        ),
+        (
+            FunctionCode::WriteMultipleCoils,
+            WRITE_MULTIPLE_COILS_REQUEST,
+        ),
+        (
+            FunctionCode::WriteMultipleRegisters,
+            WRITE_MULTIPLE_REGISTERS_REQUEST,
+        ),
     ];
 
-    const ALL_RESPONSES: &[&[u8]] = &[
-        READ_COILS_RESPONSE,
-        READ_DISCRETE_INPUTS_RESPONSE,
-        READ_HOLDING_REGISTERS_RESPONSE,
-        READ_INPUT_REGISTERS_RESPONSE,
-        WRITE_SINGLE_COIL_RESPONSE,
-        WRITE_SINGLE_REGISTER_RESPONSE,
-        WRITE_MULTIPLE_COILS_RESPONSE,
-        WRITE_MULTIPLE_REGISTERS_RESPONSE,
+    const ALL_RESPONSES: &[(FunctionCode, &[u8])] = &[
+        (FunctionCode::ReadCoils, READ_COILS_RESPONSE),
+        (
+            FunctionCode::ReadDiscreteInputs,
+            READ_DISCRETE_INPUTS_RESPONSE,
+        ),
+        (
+            FunctionCode::ReadHoldingRegisters,
+            READ_HOLDING_REGISTERS_RESPONSE,
+        ),
+        (
+            FunctionCode::ReadInputRegisters,
+            READ_INPUT_REGISTERS_RESPONSE,
+        ),
+        (FunctionCode::WriteSingleCoil, WRITE_SINGLE_COIL_RESPONSE),
+        (
+            FunctionCode::WriteSingleRegister,
+            WRITE_SINGLE_REGISTER_RESPONSE,
+        ),
+        (
+            FunctionCode::WriteMultipleCoils,
+            WRITE_MULTIPLE_COILS_RESPONSE,
+        ),
+        (
+            FunctionCode::WriteMultipleRegisters,
+            WRITE_MULTIPLE_REGISTERS_RESPONSE,
+        ),
     ];
 
     fn assert_can_parse_frame(mut reader: FramedReader, frame: &[u8]) {
@@ -458,7 +495,7 @@ mod tests {
 
     #[test]
     fn can_parse_request_frames() {
-        for request in ALL_REQUESTS {
+        for (_, request) in ALL_REQUESTS {
             let reader = FramedReader::rtu_request();
             assert_can_parse_frame(reader, request);
         }
@@ -466,7 +503,7 @@ mod tests {
 
     #[test]
     fn can_parse_response_frames() {
-        for response in ALL_RESPONSES {
+        for (_, response) in ALL_RESPONSES {
             let reader = FramedReader::rtu_response();
             assert_can_parse_frame(reader, response);
         }
@@ -547,7 +584,7 @@ mod tests {
 
     #[test]
     fn can_parse_request_frames_byte_per_byte() {
-        for request in ALL_REQUESTS {
+        for (_, request) in ALL_REQUESTS {
             let reader = FramedReader::rtu_request();
             assert_can_parse_frame_byte_per_byte(reader, request);
         }
@@ -555,7 +592,7 @@ mod tests {
 
     #[test]
     fn can_parse_response_frames_byte_per_byte() {
-        for response in ALL_RESPONSES {
+        for (_, response) in ALL_RESPONSES {
             let reader = FramedReader::rtu_response();
             assert_can_parse_frame_byte_per_byte(reader, response);
         }
@@ -616,7 +653,7 @@ mod tests {
 
     #[test]
     fn can_parse_two_request_frames() {
-        for request in ALL_REQUESTS {
+        for (_, request) in ALL_REQUESTS {
             let reader = FramedReader::rtu_request();
             assert_can_parse_two_frames(reader, request);
         }
@@ -624,7 +661,7 @@ mod tests {
 
     #[test]
     fn can_parse_two_response_frames() {
-        for response in ALL_RESPONSES {
+        for (_, response) in ALL_RESPONSES {
             let reader = FramedReader::rtu_response();
             assert_can_parse_two_frames(reader, response);
         }
@@ -664,21 +701,21 @@ mod tests {
 
     impl<'a> Serialize for MockMessage<'a> {
         fn serialize(self: &Self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
-            for byte in &self.frame[1..self.frame.len() - 2] {
+            for byte in &self.frame[2..self.frame.len() - 2] {
                 cursor.write_u8(*byte)?;
             }
             Ok(())
         }
     }
 
-    fn assert_frame_formatting(frame: &[u8]) {
+    fn assert_frame_formatting(function: FunctionCode, frame: &[u8]) {
         let mut buffer: [u8; 256] = [0; 256];
         let mut cursor = WriteCursor::new(&mut buffer);
         let msg = MockMessage { frame };
         let _ = format_rtu_pdu(
             &mut cursor,
             FrameHeader::new_rtu_header(FrameDestination::UnitId(UnitId::new(42))),
-            FunctionField::Valid(FunctionCode::ReadCoils),
+            FunctionField::Valid(function),
             &msg,
         )
         .unwrap();
@@ -688,15 +725,15 @@ mod tests {
 
     #[test]
     fn can_format_request_frames() {
-        for request in ALL_REQUESTS {
-            assert_frame_formatting(request);
+        for (fc, request) in ALL_REQUESTS {
+            assert_frame_formatting(*fc, request);
         }
     }
 
     #[test]
     fn can_format_response_frames() {
-        for response in ALL_RESPONSES {
-            assert_frame_formatting(response);
+        for (fc, response) in ALL_RESPONSES {
+            assert_frame_formatting(*fc, response);
         }
     }
 }
