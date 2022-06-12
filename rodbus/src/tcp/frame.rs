@@ -151,15 +151,15 @@ pub(crate) fn format_mbap(
 pub(crate) struct MbapDisplay<'a> {
     level: FrameDecodeLevel,
     header: MbapHeader,
-    payload: &'a [u8],
+    bytes: &'a [u8],
 }
 
 impl<'a> MbapDisplay<'a> {
-    pub(crate) fn new(level: FrameDecodeLevel, header: MbapHeader, payload: &'a [u8]) -> Self {
+    pub(crate) fn new(level: FrameDecodeLevel, header: MbapHeader, bytes: &'a [u8]) -> Self {
         MbapDisplay {
             level,
             header,
-            payload,
+            bytes,
         }
     }
 }
@@ -172,7 +172,7 @@ impl<'a> std::fmt::Display for MbapDisplay<'a> {
             self.header.tx_id, self.header.unit_id, self.header.adu_length
         )?;
         if self.level.payload_enabled() {
-            crate::common::phys::format_bytes(f, self.payload)?;
+            crate::common::phys::format_bytes(f, self.bytes)?;
         }
         Ok(())
     }

@@ -5,7 +5,7 @@ use crate::common::buffer::ReadBuffer;
 use crate::common::cursor::WriteCursor;
 use crate::common::function::FunctionCode;
 use crate::common::pdu::Pdu;
-use crate::common::traits::{Loggable, Serialize};
+use crate::common::traits::{Loggable, LoggableDisplay, Serialize};
 use crate::error::RequestError;
 use crate::serial::frame::{RtuDisplay, RtuParser};
 use crate::tcp::frame::{MbapDisplay, MbapHeader, MbapParser};
@@ -241,6 +241,23 @@ pub(crate) enum FunctionField {
     UnknownFunction(u8),
 }
 
+impl std::fmt::Display for FunctionField {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        let value = self.get_value();
+        match self {
+            FunctionField::Valid(x) => {
+                write!(f, "{}", x)
+            }
+            FunctionField::Exception(x) => {
+                write!(f, "Exception({}) for {}", value, x)
+            }
+            FunctionField::UnknownFunction(_) => {
+                write!(f, "Unknown Function Exception: {}", value)
+            }
+        }
+    }
+}
+
 impl FunctionField {
     pub(crate) fn unknown(fc: u8) -> Self {
         Self::UnknownFunction(fc)
@@ -300,38 +317,45 @@ impl FrameWriter {
     where
         T: Serialize + Loggable,
     {
-        match self.inner.as_mut() {
-            None => Ok(&[]),
-            Some((format_type, buffer)) => {
-                let end = {
-                    let pdu = Pdu::new(function, body);
-                    let mut cursor = WriteCursor::new(buffer);
-                    let info = format_type.format(&mut cursor, header, &pdu)?;
+        let (format_type, buffer) = match self.inner.as_mut() {
+            Some(x) => x,
+            None => return Ok(&[]),
+        };
 
-                    if decode_level.frame.enabled() {
-                        let payload = &cursor[info.payload];
+        let (frame_type, frame_bytes, payload_bytes) = {
+            let pdu = Pdu::new(function, body);
+            let mut cursor = WriteCursor::new(buffer);
+            let info = format_type.format(&mut cursor, header, &pdu)?;
+            let end = cursor.position();
+            (info.frame_type, &buffer[..end], &buffer[info.payload])
+        };
 
-                        match info.frame_type {
-                            FrameType::Mbap(header) => {
-                                tracing::info!(
-                                    "MBAP Tx: {}",
-                                    MbapDisplay::new(decode_level.frame, header, payload)
-                                );
-                            }
-                            FrameType::Rtu(dest, crc) => {
-                                tracing::info!(
-                                    "RTU Tx: {}",
-                                    RtuDisplay::new(decode_level.frame, dest, payload, crc)
-                                );
-                            }
-                        }
-                    }
+        if decode_level.app.enabled() {
+            tracing::info!(
+                "PDU tx: {} {}",
+                function,
+                LoggableDisplay::ngit add ew(body, payload_bytes, decode_level.app)
+            );
+        }
 
-                    cursor.position()
-                };
-                Ok(&buffer[..end])
+        if decode_level.frame.enabled() {
+            match frame_type {
+                FrameType::Mbap(header) => {
+                    tracing::info!(
+                        "MBAP Tx: {}",
+                        MbapDisplay::new(decode_level.frame, header, frame_bytes)
+                    );
+                }
+                FrameType::Rtu(dest, crc) => {
+                    tracing::info!(
+                        "RTU Tx: {}",
+                        RtuDisplay::new(decode_level.frame, dest, frame_bytes, crc)
+                    );
+                }
             }
         }
+
+        Ok(frame_bytes)
     }
 
     pub(crate) fn none() -> Self {
