@@ -98,7 +98,7 @@ impl ClientLoop {
         request: Request,
         tx_id: TxId,
     ) -> Result<(), RequestError> {
-        let bytes = self.writer.format(
+        let bytes = self.writer.format_request(
             FrameHeader::new_tcp_header(request.id, tx_id),
             request.details.function(),
             &request.details,
@@ -267,7 +267,7 @@ mod tests {
         let mut fmt = FrameWriter::tcp();
         let header = FrameHeader::new_tcp_header(UnitId::new(1), TxId::new(0));
         let bytes = fmt
-            .format(header, function, payload, DecodeLevel::nothing())
+            .format_request(header, function, payload, DecodeLevel::nothing())
             .unwrap();
         Vec::from(bytes)
     }

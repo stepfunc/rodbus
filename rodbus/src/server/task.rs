@@ -74,7 +74,7 @@ where
     ) -> Result<(), RequestError> {
         // do not answer on broadcast
         if header.destination != FrameDestination::Broadcast {
-            let bytes = self.writer.format_generic(header, func, &ex, self.decode)?;
+            let bytes = self.writer.format_ex(header, func, ex, self.decode)?;
             self.io.write(bytes, self.decode.physical).await?;
         }
         Ok(())
@@ -160,7 +160,7 @@ where
             if !frame.header.destination.is_broadcast() {
                 let reply = self.writer.format_ex(
                     frame.header,
-                    request.get_function(),
+                    FunctionField::Exception(request.get_function()),
                     ExceptionCode::IllegalFunction,
                     self.decode,
                 )?;

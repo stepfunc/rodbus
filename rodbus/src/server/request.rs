@@ -1,5 +1,5 @@
 use crate::common::cursor::ReadCursor;
-use crate::common::frame::{FrameHeader, FrameWriter};
+use crate::common::frame::{FrameHeader, FrameWriter, FunctionField};
 use crate::common::function::FunctionCode;
 use crate::common::traits::{Loggable, Parse, Serialize};
 use crate::decode::AppDecodeLevel;
@@ -97,8 +97,8 @@ impl<'a> Request<'a> {
             T: Serialize + Loggable,
         {
             match result {
-                Ok(response) => writer.format(header, function, &response, level),
-                Err(ex) => writer.format_ex(header, function, ex, level),
+                Ok(response) => writer.format_reply(header, function, &response, level),
+                Err(ex) => writer.format_ex(header, FunctionField::Exception(function), ex, level),
             }
         }
 
@@ -108,19 +108,19 @@ impl<'a> Request<'a> {
         match self {
             Request::ReadCoils(range) => {
                 let bits = BitWriter::new(*range, |i| handler.read_coil(i));
-                writer.format(header, function, &bits, level)
+                writer.format_reply(header, function, &bits, level)
             }
             Request::ReadDiscreteInputs(range) => {
                 let bits = BitWriter::new(*range, |i| handler.read_discrete_input(i));
-                writer.format(header, function, &bits, level)
+                writer.format_reply(header, function, &bits, level)
             }
             Request::ReadHoldingRegisters(range) => {
                 let registers = RegisterWriter::new(*range, |i| handler.read_holding_register(i));
-                writer.format(header, function, &registers, level)
+                writer.format_reply(header, function, &registers, level)
             }
             Request::ReadInputRegisters(range) => {
                 let registers = RegisterWriter::new(*range, |i| handler.read_input_register(i));
-                writer.format(header, function, &registers, level)
+                writer.format_reply(header, function, &registers, level)
             }
             Request::WriteSingleCoil(request) => {
                 let result = handler.write_single_coil(*request).map(|_| *request);
