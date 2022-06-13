@@ -7,7 +7,6 @@ use crate::error::RequestError;
 use crate::exception::ExceptionCode;
 use crate::server::handler::RequestHandler;
 use crate::server::response::{BitWriter, RegisterWriter};
-use crate::server::task::Authorization;
 use crate::server::*;
 use crate::types::*;
 
@@ -41,22 +40,9 @@ impl<'a> Request<'a> {
         &self,
         header: FrameHeader,
         handler: &mut dyn RequestHandler,
-        auth: &Authorization,
         writer: &'b mut FrameWriter,
         level: DecodeLevel,
     ) -> Result<&'b [u8], RequestError> {
-        // check authorization before doing anything else
-        if let AuthorizationResult::NotAuthorized =
-            auth.is_authorized(header.destination.into_unit_id(), self)
-        {
-            return writer.format_ex(
-                header,
-                self.get_function(),
-                ExceptionCode::IllegalFunction,
-                level,
-            );
-        }
-
         fn write_result<T>(
             function: FunctionCode,
             header: FrameHeader,

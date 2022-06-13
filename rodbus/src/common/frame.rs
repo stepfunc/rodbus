@@ -91,6 +91,14 @@ impl FrameDestination {
     pub(crate) fn into_unit_id(self) -> UnitId {
         UnitId::new(self.value())
     }
+
+    pub(crate) fn is_broadcast(&self) -> bool {
+        if let FrameDestination::Broadcast = self {
+            true
+        } else {
+            false
+        }
+    }
 }
 
 impl std::fmt::Display for FrameDestination {

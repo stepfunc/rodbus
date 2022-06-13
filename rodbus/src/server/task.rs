@@ -152,6 +152,24 @@ where
             );
         }
 
+        // check authorization
+        if let AuthorizationResult::NotAuthorized = self
+            .auth
+            .is_authorized(frame.header.destination.into_unit_id(), &request)
+        {
+            if !frame.header.destination.is_broadcast() {
+                let reply = self.writer.format_ex(
+                    frame.header,
+                    request.get_function(),
+                    ExceptionCode::IllegalFunction,
+                    self.decode,
+                )?;
+                self.io.write(reply, self.decode.physical).await?;
+            }
+
+            return Ok(());
+        }
+
         // if no addresses match, then don't respond
         match frame.header.destination {
             FrameDestination::UnitId(unit_id) => {
@@ -166,13 +184,7 @@ where
                 // get the reply data (or exception reply)
                 let reply_frame: &[u8] = {
                     let mut lock = handler.lock().unwrap();
-                    request.get_reply(
-                        frame.header,
-                        lock.as_mut(),
-                        &self.auth,
-                        &mut self.writer,
-                        self.decode,
-                    )?
+                    request.get_reply(frame.header, lock.as_mut(), &mut self.writer, self.decode)?
                 };
 
                 // reply with the bytes
@@ -190,7 +202,6 @@ where
                     request.get_reply(
                         frame.header,
                         lock.as_mut(),
-                        &self.auth,
                         &mut FrameWriter::none(),
                         self.decode,
                     )?;
