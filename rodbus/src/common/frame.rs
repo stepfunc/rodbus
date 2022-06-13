@@ -1,17 +1,32 @@
 use crate::common::phys::PhysLayer;
+use std::ops::Range;
 
 use crate::common::buffer::ReadBuffer;
+use crate::common::cursor::WriteCursor;
 use crate::common::function::FunctionCode;
-use crate::common::traits::Serialize;
-use crate::common::traits::{Loggable, LoggableDisplay};
-use crate::error::{InternalError, RequestError};
-use crate::exception::ExceptionCode;
-use crate::server::response::{ErrorResponse, Response};
+use crate::common::traits::{Loggable, LoggableDisplay, Serialize};
+use crate::error::RequestError;
+use crate::serial::frame::{RtuDisplay, RtuParser};
+use crate::tcp::frame::{MbapDisplay, MbapHeader, MbapParser};
 use crate::types::UnitId;
-use crate::{DecodeLevel, FrameDecodeLevel};
+use crate::{DecodeLevel, ExceptionCode, FrameDecodeLevel};
 
 pub(crate) mod constants {
+    const fn max(lhs: usize, rhs: usize) -> usize {
+        if lhs > rhs {
+            lhs
+        } else {
+            rhs
+        }
+    }
+
     pub(crate) const MAX_ADU_LENGTH: usize = 253;
+
+    /// the maximum size of a TCP or serial frame
+    pub(crate) const MAX_FRAME_LENGTH: usize = max(
+        crate::tcp::frame::constants::MAX_FRAME_LENGTH,
+        crate::serial::frame::constants::MAX_FRAME_LENGTH,
+    );
 }
 
 #[derive(PartialEq, Copy, Clone, Debug)]
@@ -29,9 +44,9 @@ impl TxId {
     }
 
     pub(crate) fn next(&mut self) -> TxId {
-        if self.value == u16::max_value() {
+        if self.value == u16::MAX {
             self.value = 0;
-            TxId::new(u16::max_value())
+            TxId::new(u16::MAX)
         } else {
             let ret = self.value;
             self.value += 1;
@@ -76,6 +91,10 @@ impl FrameDestination {
     pub(crate) fn into_unit_id(self) -> UnitId {
         UnitId::new(self.value())
     }
+
+    pub(crate) fn is_broadcast(&self) -> bool {
+        std::matches!(self, FrameDestination::Broadcast)
+    }
 }
 
 impl std::fmt::Display for FrameDestination {
@@ -90,6 +109,7 @@ impl std::fmt::Display for FrameDestination {
 #[derive(Copy, Clone)]
 pub(crate) struct FrameHeader {
     pub(crate) destination: FrameDestination,
+    /// Transaction ids are not used in RTU
     pub(crate) tx_id: Option<TxId>,
 }
 
@@ -139,173 +159,263 @@ impl Frame {
     }
 }
 
-///  Defines an interface for reading and writing complete frames (TCP or RTU)
-pub(crate) trait FrameParser {
-    fn max_frame_size(&self) -> usize;
+///  Defines an interface for parsing frames (TCP or RTU)
+pub(crate) enum FrameParser {
+    Rtu(RtuParser),
+    Tcp(MbapParser),
+}
 
+impl FrameParser {
     /// Parse bytes using the provided cursor. Advancing the cursor always implies that the bytes
     /// are consumed and can be discarded,
     ///
     /// `Err` implies the input data is invalid
     /// `Ok(None)` implies that more data is required to complete parsing
     /// `Ok(Some(..))` will contain a fully parsed frame and will advance the cursor appropriately
-    fn parse(
+    pub(crate) fn parse(
         &mut self,
         cursor: &mut ReadBuffer,
         decode_level: FrameDecodeLevel,
-    ) -> Result<Option<Frame>, RequestError>;
+    ) -> Result<Option<Frame>, RequestError> {
+        match self {
+            FrameParser::Rtu(x) => x.parse(cursor, decode_level),
+            FrameParser::Tcp(x) => x.parse(cursor, decode_level),
+        }
+    }
 
     /// Reset the parser state. Called whenever an error occurs
-    fn reset(&mut self);
+    pub(crate) fn reset(&mut self) {
+        match self {
+            FrameParser::Rtu(x) => x.reset(),
+            FrameParser::Tcp(x) => x.reset(),
+        }
+    }
 }
 
-pub(crate) trait FrameFormatter {
-    // internal only
-    fn format_impl(
-        &mut self,
+pub(crate) enum FrameType {
+    Mbap(MbapHeader),
+    // destination and CRC
+    Rtu(FrameDestination, u16),
+}
+
+pub(crate) struct FrameInfo {
+    /// Information about the frame header
+    pub(crate) frame_type: FrameType,
+    /// Range that represents where the PDU body (after function) resides within the buffer
+    pub(crate) pdu_body: Range<usize>,
+}
+
+impl FrameInfo {
+    pub(crate) fn new(frame_type: FrameType, pdu_body: Range<usize>) -> Self {
+        Self {
+            frame_type,
+            pdu_body,
+        }
+    }
+}
+
+enum FormatType {
+    Tcp,
+    Rtu,
+}
+
+impl FormatType {
+    fn format(
+        &self,
+        cursor: &mut WriteCursor,
         header: FrameHeader,
-        msg: &dyn Serialize,
-        decode_level: FrameDecodeLevel,
-    ) -> Result<usize, RequestError>;
-    fn get_full_buffer_impl(&self, size: usize) -> Option<&[u8]>;
-    fn get_payload_impl(&self, size: usize) -> Option<&[u8]>;
+        function: FunctionField,
+        body: &dyn Serialize,
+    ) -> Result<FrameInfo, RequestError> {
+        match self {
+            FormatType::Tcp => crate::tcp::frame::format_mbap(cursor, header, function, body),
+            FormatType::Rtu => crate::serial::frame::format_rtu_pdu(cursor, header, function, body),
+        }
+    }
+}
 
-    fn get_full_buffer(&self, len: usize) -> Result<&[u8], RequestError> {
-        match self.get_full_buffer_impl(len) {
-            Some(x) => Ok(x),
-            None => Err(InternalError::BadSeekOperation.into()), // TODO - proper error?
+pub(crate) struct FrameWriter {
+    format_type: FormatType,
+    buffer: [u8; constants::MAX_FRAME_LENGTH],
+}
+
+#[derive(Copy, Clone, Debug)]
+pub(crate) enum FunctionField {
+    Valid(FunctionCode),
+    Exception(FunctionCode),
+    UnknownFunction(u8),
+}
+
+impl std::fmt::Display for FunctionField {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        let value = self.get_value();
+        match self {
+            FunctionField::Valid(x) => {
+                write!(f, "{}", x)
+            }
+            FunctionField::Exception(x) => {
+                write!(f, "Exception({}) for {}", value, x)
+            }
+            FunctionField::UnknownFunction(_) => {
+                write!(f, "Unknown Function Exception: {}", value)
+            }
+        }
+    }
+}
+
+impl FunctionField {
+    pub(crate) fn unknown(fc: u8) -> Self {
+        Self::UnknownFunction(fc)
+    }
+
+    pub(crate) fn get_value(&self) -> u8 {
+        match self {
+            FunctionField::Valid(x) => x.get_value(),
+            FunctionField::Exception(x) => x.get_value() | 0x80,
+            FunctionField::UnknownFunction(x) => x | 0x80,
+        }
+    }
+}
+
+impl FrameWriter {
+    fn new(format_type: FormatType) -> Self {
+        Self {
+            format_type,
+            buffer: [0; constants::MAX_FRAME_LENGTH],
         }
     }
 
-    fn get_payload(&self, len: usize) -> Result<&[u8], RequestError> {
-        match self.get_payload_impl(len).and_then(|x| {
-            // Skip the function code
-            x.get(1..)
-        }) {
-            Some(x) => Ok(x),
-            None => Err(InternalError::BadSeekOperation.into()), // TODO - proper error?
-        }
-    }
-
-    // try to serialize a successful response, and if it fails with an exception code, write the exception instead
-    fn format<T>(
+    pub(crate) fn format_reply<T>(
         &mut self,
         header: FrameHeader,
         function: FunctionCode,
-        msg: &T,
-        level: DecodeLevel,
+        body: &T,
+        decode_level: DecodeLevel,
     ) -> Result<&[u8], RequestError>
     where
         T: Serialize + Loggable,
     {
-        let response = Response::new(function, msg);
-        match self.format_impl(header, &response, level.frame) {
-            Ok(count) => {
-                if level.app.enabled() {
-                    tracing::info!(
-                        "PDU TX - {} {}",
-                        function,
-                        LoggableDisplay::new(msg, self.get_payload(count)?, level.app)
-                    );
-                }
-
-                self.get_full_buffer(count)
+        match self.format_generic(header, FunctionField::Valid(function), body, decode_level) {
+            Ok(x) => Ok(&self.buffer[x]),
+            Err(RequestError::Exception(ex)) => {
+                self.format_ex(header, FunctionField::Exception(function), ex, decode_level)
             }
-            Err(err) => match err {
-                RequestError::Exception(ex) => self.exception(header, function, ex, level.frame),
-                _ => Err(err),
-            },
+            Err(err) => Err(err),
         }
     }
 
-    // make a single effort to serialize an exception response
-    fn exception(
+    pub(crate) fn format_request<T>(
         &mut self,
         header: FrameHeader,
         function: FunctionCode,
-        ex: ExceptionCode,
-        level: FrameDecodeLevel,
-    ) -> Result<&[u8], RequestError> {
-        self.error(header, ErrorResponse::new(function, ex), level)
+        body: &T,
+        decode_level: DecodeLevel,
+    ) -> Result<&[u8], RequestError>
+    where
+        T: Serialize + Loggable,
+    {
+        let range =
+            self.format_generic(header, FunctionField::Valid(function), body, decode_level)?;
+        Ok(&self.buffer[range])
     }
 
-    // make a single effort to serialize an exception response
-    fn error(
+    pub(crate) fn format_ex(
         &mut self,
         header: FrameHeader,
-        response: ErrorResponse,
-        level: FrameDecodeLevel,
+        function: FunctionField,
+        ex: ExceptionCode,
+        decode_level: DecodeLevel,
     ) -> Result<&[u8], RequestError> {
-        if level.enabled() {
-            tracing::warn!(
-                "PDU TX - Modbus exception {:?} ({:#04X})",
-                response.exception,
-                response.function
+        let function = match function {
+            FunctionField::Valid(x) => FunctionField::Exception(x),
+            FunctionField::Exception(x) => FunctionField::Exception(x),
+            FunctionField::UnknownFunction(x) => FunctionField::UnknownFunction(x),
+        };
+
+        let range = self.format_generic(header, function, &ex, decode_level)?;
+
+        Ok(&self.buffer[range])
+    }
+
+    fn format_generic<T>(
+        &mut self,
+        header: FrameHeader,
+        function: FunctionField,
+        body: &T,
+        decode_level: DecodeLevel,
+    ) -> Result<Range<usize>, RequestError>
+    where
+        T: Serialize + Loggable,
+    {
+        let (frame_type, frame_bytes, pdu_body) = {
+            let mut cursor = WriteCursor::new(self.buffer.as_mut());
+            let info = self
+                .format_type
+                .format(&mut cursor, header, function, body)?;
+            let end = cursor.position();
+            (info.frame_type, 0..end, &self.buffer[info.pdu_body])
+        };
+
+        if decode_level.app.enabled() {
+            tracing::info!(
+                "PDU TX - {} {}",
+                function,
+                LoggableDisplay::new(body, pdu_body, decode_level.app)
             );
         }
 
-        let len = self.format_impl(header, &response, level)?;
-        self.get_full_buffer(len)
+        if decode_level.frame.enabled() {
+            let frame_bytes = &self.buffer[frame_bytes.clone()];
+            match frame_type {
+                FrameType::Mbap(header) => {
+                    tracing::info!(
+                        "MBAP TX - {}",
+                        MbapDisplay::new(decode_level.frame, header, frame_bytes)
+                    );
+                }
+                FrameType::Rtu(dest, crc) => {
+                    tracing::info!(
+                        "RTU TX - {}",
+                        RtuDisplay::new(decode_level.frame, dest, frame_bytes, crc)
+                    );
+                }
+            }
+        }
+
+        Ok(frame_bytes)
+    }
+
+    pub(crate) fn tcp() -> Self {
+        Self::new(FormatType::Tcp)
+    }
+
+    pub(crate) fn rtu() -> Self {
+        Self::new(FormatType::Rtu)
     }
 }
 
-pub(crate) struct NullFrameFormatter;
-
-impl FrameFormatter for NullFrameFormatter {
-    fn format_impl(
-        &mut self,
-        _header: FrameHeader,
-        _msg: &dyn Serialize,
-        _decode_level: FrameDecodeLevel,
-    ) -> Result<usize, RequestError> {
-        Ok(0)
-    }
-
-    fn get_full_buffer_impl(&self, _size: usize) -> Option<&[u8]> {
-        None
-    }
-
-    fn get_payload_impl(&self, _size: usize) -> Option<&[u8]> {
-        None
-    }
-
-    fn format<T>(
-        &mut self,
-        _header: FrameHeader,
-        _function: FunctionCode,
-        _msg: &T,
-        _level: DecodeLevel,
-    ) -> Result<&[u8], RequestError>
-    where
-        T: Serialize + Loggable,
-    {
-        Ok(&[])
-    }
-
-    fn error(
-        &mut self,
-        _header: FrameHeader,
-        _response: ErrorResponse,
-        _level: FrameDecodeLevel,
-    ) -> Result<&[u8], RequestError> {
-        Ok(&[])
-    }
-}
-
-pub(crate) struct FramedReader<T>
-where
-    T: FrameParser,
-{
-    parser: T,
+pub(crate) struct FramedReader {
+    parser: FrameParser,
     buffer: ReadBuffer,
 }
 
-impl<T: FrameParser> FramedReader<T> {
-    pub(crate) fn new(parser: T) -> Self {
-        let size = parser.max_frame_size();
+impl FramedReader {
+    pub(crate) fn tcp() -> Self {
+        Self::new(FrameParser::Tcp(MbapParser::new()))
+    }
+
+    pub(crate) fn rtu_request() -> Self {
+        Self::new(FrameParser::Rtu(RtuParser::new_request_parser()))
+    }
+
+    pub(crate) fn rtu_response() -> Self {
+        Self::new(FrameParser::Rtu(RtuParser::new_response_parser()))
+    }
+
+    fn new(parser: FrameParser) -> Self {
         Self {
             parser,
-            buffer: ReadBuffer::new(size),
+            buffer: ReadBuffer::new(),
         }
     }
 

@@ -1,13 +1,9 @@
-use std::convert::TryFrom;
-
 use crate::common::buffer::ReadBuffer;
 use crate::common::cursor::WriteCursor;
-use crate::common::frame::{
-    Frame, FrameDestination, FrameFormatter, FrameHeader, FrameParser, TxId,
-};
+use crate::common::frame::{Frame, FrameHeader, FrameInfo, FrameType, FunctionField, TxId};
 use crate::common::traits::Serialize;
 use crate::decode::FrameDecodeLevel;
-use crate::error::{FrameParseError, InternalError, InvalidRequest, RequestError};
+use crate::error::{FrameParseError, RequestError};
 use crate::types::UnitId;
 
 pub(crate) mod constants {
@@ -19,32 +15,21 @@ pub(crate) mod constants {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-struct MbapHeader {
+pub(crate) struct MbapHeader {
     tx_id: TxId,
-    adu_length: usize,
+    len_field: u16,
     unit_id: UnitId,
 }
 
 #[derive(Clone, Copy)]
 enum ParseState {
     Begin,
-    Header(MbapHeader),
+    // header and the ADU length
+    Header(MbapHeader, usize),
 }
 
 pub(crate) struct MbapParser {
     state: ParseState,
-}
-
-pub(crate) struct MbapFormatter {
-    buffer: [u8; constants::MAX_FRAME_LENGTH],
-}
-
-impl MbapFormatter {
-    pub(crate) fn new() -> Self {
-        Self {
-            buffer: [0; constants::MAX_FRAME_LENGTH],
-        }
-    }
 }
 
 impl MbapParser {
@@ -54,10 +39,12 @@ impl MbapParser {
         }
     }
 
-    fn parse_header(cursor: &mut ReadBuffer) -> Result<MbapHeader, RequestError> {
+    // returns some header fields and the length of the ADU
+    fn parse_header(cursor: &mut ReadBuffer) -> Result<(MbapHeader, usize), RequestError> {
         let tx_id = TxId::new(cursor.read_u16_be()?);
         let protocol_id = cursor.read_u16_be()?;
-        let length = cursor.read_u16_be()? as usize;
+        let len_field = cursor.read_u16_be()?;
+        let length = len_field as usize;
         let unit_id = UnitId::new(cursor.read_u8()?);
 
         if protocol_id != 0 {
@@ -70,42 +57,44 @@ impl MbapParser {
             );
         }
 
-        // must be > 0 b/c the 1-byte unit identifier counts towards length
-        if length == 0 {
-            return Err(FrameParseError::MbapLengthZero.into());
-        }
+        // The ADU length is the function code + body
+        // It must be > 0 b/c the 1-byte unit identifier counts towards length field
+        let adu_length = length
+            .checked_sub(1)
+            .ok_or(FrameParseError::MbapLengthZero)?;
 
-        Ok(MbapHeader {
-            tx_id,
-            adu_length: length - 1,
-            unit_id,
-        })
+        Ok((
+            MbapHeader {
+                tx_id,
+                len_field,
+                unit_id,
+            },
+            adu_length,
+        ))
     }
 
-    fn parse_body(header: &MbapHeader, cursor: &mut ReadBuffer) -> Result<Frame, RequestError> {
+    fn parse_body(
+        header: &MbapHeader,
+        adu_length: usize,
+        cursor: &mut ReadBuffer,
+    ) -> Result<Frame, RequestError> {
         let mut frame = Frame::new(FrameHeader::new_tcp_header(header.unit_id, header.tx_id));
-        frame.set(cursor.read(header.adu_length)?);
+        frame.set(cursor.read(adu_length)?);
         Ok(frame)
     }
-}
 
-impl FrameParser for MbapParser {
-    fn max_frame_size(&self) -> usize {
-        constants::MAX_FRAME_LENGTH
-    }
-
-    fn parse(
+    pub(crate) fn parse(
         &mut self,
         cursor: &mut ReadBuffer,
         decode_level: FrameDecodeLevel,
     ) -> Result<Option<Frame>, RequestError> {
         match self.state {
-            ParseState::Header(header) => {
-                if cursor.len() < header.adu_length {
+            ParseState::Header(header, adu_length) => {
+                if cursor.len() < adu_length {
                     return Ok(None);
                 }
 
-                let frame = Self::parse_body(&header, cursor)?;
+                let frame = Self::parse_body(&header, adu_length, cursor)?;
                 self.state = ParseState::Begin;
 
                 if decode_level.enabled() {
@@ -122,98 +111,74 @@ impl FrameParser for MbapParser {
                     return Ok(None);
                 }
 
-                self.state = ParseState::Header(Self::parse_header(cursor)?);
+                let (header, adu_len) = Self::parse_header(cursor)?;
+                self.state = ParseState::Header(header, adu_len);
                 self.parse(cursor, decode_level)
             }
         }
     }
 
-    fn reset(&mut self) {
+    pub(crate) fn reset(&mut self) {
         self.state = ParseState::Begin;
     }
 }
 
-impl FrameFormatter for MbapFormatter {
-    fn format_impl(
-        &mut self,
-        header: FrameHeader,
-        msg: &dyn Serialize,
-        decode_level: FrameDecodeLevel,
-    ) -> Result<usize, RequestError> {
-        let mut cursor = WriteCursor::new(self.buffer.as_mut());
+pub(crate) fn format_mbap(
+    cursor: &mut WriteCursor,
+    header: FrameHeader,
+    function: FunctionField,
+    msg: &dyn Serialize,
+) -> Result<FrameInfo, RequestError> {
+    // this is matter of configuration and will always be present in TCP/TLS mode
+    let tx_id = header.tx_id.expect("TCP requires tx id");
 
-        let tx_id = header
-            .tx_id
-            .ok_or(RequestError::Internal(InternalError::MissingTxId))?;
+    let unit_id = header.destination.into_unit_id();
 
-        let unit_id = match header.destination {
-            FrameDestination::UnitId(unit_id) => unit_id,
-            FrameDestination::Broadcast => {
-                return Err(RequestError::BadRequest(
-                    InvalidRequest::BroadcastNotSupported,
-                ))
-            }
-        };
+    // Write header
+    cursor.write_u16_be(tx_id.to_u16())?;
+    cursor.write_u16_be(0)?; // protocol id
+    let len_pos = cursor.position();
+    cursor.seek_from_current(2)?; // write the length later
+    cursor.write_u8(unit_id.value)?; // unit id
 
-        // Write header
-        cursor.write_u16_be(tx_id.to_u16())?;
-        cursor.write_u16_be(0)?;
-        cursor.seek_from_current(2)?; // write the length later
-        cursor.write_u8(unit_id.value)?;
+    let start_pdu = cursor.position();
+    cursor.write_u8(function.get_value())?;
+    let start_pdu_body = cursor.position();
+    msg.serialize(cursor)?;
+    let end_pdu = cursor.position();
 
-        let start = cursor.position();
-        let adu_length: usize = {
-            msg.serialize(&mut cursor)?;
-            cursor.position() - start
-        };
+    // the length field includes the unit identifier
+    let mbap_len_field = (end_pdu - start_pdu + 1) as u16;
 
-        {
-            // write the resulting length
-            let frame_length_value = u16::try_from(adu_length + 1)
-                .map_err(|_err| InternalError::AduTooBig(adu_length))?;
+    // seek back and write the length, restore to the end of the pdu
+    cursor.seek_from_start(len_pos)?;
+    cursor.write_u16_be(mbap_len_field)?;
+    cursor.seek_from_start(end_pdu)?;
 
-            cursor.seek_from_start(4)?;
-            cursor.write_u16_be(frame_length_value)?;
-        }
-        let total_length = constants::HEADER_LENGTH + adu_length;
+    let header = MbapHeader {
+        tx_id,
+        len_field: mbap_len_field,
+        unit_id,
+    };
 
-        // Logging
-        if decode_level.enabled() {
-            let header = MbapHeader {
-                tx_id,
-                adu_length,
-                unit_id,
-            };
-            tracing::info!(
-                "MBAP TX - {}",
-                MbapDisplay::new(decode_level, header, &self.buffer[start..total_length])
-            );
-        }
-
-        Ok(total_length)
-    }
-
-    fn get_full_buffer_impl(&self, size: usize) -> Option<&[u8]> {
-        self.buffer.get(..size)
-    }
-
-    fn get_payload_impl(&self, size: usize) -> Option<&[u8]> {
-        self.buffer.get(7..size)
-    }
+    Ok(FrameInfo::new(
+        FrameType::Mbap(header),
+        start_pdu_body..end_pdu,
+    ))
 }
 
-struct MbapDisplay<'a> {
+pub(crate) struct MbapDisplay<'a> {
     level: FrameDecodeLevel,
     header: MbapHeader,
-    data: &'a [u8],
+    bytes: &'a [u8],
 }
 
 impl<'a> MbapDisplay<'a> {
-    fn new(level: FrameDecodeLevel, header: MbapHeader, data: &'a [u8]) -> Self {
+    pub(crate) fn new(level: FrameDecodeLevel, header: MbapHeader, bytes: &'a [u8]) -> Self {
         MbapDisplay {
             level,
             header,
-            data,
+            bytes,
         }
     }
 }
@@ -222,11 +187,11 @@ impl<'a> std::fmt::Display for MbapDisplay<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(
             f,
-            "tx_id: {} unit: {} (len = {})",
-            self.header.tx_id, self.header.unit_id, self.header.adu_length
+            "tx_id: {} unit: {} len: {}",
+            self.header.tx_id, self.header.unit_id, self.header.len_field
         )?;
         if self.level.payload_enabled() {
-            crate::common::phys::format_bytes(f, self.data)?;
+            crate::common::phys::format_bytes(f, self.bytes)?;
         }
         Ok(())
     }
@@ -239,24 +204,25 @@ mod tests {
     use crate::common::phys::PhysLayer;
     use crate::tokio::test::*;
 
-    use crate::common::frame::FramedReader;
+    use crate::common::frame::{FrameDestination, FramedReader};
+    use crate::common::function::FunctionCode;
     use crate::error::*;
     use crate::DecodeLevel;
 
     use super::*;
 
-    //                            |   tx id  |  proto id |  length  | unit |  payload  |
-    const SIMPLE_FRAME: &[u8] = &[0x00, 0x07, 0x00, 0x00, 0x00, 0x03, 0x2A, 0x03, 0x04];
+    //                            |   tx id  |  proto id |  length  | unit | fc | body      |
+    const SIMPLE_FRAME: &[u8] = &[0x00, 0x07, 0x00, 0x00, 0x00, 0x04, 0x2A, 0x01, 0xCA, 0xFE];
 
-    struct MockMessage {
-        a: u8,
-        b: u8,
+    struct MockBody {
+        body: &'static [u8],
     }
 
-    impl Serialize for MockMessage {
+    impl Serialize for MockBody {
         fn serialize(self: &Self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
-            cursor.write_u8(self.a)?;
-            cursor.write_u8(self.b)?;
+            for b in self.body {
+                cursor.write_u8(*b)?;
+            }
             Ok(())
         }
     }
@@ -267,13 +233,13 @@ mod tests {
             frame.header.destination,
             FrameDestination::new_unit_id(0x2A)
         );
-        assert_eq!(frame.payload(), &[0x03, 0x04]);
+        assert_eq!(frame.payload(), &[0x01, 0xCA, 0xFE]);
     }
 
     fn test_segmented_parse(split_at: usize) {
         let (f1, f2) = SIMPLE_FRAME.split_at(split_at);
         let (io, mut io_handle) = io::mock();
-        let mut reader = FramedReader::new(MbapParser::new());
+        let mut reader = FramedReader::tcp();
         let mut layer = PhysLayer::new_mock(io);
         let mut task = spawn(reader.next_frame(&mut layer, DecodeLevel::nothing()));
 
@@ -290,7 +256,7 @@ mod tests {
 
     fn test_error(input: &[u8]) -> RequestError {
         let (io, mut io_handle) = io::mock();
-        let mut reader = FramedReader::new(MbapParser::new());
+        let mut reader = FramedReader::tcp();
         let mut layer = PhysLayer::new_mock(io);
         let mut task = spawn(reader.next_frame(&mut layer, DecodeLevel::nothing()));
 
@@ -304,21 +270,26 @@ mod tests {
 
     #[test]
     fn correctly_formats_frame() {
-        let mut formatter = MbapFormatter::new();
-        let msg = MockMessage { a: 0x03, b: 0x04 };
-        let header = FrameHeader::new_tcp_header(UnitId::new(42), TxId::new(7));
-        let size = formatter
-            .format_impl(header, &msg, FrameDecodeLevel::Nothing)
-            .unwrap();
-        let output = formatter.get_full_buffer_impl(size).unwrap();
-
-        assert_eq!(output, SIMPLE_FRAME)
+        let mut buffer: [u8; 256] = [0; 256];
+        let mut cursor = WriteCursor::new(&mut buffer);
+        let msg = MockBody {
+            body: &[0xCA, 0xFE],
+        };
+        let _ = format_mbap(
+            &mut cursor,
+            FrameHeader::new_tcp_header(UnitId::new(42), TxId::new(7)),
+            FunctionField::Valid(FunctionCode::ReadCoils),
+            &msg,
+        )
+        .unwrap();
+        let pos = cursor.position();
+        assert_eq!(&buffer[..pos], SIMPLE_FRAME)
     }
 
     #[test]
     fn can_parse_frame_from_stream() {
         let (io, mut io_handle) = io::mock();
-        let mut reader = FramedReader::new(MbapParser::new());
+        let mut reader = FramedReader::tcp();
         let mut layer = PhysLayer::new_mock(io);
         let mut task = spawn(reader.next_frame(&mut layer, DecodeLevel::nothing()));
 
@@ -337,7 +308,7 @@ mod tests {
         let payload = &[0xCC; 253];
 
         let (io, mut io_handle) = io::mock();
-        let mut reader = FramedReader::new(MbapParser::new());
+        let mut reader = FramedReader::tcp();
         let mut task = spawn(async {
             assert_eq!(
                 reader

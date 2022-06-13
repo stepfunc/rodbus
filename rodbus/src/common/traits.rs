@@ -1,42 +1,54 @@
 use crate::common::cursor::*;
 use crate::decode::AppDecodeLevel;
 use crate::error::*;
+use crate::ExceptionCode;
 
 pub(crate) trait Serialize {
     fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError>;
 }
 
-pub(crate) trait Loggable: Serialize {
+pub(crate) trait Loggable {
     fn log(
         &self,
-        payload: &[u8],
+        bytes: &[u8],
         level: AppDecodeLevel,
         f: &mut std::fmt::Formatter,
     ) -> std::fmt::Result;
 }
 
-pub(crate) struct LoggableDisplay<'a, 'b, T: Loggable> {
-    loggable: &'a T,
-    payload: &'b [u8],
+pub(crate) struct LoggableDisplay<'a, 'b> {
+    loggable: &'a dyn Loggable,
+    bytes: &'b [u8],
     level: AppDecodeLevel,
 }
 
-impl<'a, 'b, T: Loggable> LoggableDisplay<'a, 'b, T> {
-    pub(crate) fn new(loggable: &'a T, payload: &'b [u8], level: AppDecodeLevel) -> Self {
+impl<'a, 'b> LoggableDisplay<'a, 'b> {
+    pub(crate) fn new(loggable: &'a dyn Loggable, bytes: &'b [u8], level: AppDecodeLevel) -> Self {
         Self {
             loggable,
-            payload,
+            bytes,
             level,
         }
     }
 }
 
-impl<T: Loggable> std::fmt::Display for LoggableDisplay<'_, '_, T> {
+impl std::fmt::Display for LoggableDisplay<'_, '_> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        self.loggable.log(self.payload, self.level, f)
+        self.loggable.log(self.bytes, self.level, f)
     }
 }
 
 pub(crate) trait Parse: Sized {
     fn parse(cursor: &mut ReadCursor) -> Result<Self, RequestError>;
+}
+
+impl Loggable for ExceptionCode {
+    fn log(
+        &self,
+        _bytes: &[u8],
+        _level: AppDecodeLevel,
+        f: &mut std::fmt::Formatter,
+    ) -> std::fmt::Result {
+        write!(f, "{:?}", self)
+    }
 }

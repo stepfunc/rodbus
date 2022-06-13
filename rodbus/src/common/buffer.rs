@@ -7,15 +7,15 @@ use crate::error::InternalError;
 use crate::PhysDecodeLevel;
 
 pub(crate) struct ReadBuffer {
-    buffer: Vec<u8>,
+    buffer: [u8; crate::common::frame::constants::MAX_FRAME_LENGTH],
     begin: usize,
     end: usize,
 }
 
 impl ReadBuffer {
-    pub(crate) fn new(capacity: usize) -> Self {
+    pub(crate) fn new() -> Self {
         ReadBuffer {
-            buffer: vec![0; capacity],
+            buffer: [0; crate::common::frame::constants::MAX_FRAME_LENGTH],
             begin: 0,
             end: 0,
         }
@@ -99,7 +99,7 @@ impl ReadBuffer {
         }
 
         // if we've reached capacity, but still need more data we have to shift
-        if self.end == self.buffer.capacity() {
+        if self.end == self.len() {
             let length = self.len();
             self.buffer.copy_within(self.begin..self.end, 0);
             self.begin = 0;
@@ -123,8 +123,8 @@ mod tests {
     use crate::tokio::test::*;
 
     #[test]
-    fn errors_when_reading_to_many_bytes() {
-        let mut buffer = ReadBuffer::new(10);
+    fn errors_when_reading_too_many_bytes() {
+        let mut buffer = ReadBuffer::new();
         assert_eq!(
             buffer.read_u8(),
             Err(InternalError::InsufficientBytesForRead(1, 0))
@@ -137,7 +137,7 @@ mod tests {
 
     #[test]
     fn shifts_contents_when_buffer_at_capacity() {
-        let mut buffer = ReadBuffer::new(3);
+        let mut buffer = ReadBuffer::new();
 
         let (io, mut io_handle) = io::mock();
         let mut phys = PhysLayer::new_mock(io);

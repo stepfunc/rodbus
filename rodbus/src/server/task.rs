@@ -1,20 +1,16 @@
-use tracing::Instrument;
-
 use crate::common::phys::PhysLayer;
 use crate::server::{AuthorizationHandler, AuthorizationResult};
 use crate::{tokio, DecodeLevel, UnitId};
 
 use crate::common::cursor::ReadCursor;
 use crate::common::frame::{
-    Frame, FrameDestination, FrameFormatter, FrameHeader, FrameParser, FramedReader,
-    NullFrameFormatter,
+    Frame, FrameDestination, FrameHeader, FrameWriter, FramedReader, FunctionField,
 };
 use crate::common::function::FunctionCode;
 use crate::error::*;
 use crate::exception::ExceptionCode;
 use crate::server::handler::{RequestHandler, ServerHandlerMap};
 use crate::server::request::{Request, RequestDisplay};
-use crate::server::response::ErrorResponse;
 use std::sync::Arc;
 
 /// Messages that can be sent to change server settings dynamically
@@ -23,33 +19,29 @@ pub enum ServerSetting {
     ChangeDecoding(DecodeLevel),
 }
 
-pub(crate) struct SessionTask<T, F, P>
+pub(crate) struct SessionTask<T>
 where
     T: RequestHandler,
-    F: FrameFormatter,
-    P: FrameParser,
 {
     io: PhysLayer,
     handlers: ServerHandlerMap<T>,
     auth: Authorization,
     commands: tokio::sync::mpsc::Receiver<ServerSetting>,
-    writer: F,
-    reader: FramedReader<P>,
+    writer: FrameWriter,
+    reader: FramedReader,
     decode: DecodeLevel,
 }
 
-impl<T, F, P> SessionTask<T, F, P>
+impl<T> SessionTask<T>
 where
     T: RequestHandler,
-    F: FrameFormatter,
-    P: FrameParser,
 {
     pub(crate) fn new(
         io: PhysLayer,
         handlers: ServerHandlerMap<T>,
         auth: Authorization,
-        formatter: F,
-        parser: P,
+        writer: FrameWriter,
+        reader: FramedReader,
         commands: tokio::sync::mpsc::Receiver<ServerSetting>,
         decode: DecodeLevel,
     ) -> Self {
@@ -58,8 +50,8 @@ where
             handlers,
             auth,
             commands,
-            writer: formatter,
-            reader: FramedReader::new(parser),
+            writer,
+            reader,
             decode,
         }
     }
@@ -67,11 +59,22 @@ where
     async fn reply_with_error(
         &mut self,
         header: FrameHeader,
-        err: ErrorResponse,
+        func: FunctionCode,
+        ex: ExceptionCode,
+    ) -> Result<(), RequestError> {
+        self.reply_with_error_generic(header, FunctionField::Exception(func), ex)
+            .await
+    }
+
+    async fn reply_with_error_generic(
+        &mut self,
+        header: FrameHeader,
+        func: FunctionField,
+        ex: ExceptionCode,
     ) -> Result<(), RequestError> {
         // do not answer on broadcast
         if header.destination != FrameDestination::Broadcast {
-            let bytes = self.writer.error(header, err, self.decode.frame)?;
+            let bytes = self.writer.format_ex(header, func, ex, self.decode)?;
             self.io.write(bytes, self.decode.physical).await?;
         }
         Ok(())
@@ -87,10 +90,7 @@ where
         crate::tokio::select! {
             frame = self.reader.next_frame(&mut self.io, self.decode) => {
                 let frame = frame?;
-                let tx_id = frame.header.tx_id;
-                self.handle_frame(frame)
-                    .instrument(tracing::info_span!("Transaction", tx_id=?tx_id))
-                    .await
+                self.handle_frame(frame).await
             }
             cmd = self.commands.recv() => {
                match cmd {
@@ -125,7 +125,11 @@ where
                 None => {
                     tracing::warn!("received unknown function code: {}", value);
                     return self
-                        .reply_with_error(frame.header, ErrorResponse::unknown_function(value))
+                        .reply_with_error_generic(
+                            frame.header,
+                            FunctionField::unknown(value),
+                            ExceptionCode::IllegalFunction,
+                        )
                         .await;
                 }
             },
@@ -136,10 +140,7 @@ where
             Err(err) => {
                 tracing::warn!("error parsing {:?} request: {}", function, err);
                 return self
-                    .reply_with_error(
-                        frame.header,
-                        ErrorResponse::new(function, ExceptionCode::IllegalDataValue),
-                    )
+                    .reply_with_error(frame.header, function, ExceptionCode::IllegalDataValue)
                     .await;
             }
         };
@@ -149,6 +150,22 @@ where
                 "PDU RX - {}",
                 RequestDisplay::new(self.decode.app, &request)
             );
+        }
+
+        // check authorization
+        if let AuthorizationResult::NotAuthorized = self
+            .auth
+            .is_authorized(frame.header.destination.into_unit_id(), &request)
+        {
+            if !frame.header.destination.is_broadcast() {
+                self.reply_with_error(
+                    frame.header,
+                    request.get_function(),
+                    ExceptionCode::IllegalFunction,
+                )
+                .await?;
+            }
+            return Ok(());
         }
 
         // if no addresses match, then don't respond
@@ -161,41 +178,25 @@ where
                     }
                     Some(handler) => handler,
                 };
-
                 // get the reply data (or exception reply)
-                let reply_frame: &[u8] = {
-                    let mut lock = handler.lock().unwrap();
-                    request.get_reply(
-                        frame.header,
-                        lock.as_mut(),
-                        &self.auth,
-                        &mut self.writer,
-                        self.decode,
-                    )?
-                };
-
-                // reply with the bytes
-                self.io.write(reply_frame, self.decode.physical).await?;
+                let reply: &[u8] = request.get_reply(
+                    frame.header,
+                    handler.lock().unwrap().as_mut(),
+                    &mut self.writer,
+                    self.decode,
+                )?;
+                self.io.write(reply, self.decode.physical).await?;
             }
-            FrameDestination::Broadcast => {
-                // check if broadcast is supported for this function code
-                if !function.supports_broadcast() {
+            FrameDestination::Broadcast => match request.into_broadcast_request() {
+                None => {
                     tracing::warn!("broadcast is not supported for {}", function);
-                    return Ok(());
                 }
-
-                for handler in self.handlers.iter_mut() {
-                    let mut lock = handler.lock().unwrap();
-                    request.get_reply(
-                        frame.header,
-                        lock.as_mut(),
-                        &self.auth,
-                        &mut NullFrameFormatter,
-                        self.decode,
-                    )?;
-                    // do not write a response
+                Some(request) => {
+                    for handler in self.handlers.iter_mut() {
+                        request.execute(handler.lock().unwrap().as_mut());
+                    }
                 }
-            }
+            },
         }
 
         Ok(())

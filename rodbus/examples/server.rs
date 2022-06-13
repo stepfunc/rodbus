@@ -50,19 +50,19 @@ impl SimpleHandler {
 // ANCHOR: request_handler
 impl RequestHandler for SimpleHandler {
     fn read_coil(&self, address: u16) -> Result<bool, ExceptionCode> {
-        Self::convert(self.coils.get(address as usize))
+        self.coils.get(address as usize).to_result()
     }
 
     fn read_discrete_input(&self, address: u16) -> Result<bool, ExceptionCode> {
-        Self::convert(self.discrete_inputs.get(address as usize))
+        self.discrete_inputs.get(address as usize).to_result()
     }
 
     fn read_holding_register(&self, address: u16) -> Result<u16, ExceptionCode> {
-        Self::convert(self.holding_registers.get(address as usize))
+        self.holding_registers.get(address as usize).to_result()
     }
 
     fn read_input_register(&self, address: u16) -> Result<u16, ExceptionCode> {
-        Self::convert(self.input_registers.get(address as usize))
+        self.input_registers.get(address as usize).to_result()
     }
 
     fn write_single_coil(&mut self, value: Indexed<bool>) -> Result<(), ExceptionCode> {

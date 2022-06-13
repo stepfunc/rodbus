@@ -137,8 +137,6 @@ pub enum InvalidRange {
 pub enum InternalError {
     /// Insufficient space for write operation
     InsufficientWriteSpace(usize, usize), // written vs remaining space
-    /// ADU size is larger than the maximum allowed size
-    AduTooBig(usize),
     /// The calculated frame size exceeds what is allowed by the spec
     FrameTooBig(usize, usize), // calculate size vs allowed maximum
     /// Attempted to read more bytes than present
@@ -147,8 +145,6 @@ pub enum InternalError {
     BadSeekOperation,
     /// Byte count would exceed maximum allowed size in the ADU of u8
     BadByteCount(usize),
-    /// Trying to send a MBAP frame without a TX ID
-    MissingTxId,
 }
 
 impl std::error::Error for InternalError {}
@@ -160,11 +156,6 @@ impl std::fmt::Display for InternalError {
                 f,
                 "attempted to write {} bytes with {} bytes remaining",
                 written, remaining
-            ),
-            InternalError::AduTooBig(size) => write!(
-                f,
-                "ADU length of {} exceeds the maximum allowed length",
-                size
             ),
             InternalError::FrameTooBig(size, max) => write!(
                 f,
@@ -184,9 +175,6 @@ impl std::fmt::Display for InternalError {
                 "Byte count of in ADU {} exceeds maximum size of u8",
                 size
             ),
-            InternalError::MissingTxId => {
-                write!(f, "Trying to send a MBAP frame without a transaction ID")
-            }
         }
     }
 }
@@ -293,8 +281,6 @@ pub enum InvalidRequest {
     CountTooBigForU16(usize),
     /// Count too big for specific request
     CountTooBigForType(u16, u16),
-    /// Broadcast is not supported on this type of link (only supported on RTU)
-    BroadcastNotSupported,
 }
 
 impl std::error::Error for InvalidRequest {}
@@ -314,9 +300,6 @@ impl std::fmt::Display for InvalidRequest {
                 "the request count of {} exceeds maximum allowed count of {} for this type",
                 count, max
             ),
-            InvalidRequest::BroadcastNotSupported => {
-                write!(f, "broadcast is not supported on this link",)
-            }
         }
     }
 }

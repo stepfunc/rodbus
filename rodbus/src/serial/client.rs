@@ -2,18 +2,18 @@ use std::time::Duration;
 
 use crate::common::phys::PhysLayer;
 use crate::decode::DecodeLevel;
-use crate::serial::frame::{RtuFormatter, RtuParser};
 use crate::serial::SerialSettings;
 use crate::tokio::sync::mpsc::Receiver;
 
 use crate::client::message::Command;
 use crate::client::task::{ClientLoop, SessionError};
+use crate::common::frame::{FrameWriter, FramedReader};
 
 pub(crate) struct SerialChannelTask {
     path: String,
     serial_settings: SerialSettings,
     retry_delay: Duration,
-    client_loop: ClientLoop<RtuFormatter, RtuParser>,
+    client_loop: ClientLoop,
 }
 
 impl SerialChannelTask {
@@ -30,8 +30,8 @@ impl SerialChannelTask {
             retry_delay,
             client_loop: ClientLoop::new(
                 rx,
-                RtuFormatter::new(),
-                RtuParser::new_response_parser(),
+                FrameWriter::rtu(),
+                FramedReader::rtu_response(),
                 decode,
             ),
         }

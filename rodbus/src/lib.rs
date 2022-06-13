@@ -12,7 +12,8 @@
 //!
 //! # Supported modes
 //!
-//! * TCP client and server
+//! * TCP, RTU (serial), and Modbus security (TLS)
+//! * Client and server
 //!
 //! # Supported Functions
 //!
@@ -27,9 +28,7 @@
 //!
 //! # Future support
 //!
-//! * TLS Client / TLS Server + Modbus X.509 extensions using [Rustls](https://docs.rs/rustls)
 //! * Additional function code support
-//! * Modbus RTU over serial
 //!
 //! # Example Client
 //!
@@ -100,7 +99,7 @@
 //!
 //! impl RequestHandler for CoilsOnlyHandler {
 //!    fn read_coil(&self, address: u16) -> Result<bool, ExceptionCode> {
-//!        Self::convert(self.coils.get(0))
+//!        self.coils.get(0).to_result()
 //!    }
 //! }
 //!

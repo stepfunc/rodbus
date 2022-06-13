@@ -5,7 +5,6 @@ use tracing::Instrument;
 use crate::client::Channel;
 use crate::common::phys::PhysLayer;
 use crate::decode::DecodeLevel;
-use crate::tcp::frame::{MbapFormatter, MbapParser};
 use crate::tokio;
 use crate::tokio::net::TcpStream;
 use crate::tokio::sync::mpsc::Receiver;
@@ -13,6 +12,7 @@ use crate::tokio::sync::mpsc::Receiver;
 use crate::client::channel::ReconnectStrategy;
 use crate::client::message::Command;
 use crate::client::task::{ClientLoop, SessionError};
+use crate::common::frame::{FrameWriter, FramedReader};
 
 pub(crate) fn spawn_tcp_channel(
     addr: SocketAddr,
@@ -71,7 +71,7 @@ pub(crate) struct TcpChannelTask {
     addr: SocketAddr,
     connect_retry: Box<dyn ReconnectStrategy + Send>,
     connection_handler: TcpTaskConnectionHandler,
-    client_loop: ClientLoop<MbapFormatter, MbapParser>,
+    client_loop: ClientLoop,
 }
 
 impl TcpChannelTask {
@@ -86,7 +86,7 @@ impl TcpChannelTask {
             addr,
             connect_retry,
             connection_handler,
-            client_loop: ClientLoop::new(rx, MbapFormatter::new(), MbapParser::new(), decode),
+            client_loop: ClientLoop::new(rx, FrameWriter::tcp(), FramedReader::tcp(), decode),
         }
     }
 

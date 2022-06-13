@@ -1,4 +1,5 @@
 use crate::error::{AduParseError, InternalError};
+use std::ops::Range;
 
 #[cfg(feature = "no-panic")]
 use no_panic::no_panic;
@@ -12,6 +13,14 @@ pub(crate) struct ReadCursor<'a> {
 pub(crate) struct WriteCursor<'a> {
     dest: &'a mut [u8],
     pos: usize,
+}
+
+impl<'a> std::ops::Index<Range<usize>> for WriteCursor<'a> {
+    type Output = [u8];
+
+    fn index(&self, index: Range<usize>) -> &Self::Output {
+        &self.dest[index]
+    }
 }
 
 impl<'a> ReadCursor<'a> {
@@ -70,6 +79,11 @@ impl<'a> ReadCursor<'a> {
 }
 
 impl<'a> WriteCursor<'a> {
+    #[cfg_attr(feature = "no-panic", no_panic)]
+    pub(crate) fn get(&self, range: Range<usize>) -> Option<&[u8]> {
+        self.dest.get(range)
+    }
+
     #[cfg_attr(feature = "no-panic", no_panic)]
     pub(crate) fn new(dest: &'a mut [u8]) -> WriteCursor<'a> {
         WriteCursor { dest, pos: 0 }

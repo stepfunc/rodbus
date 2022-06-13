@@ -7,7 +7,7 @@ use crate::tokio::time::Instant;
 use crate::{tokio, DecodeLevel};
 
 use crate::client::message::{Command, Request, Setting};
-use crate::common::frame::{FrameFormatter, FrameHeader, FrameParser, FramedReader, TxId};
+use crate::common::frame::{FrameHeader, FrameWriter, FramedReader, TxId};
 use crate::error::*;
 
 /**
@@ -34,33 +34,25 @@ impl SessionError {
     }
 }
 
-pub(crate) struct ClientLoop<F, P>
-where
-    F: FrameFormatter,
-    P: FrameParser,
-{
+pub(crate) struct ClientLoop {
     rx: tokio::sync::mpsc::Receiver<Command>,
-    formatter: F,
-    reader: FramedReader<P>,
+    writer: FrameWriter,
+    reader: FramedReader,
     tx_id: TxId,
     decode: DecodeLevel,
 }
 
-impl<F, P> ClientLoop<F, P>
-where
-    F: FrameFormatter,
-    P: FrameParser,
-{
+impl ClientLoop {
     pub(crate) fn new(
         rx: tokio::sync::mpsc::Receiver<Command>,
-        formatter: F,
-        parser: P,
+        writer: FrameWriter,
+        reader: FramedReader,
         decode: DecodeLevel,
     ) -> Self {
         Self {
             rx,
-            formatter,
-            reader: FramedReader::new(parser),
+            writer,
+            reader,
             tx_id: TxId::default(),
             decode,
         }
@@ -106,7 +98,7 @@ where
         request: Request,
         tx_id: TxId,
     ) -> Result<(), RequestError> {
-        let bytes = self.formatter.format(
+        let bytes = self.writer.format_request(
             FrameHeader::new_tcp_header(request.id, tx_id),
             request.details.function(),
             &request.details,
@@ -202,13 +194,11 @@ mod tests {
 
     use crate::error::FrameParseError;
     use crate::server::response::BitWriter;
-    use crate::tcp::frame::MbapFormatter;
-    use crate::tcp::frame::MbapParser;
     use crate::tokio::test::*;
     use crate::types::{AddressRange, Indexed, ReadBitsRange, UnitId};
 
     struct ClientFixture {
-        client: ClientLoop<MbapFormatter, MbapParser>,
+        client: ClientLoop,
         io: PhysLayer,
         io_handle: io::Handle,
     }
@@ -221,8 +211,8 @@ mod tests {
                 Self {
                     client: ClientLoop::new(
                         rx,
-                        MbapFormatter::new(),
-                        MbapParser::new(),
+                        FrameWriter::tcp(),
+                        FramedReader::tcp(),
                         DecodeLevel::nothing(),
                     ),
                     io: PhysLayer::new_mock(io),
@@ -274,10 +264,10 @@ mod tests {
     where
         T: Serialize + Loggable + Sized,
     {
-        let mut fmt = MbapFormatter::new();
+        let mut fmt = FrameWriter::tcp();
         let header = FrameHeader::new_tcp_header(UnitId::new(1), TxId::new(0));
         let bytes = fmt
-            .format(header, function, payload, DecodeLevel::nothing())
+            .format_request(header, function, payload, DecodeLevel::nothing())
             .unwrap();
         Vec::from(bytes)
     }

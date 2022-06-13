@@ -1,6 +1,8 @@
 use crate::common::buffer::ReadBuffer;
 use crate::common::cursor::WriteCursor;
-use crate::common::frame::{Frame, FrameDestination, FrameFormatter, FrameHeader, FrameParser};
+use crate::common::frame::{
+    Frame, FrameDestination, FrameHeader, FrameInfo, FrameType, FunctionField,
+};
 use crate::common::function::FunctionCode;
 use crate::common::traits::Serialize;
 use crate::decode::FrameDecodeLevel;
@@ -44,18 +46,6 @@ enum LengthMode {
 pub(crate) struct RtuParser {
     state: ParseState,
     parser_type: ParserType,
-}
-
-pub(crate) struct RtuFormatter {
-    buffer: [u8; constants::MAX_FRAME_LENGTH],
-}
-
-impl RtuFormatter {
-    pub(crate) fn new() -> Self {
-        Self {
-            buffer: [0; constants::MAX_FRAME_LENGTH],
-        }
-    }
 }
 
 impl RtuParser {
@@ -109,14 +99,8 @@ impl RtuParser {
             },
         }
     }
-}
 
-impl FrameParser for RtuParser {
-    fn max_frame_size(&self) -> usize {
-        constants::MAX_FRAME_LENGTH
-    }
-
-    fn parse(
+    pub(crate) fn parse(
         &mut self,
         cursor: &mut ReadBuffer,
         decode_level: FrameDecodeLevel,
@@ -137,8 +121,6 @@ impl FrameParser for RtuParser {
                 if unit_id.is_rtu_reserved() {
                     tracing::warn!("received reserved unit ID {}, violating Modbus RTU spec. Passing it through nevertheless.", unit_id);
                 }
-
-                tracing::debug!("UnitID: {}", unit_id);
 
                 // We don't consume the function code to avoid an unecessary copy of the receive buffer later on
                 let raw_function_code = cursor.peek_at(0)?;
@@ -219,89 +201,51 @@ impl FrameParser for RtuParser {
         }
     }
 
-    fn reset(&mut self) {
+    pub(crate) fn reset(&mut self) {
         self.state = ParseState::Start;
     }
 }
 
-impl FrameFormatter for RtuFormatter {
-    fn format_impl(
-        &mut self,
-        header: FrameHeader,
-        msg: &dyn Serialize,
-        decode_level: FrameDecodeLevel,
-    ) -> Result<usize, RequestError> {
-        // Do some validation
-        if let FrameDestination::UnitId(unit_id) = header.destination {
-            if unit_id.is_rtu_reserved() {
-                tracing::warn!("sending a message to a reserved unit ID {} violates Modbus RTU spec. Sending it nevertheless.", unit_id)
-            }
-        }
+pub(crate) fn format_rtu_pdu(
+    cursor: &mut WriteCursor,
+    header: FrameHeader,
+    function: FunctionField,
+    msg: &dyn Serialize,
+) -> Result<FrameInfo, RequestError> {
+    let start_frame = cursor.position();
+    cursor.write_u8(header.destination.value())?;
+    cursor.write_u8(function.get_value())?;
+    let start_pdu_body = cursor.position();
+    msg.serialize(cursor)?;
+    let end_pdu_body = cursor.position();
+    // Write the CRC
+    let crc = CRC.checksum(cursor.get(start_frame..end_pdu_body).unwrap());
+    cursor.write_u16_le(crc)?;
 
-        // Write the message
-        let end_position = {
-            let mut cursor = WriteCursor::new(self.buffer.as_mut());
-
-            cursor.write_u8(header.destination.value())?;
-            msg.serialize(&mut cursor)?;
-
-            cursor.position()
-        };
-
-        // Calculate the CRC
-        let crc = CRC.checksum(&self.buffer[0..end_position]);
-
-        // Write the CRC
-        {
-            let mut cursor = WriteCursor::new(self.buffer.as_mut());
-            cursor.seek_from_start(end_position)?;
-            cursor.write_u16_le(crc)?;
-        }
-
-        // Logging
-        if decode_level.enabled() {
-            tracing::info!(
-                "RTU TX - {}",
-                RtuDisplay::new(
-                    decode_level,
-                    header.destination,
-                    &self.buffer[constants::HEADER_LENGTH..end_position],
-                    crc
-                )
-            );
-        }
-
-        Ok(end_position + constants::CRC_LENGTH)
-    }
-
-    fn get_full_buffer_impl(&self, size: usize) -> Option<&[u8]> {
-        self.buffer.get(..size)
-    }
-
-    fn get_payload_impl(&self, size: usize) -> Option<&[u8]> {
-        self.buffer
-            .get(constants::HEADER_LENGTH..size - constants::CRC_LENGTH)
-    }
+    Ok(FrameInfo::new(
+        FrameType::Rtu(header.destination, crc),
+        start_pdu_body..end_pdu_body,
+    ))
 }
 
-struct RtuDisplay<'a> {
+pub(crate) struct RtuDisplay<'a> {
     level: FrameDecodeLevel,
     destination: FrameDestination,
-    data: &'a [u8],
+    payload: &'a [u8],
     crc: u16,
 }
 
 impl<'a> RtuDisplay<'a> {
-    fn new(
+    pub(crate) fn new(
         level: FrameDecodeLevel,
         destination: FrameDestination,
-        data: &'a [u8],
+        payload: &'a [u8],
         crc: u16,
     ) -> Self {
         RtuDisplay {
             level,
             destination,
-            data,
+            payload,
             crc,
         }
     }
@@ -311,13 +255,13 @@ impl<'a> std::fmt::Display for RtuDisplay<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(
             f,
-            "dest: {} crc: {:#06X} (len = {})",
+            "dest: {} crc: {:#06X} (payload len = {})",
             self.destination,
             self.crc,
-            self.data.len() - 1,
+            self.payload.len(),
         )?;
         if self.level.payload_enabled() {
-            crate::common::phys::format_bytes(f, self.data)?;
+            crate::common::phys::format_bytes(f, self.payload)?;
         }
         Ok(())
     }
@@ -325,6 +269,7 @@ impl<'a> std::fmt::Display for RtuDisplay<'a> {
 
 #[cfg(test)]
 mod tests {
+    use crate::common::function::FunctionCode;
     use std::task::Poll;
 
     use crate::common::frame::FramedReader;
@@ -468,29 +413,65 @@ mod tests {
         0x46, 0x16, // crc
     ];
 
-    const ALL_REQUESTS: &[&[u8]] = &[
-        READ_COILS_REQUEST,
-        READ_DISCRETE_INPUTS_REQUEST,
-        READ_HOLDING_REGISTERS_REQUEST,
-        READ_INPUT_REGISTERS_REQUEST,
-        WRITE_SINGLE_COIL_REQUEST,
-        WRITE_SINGLE_REGISTER_REQUEST,
-        WRITE_MULTIPLE_COILS_REQUEST,
-        WRITE_MULTIPLE_REGISTERS_REQUEST,
+    const ALL_REQUESTS: &[(FunctionCode, &[u8])] = &[
+        (FunctionCode::ReadCoils, READ_COILS_REQUEST),
+        (
+            FunctionCode::ReadDiscreteInputs,
+            READ_DISCRETE_INPUTS_REQUEST,
+        ),
+        (
+            FunctionCode::ReadHoldingRegisters,
+            READ_HOLDING_REGISTERS_REQUEST,
+        ),
+        (
+            FunctionCode::ReadInputRegisters,
+            READ_INPUT_REGISTERS_REQUEST,
+        ),
+        (FunctionCode::WriteSingleCoil, WRITE_SINGLE_COIL_REQUEST),
+        (
+            FunctionCode::WriteSingleRegister,
+            WRITE_SINGLE_REGISTER_REQUEST,
+        ),
+        (
+            FunctionCode::WriteMultipleCoils,
+            WRITE_MULTIPLE_COILS_REQUEST,
+        ),
+        (
+            FunctionCode::WriteMultipleRegisters,
+            WRITE_MULTIPLE_REGISTERS_REQUEST,
+        ),
     ];
 
-    const ALL_RESPONSES: &[&[u8]] = &[
-        READ_COILS_RESPONSE,
-        READ_DISCRETE_INPUTS_RESPONSE,
-        READ_HOLDING_REGISTERS_RESPONSE,
-        READ_INPUT_REGISTERS_RESPONSE,
-        WRITE_SINGLE_COIL_RESPONSE,
-        WRITE_SINGLE_REGISTER_RESPONSE,
-        WRITE_MULTIPLE_COILS_RESPONSE,
-        WRITE_MULTIPLE_REGISTERS_RESPONSE,
+    const ALL_RESPONSES: &[(FunctionCode, &[u8])] = &[
+        (FunctionCode::ReadCoils, READ_COILS_RESPONSE),
+        (
+            FunctionCode::ReadDiscreteInputs,
+            READ_DISCRETE_INPUTS_RESPONSE,
+        ),
+        (
+            FunctionCode::ReadHoldingRegisters,
+            READ_HOLDING_REGISTERS_RESPONSE,
+        ),
+        (
+            FunctionCode::ReadInputRegisters,
+            READ_INPUT_REGISTERS_RESPONSE,
+        ),
+        (FunctionCode::WriteSingleCoil, WRITE_SINGLE_COIL_RESPONSE),
+        (
+            FunctionCode::WriteSingleRegister,
+            WRITE_SINGLE_REGISTER_RESPONSE,
+        ),
+        (
+            FunctionCode::WriteMultipleCoils,
+            WRITE_MULTIPLE_COILS_RESPONSE,
+        ),
+        (
+            FunctionCode::WriteMultipleRegisters,
+            WRITE_MULTIPLE_REGISTERS_RESPONSE,
+        ),
     ];
 
-    fn assert_can_parse_frame<T: FrameParser>(mut reader: FramedReader<T>, frame: &[u8]) {
+    fn assert_can_parse_frame(mut reader: FramedReader, frame: &[u8]) {
         let (io, mut io_handle) = io::mock();
         let mut layer = PhysLayer::new_mock(io);
         let mut task = spawn(reader.next_frame(&mut layer, DecodeLevel::nothing()));
@@ -514,16 +495,16 @@ mod tests {
 
     #[test]
     fn can_parse_request_frames() {
-        for request in ALL_REQUESTS {
-            let reader = FramedReader::new(RtuParser::new_request_parser());
+        for (_, request) in ALL_REQUESTS {
+            let reader = FramedReader::rtu_request();
             assert_can_parse_frame(reader, request);
         }
     }
 
     #[test]
     fn can_parse_response_frames() {
-        for response in ALL_RESPONSES {
-            let reader = FramedReader::new(RtuParser::new_response_parser());
+        for (_, response) in ALL_RESPONSES {
+            let reader = FramedReader::rtu_response();
             assert_can_parse_frame(reader, response);
         }
     }
@@ -546,7 +527,7 @@ mod tests {
         huge_response.push((crc & 0x00FF) as u8);
         huge_response.push(((crc & 0xFF00) >> 8) as u8);
 
-        let reader = FramedReader::new(RtuParser::new_response_parser());
+        let reader = FramedReader::rtu_response();
         assert_can_parse_frame(reader, &huge_response);
     }
 
@@ -568,14 +549,11 @@ mod tests {
         huge_response.push((crc & 0x00FF) as u8);
         huge_response.push(((crc & 0xFF00) >> 8) as u8);
 
-        let reader = FramedReader::new(RtuParser::new_response_parser());
+        let reader = FramedReader::rtu_response();
         assert_can_parse_frame(reader, &huge_response);
     }
 
-    fn assert_can_parse_frame_byte_per_byte<T: FrameParser>(
-        mut reader: FramedReader<T>,
-        frame: &[u8],
-    ) {
+    fn assert_can_parse_frame_byte_per_byte(mut reader: FramedReader, frame: &[u8]) {
         let (io, mut io_handle) = io::mock();
         let mut layer = PhysLayer::new_mock(io);
         let mut task = spawn(reader.next_frame(&mut layer, DecodeLevel::nothing()));
@@ -606,21 +584,21 @@ mod tests {
 
     #[test]
     fn can_parse_request_frames_byte_per_byte() {
-        for request in ALL_REQUESTS {
-            let reader = FramedReader::new(RtuParser::new_request_parser());
+        for (_, request) in ALL_REQUESTS {
+            let reader = FramedReader::rtu_request();
             assert_can_parse_frame_byte_per_byte(reader, request);
         }
     }
 
     #[test]
     fn can_parse_response_frames_byte_per_byte() {
-        for response in ALL_RESPONSES {
-            let reader = FramedReader::new(RtuParser::new_response_parser());
+        for (_, response) in ALL_RESPONSES {
+            let reader = FramedReader::rtu_response();
             assert_can_parse_frame_byte_per_byte(reader, response);
         }
     }
 
-    fn assert_can_parse_two_frames<T: FrameParser>(mut reader: FramedReader<T>, frame: &[u8]) {
+    fn assert_can_parse_two_frames(mut reader: FramedReader, frame: &[u8]) {
         let (io, mut io_handle) = io::mock();
         let mut layer = PhysLayer::new_mock(io);
 
@@ -675,16 +653,16 @@ mod tests {
 
     #[test]
     fn can_parse_two_request_frames() {
-        for request in ALL_REQUESTS {
-            let reader = FramedReader::new(RtuParser::new_request_parser());
+        for (_, request) in ALL_REQUESTS {
+            let reader = FramedReader::rtu_request();
             assert_can_parse_two_frames(reader, request);
         }
     }
 
     #[test]
     fn can_parse_two_response_frames() {
-        for response in ALL_RESPONSES {
-            let reader = FramedReader::new(RtuParser::new_response_parser());
+        for (_, response) in ALL_RESPONSES {
+            let reader = FramedReader::rtu_response();
             assert_can_parse_two_frames(reader, response);
         }
     }
@@ -699,7 +677,7 @@ mod tests {
             0xFF, 0xFF, // wrong crc
         ];
 
-        let mut reader = FramedReader::new(RtuParser::new_request_parser());
+        let mut reader = FramedReader::rtu_request();
         let (io, mut io_handle) = io::mock();
         let mut layer = PhysLayer::new_mock(io);
         let mut task = spawn(reader.next_frame(&mut layer, DecodeLevel::nothing()));
@@ -723,36 +701,39 @@ mod tests {
 
     impl<'a> Serialize for MockMessage<'a> {
         fn serialize(self: &Self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
-            for byte in &self.frame[1..self.frame.len() - 2] {
+            for byte in &self.frame[2..self.frame.len() - 2] {
                 cursor.write_u8(*byte)?;
             }
             Ok(())
         }
     }
 
-    fn assert_frame_formatting(frame: &[u8]) {
-        let mut formatter = RtuFormatter::new();
+    fn assert_frame_formatting(function: FunctionCode, frame: &[u8]) {
+        let mut buffer: [u8; 256] = [0; 256];
+        let mut cursor = WriteCursor::new(&mut buffer);
         let msg = MockMessage { frame };
-        let header = FrameHeader::new_rtu_header(FrameDestination::UnitId(UnitId::new(42)));
-        let size = formatter
-            .format_impl(header, &msg, FrameDecodeLevel::Nothing)
-            .unwrap();
-        let output = formatter.get_full_buffer_impl(size).unwrap();
-
-        assert_eq!(output, frame);
+        let _ = format_rtu_pdu(
+            &mut cursor,
+            FrameHeader::new_rtu_header(FrameDestination::UnitId(UnitId::new(42))),
+            FunctionField::Valid(function),
+            &msg,
+        )
+        .unwrap();
+        let end = cursor.position();
+        assert_eq!(&buffer[..end], frame);
     }
 
     #[test]
     fn can_format_request_frames() {
-        for request in ALL_REQUESTS {
-            assert_frame_formatting(request);
+        for (fc, request) in ALL_REQUESTS {
+            assert_frame_formatting(*fc, request);
         }
     }
 
     #[test]
     fn can_format_response_frames() {
-        for response in ALL_RESPONSES {
-            assert_frame_formatting(response);
+        for (fc, response) in ALL_RESPONSES {
+            assert_frame_formatting(*fc, response);
         }
     }
 }
