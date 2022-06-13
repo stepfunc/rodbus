@@ -331,7 +331,7 @@ impl FrameWriter {
 
         if decode_level.app.enabled() {
             tracing::info!(
-                "PDU tx: {} {}",
+                "PDU TX - {} {}",
                 function,
                 LoggableDisplay::new(body, pdu_body, decode_level.app)
             );
@@ -341,13 +341,13 @@ impl FrameWriter {
             match frame_type {
                 FrameType::Mbap(header) => {
                     tracing::info!(
-                        "MBAP Tx: {}",
+                        "MBAP TX - {}",
                         MbapDisplay::new(decode_level.frame, header, frame_bytes)
                     );
                 }
                 FrameType::Rtu(dest, crc) => {
                     tracing::info!(
-                        "RTU Tx: {}",
+                        "RTU TX - {}",
                         RtuDisplay::new(decode_level.frame, dest, frame_bytes, crc)
                     );
                 }

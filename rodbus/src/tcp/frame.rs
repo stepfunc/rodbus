@@ -17,14 +17,15 @@ pub(crate) mod constants {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct MbapHeader {
     tx_id: TxId,
-    adu_length: usize,
+    len_field: u16,
     unit_id: UnitId,
 }
 
 #[derive(Clone, Copy)]
 enum ParseState {
     Begin,
-    Header(MbapHeader),
+    // header and the ADU length
+    Header(MbapHeader, usize),
 }
 
 pub(crate) struct MbapParser {
@@ -38,10 +39,12 @@ impl MbapParser {
         }
     }
 
-    fn parse_header(cursor: &mut ReadBuffer) -> Result<MbapHeader, RequestError> {
+    // returns some header fields and the length of the ADU
+    fn parse_header(cursor: &mut ReadBuffer) -> Result<(MbapHeader, usize), RequestError> {
         let tx_id = TxId::new(cursor.read_u16_be()?);
         let protocol_id = cursor.read_u16_be()?;
-        let length = cursor.read_u16_be()? as usize;
+        let len_field = cursor.read_u16_be()?;
+        let length = len_field as usize;
         let unit_id = UnitId::new(cursor.read_u8()?);
 
         if protocol_id != 0 {
@@ -54,21 +57,29 @@ impl MbapParser {
             );
         }
 
-        // must be > 0 b/c the 1-byte unit identifier counts towards length
+        // The ADU length is the function code + body
+        // It must be > 0 b/c the 1-byte unit identifier counts towards length field
         let adu_length = length
             .checked_sub(1)
             .ok_or(FrameParseError::MbapLengthZero)?;
 
-        Ok(MbapHeader {
-            tx_id,
+        Ok((
+            MbapHeader {
+                tx_id,
+                len_field,
+                unit_id,
+            },
             adu_length,
-            unit_id,
-        })
+        ))
     }
 
-    fn parse_body(header: &MbapHeader, cursor: &mut ReadBuffer) -> Result<Frame, RequestError> {
+    fn parse_body(
+        header: &MbapHeader,
+        adu_length: usize,
+        cursor: &mut ReadBuffer,
+    ) -> Result<Frame, RequestError> {
         let mut frame = Frame::new(FrameHeader::new_tcp_header(header.unit_id, header.tx_id));
-        frame.set(cursor.read(header.adu_length)?);
+        frame.set(cursor.read(adu_length)?);
         Ok(frame)
     }
 
@@ -78,12 +89,12 @@ impl MbapParser {
         decode_level: FrameDecodeLevel,
     ) -> Result<Option<Frame>, RequestError> {
         match self.state {
-            ParseState::Header(header) => {
-                if cursor.len() < header.adu_length {
+            ParseState::Header(header, adu_length) => {
+                if cursor.len() < adu_length {
                     return Ok(None);
                 }
 
-                let frame = Self::parse_body(&header, cursor)?;
+                let frame = Self::parse_body(&header, adu_length, cursor)?;
                 self.state = ParseState::Begin;
 
                 if decode_level.enabled() {
@@ -100,7 +111,8 @@ impl MbapParser {
                     return Ok(None);
                 }
 
-                self.state = ParseState::Header(Self::parse_header(cursor)?);
+                let (header, adu_len) = Self::parse_header(cursor)?;
+                self.state = ParseState::Header(header, adu_len);
                 self.parse(cursor, decode_level)
             }
         }
@@ -144,7 +156,7 @@ pub(crate) fn format_mbap(
 
     let header = MbapHeader {
         tx_id,
-        adu_length: mbap_len_field as usize,
+        len_field: mbap_len_field,
         unit_id,
     };
 
@@ -175,7 +187,7 @@ impl<'a> std::fmt::Display for MbapDisplay<'a> {
         write!(
             f,
             "tx_id: {} unit: {} len: {}",
-            self.header.tx_id, self.header.unit_id, self.header.adu_length
+            self.header.tx_id, self.header.unit_id, self.header.len_field
         )?;
         if self.level.payload_enabled() {
             crate::common::phys::format_bytes(f, self.bytes)?;

@@ -1,5 +1,3 @@
-use tracing::Instrument;
-
 use crate::common::phys::PhysLayer;
 use crate::server::{AuthorizationHandler, AuthorizationResult};
 use crate::{tokio, DecodeLevel, UnitId};
@@ -92,10 +90,7 @@ where
         crate::tokio::select! {
             frame = self.reader.next_frame(&mut self.io, self.decode) => {
                 let frame = frame?;
-                let tx_id = frame.header.tx_id;
-                self.handle_frame(frame)
-                    .instrument(tracing::info_span!("Transaction", tx_id=?tx_id))
-                    .await
+                self.handle_frame(frame).await
             }
             cmd = self.commands.recv() => {
                match cmd {
