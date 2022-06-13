@@ -147,6 +147,7 @@ pub(crate) fn format_mbap(
     msg.serialize(cursor)?;
     let end_pdu = cursor.position();
 
+    // the length field includes the unit identifier
     let mbap_len_field = (end_pdu - start_pdu + 1) as u16;
 
     // seek back and write the length, restore to the end of the pdu
