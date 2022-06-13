@@ -180,34 +180,25 @@ where
                     }
                     Some(handler) => handler,
                 };
-
                 // get the reply data (or exception reply)
-                let reply_frame: &[u8] = {
-                    let mut lock = handler.lock().unwrap();
-                    request.get_reply(frame.header, lock.as_mut(), &mut self.writer, self.decode)?
-                };
-
-                // reply with the bytes
-                self.io.write(reply_frame, self.decode.physical).await?;
+                let reply: &[u8] = request.get_reply(
+                    frame.header,
+                    handler.lock().unwrap().as_mut(),
+                    &mut self.writer,
+                    self.decode,
+                )?;
+                self.io.write(reply, self.decode.physical).await?;
             }
-            FrameDestination::Broadcast => {
-                // check if broadcast is supported for this function code
-                if !function.supports_broadcast() {
+            FrameDestination::Broadcast => match request.into_broadcast_request() {
+                None => {
                     tracing::warn!("broadcast is not supported for {}", function);
-                    return Ok(());
                 }
-
-                for handler in self.handlers.iter_mut() {
-                    let mut lock = handler.lock().unwrap();
-                    request.get_reply(
-                        frame.header,
-                        lock.as_mut(),
-                        &mut FrameWriter::none(),
-                        self.decode,
-                    )?;
-                    // do not write a response
+                Some(request) => {
+                    for handler in self.handlers.iter_mut() {
+                        request.execute(handler.lock().unwrap().as_mut());
+                    }
                 }
-            }
+            },
         }
 
         Ok(())

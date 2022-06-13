@@ -93,11 +93,7 @@ impl FrameDestination {
     }
 
     pub(crate) fn is_broadcast(&self) -> bool {
-        if let FrameDestination::Broadcast = self {
-            true
-        } else {
-            false
-        }
+        std::matches!(self, FrameDestination::Broadcast)
     }
 }
 
@@ -239,7 +235,8 @@ impl FormatType {
 }
 
 pub(crate) struct FrameWriter {
-    inner: Option<(FormatType, [u8; constants::MAX_FRAME_LENGTH])>,
+    format_type: FormatType,
+    buffer: [u8; constants::MAX_FRAME_LENGTH],
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -283,7 +280,8 @@ impl FunctionField {
 impl FrameWriter {
     fn new(format_type: FormatType) -> Self {
         Self {
-            inner: Some((format_type, [0; constants::MAX_FRAME_LENGTH])),
+            format_type,
+            buffer: [0; constants::MAX_FRAME_LENGTH],
         }
     }
 
@@ -325,16 +323,17 @@ impl FrameWriter {
     where
         T: Serialize + Loggable,
     {
-        let (format_type, buffer) = match self.inner.as_mut() {
-            Some(x) => x,
-            None => return Ok(&[]),
-        };
-
         let (frame_type, frame_bytes, pdu_body) = {
-            let mut cursor = WriteCursor::new(buffer);
-            let info = format_type.format(&mut cursor, header, function, body)?;
+            let mut cursor = WriteCursor::new(self.buffer.as_mut());
+            let info = self
+                .format_type
+                .format(&mut cursor, header, function, body)?;
             let end = cursor.position();
-            (info.frame_type, &buffer[..end], &buffer[info.pdu_body])
+            (
+                info.frame_type,
+                &self.buffer[..end],
+                &self.buffer[info.pdu_body],
+            )
         };
 
         if decode_level.app.enabled() {
@@ -363,10 +362,6 @@ impl FrameWriter {
         }
 
         Ok(frame_bytes)
-    }
-
-    pub(crate) fn none() -> Self {
-        Self { inner: None }
     }
 
     pub(crate) fn tcp() -> Self {

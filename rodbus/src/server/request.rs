@@ -22,6 +22,36 @@ pub(crate) enum Request<'a> {
     WriteMultipleRegisters(WriteRegisters<'a>),
 }
 
+/// All requests that support broadcast
+#[derive(Debug)]
+#[allow(clippy::enum_variant_names)]
+pub(crate) enum BroadcastRequest<'a> {
+    WriteSingleCoil(Indexed<bool>),
+    WriteSingleRegister(Indexed<u16>),
+    WriteMultipleCoils(WriteCoils<'a>),
+    WriteMultipleRegisters(WriteRegisters<'a>),
+}
+
+impl<'a> BroadcastRequest<'a> {
+    // execute a broadcast request against the handler
+    pub(crate) fn execute<T: RequestHandler>(&self, handler: &mut T) {
+        match self {
+            BroadcastRequest::WriteSingleCoil(x) => {
+                let _ = handler.write_single_coil(*x);
+            }
+            BroadcastRequest::WriteSingleRegister(x) => {
+                let _ = handler.write_single_register(*x);
+            }
+            BroadcastRequest::WriteMultipleCoils(x) => {
+                let _ = handler.write_multiple_coils(*x);
+            }
+            BroadcastRequest::WriteMultipleRegisters(x) => {
+                let _ = handler.write_multiple_registers(*x);
+            }
+        }
+    }
+}
+
 impl<'a> Request<'a> {
     pub(crate) fn get_function(&self) -> FunctionCode {
         match self {
@@ -33,6 +63,19 @@ impl<'a> Request<'a> {
             Request::WriteSingleRegister(_) => FunctionCode::WriteSingleRegister,
             Request::WriteMultipleCoils(_) => FunctionCode::WriteMultipleCoils,
             Request::WriteMultipleRegisters(_) => FunctionCode::WriteMultipleRegisters,
+        }
+    }
+
+    pub(crate) fn into_broadcast_request(self) -> Option<BroadcastRequest<'a>> {
+        match self {
+            Request::ReadCoils(_) => None,
+            Request::ReadDiscreteInputs(_) => None,
+            Request::ReadHoldingRegisters(_) => None,
+            Request::ReadInputRegisters(_) => None,
+            Request::WriteSingleCoil(x) => Some(BroadcastRequest::WriteSingleCoil(x)),
+            Request::WriteSingleRegister(x) => Some(BroadcastRequest::WriteSingleRegister(x)),
+            Request::WriteMultipleCoils(x) => Some(BroadcastRequest::WriteMultipleCoils(x)),
+            Request::WriteMultipleRegisters(x) => Some(BroadcastRequest::WriteMultipleRegisters(x)),
         }
     }
 
