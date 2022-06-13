@@ -158,15 +158,13 @@ where
             .is_authorized(frame.header.destination.into_unit_id(), &request)
         {
             if !frame.header.destination.is_broadcast() {
-                let reply = self.writer.format_ex(
+                self.reply_with_error(
                     frame.header,
-                    FunctionField::Exception(request.get_function()),
+                    request.get_function(),
                     ExceptionCode::IllegalFunction,
-                    self.decode,
-                )?;
-                self.io.write(reply, self.decode.physical).await?;
+                )
+                .await?;
             }
-
             return Ok(());
         }
 
