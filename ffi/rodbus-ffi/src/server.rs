@@ -5,7 +5,7 @@ use rodbus::AddressRange;
 use rodbus::{ExceptionCode, Indexed, UnitId};
 use std::collections::HashMap;
 use std::ffi::CString;
-use std::net::SocketAddr;
+use std::net::{IpAddr, SocketAddr};
 use std::path::Path;
 
 use rodbus::server::*;
@@ -264,15 +264,22 @@ pub(crate) unsafe fn device_map_add_endpoint(
     true
 }
 
+fn get_socket_addr(ip: &std::ffi::CStr, port: u16) -> Result<SocketAddr, ffi::ParamError> {
+    let ip = ip.to_str().map_err(|_| ffi::ParamError::InvalidIpAddress)?;
+    let ip = ip.parse::<IpAddr>()?;
+    Ok(SocketAddr::new(ip, port))
+}
+
 pub(crate) unsafe fn server_create_tcp(
     runtime: *mut crate::Runtime,
-    address: &std::ffi::CStr,
+    ip_addr: &std::ffi::CStr,
+    port: u16,
     max_sessions: u16,
     endpoints: *mut crate::DeviceMap,
     decode_level: ffi::DecodeLevel,
 ) -> Result<*mut crate::Server, ffi::ParamError> {
     let runtime = runtime.as_ref().ok_or(ffi::ParamError::NullParameter)?;
-    let address = address.to_string_lossy().parse::<SocketAddr>()?;
+    let address = get_socket_addr(ip_addr, port)?;
     let endpoints = endpoints.as_mut().ok_or(ffi::ParamError::NullParameter)?;
 
     let (tx, rx) = tokio::sync::mpsc::channel(1);
@@ -331,9 +338,11 @@ pub(crate) unsafe fn server_create_rtu(
     Ok(Box::into_raw(Box::new(server_handle)))
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) unsafe fn server_create_tls(
     runtime: *mut crate::Runtime,
-    address: &std::ffi::CStr,
+    ip_addr: &std::ffi::CStr,
+    port: u16,
     max_sessions: u16,
     endpoints: *mut crate::DeviceMap,
     tls_config: ffi::TlsServerConfig,
@@ -341,7 +350,7 @@ pub(crate) unsafe fn server_create_tls(
     decode_level: ffi::DecodeLevel,
 ) -> Result<*mut crate::Server, ffi::ParamError> {
     let runtime = runtime.as_ref().ok_or(ffi::ParamError::NullParameter)?;
-    let address = address.to_string_lossy().parse::<SocketAddr>()?;
+    let address = get_socket_addr(ip_addr, port)?;
     let endpoints = endpoints.as_mut().ok_or(ffi::ParamError::NullParameter)?;
 
     let password = tls_config.password().to_string_lossy();
