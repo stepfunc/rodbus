@@ -879,7 +879,7 @@ dependencies = [
 
 [[package]]
 name = "rodbus"
-version = "1.0.0-alpha4"
+version = "1.0.0-alpha5"
 dependencies = [
  "crc",
  "pem",
@@ -897,7 +897,7 @@ dependencies = [
 
 [[package]]
 name = "rodbus-bindings"
-version = "1.0.0-alpha4"
+version = "1.0.0-alpha5"
 dependencies = [
  "ci-script",
  "rodbus-ffi",
@@ -906,7 +906,7 @@ dependencies = [
 
 [[package]]
 name = "rodbus-client"
-version = "1.0.0-alpha4"
+version = "1.0.0-alpha5"
 dependencies = [
  "clap",
  "rodbus",
@@ -917,7 +917,7 @@ dependencies = [
 
 [[package]]
 name = "rodbus-ffi"
-version = "1.0.0-alpha4"
+version = "1.0.0-alpha5"
 dependencies = [
  "lazy_static",
  "num_cpus",
@@ -932,7 +932,7 @@ dependencies = [
 
 [[package]]
 name = "rodbus-schema"
-version = "1.0.0-alpha4"
+version = "1.0.0-alpha5"
 dependencies = [
  "oo-bindgen",
  "rodbus",
