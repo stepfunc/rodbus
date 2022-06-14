@@ -64,7 +64,7 @@ fn build_error_type(lib: &mut LibraryBuilder) -> BackTraced<ErrorTypeHandle> {
             "runtime_cannot_block_within_async",
             "Runtime cannot execute blocking call within asynchronous context",
         )?
-        .add_error("invalid_socket_address", "Invalid socket address")?
+        .add_error("invalid_ip_address", "Invalid IP address")?
         .add_error("invalid_range", "Invalid Modbus address range")?
         .add_error("invalid_request", "Invalid Modbus request")?
         .add_error("invalid_index", "Invalid index")?

@@ -182,7 +182,7 @@ namespace rodbus_tests
                 }
             });
 
-            var server = Server.CreateTcp(runtime, ENDPOINT, 100, map, DecodeLevel.Nothing());
+            var server = Server.CreateTcp(runtime, ENDPOINT, PORT, 100, map, DecodeLevel.Nothing());
             var client = ClientChannel.CreateTcp(runtime, ENDPOINT, PORT, 10, new RetryStrategy(), DecodeLevel.Nothing());
 
             // set a unique pattern to test reads

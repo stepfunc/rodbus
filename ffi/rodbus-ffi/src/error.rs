@@ -5,7 +5,7 @@ use crate::ffi;
 
 impl From<AddrParseError> for ffi::ParamError {
     fn from(_: AddrParseError) -> Self {
-        ffi::ParamError::InvalidSocketAddress
+        ffi::ParamError::InvalidIpAddress
     }
 }
 

@@ -20,8 +20,9 @@ class IntegrationTest {
     static final UByte UNIT_ID = ubyte(1);
     static final Duration TIMEOUT = Duration.ofSeconds(1);
     static final int NUM_POINTS = 10;
+    static final String ENDPOINT = "127.0.0.1";
     // we use 50001 here since it's a large enough port it doesn't require root on Linux
-    static final String ENDPOINT = "127.0.0.1:50001";
+    static final UShort PORT = ushort(50001);
 
     static class TestWriteHandler implements WriteHandler {
         @Override
@@ -80,8 +81,8 @@ class IntegrationTest {
             }
         });
 
-        final Server server = Server.createTcp(runtime, ENDPOINT, ushort(100), deviceMap, DecodeLevel.nothing());
-        final ClientChannel client = ClientChannel.createTcp(runtime, ENDPOINT, ushort(10), new RetryStrategy(), DecodeLevel.nothing());
+        final Server server = Server.createTcp(runtime, ENDPOINT, PORT, ushort(100), deviceMap, DecodeLevel.nothing());
+        final ClientChannel client = ClientChannel.createTcp(runtime, ENDPOINT, PORT, ushort(10), new RetryStrategy(), DecodeLevel.nothing());
 
         // Set a unique pattern to test reads
         server.updateDatabase(UNIT_ID, db -> {

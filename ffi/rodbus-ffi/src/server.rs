@@ -265,9 +265,7 @@ pub(crate) unsafe fn device_map_add_endpoint(
 }
 
 fn get_socket_addr(ip: &std::ffi::CStr, port: u16) -> Result<SocketAddr, ffi::ParamError> {
-    let ip = ip
-        .to_str()
-        .map_err(|_| ffi::ParamError::InvalidSocketAddress)?;
+    let ip = ip.to_str().map_err(|_| ffi::ParamError::InvalidIpAddress)?;
     let ip = ip.parse::<IpAddr>()?;
     Ok(SocketAddr::new(ip, port))
 }

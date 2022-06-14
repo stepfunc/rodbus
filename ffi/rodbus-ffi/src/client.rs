@@ -13,7 +13,7 @@ pub struct ClientChannel {
 fn get_host_addr(host: &std::ffi::CStr, port: u16) -> Result<HostAddr, ffi::ParamError> {
     let host = host
         .to_str()
-        .map_err(|_| ffi::ParamError::InvalidSocketAddress)?;
+        .map_err(|_| ffi::ParamError::InvalidIpAddress)?;
 
     if let Ok(x) = host.parse::<IpAddr>() {
         return Ok(HostAddr::ip(x, port));

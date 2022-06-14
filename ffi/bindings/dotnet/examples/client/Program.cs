@@ -77,7 +77,7 @@ namespace example
         private static ClientChannel CreateTcpChannel(Runtime runtime)
         {
             // ANCHOR: create_tcp_channel            
-            var channel = ClientChannel.CreateTcp(runtime, "127.0.0.1:502", 1, new RetryStrategy(), DecodeLevel.Nothing());
+            var channel = ClientChannel.CreateTcp(runtime, "127.0.0.1", 502, 1, new RetryStrategy(), DecodeLevel.Nothing());
             // ANCHOR_END: create_tcp_channel
 
             return channel;
@@ -102,7 +102,7 @@ namespace example
         private static ClientChannel CreateTlsChannel(Runtime runtime, TlsClientConfig tlsConfig)
         {
             // ANCHOR: create_tls_channel            
-            var channel = ClientChannel.CreateTls(runtime, "127.0.0.1:802", 100, new RetryStrategy(), tlsConfig, DecodeLevel.Nothing());
+            var channel = ClientChannel.CreateTls(runtime, "127.0.0.1", 802, 100, new RetryStrategy(), tlsConfig, DecodeLevel.Nothing());
             // ANCHOR_END: create_tls_channel
 
             return channel;
