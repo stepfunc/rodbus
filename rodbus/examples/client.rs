@@ -1,4 +1,5 @@
 use std::error::Error;
+use std::net::{IpAddr, Ipv4Addr};
 use std::path::Path;
 use std::process::exit;
 use std::time::Duration;
@@ -51,7 +52,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 async fn run_tcp() -> Result<(), Box<dyn std::error::Error>> {
     // ANCHOR: create_tcp_channel
     let channel = spawn_tcp_client_task(
-        "127.0.0.1:502".parse()?,
+        HostAddr::ip(IpAddr::V4(Ipv4Addr::LOCALHOST), 502),
         1,
         default_reconnect_strategy(),
         DecodeLevel::default(),
@@ -83,7 +84,7 @@ async fn run_rtu() -> Result<(), Box<dyn std::error::Error>> {
 async fn run_tls(tls_config: TlsClientConfig) -> Result<(), Box<dyn std::error::Error>> {
     // ANCHOR: create_tls_channel
     let channel = spawn_tls_client_task(
-        "127.0.0.1:802".parse()?,
+        HostAddr::ip(IpAddr::V4(Ipv4Addr::LOCALHOST), 802),
         1,
         default_reconnect_strategy(),
         tls_config,

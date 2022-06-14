@@ -47,7 +47,7 @@
 //!async fn main() -> Result<(), Box<dyn std::error::Error>> {
 //!
 //!    let mut channel = spawn_tcp_client_task(
-//!        SocketAddr::from_str("127.0.0.1:502")?,
+//!        HostAddr::ip("127.0.0.1".parse()?, 502),
 //!        10,
 //!        default_reconnect_strategy(),
 //!        DecodeLevel::default(),

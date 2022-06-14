@@ -15,7 +15,12 @@ pub(crate) fn build(lib: &mut LibraryBuilder, common: &CommonDefinitions) -> Bac
             common.runtime_handle.clone(),
             "Runtime on which to create the channel",
         )?
-        .param("address", StringType, "IP address of remote host")?
+        .param(
+            "host",
+            StringType,
+            "IP (v4/v6) or host name remote endpoint",
+        )?
+        .param("port", Primitive::U16, "remote port")?
         .param(
             "max_queued_requests",
             Primitive::U16,
@@ -80,7 +85,12 @@ pub(crate) fn build(lib: &mut LibraryBuilder, common: &CommonDefinitions) -> Bac
             common.runtime_handle.clone(),
             "Runtime on which to create the channel",
         )?
-        .param("address", StringType, "IP address of remote host")?
+        .param(
+            "host",
+            StringType,
+            "IP (v4/v6) or host name remote endpoint",
+        )?
+        .param("port", Primitive::U16, "remote port")?
         .param(
             "max_queued_requests",
             Primitive::U16,

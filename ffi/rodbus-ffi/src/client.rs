@@ -1,6 +1,7 @@
 use crate::ffi;
-use rodbus::client::WriteMultiple;
+use rodbus::client::{HostAddr, WriteMultiple};
 use rodbus::AddressRange;
+use std::net::IpAddr;
 use std::path::Path;
 use std::time::Duration;
 
@@ -9,18 +10,31 @@ pub struct ClientChannel {
     pub(crate) runtime: crate::RuntimeHandle,
 }
 
+fn get_host_addr(host: &std::ffi::CStr, port: u16) -> Result<HostAddr, ffi::ParamError> {
+    let host = host
+        .to_str()
+        .map_err(|_| ffi::ParamError::InvalidSocketAddress)?;
+
+    if let Ok(x) = host.parse::<IpAddr>() {
+        return Ok(HostAddr::ip(x, port));
+    }
+
+    // assume that it's a hostname
+    Ok(HostAddr::dns(host.to_owned(), port))
+}
+
 pub(crate) unsafe fn client_channel_create_tcp(
     runtime: *mut crate::Runtime,
-    address: &std::ffi::CStr,
+    host: &std::ffi::CStr,
+    port: u16,
     max_queued_requests: u16,
     retry_strategy: ffi::RetryStrategy,
     decode_level: ffi::DecodeLevel,
 ) -> Result<*mut crate::ClientChannel, ffi::ParamError> {
     let runtime = runtime.as_ref().ok_or(ffi::ParamError::NullParameter)?;
-    let address = address.to_string_lossy().parse()?;
 
     let (handle, task) = rodbus::client::create_tcp_handle_and_task(
-        address,
+        get_host_addr(host, port)?,
         max_queued_requests as usize,
         retry_strategy.into(),
         decode_level.into(),
@@ -62,14 +76,14 @@ pub(crate) unsafe fn client_channel_create_rtu(
 
 pub(crate) unsafe fn client_channel_create_tls(
     runtime: *mut crate::Runtime,
-    address: &std::ffi::CStr,
+    host: &std::ffi::CStr,
+    port: u16,
     max_queued_requests: u16,
     retry_strategy: ffi::RetryStrategy,
     tls_config: ffi::TlsClientConfig,
     decode_level: ffi::DecodeLevel,
 ) -> Result<*mut crate::ClientChannel, ffi::ParamError> {
     let runtime = runtime.as_ref().ok_or(ffi::ParamError::NullParameter)?;
-    let address = address.to_string_lossy().parse()?;
 
     let password = tls_config.password().to_string_lossy();
     let optional_password = match password.as_ref() {
@@ -92,7 +106,7 @@ pub(crate) unsafe fn client_channel_create_tls(
     })?;
 
     let (handle, task) = rodbus::client::create_tls_handle_and_task(
-        address,
+        get_host_addr(host, port)?,
         max_queued_requests as usize,
         retry_strategy.into(),
         tls_config,

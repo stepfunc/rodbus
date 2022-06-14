@@ -1,8 +1,6 @@
-use std::net::SocketAddr;
-
 use tracing::Instrument;
 
-use crate::client::Channel;
+use crate::client::{Channel, HostAddr};
 use crate::common::phys::PhysLayer;
 use crate::decode::DecodeLevel;
 use crate::tokio;
@@ -15,18 +13,18 @@ use crate::client::task::{ClientLoop, SessionError};
 use crate::common::frame::{FrameWriter, FramedReader};
 
 pub(crate) fn spawn_tcp_channel(
-    addr: SocketAddr,
+    host: HostAddr,
     max_queued_requests: usize,
     connect_retry: Box<dyn ReconnectStrategy + Send>,
     decode: DecodeLevel,
 ) -> Channel {
-    let (handle, task) = create_tcp_channel(addr, max_queued_requests, connect_retry, decode);
+    let (handle, task) = create_tcp_channel(host, max_queued_requests, connect_retry, decode);
     tokio::spawn(task);
     handle
 }
 
 pub(crate) fn create_tcp_channel(
-    addr: SocketAddr,
+    host: HostAddr,
     max_queued_requests: usize,
     connect_retry: Box<dyn ReconnectStrategy + Send>,
     decode: DecodeLevel,
@@ -34,14 +32,14 @@ pub(crate) fn create_tcp_channel(
     let (tx, rx) = tokio::sync::mpsc::channel(max_queued_requests);
     let task = async move {
         TcpChannelTask::new(
-            addr,
+            host.clone(),
             rx,
             TcpTaskConnectionHandler::Tcp,
             connect_retry,
             decode,
         )
         .run()
-        .instrument(tracing::info_span!("Modbus-Client-TCP", endpoint = ?addr))
+        .instrument(tracing::info_span!("Modbus-Client-TCP", endpoint = ?host))
         .await
     };
     (Channel { tx }, task)
@@ -57,7 +55,7 @@ impl TcpTaskConnectionHandler {
     async fn handle(
         &mut self,
         socket: TcpStream,
-        endpoint: &SocketAddr,
+        endpoint: &HostAddr,
     ) -> Result<PhysLayer, String> {
         match self {
             Self::Tcp => Ok(PhysLayer::new_tcp(socket)),
@@ -68,7 +66,7 @@ impl TcpTaskConnectionHandler {
 }
 
 pub(crate) struct TcpChannelTask {
-    addr: SocketAddr,
+    host: HostAddr,
     connect_retry: Box<dyn ReconnectStrategy + Send>,
     connection_handler: TcpTaskConnectionHandler,
     client_loop: ClientLoop,
@@ -76,14 +74,14 @@ pub(crate) struct TcpChannelTask {
 
 impl TcpChannelTask {
     pub(crate) fn new(
-        addr: SocketAddr,
+        host: HostAddr,
         rx: Receiver<Command>,
         connection_handler: TcpTaskConnectionHandler,
         connect_retry: Box<dyn ReconnectStrategy + Send>,
         decode: DecodeLevel,
     ) -> Self {
         Self {
-            addr,
+            host,
             connect_retry,
             connection_handler,
             client_loop: ClientLoop::new(rx, FrameWriter::tcp(), FramedReader::tcp(), decode),
@@ -93,12 +91,12 @@ impl TcpChannelTask {
     pub(crate) async fn run(&mut self) {
         // try to connect
         loop {
-            match TcpStream::connect(self.addr).await {
+            match self.host.connect().await {
                 Err(err) => {
                     let delay = self.connect_retry.next_delay();
                     tracing::warn!(
                         "failed to connect to {}: {} - waiting {} ms before next attempt",
-                        self.addr,
+                        self.host,
                         err,
                         delay.as_millis()
                     );
@@ -108,7 +106,10 @@ impl TcpChannelTask {
                     }
                 }
                 Ok(socket) => {
-                    match self.connection_handler.handle(socket, &self.addr).await {
+                    if let Ok(addr) = socket.peer_addr() {
+                        tracing::info!("connected to: {}", addr);
+                    }
+                    match self.connection_handler.handle(socket, &self.host).await {
                         Err(err) => {
                             let delay = self.connect_retry.next_delay();
                             tracing::warn!(
@@ -122,7 +123,6 @@ impl TcpChannelTask {
                             }
                         }
                         Ok(mut phys) => {
-                            tracing::info!("connected to: {}", self.addr);
                             match self.client_loop.run(&mut phys).await {
                                 // the mpsc was closed, end the task
                                 SessionError::Shutdown => return,

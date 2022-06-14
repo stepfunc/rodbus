@@ -59,7 +59,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut channels: Vec<(Channel, RequestParam)> = Vec::new();
     for _ in 0..num_sessions {
         let channel = spawn_tcp_client_task(
-            addr,
+            addr.into(),
             10,
             default_reconnect_strategy(),
             DecodeLevel::new(

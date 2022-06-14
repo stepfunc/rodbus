@@ -1,13 +1,12 @@
 use std::convert::TryFrom;
 use std::io::{self, ErrorKind};
-use std::net::SocketAddr;
 use std::path::Path;
 use std::sync::Arc;
 
 use tokio_rustls::{rustls, webpki};
 use tracing::Instrument;
 
-use crate::client::{Channel, ReconnectStrategy};
+use crate::client::{Channel, HostAddr, ReconnectStrategy};
 use crate::common::phys::PhysLayer;
 use crate::tcp::client::{TcpChannelTask, TcpTaskConnectionHandler};
 use crate::tcp::tls::{load_certs, load_private_key, CertificateMode, MinTlsVersion, TlsError};
@@ -22,20 +21,20 @@ pub struct TlsClientConfig {
 }
 
 pub(crate) fn spawn_tls_channel(
-    addr: SocketAddr,
+    host: HostAddr,
     max_queued_requests: usize,
     connect_retry: Box<dyn ReconnectStrategy + Send>,
     tls_config: TlsClientConfig,
     decode: DecodeLevel,
 ) -> Channel {
     let (handle, task) =
-        create_tls_channel(addr, max_queued_requests, connect_retry, tls_config, decode);
+        create_tls_channel(host, max_queued_requests, connect_retry, tls_config, decode);
     tokio::spawn(task);
     handle
 }
 
 pub(crate) fn create_tls_channel(
-    addr: SocketAddr,
+    host: HostAddr,
     max_queued_requests: usize,
     connect_retry: Box<dyn ReconnectStrategy + Send>,
     tls_config: TlsClientConfig,
@@ -44,14 +43,14 @@ pub(crate) fn create_tls_channel(
     let (tx, rx) = tokio::sync::mpsc::channel(max_queued_requests);
     let task = async move {
         TcpChannelTask::new(
-            addr,
+            host.clone(),
             rx,
             TcpTaskConnectionHandler::Tls(tls_config),
             connect_retry,
             decode,
         )
         .run()
-        .instrument(tracing::info_span!("Modbus-Client-TCP", endpoint = ?addr))
+        .instrument(tracing::info_span!("Modbus-Client-TCP", endpoint = ?host))
         .await
     };
     (Channel { tx }, task)
@@ -142,7 +141,7 @@ impl TlsClientConfig {
     pub(crate) async fn handle_connection(
         &mut self,
         socket: TcpStream,
-        endpoint: &SocketAddr,
+        endpoint: &HostAddr,
     ) -> Result<PhysLayer, String> {
         let connector = tokio_rustls::TlsConnector::from(self.config.clone());
         match connector.connect(self.dns_name.clone(), socket).await {
