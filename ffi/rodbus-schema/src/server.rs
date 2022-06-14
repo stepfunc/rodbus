@@ -39,6 +39,9 @@ pub(crate) fn build_server(
 
     let server = lib.declare_class("server")?;
 
+    let address_doc = "Local IP (v4/v6) address. Accepts '0.0.0.0' (all adapters), '127.0.0.1' (localhost), or the address of a particular network adapter";
+    let port_doc = "Port on which to listen";
+
     let tcp_constructor = lib
         .define_function("server_create_tcp")?
         .param(
@@ -46,7 +49,8 @@ pub(crate) fn build_server(
             common.runtime_handle.clone(),
             "runtime on which to spawn the server",
         )?
-        .param("address", StringType, "IPv4 or IPv6 host/port string")?
+        .param("address", StringType, address_doc)?
+        .param("port", Primitive::U16, port_doc)?
         .param("max_sessions", Primitive::U16, "Maximum number of concurrent sessions")?
         .param(
             "endpoints",
@@ -100,7 +104,8 @@ pub(crate) fn build_server(
             common.runtime_handle.clone(),
             "runtime on which to spawn the server",
         )?
-        .param("address", StringType, "IPv4 or IPv6 host/port string")?
+        .param("address", StringType, address_doc)?
+        .param("port", Primitive::U16, port_doc)?
         .param("max_sessions", Primitive::U16, "Maximum number of concurrent sessions")?
         .param(
             "endpoints",

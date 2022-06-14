@@ -150,7 +150,8 @@ int run_tcp_channel(rodbus::Runtime& runtime)
     // ANCHOR: create_tcp_channel
     auto channel = rodbus::ClientChannel::create_tcp(
         runtime,
-        "127.0.0.1:502",
+        "127.0.0.1",
+        502,
         100,
         rodbus::RetryStrategy(), 
         rodbus::DecodeLevel::nothing()
@@ -181,7 +182,8 @@ int run_tls_channel(rodbus::Runtime& runtime, const rodbus::TlsClientConfig& tls
     // ANCHOR: create_tls_channel
     auto channel = rodbus::ClientChannel::create_tls(
         runtime,
-        "127.0.0.1:802",
+        "127.0.0.1",
+        802,
         100,
         rodbus::RetryStrategy(),
         tls_config,
