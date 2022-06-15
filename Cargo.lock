@@ -166,8 +166,8 @@ checksum = "c4872d67bab6358e59559027aa3b9157c53d9358c51423c17554809a8858e0f8"
 
 [[package]]
 name = "c-oo-bindgen"
-version = "0.2.0"
-source = "git+https://github.com/stepfunc/oo_bindgen.git?tag=0.2.0#5d0fe23ae1da50cad284cdca31076214778f4277"
+version = "0.2.1"
+source = "git+https://github.com/stepfunc/oo_bindgen.git?tag=0.2.1#9acd745340b08489e60347d09c8b4d1e36dd42e8"
 dependencies = [
  "oo-bindgen",
 ]
@@ -177,6 +177,12 @@ name = "cc"
 version = "1.0.73"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2fff2a6927b3bb87f9595d67196a70493f627687a71d87a0d692242c33f58c11"
+
+[[package]]
+name = "cesu8"
+version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6d43a04d8753f35258c91f8ec639f792891f748a1edbd759cf1dcea3382ad83c"
 
 [[package]]
 name = "cfg-if"
@@ -198,8 +204,8 @@ dependencies = [
 
 [[package]]
 name = "ci-script"
-version = "0.2.0"
-source = "git+https://github.com/stepfunc/oo_bindgen.git?tag=0.2.0#5d0fe23ae1da50cad284cdca31076214778f4277"
+version = "0.2.1"
+source = "git+https://github.com/stepfunc/oo_bindgen.git?tag=0.2.1#9acd745340b08489e60347d09c8b4d1e36dd42e8"
 dependencies = [
  "c-oo-bindgen",
  "clap",
@@ -231,6 +237,16 @@ dependencies = [
  "textwrap",
  "unicode-width",
  "vec_map",
+]
+
+[[package]]
+name = "combine"
+version = "4.6.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2a604e93b79d1808327a6fca85a6f2d69de66461e7620f5a4cbf5fb4d1d7c948"
+dependencies = [
+ "bytes",
+ "memchr",
 ]
 
 [[package]]
@@ -314,8 +330,8 @@ dependencies = [
 
 [[package]]
 name = "dotnet-oo-bindgen"
-version = "0.2.0"
-source = "git+https://github.com/stepfunc/oo_bindgen.git?tag=0.2.0#5d0fe23ae1da50cad284cdca31076214778f4277"
+version = "0.2.1"
+source = "git+https://github.com/stepfunc/oo_bindgen.git?tag=0.2.1#9acd745340b08489e60347d09c8b4d1e36dd42e8"
 dependencies = [
  "dunce",
  "oo-bindgen",
@@ -477,13 +493,33 @@ checksum = "112c678d4050afce233f4f2852bb2eb519230b3cf12f33585275537d7e41578d"
 
 [[package]]
 name = "java-oo-bindgen"
-version = "0.2.0"
-source = "git+https://github.com/stepfunc/oo_bindgen.git?tag=0.2.0#5d0fe23ae1da50cad284cdca31076214778f4277"
+version = "0.2.1"
+source = "git+https://github.com/stepfunc/oo_bindgen.git?tag=0.2.1#9acd745340b08489e60347d09c8b4d1e36dd42e8"
 dependencies = [
  "dunce",
  "oo-bindgen",
  "pathdiff",
 ]
+
+[[package]]
+name = "jni"
+version = "0.19.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c6df18c2e3db7e453d3c6ac5b3e9d5182664d28788126d39b91f2d1e22b017ec"
+dependencies = [
+ "cesu8",
+ "combine",
+ "jni-sys",
+ "log",
+ "thiserror",
+ "walkdir",
+]
+
+[[package]]
+name = "jni-sys"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8eaf4bc02d17cbdd7ff4c7438cafcdf7fb9a4613313ad11b4f8fefe7d3fa0130"
 
 [[package]]
 name = "js-sys"
@@ -661,8 +697,8 @@ checksum = "7709cef83f0c1f58f666e746a08b21e0085f7440fa6a29cc194d68aac97a4225"
 
 [[package]]
 name = "oo-bindgen"
-version = "0.2.0"
-source = "git+https://github.com/stepfunc/oo_bindgen.git?tag=0.2.0#5d0fe23ae1da50cad284cdca31076214778f4277"
+version = "0.2.1"
+source = "git+https://github.com/stepfunc/oo_bindgen.git?tag=0.2.1#9acd745340b08489e60347d09c8b4d1e36dd42e8"
 dependencies = [
  "backtrace",
  "heck",
@@ -910,9 +946,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "rodbus_ffi_java"
+version = "1.0.0"
+dependencies = [
+ "java-oo-bindgen",
+ "jni",
+ "rodbus-ffi",
+ "rodbus-schema",
+]
+
+[[package]]
 name = "rust-oo-bindgen"
-version = "0.2.0"
-source = "git+https://github.com/stepfunc/oo_bindgen.git?tag=0.2.0#5d0fe23ae1da50cad284cdca31076214778f4277"
+version = "0.2.1"
+source = "git+https://github.com/stepfunc/oo_bindgen.git?tag=0.2.1#9acd745340b08489e60347d09c8b4d1e36dd42e8"
 dependencies = [
  "heck",
  "oo-bindgen",
@@ -948,6 +994,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0c0fbb5f676da676c260ba276a8f43a8dc67cf02d1438423aeb1c677a7212686"
 dependencies = [
  "cipher",
+]
+
+[[package]]
+name = "same-file"
+version = "1.0.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "93fc1dc3aaa9bfed95e02e6eadabb4baf7e3078b0bd1b4d7b6b0b68378900502"
+dependencies = [
+ "winapi-util",
 ]
 
 [[package]]
@@ -1371,6 +1426,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "49874b5167b65d7193b8aba1567f5c7d93d001cafc34600cee003eda787e483f"
 
 [[package]]
+name = "walkdir"
+version = "2.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "808cf2735cd4b6866113f648b791c6adc5714537bc222d9347bb203386ffda56"
+dependencies = [
+ "same-file",
+ "winapi",
+ "winapi-util",
+]
+
+[[package]]
 name = "wasi"
 version = "0.11.0+wasi-snapshot-preview1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1465,6 +1531,15 @@ name = "winapi-i686-pc-windows-gnu"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ac3b87c63620426dd9b991e5ce0329eff545bccbbb34f3be09ff6fb6ab51b7b6"
+
+[[package]]
+name = "winapi-util"
+version = "0.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "70ec6ce85bb158151cae5e5c87f95a8e97d2c0c4b001223f33a334e3ce5de178"
+dependencies = [
+ "winapi",
+]
 
 [[package]]
 name = "winapi-x86_64-pc-windows-gnu"
