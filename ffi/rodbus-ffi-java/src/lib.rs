@@ -3,6 +3,7 @@
     clippy::useless_conversion,
     clippy::redundant_closure,
     clippy::needless_borrow,
+    clippy::let_unit_value,
     clippy::needless_return,
     clippy::not_unsafe_ptr_arg_deref,
     unused_variables,
