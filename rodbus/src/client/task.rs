@@ -71,6 +71,18 @@ impl ClientLoop {
     pub(crate) async fn run(&mut self, io: &mut PhysLayer) -> SessionError {
         loop {
             tokio::select! {
+                frame = self.reader.next_frame(io, self.decode) => {
+                    match frame {
+                        Ok(frame) => {
+                            tracing::warn!("Received unexpected frame while idle: {:?}", frame.header);
+                        }
+                        Err(err) => {
+                            if let Some(err) = SessionError::from(&err) {
+                                return err;
+                            }
+                        }
+                    }
+                }
                 cmd = self.rx.recv() => {
                     match cmd {
                         // other side has closed the request channel

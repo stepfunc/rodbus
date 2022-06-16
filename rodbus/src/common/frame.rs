@@ -106,7 +106,7 @@ impl std::fmt::Display for FrameDestination {
     }
 }
 
-#[derive(Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub(crate) struct FrameHeader {
     pub(crate) destination: FrameDestination,
     /// Transaction ids are not used in RTU
