@@ -80,9 +80,12 @@ where
         Ok(())
     }
 
-    pub(crate) async fn run(&mut self) -> Result<(), RequestError> {
+    pub(crate) async fn run(&mut self) -> RequestError {
         loop {
-            self.run_one().await?;
+            if let Err(err) = self.run_one().await {
+                tracing::warn!("session error: {}", err);
+                return err;
+            }
         }
     }
 

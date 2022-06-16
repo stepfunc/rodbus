@@ -16,7 +16,7 @@ use crate::error::*;
 #[derive(Debug, PartialEq)]
 pub(crate) enum SessionError {
     // the stream errors
-    IoError,
+    IoError(std::io::ErrorKind),
     // unrecoverable framing issue,
     BadFrame,
     // the mpsc is closed (dropped) on the sender side
@@ -26,8 +26,8 @@ pub(crate) enum SessionError {
 impl std::fmt::Display for SessionError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            SessionError::IoError => {
-                write!(f, "An I/O occurred on the physical layer")
+            SessionError::IoError(err) => {
+                write!(f, "i/o error: {}", err)
             }
             SessionError::BadFrame => {
                 write!(f, "Parser encountered a bad frame")
@@ -42,7 +42,7 @@ impl std::fmt::Display for SessionError {
 impl SessionError {
     pub(crate) fn from(err: &RequestError) -> Option<Self> {
         match err {
-            RequestError::Io(_) => Some(SessionError::IoError),
+            RequestError::Io(x) => Some(SessionError::IoError(*x)),
             RequestError::BadFrame(_) => Some(SessionError::BadFrame),
             // all other errors don't kill the loop
             _ => None,
