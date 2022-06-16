@@ -69,12 +69,21 @@ impl ClientLoop {
     }
 
     pub(crate) async fn run(&mut self, io: &mut PhysLayer) -> SessionError {
-        while let Some(cmd) = self.rx.recv().await {
-            if let Err(err) = self.run_cmd(cmd, io).await {
-                return err;
+        loop {
+            tokio::select! {
+                cmd = self.rx.recv() => {
+                    match cmd {
+                        // other side has closed the request channel
+                        None => return SessionError::Shutdown,
+                        Some(cmd) => {
+                            if let Err(err) = self.run_cmd(cmd, io).await {
+                                return err;
+                            }
+                        }
+                    }
+                }
             }
         }
-        SessionError::Shutdown
     }
 
     async fn run_one_request(
