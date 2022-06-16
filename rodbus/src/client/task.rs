@@ -23,6 +23,22 @@ pub(crate) enum SessionError {
     Shutdown,
 }
 
+impl std::fmt::Display for SessionError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            SessionError::IoError => {
+                write!(f, "An I/O occurred on the physical layer")
+            }
+            SessionError::BadFrame => {
+                write!(f, "Parser encountered a bad frame")
+            }
+            SessionError::Shutdown => {
+                write!(f, "Shutdown was requested")
+            }
+        }
+    }
+}
+
 impl SessionError {
     pub(crate) fn from(err: &RequestError) -> Option<Self> {
         match err {
@@ -78,6 +94,7 @@ impl ClientLoop {
                         }
                         Err(err) => {
                             if let Some(err) = SessionError::from(&err) {
+                                tracing::warn!("{}", err);
                                 return err;
                             }
                         }
