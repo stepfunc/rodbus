@@ -11,7 +11,7 @@ use crate::common::frame::{FrameHeader, FrameWriter, FramedReader, TxId};
 use crate::error::*;
 
 /**
-* We always common requests in a TCP session until one of the following occurs
+* We execute requests in a session until one of the following occurs
 */
 #[derive(Debug, PartialEq)]
 pub(crate) enum SessionError {
@@ -58,17 +58,20 @@ impl ClientLoop {
         }
     }
 
+    async fn run_cmd(&mut self, cmd: Command, io: &mut PhysLayer) -> Result<(), SessionError> {
+        match cmd {
+            Command::Setting(setting) => {
+                self.change_setting(setting);
+                Ok(())
+            }
+            Command::Request(request) => self.run_one_request(io, request).await,
+        }
+    }
+
     pub(crate) async fn run(&mut self, io: &mut PhysLayer) -> SessionError {
         while let Some(cmd) = self.rx.recv().await {
-            match cmd {
-                Command::Setting(setting) => {
-                    self.change_setting(setting);
-                }
-                Command::Request(request) => {
-                    if let Some(err) = self.run_one_request(io, request).await {
-                        return err;
-                    }
-                }
+            if let Err(err) = self.run_cmd(cmd, io).await {
+                return err;
             }
         }
         SessionError::Shutdown
@@ -78,18 +81,22 @@ impl ClientLoop {
         &mut self,
         io: &mut PhysLayer,
         request: Request,
-    ) -> Option<SessionError> {
+    ) -> Result<(), SessionError> {
         let tx_id = self.tx_id.next();
         let result = self
             .execute_request(io, request, tx_id)
             .instrument(tracing::info_span!("Transaction", tx_id = %tx_id))
             .await;
 
-        if let Err(e) = &result {
-            tracing::warn!("request error: {}", e);
+        if let Err(err) = &result {
+            tracing::warn!("request error: {}", err);
+            // some request errors are a session error
+            if let Some(err) = SessionError::from(err) {
+                return Err(err);
+            }
         }
 
-        result.as_ref().err().and_then(SessionError::from)
+        Ok(())
     }
 
     async fn execute_request(
