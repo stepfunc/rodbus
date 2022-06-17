@@ -237,7 +237,6 @@ mod tests {
     use crate::decode::*;
     use crate::*;
 
-    use crate::error::FrameParseError;
     use crate::server::response::BitWriter;
     use crate::tokio::test::*;
     use crate::types::{AddressRange, Indexed, ReadBitsRange, UnitId};
@@ -349,8 +348,8 @@ mod tests {
     }
 
     #[test]
-    fn framing_errors_kill_the_session() {
-        let (mut fixture, mut tx) = ClientFixture::new();
+    fn framing_errors_kill_the_session_while_idle() {
+        let (mut fixture, _tx) = ClientFixture::new();
 
         let range = AddressRange::try_from(7, 2).unwrap();
 
@@ -361,16 +360,7 @@ mod tests {
             .io_handle
             .read(&[0x00, 0x00, 0xCA, 0xFE, 0x00, 0x01, 0x01]); // non-Modbus protocol id
 
-        let rx = fixture.read_coils(&mut tx, range, Duration::from_secs(5));
-
         fixture.assert_run(SessionError::BadFrame);
-
-        assert_ready_eq!(
-            spawn(rx).poll(),
-            Ok(Err(RequestError::BadFrame(
-                FrameParseError::UnknownProtocolId(0xCAFE)
-            )))
-        );
     }
 
     #[test]
