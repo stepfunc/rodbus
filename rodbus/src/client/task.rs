@@ -244,7 +244,7 @@ mod tests {
     struct ClientFixture {
         client: ClientLoop,
         io: PhysLayer,
-        io_handle: io::Handle,
+        io_handle: io::ScriptHandle,
     }
 
     impl ClientFixture {
@@ -360,11 +360,6 @@ mod tests {
 
     #[test]
     fn transmit_read_coils_when_requested() {
-        tracing_subscriber::fmt()
-            .with_max_level(tracing::Level::INFO)
-            .with_target(false)
-            .init();
-
         let (mut fixture, mut tx) = ClientFixture::new();
 
         let range = AddressRange::try_from(7, 2).unwrap();
