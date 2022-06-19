@@ -16,7 +16,7 @@ pub(crate) enum PhysLayerImpl {
     #[cfg(feature = "tls")]
     Tls(Box<tokio_rustls::TlsStream<crate::tokio::net::TcpStream>>),
     #[cfg(test)]
-    Mock(tokio_mock::mock::test::io::MockIO),
+    Mock(tokio_mock::mock::test::io::MockIo),
 }
 
 impl std::fmt::Debug for PhysLayer {
@@ -54,7 +54,7 @@ impl PhysLayer {
     }
 
     #[cfg(test)]
-    pub(crate) fn new_mock(mock: tokio_mock::mock::test::io::MockIO) -> Self {
+    pub(crate) fn new_mock(mock: tokio_mock::mock::test::io::MockIo) -> Self {
         Self {
             layer: PhysLayerImpl::Mock(mock),
         }

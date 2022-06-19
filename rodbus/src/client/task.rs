@@ -257,7 +257,7 @@ mod tests {
                         rx,
                         FrameWriter::tcp(),
                         FramedReader::tcp(),
-                        DecodeLevel::nothing(),
+                        DecodeLevel::default().application(AppDecodeLevel::DataValues),
                     ),
                     io: PhysLayer::new_mock(io),
                     io_handle,
@@ -351,11 +351,6 @@ mod tests {
     fn framing_errors_kill_the_session_while_idle() {
         let (mut fixture, _tx) = ClientFixture::new();
 
-        let range = AddressRange::try_from(7, 2).unwrap();
-
-        let request = get_framed_adu(FunctionCode::ReadCoils, &range);
-
-        fixture.io_handle.write(&request);
         fixture
             .io_handle
             .read(&[0x00, 0x00, 0xCA, 0xFE, 0x00, 0x01, 0x01]); // non-Modbus protocol id
@@ -365,6 +360,11 @@ mod tests {
 
     #[test]
     fn transmit_read_coils_when_requested() {
+        tracing_subscriber::fmt()
+            .with_max_level(tracing::Level::INFO)
+            .with_target(false)
+            .init();
+
         let (mut fixture, mut tx) = ClientFixture::new();
 
         let range = AddressRange::try_from(7, 2).unwrap();

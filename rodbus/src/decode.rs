@@ -65,6 +65,24 @@ impl DecodeLevel {
             physical,
         }
     }
+
+    /// Change the application decode level
+    pub fn application(mut self, level: AppDecodeLevel) -> Self {
+        self.app = level;
+        self
+    }
+
+    /// Change the frame decode level
+    pub fn frame(mut self, level: FrameDecodeLevel) -> Self {
+        self.frame = level;
+        self
+    }
+
+    /// Change the physical layer decode level
+    pub fn physical(mut self, level: PhysDecodeLevel) -> Self {
+        self.physical = level;
+        self
+    }
 }
 
 impl Default for DecodeLevel {
