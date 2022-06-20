@@ -165,7 +165,6 @@ mod tests {
             assert_ready_eq!(task.poll(), 3);
         }
 
-        assert!(io_handle.all_done());
         assert_eq!(buffer.read(2).unwrap(), &[0x01, 0x02]);
 
         {

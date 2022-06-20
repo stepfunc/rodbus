@@ -11,22 +11,38 @@ use crate::common::frame::{FrameHeader, FrameWriter, FramedReader, TxId};
 use crate::error::*;
 
 /**
-* We always common requests in a TCP session until one of the following occurs
+* We execute requests in a session until one of the following occurs
 */
 #[derive(Debug, PartialEq)]
 pub(crate) enum SessionError {
     // the stream errors
-    IoError,
+    IoError(std::io::ErrorKind),
     // unrecoverable framing issue,
     BadFrame,
     // the mpsc is closed (dropped) on the sender side
     Shutdown,
 }
 
+impl std::fmt::Display for SessionError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            SessionError::IoError(err) => {
+                write!(f, "i/o error: {}", err)
+            }
+            SessionError::BadFrame => {
+                write!(f, "Parser encountered a bad frame")
+            }
+            SessionError::Shutdown => {
+                write!(f, "Shutdown was requested")
+            }
+        }
+    }
+}
+
 impl SessionError {
     pub(crate) fn from(err: &RequestError) -> Option<Self> {
         match err {
-            RequestError::Io(_) => Some(SessionError::IoError),
+            RequestError::Io(x) => Some(SessionError::IoError(*x)),
             RequestError::BadFrame(_) => Some(SessionError::BadFrame),
             // all other errors don't kill the loop
             _ => None,
@@ -58,38 +74,67 @@ impl ClientLoop {
         }
     }
 
+    async fn run_cmd(&mut self, cmd: Command, io: &mut PhysLayer) -> Result<(), SessionError> {
+        match cmd {
+            Command::Setting(setting) => {
+                self.change_setting(setting);
+                Ok(())
+            }
+            Command::Request(request) => self.run_one_request(io, request).await,
+        }
+    }
+
     pub(crate) async fn run(&mut self, io: &mut PhysLayer) -> SessionError {
-        while let Some(cmd) = self.rx.recv().await {
-            match cmd {
-                Command::Setting(setting) => {
-                    self.change_setting(setting);
+        loop {
+            tokio::select! {
+                frame = self.reader.next_frame(io, self.decode) => {
+                    match frame {
+                        Ok(frame) => {
+                            tracing::warn!("Received unexpected frame while idle: {:?}", frame.header);
+                        }
+                        Err(err) => {
+                            if let Some(err) = SessionError::from(&err) {
+                                tracing::warn!("{}", err);
+                                return err;
+                            }
+                        }
+                    }
                 }
-                Command::Request(request) => {
-                    if let Some(err) = self.run_one_request(io, request).await {
-                        return err;
+                cmd = self.rx.recv() => {
+                    match cmd {
+                        // other side has closed the request channel
+                        None => return SessionError::Shutdown,
+                        Some(cmd) => {
+                            if let Err(err) = self.run_cmd(cmd, io).await {
+                                return err;
+                            }
+                        }
                     }
                 }
             }
         }
-        SessionError::Shutdown
     }
 
     async fn run_one_request(
         &mut self,
         io: &mut PhysLayer,
         request: Request,
-    ) -> Option<SessionError> {
+    ) -> Result<(), SessionError> {
         let tx_id = self.tx_id.next();
         let result = self
             .execute_request(io, request, tx_id)
             .instrument(tracing::info_span!("Transaction", tx_id = %tx_id))
             .await;
 
-        if let Err(e) = &result {
-            tracing::warn!("request error: {}", e);
+        if let Err(err) = &result {
+            tracing::warn!("request error: {}", err);
+            // some request errors are a session error
+            if let Some(err) = SessionError::from(err) {
+                return Err(err);
+            }
         }
 
-        result.as_ref().err().and_then(SessionError::from)
+        Ok(())
     }
 
     async fn execute_request(
@@ -192,7 +237,6 @@ mod tests {
     use crate::decode::*;
     use crate::*;
 
-    use crate::error::FrameParseError;
     use crate::server::response::BitWriter;
     use crate::tokio::test::*;
     use crate::types::{AddressRange, Indexed, ReadBitsRange, UnitId};
@@ -200,7 +244,7 @@ mod tests {
     struct ClientFixture {
         client: ClientLoop,
         io: PhysLayer,
-        io_handle: io::Handle,
+        io_handle: io::ScriptHandle,
     }
 
     impl ClientFixture {
@@ -213,7 +257,7 @@ mod tests {
                         rx,
                         FrameWriter::tcp(),
                         FramedReader::tcp(),
-                        DecodeLevel::nothing(),
+                        DecodeLevel::default().application(AppDecodeLevel::DataValues),
                     ),
                     io: PhysLayer::new_mock(io),
                     io_handle,
@@ -304,28 +348,14 @@ mod tests {
     }
 
     #[test]
-    fn framing_errors_kill_the_session() {
-        let (mut fixture, mut tx) = ClientFixture::new();
+    fn framing_errors_kill_the_session_while_idle() {
+        let (mut fixture, _tx) = ClientFixture::new();
 
-        let range = AddressRange::try_from(7, 2).unwrap();
-
-        let request = get_framed_adu(FunctionCode::ReadCoils, &range);
-
-        fixture.io_handle.write(&request);
         fixture
             .io_handle
             .read(&[0x00, 0x00, 0xCA, 0xFE, 0x00, 0x01, 0x01]); // non-Modbus protocol id
 
-        let rx = fixture.read_coils(&mut tx, range, Duration::from_secs(5));
-
         fixture.assert_run(SessionError::BadFrame);
-
-        assert_ready_eq!(
-            spawn(rx).poll(),
-            Ok(Err(RequestError::BadFrame(
-                FrameParseError::UnknownProtocolId(0xCAFE)
-            )))
-        );
     }
 
     #[test]

@@ -205,24 +205,9 @@ async fn create_rtu_server_task_impl<T: RequestHandler>(
         decode,
     );
 
-    async {
-        loop {
-            let result = task.run().await;
-
-            match result {
-                Ok(()) => continue,
-                Err(crate::RequestError::Shutdown) => {
-                    tracing::info!("shutdown");
-                    return;
-                }
-                Err(err) => {
-                    tracing::warn!("{}", err);
-                }
-            }
-        }
-    }
-    .instrument(tracing::info_span!("Modbus-Server-RTU", "port" = ?path))
-    .await;
+    task.run()
+        .instrument(tracing::info_span!("Modbus-Server-RTU", "port" = ?path))
+        .await;
 }
 
 /// Spawns a TLS server task onto the runtime. This method can only

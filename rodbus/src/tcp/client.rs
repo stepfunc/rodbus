@@ -127,7 +127,7 @@ impl TcpChannelTask {
                                 // the mpsc was closed, end the task
                                 SessionError::Shutdown => return,
                                 // re-establish the connection
-                                SessionError::IoError | SessionError::BadFrame => {}
+                                SessionError::IoError(_) | SessionError::BadFrame => {}
                             }
                         }
                     }
