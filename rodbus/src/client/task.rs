@@ -228,6 +228,7 @@ impl ClientLoop {
 
 #[cfg(test)]
 mod tests {
+    use std::io::ErrorKind;
     use std::task::Poll;
 
     use super::*;
@@ -323,6 +324,37 @@ mod tests {
         drop(tx);
 
         fixture.assert_run(SessionError::Shutdown);
+    }
+
+    #[test]
+    fn returns_io_error_when_write_fails() {
+        let (mut fixture, mut tx) = ClientFixture::new();
+
+        // fail the first write
+        fixture.io_handle.write_error(ErrorKind::UnexpectedEof);
+
+        // ask for a read coils
+        let range = AddressRange::try_from(7, 2).unwrap();
+        let _ = fixture.read_coils(&mut tx, range, Duration::from_secs(5));
+        fixture.assert_run(SessionError::IoError(ErrorKind::UnexpectedEof));
+    }
+
+    #[test]
+    fn returns_shutdown_when_future_dropped() {
+        let (mut fixture, mut tx) = ClientFixture::new();
+
+        // expect a read coils
+        let range = AddressRange::try_from(7, 2).unwrap();
+        let request = get_framed_adu(FunctionCode::ReadCoils, &range);
+        fixture.io_handle.write(&request);
+
+        let rx = fixture.read_coils(&mut tx, range, Duration::from_secs(5));
+        fixture.assert_pending();
+
+        // drop the fixture!
+        drop(fixture);
+
+        assert_ready_eq!(spawn(rx).poll(), Ok(Err(RequestError::Shutdown)));
     }
 
     #[test]
