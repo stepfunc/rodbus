@@ -68,8 +68,8 @@ pub struct BitIterator<'a> {
     pos: u16,
 }
 
-pub(crate) struct BitIteratorDisplay<'a, 'b> {
-    iterator: &'a BitIterator<'b>,
+pub(crate) struct BitIteratorDisplay<'a> {
+    iterator: BitIterator<'a>,
     level: AppDecodeLevel,
 }
 
@@ -81,8 +81,8 @@ pub struct RegisterIterator<'a> {
     pos: u16,
 }
 
-pub(crate) struct RegisterIteratorDisplay<'a, 'b> {
-    iterator: &'a RegisterIterator<'b>,
+pub(crate) struct RegisterIteratorDisplay<'a> {
+    iterator: RegisterIterator<'a>,
     level: AppDecodeLevel,
 }
 
@@ -107,19 +107,18 @@ impl<'a> BitIterator<'a> {
     }
 }
 
-impl<'a, 'b> BitIteratorDisplay<'a, 'b> {
-    pub(crate) fn new(level: AppDecodeLevel, iterator: &'a BitIterator<'b>) -> Self {
+impl<'a> BitIteratorDisplay<'a> {
+    pub(crate) fn new(level: AppDecodeLevel, iterator: BitIterator<'a>) -> Self {
         Self { iterator, level }
     }
 }
 
-impl std::fmt::Display for BitIteratorDisplay<'_, '_> {
+impl std::fmt::Display for BitIteratorDisplay<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "{}", self.iterator.range)?;
 
         if self.level.data_values() {
-            // This clone is lightweigth
-            for x in *self.iterator {
+            for x in self.iterator {
                 write!(f, "\n{}", x)?;
             }
         }
@@ -143,19 +142,18 @@ impl<'a> RegisterIterator<'a> {
     }
 }
 
-impl<'a, 'b> RegisterIteratorDisplay<'a, 'b> {
-    pub(crate) fn new(level: AppDecodeLevel, iterator: &'a RegisterIterator<'b>) -> Self {
+impl<'a> RegisterIteratorDisplay<'a> {
+    pub(crate) fn new(level: AppDecodeLevel, iterator: RegisterIterator<'a>) -> Self {
         Self { iterator, level }
     }
 }
 
-impl std::fmt::Display for RegisterIteratorDisplay<'_, '_> {
+impl std::fmt::Display for RegisterIteratorDisplay<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "{}", self.iterator.range)?;
 
         if self.level.data_values() {
-            // This clone is lightweigth
-            for x in *self.iterator {
+            for x in self.iterator {
                 write!(f, "\n{}", x)?;
             }
         }

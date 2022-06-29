@@ -3,27 +3,44 @@ use crate::common::function::FunctionCode;
 use crate::common::traits::Serialize;
 use crate::decode::AppDecodeLevel;
 use crate::error::RequestError;
-use crate::tokio;
 use crate::types::{
     AddressRange, Indexed, ReadRegistersRange, RegisterIterator, RegisterIteratorDisplay,
 };
 
-pub(crate) enum Promise {
-    Channel(tokio::sync::oneshot::Sender<Result<Vec<Indexed<u16>>, RequestError>>),
-    Callback(Box<dyn FnOnce(Result<RegisterIterator, RequestError>) + Send + Sync + 'static>),
+pub(crate) trait RegistersCallback:
+    FnOnce(Result<RegisterIterator, RequestError>) + Send + Sync + 'static
+{
+}
+impl<T> RegistersCallback for T where
+    T: FnOnce(Result<RegisterIterator, RequestError>) + Send + Sync + 'static
+{
+}
+
+pub(crate) struct Promise {
+    callback: Option<Box<dyn RegistersCallback>>,
 }
 
 impl Promise {
-    pub(crate) fn failure(self, err: RequestError) {
+    pub(crate) fn new<T>(callback: T) -> Self
+    where
+        T: RegistersCallback,
+    {
+        Self {
+            callback: Some(Box::new(callback)),
+        }
+    }
+
+    pub(crate) fn failure(&mut self, err: RequestError) {
         self.complete(Err(err))
     }
 
-    pub(crate) fn complete(self, x: Result<RegisterIterator, RequestError>) {
-        match self {
-            Promise::Channel(sender) => {
-                sender.send(x.map(|y| y.collect())).ok();
-            }
-            Promise::Callback(callback) => callback(x),
+    pub(crate) fn success(&mut self, iter: RegisterIterator) {
+        self.complete(Ok(iter))
+    }
+
+    fn complete(&mut self, x: Result<RegisterIterator, RequestError>) {
+        if let Some(callback) = self.callback.take() {
+            callback(x)
         }
     }
 }
@@ -38,39 +55,44 @@ impl ReadRegisters {
         Self { request, promise }
     }
 
+    pub(crate) fn channel(
+        request: ReadRegistersRange,
+        tx: crate::tokio::sync::oneshot::Sender<Result<Vec<Indexed<u16>>, RequestError>>,
+    ) -> Self {
+        Self::new(
+            request,
+            Promise::new(|x: Result<RegisterIterator, RequestError>| {
+                let _ = tx.send(x.map(|x| x.collect()));
+            }),
+        )
+    }
+
     pub(crate) fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
         self.request.get().serialize(cursor)
     }
 
-    pub(crate) fn failure(self, err: RequestError) {
+    pub(crate) fn failure(&mut self, err: RequestError) {
         self.promise.failure(err)
     }
 
     pub(crate) fn handle_response(
-        self,
+        &mut self,
         mut cursor: ReadCursor,
         function: FunctionCode,
         decode: AppDecodeLevel,
-    ) {
-        let result = Self::parse_registers_response(self.request.get(), &mut cursor);
+    ) -> Result<(), RequestError> {
+        let response = Self::parse_registers_response(self.request.get(), &mut cursor)?;
 
-        match &result {
-            Ok(response) => {
-                if decode.enabled() {
-                    tracing::info!(
-                        "PDU RX - {} {}",
-                        function,
-                        RegisterIteratorDisplay::new(decode, response)
-                    );
-                }
-            }
-            Err(err) => {
-                // TODO: check if this is how we want to log it
-                tracing::warn!("{}", err);
-            }
+        if decode.enabled() {
+            tracing::info!(
+                "PDU RX - {} {}",
+                function,
+                RegisterIteratorDisplay::new(decode, response)
+            );
         }
 
-        self.promise.complete(result)
+        self.promise.success(response);
+        Ok(())
     }
 
     fn parse_registers_response<'a>(

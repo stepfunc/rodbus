@@ -242,14 +242,14 @@ impl std::fmt::Display for RequestDisplay<'_, '_> {
                     write!(
                         f,
                         " {}",
-                        BitIteratorDisplay::new(self.level, &items.iterator)
+                        BitIteratorDisplay::new(self.level, items.iterator)
                     )?;
                 }
                 Request::WriteMultipleRegisters(items) => {
                     write!(
                         f,
                         " {}",
-                        RegisterIteratorDisplay::new(self.level, &items.iterator)
+                        RegisterIteratorDisplay::new(self.level, items.iterator)
                     )?;
                 }
             }

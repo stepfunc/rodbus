@@ -15,7 +15,7 @@ pub(crate) trait SingleWriteOperation: Sized + PartialEq {
 
 pub(crate) struct SingleWrite<T>
 where
-    T: SingleWriteOperation + Display,
+    T: SingleWriteOperation + Display + Send + 'static,
 {
     pub(crate) request: T,
     promise: Promise<T>,
@@ -23,7 +23,7 @@ where
 
 impl<T> SingleWrite<T>
 where
-    T: SingleWriteOperation + Display,
+    T: SingleWriteOperation + Display + Send + 'static,
 {
     pub(crate) fn new(request: T, promise: Promise<T>) -> Self {
         Self { request, promise }
@@ -33,33 +33,26 @@ where
         self.request.serialize(cursor)
     }
 
-    pub(crate) fn failure(self, err: RequestError) {
+    pub(crate) fn failure(&mut self, err: RequestError) {
         self.promise.failure(err)
     }
 
     pub(crate) fn handle_response(
-        self,
+        &mut self,
         cursor: ReadCursor,
         function: FunctionCode,
         decode: AppDecodeLevel,
-    ) {
-        let result = self.parse_all(cursor);
+    ) -> Result<(), RequestError> {
+        let response = self.parse_all(cursor)?;
 
-        match &result {
-            Ok(response) => {
-                if decode.data_headers() {
-                    tracing::info!("PDU RX - {} {}", function, response);
-                } else if decode.header() {
-                    tracing::info!("PDU RX - {}", function);
-                }
-            }
-            Err(err) => {
-                // TODO: check if this is how we want to log it
-                tracing::warn!("{}", err);
-            }
+        if decode.data_headers() {
+            tracing::info!("PDU RX - {} {}", function, response);
+        } else if decode.header() {
+            tracing::info!("PDU RX - {}", function);
         }
 
-        self.promise.complete(result)
+        self.promise.success(response);
+        Ok(())
     }
 
     fn parse_all(&self, mut cursor: ReadCursor) -> Result<T, RequestError> {

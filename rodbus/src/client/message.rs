@@ -4,7 +4,7 @@ use crate::decode::AppDecodeLevel;
 use crate::error::AduParseError;
 use crate::error::*;
 use crate::exception::ExceptionCode;
-use crate::{tokio, DecodeLevel};
+use crate::DecodeLevel;
 
 use crate::client::requests::read_bits::ReadBits;
 use crate::client::requests::read_registers::ReadRegisters;
@@ -53,21 +53,23 @@ impl Request {
         }
     }
 
-    pub(crate) fn handle_response(self, payload: &[u8], decode: AppDecodeLevel) {
+    pub(crate) fn handle_response(
+        &mut self,
+        payload: &[u8],
+        decode: AppDecodeLevel,
+    ) -> Result<(), RequestError> {
         let expected_function = self.details.function();
         let mut cursor = ReadCursor::new(payload);
         let function = match cursor.read_u8() {
             Ok(x) => x,
             Err(err) => {
                 tracing::warn!("unable to read function code");
-                return self.details.fail(err.into());
+                return Err(err.into());
             }
         };
 
         if function != expected_function.get_value() {
-            return self
-                .details
-                .fail(Self::get_error_for(function, expected_function, cursor));
+            return Err(Self::get_error_for(function, expected_function, cursor));
         }
 
         // If we made it this far, then everything's alright
@@ -127,7 +129,7 @@ impl RequestDetails {
         }
     }
 
-    pub(crate) fn fail(self, err: RequestError) {
+    pub(crate) fn fail(&mut self, err: RequestError) {
         match self {
             RequestDetails::ReadCoils(x) => x.failure(err),
             RequestDetails::ReadDiscreteInputs(x) => x.failure(err),
@@ -140,7 +142,11 @@ impl RequestDetails {
         }
     }
 
-    fn handle_response(self, cursor: ReadCursor, decode: AppDecodeLevel) {
+    fn handle_response(
+        &mut self,
+        cursor: ReadCursor,
+        decode: AppDecodeLevel,
+    ) -> Result<(), RequestError> {
         let function = self.function();
         match self {
             RequestDetails::ReadCoils(x) => x.handle_response(cursor, function, decode),
@@ -239,28 +245,54 @@ impl std::fmt::Display for RequestDetailsDisplay<'_> {
     }
 }
 
-pub(crate) enum Promise<T> {
-    Channel(tokio::sync::oneshot::Sender<Result<T, RequestError>>),
-    Callback(Box<dyn FnOnce(Result<T, RequestError>) + Send + Sync + 'static>),
+pub(crate) struct Promise<T>
+where
+    T: Send + 'static,
+{
+    callback: Option<Box<dyn FnOnce(Result<T, RequestError>) + Send + Sync + 'static>>,
 }
 
-impl<T> Promise<T> {
-    pub(crate) fn failure(self, err: RequestError) {
+impl<T> Promise<T>
+where
+    T: Send + 'static,
+{
+    pub(crate) fn new<F>(callback: F) -> Self
+    where
+        F: FnOnce(Result<T, RequestError>) + Send + Sync + 'static,
+    {
+        Self {
+            callback: Some(Box::new(callback)),
+        }
+    }
+
+    pub(crate) fn channel(
+        tx: crate::tokio::sync::oneshot::Sender<Result<T, RequestError>>,
+    ) -> Self {
+        Self::new(|x: Result<T, RequestError>| {
+            let _ = tx.send(x);
+        })
+    }
+
+    pub(crate) fn failure(&mut self, err: RequestError) {
         self.complete(Err(err))
     }
 
-    pub(crate) fn complete(self, x: Result<T, RequestError>) {
-        match self {
-            Promise::Channel(sender) => {
-                sender.send(x).ok();
-            }
-            Promise::Callback(func) => {
-                func(x);
-            }
+    pub(crate) fn success(&mut self, value: T) {
+        self.complete(Ok(value))
+    }
+
+    fn complete(&mut self, result: Result<T, RequestError>) {
+        if let Some(callback) = self.callback.take() {
+            callback(result)
         }
     }
 }
 
-trait Callback<U> {
-    fn complete(self, result: Result<U, RequestError>);
+impl<T> Drop for Promise<T>
+where
+    T: Send + 'static,
+{
+    fn drop(&mut self) {
+        self.failure(RequestError::Shutdown);
+    }
 }

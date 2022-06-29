@@ -211,7 +211,7 @@ where
                 Err(_) => return Ok(()),
             };
 
-            write!(f, "{}", BitIteratorDisplay::new(level, &iterator))?;
+            write!(f, "{}", BitIteratorDisplay::new(level, iterator))?;
         }
 
         Ok(())
@@ -256,7 +256,7 @@ where
                 Err(_) => return Ok(()),
             };
 
-            write!(f, "{}", RegisterIteratorDisplay::new(level, &iterator))?;
+            write!(f, "{}", RegisterIteratorDisplay::new(level, iterator))?;
         }
 
         Ok(())
