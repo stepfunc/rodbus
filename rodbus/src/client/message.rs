@@ -245,11 +245,18 @@ impl std::fmt::Display for RequestDetailsDisplay<'_> {
     }
 }
 
+pub(crate) trait Callback<T>:
+    FnOnce(Result<T, RequestError>) + Send + Sync + 'static
+{
+}
+
+impl<F, T> Callback<T> for F where F: FnOnce(Result<T, RequestError>) + Send + Sync + 'static {}
+
 pub(crate) struct Promise<T>
 where
     T: Send + 'static,
 {
-    callback: Option<Box<dyn FnOnce(Result<T, RequestError>) + Send + Sync + 'static>>,
+    callback: Option<Box<dyn Callback<T>>>,
 }
 
 impl<T> Promise<T>
@@ -258,7 +265,7 @@ where
 {
     pub(crate) fn new<F>(callback: F) -> Self
     where
-        F: FnOnce(Result<T, RequestError>) + Send + Sync + 'static,
+        F: Callback<T>,
     {
         Self {
             callback: Some(Box::new(callback)),
