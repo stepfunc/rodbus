@@ -127,10 +127,13 @@ impl ClientLoop {
             .await;
 
         if let Err(err) = result {
+            // Fail the request in ONE place. If the whole future
+            // gets dropped, then the request gets failed with Shutdown
             tracing::warn!("request error: {}", err);
             request.details.fail(err);
 
-            // some request errors are a session error
+            // some request errors are a session error that will
+            // bubble up and close the session
             if let Some(err) = SessionError::from(&err) {
                 return Err(err);
             }
@@ -160,15 +163,10 @@ impl ClientLoop {
         let response = loop {
             let frame = tokio::select! {
                 _ = tokio::time::sleep_until(deadline) => {
-                    request.details.fail(RequestError::ResponseTimeout);
-                    return Ok(());
+                    return Err(RequestError::ResponseTimeout);
                 }
-                x = self.reader.next_frame(io, self.decode) => match x {
-                    Ok(frame) => frame,
-                    Err(err) => {
-                        request.details.fail(err);
-                        return Err(err);
-                    }
+                frame = self.reader.next_frame(io, self.decode) => {
+                    frame?
                 }
             };
 
@@ -183,6 +181,8 @@ impl ClientLoop {
             break frame;
         };
 
+        // once we have a response, handle it. This may complete a promise
+        // successfully or bubble up an error
         request.handle_response(response.payload(), self.decode.app)
     }
 
