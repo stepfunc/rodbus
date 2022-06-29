@@ -51,7 +51,7 @@ pub(crate) fn create_tls_channel(
         )
         .run()
         .instrument(tracing::info_span!("Modbus-Client-TCP", endpoint = ?host))
-        .await
+        .await;
     };
     (Channel { tx }, task)
 }
