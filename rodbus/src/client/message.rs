@@ -303,3 +303,92 @@ where
         self.failure(RequestError::Shutdown);
     }
 }
+
+#[cfg(test)]
+mod test {
+    use crate::client::message::{Promise, RequestDetails};
+    use crate::client::requests::read_bits::ReadBits;
+    use crate::client::requests::read_registers::ReadRegisters;
+    use crate::client::requests::write_single::SingleWrite;
+    use crate::{AddressRange, BitIterator, Indexed, RegisterIterator, RequestError};
+    use std::collections::VecDeque;
+    use std::sync::{Arc, Mutex};
+
+    #[derive(Clone)]
+    struct Errors {
+        inner: Arc<Mutex<VecDeque<RequestError>>>,
+    }
+
+    impl Errors {
+        fn new() -> Self {
+            Self {
+                inner: Default::default(),
+            }
+        }
+
+        fn push(&mut self, err: RequestError) {
+            let mut guard = self.inner.lock().unwrap();
+            guard.push_back(err);
+        }
+
+        fn pop(&mut self) -> (Option<RequestError>, usize) {
+            let mut guard = self.inner.lock().unwrap();
+            let ret = guard.pop_front();
+            (ret, guard.len())
+        }
+    }
+
+    fn create_read_bits(mut errors: Errors) -> RequestDetails {
+        let range = AddressRange::try_from(0, 5)
+            .unwrap()
+            .of_read_bits()
+            .unwrap();
+        let callback = move |result: Result<BitIterator, RequestError>| {
+            errors.push(result.err().unwrap());
+        };
+        RequestDetails::ReadCoils(ReadBits::new(
+            range,
+            crate::client::requests::read_bits::Promise::new(callback),
+        ))
+    }
+
+    fn create_read_registers(mut errors: Errors) -> RequestDetails {
+        let range = AddressRange::try_from(0, 5)
+            .unwrap()
+            .of_read_registers()
+            .unwrap();
+        let callback = move |result: Result<RegisterIterator, RequestError>| {
+            errors.push(result.err().unwrap());
+        };
+        RequestDetails::ReadHoldingRegisters(ReadRegisters::new(
+            range,
+            crate::client::requests::read_registers::Promise::new(callback),
+        ))
+    }
+
+    fn create_write_coil(mut errors: Errors) -> RequestDetails {
+        let callback = move |result: Result<Indexed<bool>, RequestError>| {
+            errors.push(result.err().unwrap());
+        };
+        RequestDetails::WriteSingleCoil(SingleWrite::new(
+            Indexed::new(0, true),
+            Promise::new(callback),
+        ))
+    }
+
+    #[test]
+    fn dropping_request_details_invokes_callback() {
+        let mut errors = Errors::new();
+
+        let generators = [create_read_registers, create_read_bits, create_write_coil];
+
+        for gen in generators {
+            // generate a RequestDetails and then immediately drop it
+            let _ = gen(errors.clone());
+            // check that this produces a callback
+            let (error, remaining) = errors.pop();
+            assert_eq!(error, Some(RequestError::Shutdown));
+            assert_eq!(remaining, 0);
+        }
+    }
+}

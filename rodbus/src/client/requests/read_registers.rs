@@ -20,6 +20,12 @@ pub(crate) struct Promise {
     callback: Option<Box<dyn RegistersCallback>>,
 }
 
+impl Drop for Promise {
+    fn drop(&mut self) {
+        self.failure(RequestError::Shutdown);
+    }
+}
+
 impl Promise {
     pub(crate) fn new<T>(callback: T) -> Self
     where
