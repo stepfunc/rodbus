@@ -76,12 +76,10 @@ pub(crate) enum FrameDestination {
 }
 
 impl FrameDestination {
-    /*
     #[cfg(test)]
     pub(crate) fn new_unit_id(value: u8) -> Self {
         Self::UnitId(UnitId::new(value))
     }
-    */
 
     pub(crate) fn value(&self) -> u8 {
         match self {
