@@ -13,7 +13,7 @@ impl std::fmt::Display for Shutdown {
 }
 
 /// Top level error type for the client API
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum RequestError {
     /// An I/O error occurred
     Io(::std::io::ErrorKind),
