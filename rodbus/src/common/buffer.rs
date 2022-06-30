@@ -139,7 +139,7 @@ mod tests {
     fn preserves_data_over_multiple_reads() {
         let mut buffer = ReadBuffer::new();
 
-        let (io, mut io_handle) = io::Builder::new().build_with_handle();
+        let (io, mut io_handle) = crate::mock::mock();
         let mut phys = PhysLayer::new_mock(io);
 
         {
