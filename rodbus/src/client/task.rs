@@ -226,7 +226,6 @@ impl ClientLoop {
     }
 }
 
-/*
 #[cfg(test)]
 mod tests {
     use std::io::ErrorKind;
@@ -235,6 +234,7 @@ mod tests {
     use super::*;
     use crate::client::message::RequestDetails;
     use crate::client::requests::read_bits::ReadBits;
+    use crate::client::Channel;
     use crate::common::function::FunctionCode;
     use crate::common::traits::{Loggable, Serialize};
     use crate::decode::*;
@@ -243,71 +243,28 @@ mod tests {
     use crate::server::response::BitWriter;
     use crate::types::{AddressRange, Indexed, ReadBitsRange, UnitId};
 
-
-
-    struct ClientFixture {
-        client: ClientLoop,
-        io: PhysLayer,
-        io_handle: io::ScriptHandle,
+    fn spawn_client_loop() -> (
+        Channel,
+        tokio::task::JoinHandle<SessionError>,
+        crate::mock::Handle,
+    ) {
+        let (tx, rx) = tokio::sync::mpsc::channel(16);
+        let (mock, io_handle) = crate::mock::mock();
+        let mut client_loop = ClientLoop::new(
+            rx,
+            FrameWriter::tcp(),
+            FramedReader::tcp(),
+            DecodeLevel::default().application(AppDecodeLevel::DataValues),
+        );
+        let join_handle = tokio::spawn(async move {
+            let mut phys = PhysLayer::new_mock(mock);
+            client_loop.run(&mut phys).await
+        });
+        let channel = Channel { tx };
+        (channel, join_handle, io_handle)
     }
 
-    impl ClientFixture {
-        fn new() -> (Self, tokio::sync::mpsc::Sender<Command>) {
-            let (tx, rx) = tokio::sync::mpsc::channel(10);
-            let (io, io_handle) = io::mock();
-            (
-                Self {
-                    client: ClientLoop::new(
-                        rx,
-                        FrameWriter::tcp(),
-                        FramedReader::tcp(),
-                        DecodeLevel::default().application(AppDecodeLevel::DataValues),
-                    ),
-                    io: PhysLayer::new_mock(io),
-                    io_handle,
-                },
-                tx,
-            )
-        }
-
-        fn read_coils(
-            &mut self,
-            tx: &mut tokio::sync::mpsc::Sender<Command>,
-            range: AddressRange,
-            timeout: Duration,
-        ) -> tokio::sync::oneshot::Receiver<Result<Vec<Indexed<bool>>, RequestError>> {
-            let (response_tx, response_rx) = tokio::sync::oneshot::channel();
-            let details = RequestDetails::ReadCoils(ReadBits::channel(
-                range.of_read_bits().unwrap(),
-                response_tx,
-            ));
-            let request = Request::new(UnitId::new(1), timeout, details);
-
-            let mut task = spawn(tx.send(Command::Request(request)));
-            match task.poll() {
-                Poll::Ready(result) => match result {
-                    Ok(()) => response_rx,
-                    Err(_) => {
-                        panic!("can't send");
-                    }
-                },
-                Poll::Pending => {
-                    panic!("task not completed");
-                }
-            }
-        }
-
-        fn assert_pending(&mut self) {
-            let mut task = spawn(self.client.run(&mut self.io));
-            assert_pending!(task.poll());
-        }
-
-        fn assert_run(&mut self, err: SessionError) {
-            let mut task = spawn(self.client.run(&mut self.io));
-            assert_ready_eq!(task.poll(), err);
-        }
-    }
-
+    /*
     fn get_framed_adu<T>(function: FunctionCode, payload: &T) -> Vec<u8>
     where
         T: Serialize + Loggable + Sized,
@@ -319,15 +276,16 @@ mod tests {
             .unwrap();
         Vec::from(bytes)
     }
+    */
 
-    #[test]
-    fn task_completes_with_shutdown_error_when_sender_dropped() {
-        let (mut fixture, tx) = ClientFixture::new();
-        drop(tx);
-
-        fixture.assert_run(SessionError::Shutdown);
+    #[tokio::test]
+    async fn task_completes_with_shutdown_error_when_all_channels_dropped() {
+        let (channel, task, io) = spawn_client_loop();
+        drop(channel);
+        assert_eq!(task.await.unwrap(), SessionError::Shutdown);
     }
 
+    /*
     #[test]
     fn returns_io_error_when_write_fails() {
         let (mut fixture, mut tx) = ClientFixture::new();
@@ -422,5 +380,5 @@ mod tests {
             Ok(Ok(vec![Indexed::new(7, true), Indexed::new(8, false)]))
         );
     }
+    */
 }
-*/
