@@ -15,7 +15,7 @@ pub struct UnitId {
 
 /// Start and count tuple used when making various requests
 /// Cannot be constructed with invalid start/count
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct AddressRange {
     /// starting address of the range
     pub start: u16,

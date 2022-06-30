@@ -273,7 +273,7 @@ impl std::fmt::Display for AduParseError {
 }
 
 /// errors that result because of bad request parameter
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum InvalidRequest {
     /// Request contained an invalid range
     BadRange(InvalidRange),
