@@ -143,9 +143,8 @@ mod tests {
         let mut phys = PhysLayer::new_mock(io);
 
         {
-            let buf_ref = &mut buffer;
             let mut task = tokio_test::task::spawn(async {
-                buf_ref
+                buffer
                     .read_some(&mut phys, PhysDecodeLevel::Nothing)
                     .await
                     .unwrap()
@@ -154,9 +153,8 @@ mod tests {
         }
 
         {
-            let buf_ref = &mut buffer;
             let mut task = task::spawn(async {
-                buf_ref
+                buffer
                     .read_some(&mut phys, PhysDecodeLevel::Nothing)
                     .await
                     .unwrap()
@@ -168,9 +166,8 @@ mod tests {
         assert_eq!(buffer.read(2).unwrap(), &[0x01, 0x02]);
 
         {
-            let buf_ref = &mut buffer;
             let mut task = task::spawn(async {
-                buf_ref
+                buffer
                     .read_some(&mut phys, PhysDecodeLevel::Nothing)
                     .await
                     .unwrap()
