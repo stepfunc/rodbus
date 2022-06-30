@@ -1,5 +1,4 @@
-#![allow(clippy::missing_safety_doc)]
-#![allow(clippy::derive_partial_eq_without_eq)]
+#![allow(clippy::all)]
 
 mod client;
 mod database;
