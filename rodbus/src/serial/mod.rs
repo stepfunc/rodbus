@@ -5,7 +5,7 @@ pub(crate) mod client;
 pub(crate) mod frame;
 
 /// serial port settings
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug)]
 pub struct SerialSettings {
     /// baud rate of the port
     pub baud_rate: u32,

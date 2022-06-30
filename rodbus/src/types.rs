@@ -52,7 +52,7 @@ impl ReadRegistersRange {
 }
 
 /// Value and its address
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Indexed<T> {
     /// address of the value
     pub index: u16,

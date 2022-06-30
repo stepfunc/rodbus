@@ -122,7 +122,7 @@ impl From<InvalidRange> for RequestError {
 }
 
 /// errors that can be produced when validating start/count
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum InvalidRange {
     /// count of zero not allowed
     CountOfZero,
@@ -133,7 +133,7 @@ pub enum InvalidRange {
 }
 
 /// errors that indicate faulty logic in the library itself if they occur
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum InternalError {
     /// Insufficient space for write operation
     InsufficientWriteSpace(usize, usize), // written vs remaining space

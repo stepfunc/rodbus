@@ -156,7 +156,7 @@ where
 }
 
 /// Authorization result
-#[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AuthorizationResult {
     /// Client is authorized to perform the operation
     Authorized,

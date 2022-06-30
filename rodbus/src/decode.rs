@@ -1,5 +1,5 @@
 /// Controls the decoding of transmitted and received data at the application, frame, and physical layer
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct DecodeLevel {
     /// Controls decoding of the application layer (PDU)
     pub app: AppDecodeLevel,
@@ -12,7 +12,7 @@ pub struct DecodeLevel {
 /// Controls how transmitted and received message at the application layer are decoded at the INFO log level
 ///
 /// Application-layer messages are referred to as Protocol Data Units (PDUs) in the specification.
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum AppDecodeLevel {
     /// Decode nothing
     Nothing,
@@ -30,7 +30,7 @@ pub enum AppDecodeLevel {
 /// called "ADUs" in the Modbus specification.
 ///
 /// On TCP, this is the MBAP decoding. On serial, this controls the serial line PDU.
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum FrameDecodeLevel {
     /// Decode nothing
     Nothing,
@@ -41,7 +41,7 @@ pub enum FrameDecodeLevel {
 }
 
 /// Controls how data transmitted at the physical layer (TCP, serial, etc) is logged
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum PhysDecodeLevel {
     /// Log nothing
     Nothing,
