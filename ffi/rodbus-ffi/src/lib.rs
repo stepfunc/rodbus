@@ -1,4 +1,4 @@
-#![allow(clippy::missing_safety_doc)]
+#![allow(clippy::all)]
 
 mod client;
 mod database;

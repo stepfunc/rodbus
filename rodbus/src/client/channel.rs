@@ -142,10 +142,7 @@ impl Channel {
         let (tx, rx) = tokio::sync::oneshot::channel::<Result<Vec<Indexed<bool>>, RequestError>>();
         let request = wrap(
             param,
-            RequestDetails::ReadCoils(ReadBits::new(
-                range.of_read_bits()?,
-                crate::client::requests::read_bits::Promise::Channel(tx),
-            )),
+            RequestDetails::ReadCoils(ReadBits::channel(range.of_read_bits()?, tx)),
         );
         self.tx.send(request).await?;
         rx.await?
@@ -160,10 +157,7 @@ impl Channel {
         let (tx, rx) = tokio::sync::oneshot::channel::<Result<Vec<Indexed<bool>>, RequestError>>();
         let request = wrap(
             param,
-            RequestDetails::ReadDiscreteInputs(ReadBits::new(
-                range.of_read_bits()?,
-                crate::client::requests::read_bits::Promise::Channel(tx),
-            )),
+            RequestDetails::ReadDiscreteInputs(ReadBits::channel(range.of_read_bits()?, tx)),
         );
         self.tx.send(request).await?;
         rx.await?
@@ -178,9 +172,9 @@ impl Channel {
         let (tx, rx) = tokio::sync::oneshot::channel::<Result<Vec<Indexed<u16>>, RequestError>>();
         let request = wrap(
             param,
-            RequestDetails::ReadHoldingRegisters(ReadRegisters::new(
+            RequestDetails::ReadHoldingRegisters(ReadRegisters::channel(
                 range.of_read_registers()?,
-                crate::client::requests::read_registers::Promise::Channel(tx),
+                tx,
             )),
         );
         self.tx.send(request).await?;
@@ -196,9 +190,9 @@ impl Channel {
         let (tx, rx) = tokio::sync::oneshot::channel::<Result<Vec<Indexed<u16>>, RequestError>>();
         let request = wrap(
             param,
-            RequestDetails::ReadInputRegisters(ReadRegisters::new(
+            RequestDetails::ReadInputRegisters(ReadRegisters::channel(
                 range.of_read_registers()?,
-                crate::client::requests::read_registers::Promise::Channel(tx),
+                tx,
             )),
         );
         self.tx.send(request).await?;
@@ -214,7 +208,7 @@ impl Channel {
         let (tx, rx) = tokio::sync::oneshot::channel::<Result<Indexed<bool>, RequestError>>();
         let request = wrap(
             param,
-            RequestDetails::WriteSingleCoil(SingleWrite::new(request, Promise::Channel(tx))),
+            RequestDetails::WriteSingleCoil(SingleWrite::new(request, Promise::channel(tx))),
         );
         self.tx.send(request).await?;
         rx.await?
@@ -229,7 +223,7 @@ impl Channel {
         let (tx, rx) = tokio::sync::oneshot::channel::<Result<Indexed<u16>, RequestError>>();
         let request = wrap(
             param,
-            RequestDetails::WriteSingleRegister(SingleWrite::new(request, Promise::Channel(tx))),
+            RequestDetails::WriteSingleRegister(SingleWrite::new(request, Promise::channel(tx))),
         );
         self.tx.send(request).await?;
         rx.await?
@@ -246,7 +240,7 @@ impl Channel {
             param,
             RequestDetails::WriteMultipleCoils(MultipleWriteRequest::new(
                 request,
-                Promise::Channel(tx),
+                Promise::channel(tx),
             )),
         );
         self.tx.send(request).await?;
@@ -264,7 +258,7 @@ impl Channel {
             param,
             RequestDetails::WriteMultipleRegisters(MultipleWriteRequest::new(
                 request,
-                Promise::Channel(tx),
+                Promise::channel(tx),
             )),
         );
         self.tx.send(request).await?;
@@ -343,10 +337,7 @@ impl CallbackSession {
     {
         self.send(wrap(
             self.param,
-            RequestDetails::WriteSingleCoil(SingleWrite::new(
-                value,
-                Promise::Callback(Box::new(callback)),
-            )),
+            RequestDetails::WriteSingleCoil(SingleWrite::new(value, Promise::new(callback))),
         ))
         .await;
     }
@@ -358,10 +349,7 @@ impl CallbackSession {
     {
         self.send(wrap(
             self.param,
-            RequestDetails::WriteSingleRegister(SingleWrite::new(
-                value,
-                Promise::Callback(Box::new(callback)),
-            )),
+            RequestDetails::WriteSingleRegister(SingleWrite::new(value, Promise::new(callback))),
         ))
         .await;
     }
@@ -375,7 +363,7 @@ impl CallbackSession {
             self.param,
             RequestDetails::WriteMultipleRegisters(MultipleWriteRequest::new(
                 value,
-                Promise::Callback(Box::new(callback)),
+                Promise::new(callback),
             )),
         ))
         .await;
@@ -390,7 +378,7 @@ impl CallbackSession {
             self.param,
             RequestDetails::WriteMultipleCoils(MultipleWriteRequest::new(
                 value,
-                Promise::Callback(Box::new(callback)),
+                Promise::new(callback),
             )),
         ))
         .await;
@@ -401,7 +389,7 @@ impl CallbackSession {
         C: FnOnce(Result<BitIterator, RequestError>) + Send + Sync + 'static,
         W: Fn(ReadBits) -> RequestDetails,
     {
-        let promise = crate::client::requests::read_bits::Promise::Callback(Box::new(callback));
+        let mut promise = crate::client::requests::read_bits::Promise::new(callback);
         let range = match range.of_read_bits() {
             Ok(x) => x,
             Err(err) => return promise.failure(err.into()),
@@ -415,8 +403,7 @@ impl CallbackSession {
         C: FnOnce(Result<RegisterIterator, RequestError>) + Send + Sync + 'static,
         W: Fn(ReadRegisters) -> RequestDetails,
     {
-        let promise =
-            crate::client::requests::read_registers::Promise::Callback(Box::new(callback));
+        let mut promise = crate::client::requests::read_registers::Promise::new(callback);
         let range = match range.of_read_registers() {
             Ok(x) => x,
             Err(err) => return promise.failure(err.into()),
@@ -429,11 +416,8 @@ impl CallbackSession {
     }
 
     async fn send(&mut self, command: Command) {
-        if let Err(tokio::sync::mpsc::error::SendError(Command::Request(req))) =
-            self.tx.send(command).await
-        {
-            req.details.fail(RequestError::Shutdown);
-        }
+        // dropping the command will automatically fail requests with SHUTDOWN
+        let _ = self.tx.send(command).await;
     }
 }
 

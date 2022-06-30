@@ -3,25 +3,47 @@ use crate::common::function::FunctionCode;
 use crate::common::traits::Serialize;
 use crate::decode::AppDecodeLevel;
 use crate::error::RequestError;
-use crate::tokio;
-use crate::types::{AddressRange, BitIterator, BitIteratorDisplay, Indexed, ReadBitsRange};
+use crate::types::{AddressRange, BitIterator, BitIteratorDisplay, ReadBitsRange};
+use crate::Indexed;
 
-pub(crate) enum Promise {
-    Channel(tokio::sync::oneshot::Sender<Result<Vec<Indexed<bool>>, RequestError>>),
-    Callback(Box<dyn FnOnce(Result<BitIterator, RequestError>) + Send + Sync + 'static>),
+pub(crate) trait BitsCallback:
+    FnOnce(Result<BitIterator, RequestError>) + Send + Sync + 'static
+{
+}
+impl<T> BitsCallback for T where T: FnOnce(Result<BitIterator, RequestError>) + Send + Sync + 'static
+{}
+
+pub(crate) struct Promise {
+    callback: Option<Box<dyn BitsCallback>>,
+}
+
+impl Drop for Promise {
+    fn drop(&mut self) {
+        self.failure(RequestError::Shutdown);
+    }
 }
 
 impl Promise {
-    pub(crate) fn failure(self, err: RequestError) {
+    pub(crate) fn new<T>(callback: T) -> Self
+    where
+        T: BitsCallback,
+    {
+        Self {
+            callback: Some(Box::new(callback)),
+        }
+    }
+
+    pub(crate) fn failure(&mut self, err: RequestError) {
         self.complete(Err(err))
     }
 
-    pub(crate) fn complete(self, x: Result<BitIterator, RequestError>) {
-        match self {
-            Promise::Channel(sender) => {
-                sender.send(x.map(|y| y.collect())).ok();
-            }
-            Promise::Callback(callback) => callback(x),
+    pub(crate) fn success(&mut self, iter: BitIterator) {
+        self.complete(Ok(iter))
+    }
+
+    fn complete(&mut self, result: Result<BitIterator, RequestError>) {
+        if let Some(callback) = self.callback.take() {
+            callback(result)
         }
     }
 }
@@ -36,39 +58,44 @@ impl ReadBits {
         Self { request, promise }
     }
 
+    pub(crate) fn channel(
+        request: ReadBitsRange,
+        tx: crate::tokio::sync::oneshot::Sender<Result<Vec<Indexed<bool>>, RequestError>>,
+    ) -> Self {
+        Self::new(
+            request,
+            Promise::new(|x: Result<BitIterator, RequestError>| {
+                let _ = tx.send(x.map(|x| x.collect()));
+            }),
+        )
+    }
+
     pub(crate) fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
         self.request.get().serialize(cursor)
     }
 
-    pub(crate) fn failure(self, err: RequestError) {
+    pub(crate) fn failure(&mut self, err: RequestError) {
         self.promise.failure(err)
     }
 
     pub(crate) fn handle_response(
-        self,
+        &mut self,
         mut cursor: ReadCursor,
         function: FunctionCode,
         decode: AppDecodeLevel,
-    ) {
-        let result = Self::parse_bits_response(self.request.get(), &mut cursor);
+    ) -> Result<(), RequestError> {
+        let response = Self::parse_bits_response(self.request.get(), &mut cursor)?;
 
-        match &result {
-            Ok(response) => {
-                if decode.enabled() {
-                    tracing::info!(
-                        "PDU RX - {} {}",
-                        function,
-                        BitIteratorDisplay::new(decode, response)
-                    );
-                }
-            }
-            Err(err) => {
-                // TODO: check if this is how we want to log it
-                tracing::warn!("{}", err);
-            }
+        if decode.enabled() {
+            tracing::info!(
+                "PDU RX - {} {}",
+                function,
+                BitIteratorDisplay::new(decode, response)
+            );
         }
 
-        self.promise.complete(result)
+        self.promise.success(response);
+        Ok(())
     }
 
     fn parse_bits_response<'a>(

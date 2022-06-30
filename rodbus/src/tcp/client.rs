@@ -11,6 +11,7 @@ use crate::client::channel::ReconnectStrategy;
 use crate::client::message::Command;
 use crate::client::task::{ClientLoop, SessionError};
 use crate::common::frame::{FrameWriter, FramedReader};
+use crate::error::Shutdown;
 
 pub(crate) fn spawn_tcp_channel(
     host: HostAddr,
@@ -40,7 +41,7 @@ pub(crate) fn create_tcp_channel(
         )
         .run()
         .instrument(tracing::info_span!("Modbus-Client-TCP", endpoint = ?host))
-        .await
+        .await;
     };
     (Channel { tx }, task)
 }
@@ -88,7 +89,8 @@ impl TcpChannelTask {
         }
     }
 
-    pub(crate) async fn run(&mut self) {
+    // runs until it is shut down
+    pub(crate) async fn run(&mut self) -> Shutdown {
         // try to connect
         loop {
             match self.host.connect().await {
@@ -102,7 +104,7 @@ impl TcpChannelTask {
                     );
                     if self.client_loop.fail_requests_for(delay).await.is_err() {
                         // this occurs when the mpsc is dropped, so the task can exit
-                        return;
+                        return Shutdown;
                     }
                 }
                 Ok(socket) => {
@@ -119,13 +121,13 @@ impl TcpChannelTask {
                             );
                             if self.client_loop.fail_requests_for(delay).await.is_err() {
                                 // this occurs when the mpsc is dropped, so the task can exit
-                                return;
+                                return Shutdown;
                             }
                         }
                         Ok(mut phys) => {
                             match self.client_loop.run(&mut phys).await {
                                 // the mpsc was closed, end the task
-                                SessionError::Shutdown => return,
+                                SessionError::Shutdown => return Shutdown,
                                 // re-establish the connection
                                 SessionError::IoError(_) | SessionError::BadFrame => {}
                             }

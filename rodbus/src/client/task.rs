@@ -80,7 +80,7 @@ impl ClientLoop {
                 self.change_setting(setting);
                 Ok(())
             }
-            Command::Request(request) => self.run_one_request(io, request).await,
+            Command::Request(mut request) => self.run_one_request(io, &mut request).await,
         }
     }
 
@@ -118,7 +118,7 @@ impl ClientLoop {
     async fn run_one_request(
         &mut self,
         io: &mut PhysLayer,
-        request: Request,
+        request: &mut Request,
     ) -> Result<(), SessionError> {
         let tx_id = self.tx_id.next();
         let result = self
@@ -126,10 +126,15 @@ impl ClientLoop {
             .instrument(tracing::info_span!("Transaction", tx_id = %tx_id))
             .await;
 
-        if let Err(err) = &result {
+        if let Err(err) = result {
+            // Fail the request in ONE place. If the whole future
+            // gets dropped, then the request gets failed with Shutdown
             tracing::warn!("request error: {}", err);
-            // some request errors are a session error
-            if let Some(err) = SessionError::from(err) {
+            request.details.fail(err);
+
+            // some request errors are a session error that will
+            // bubble up and close the session
+            if let Some(err) = SessionError::from(&err) {
                 return Err(err);
             }
         }
@@ -140,7 +145,7 @@ impl ClientLoop {
     async fn execute_request(
         &mut self,
         io: &mut PhysLayer,
-        request: Request,
+        request: &mut Request,
         tx_id: TxId,
     ) -> Result<(), RequestError> {
         let bytes = self.writer.format_request(
@@ -158,15 +163,10 @@ impl ClientLoop {
         let response = loop {
             let frame = tokio::select! {
                 _ = tokio::time::sleep_until(deadline) => {
-                    request.details.fail(RequestError::ResponseTimeout);
-                    return Ok(());
+                    return Err(RequestError::ResponseTimeout);
                 }
-                x = self.reader.next_frame(io, self.decode) => match x {
-                    Ok(frame) => frame,
-                    Err(err) => {
-                        request.details.fail(err);
-                        return Err(err);
-                    }
+                frame = self.reader.next_frame(io, self.decode) => {
+                    frame?
                 }
             };
 
@@ -181,8 +181,9 @@ impl ClientLoop {
             break frame;
         };
 
-        request.handle_response(response.payload(), self.decode.app);
-        Ok(())
+        // once we have a response, handle it. This may complete a promise
+        // successfully or bubble up an error
+        request.handle_response(response.payload(), self.decode.app)
     }
 
     pub(crate) fn change_setting(&mut self, setting: Setting) {
@@ -206,7 +207,7 @@ impl ClientLoop {
                 x = self.rx.recv() => match x {
                     Some(cmd) => {
                         match cmd {
-                            Command::Request(req) => {
+                            Command::Request(mut req) => {
                                 // fail request, do another iteration
                                 req.details.fail(RequestError::NoConnection)
                             }
@@ -227,6 +228,7 @@ impl ClientLoop {
 
 #[cfg(test)]
 mod tests {
+    use std::io::ErrorKind;
     use std::task::Poll;
 
     use super::*;
@@ -273,9 +275,9 @@ mod tests {
             timeout: Duration,
         ) -> tokio::sync::oneshot::Receiver<Result<Vec<Indexed<bool>>, RequestError>> {
             let (response_tx, response_rx) = tokio::sync::oneshot::channel();
-            let details = RequestDetails::ReadCoils(ReadBits::new(
+            let details = RequestDetails::ReadCoils(ReadBits::channel(
                 range.of_read_bits().unwrap(),
-                crate::client::requests::read_bits::Promise::Channel(response_tx),
+                response_tx,
             ));
             let request = Request::new(UnitId::new(1), timeout, details);
 
@@ -322,6 +324,37 @@ mod tests {
         drop(tx);
 
         fixture.assert_run(SessionError::Shutdown);
+    }
+
+    #[test]
+    fn returns_io_error_when_write_fails() {
+        let (mut fixture, mut tx) = ClientFixture::new();
+
+        // fail the first write
+        fixture.io_handle.write_error(ErrorKind::UnexpectedEof);
+
+        // ask for a read coils
+        let range = AddressRange::try_from(7, 2).unwrap();
+        let _ = fixture.read_coils(&mut tx, range, Duration::from_secs(5));
+        fixture.assert_run(SessionError::IoError(ErrorKind::UnexpectedEof));
+    }
+
+    #[test]
+    fn returns_shutdown_when_future_dropped() {
+        let (mut fixture, mut tx) = ClientFixture::new();
+
+        // expect a read coils
+        let range = AddressRange::try_from(7, 2).unwrap();
+        let request = get_framed_adu(FunctionCode::ReadCoils, &range);
+        fixture.io_handle.write(&request);
+
+        let rx = fixture.read_coils(&mut tx, range, Duration::from_secs(5));
+        fixture.assert_pending();
+
+        // drop the fixture!
+        drop(fixture);
+
+        assert_ready_eq!(spawn(rx).poll(), Ok(Err(RequestError::Shutdown)));
     }
 
     #[test]
