@@ -211,3 +211,6 @@ pub use error::RequestError;
 // internal modules
 mod common;
 mod tcp;
+
+#[cfg(test)]
+pub mod mock;
