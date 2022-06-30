@@ -136,19 +136,15 @@ mod tests {
     }
 
     #[test]
-    fn shifts_contents_when_buffer_at_capacity() {
+    fn preserves_data_over_multiple_reads() {
         let mut buffer = ReadBuffer::new();
 
         let (io, mut io_handle) = io::Builder::new().build_with_handle();
         let mut phys = PhysLayer::new_mock(io);
 
         {
-            let mut task = tokio_test::task::spawn(async {
-                buffer
-                    .read_some(&mut phys, PhysDecodeLevel::Nothing)
-                    .await
-                    .unwrap()
-            });
+            let mut task =
+                tokio_test::task::spawn(buffer.read_some(&mut phys, PhysDecodeLevel::Nothing));
             tokio_test::assert_pending!(task.poll());
         }
 
