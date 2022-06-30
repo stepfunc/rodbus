@@ -15,19 +15,19 @@ pub(crate) enum PhysLayerImpl {
     // TLS type is boxed because its size is huge
     #[cfg(feature = "tls")]
     Tls(Box<tokio_rustls::TlsStream<tokio::net::TcpStream>>),
-    //#[cfg(test)]
-    //Mock(tokio_mock::mock::test::io::MockIo),
+    #[cfg(test)]
+    Mock(tokio_test::io::Mock),
 }
 
 impl std::fmt::Debug for PhysLayer {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self.layer {
+        match &self.layer {
             PhysLayerImpl::Tcp(_) => f.write_str("Tcp"),
             PhysLayerImpl::Serial(_, _, _) => f.write_str("Serial"),
             #[cfg(feature = "tls")]
             PhysLayerImpl::Tls(_) => f.write_str("Tls"),
-            //#[cfg(test)]
-            //PhysLayerImpl::Mock(_) => f.write_str("Mock"),
+            #[cfg(test)]
+            PhysLayerImpl::Mock(_) => f.write_str("Mock"),
         }
     }
 }
@@ -53,14 +53,12 @@ impl PhysLayer {
         }
     }
 
-    /* TODO
     #[cfg(test)]
-    pub(crate) fn new_mock(mock: tokio_mock::mock::test::io::MockIo) -> Self {
+    pub(crate) fn new_mock(mock: tokio_test::io::Mock) -> Self {
         Self {
             layer: PhysLayerImpl::Mock(mock),
         }
     }
-    */
 
     pub(crate) async fn read(
         &mut self,
@@ -72,10 +70,8 @@ impl PhysLayer {
             PhysLayerImpl::Serial(x, _, _) => x.read(buffer).await?,
             #[cfg(feature = "tls")]
             PhysLayerImpl::Tls(x) => x.read(buffer).await?,
-            /*
             #[cfg(test)]
             PhysLayerImpl::Mock(x) => x.read(buffer).await?,
-             */
         };
 
         if decode_level.enabled() {
@@ -109,10 +105,8 @@ impl PhysLayer {
             }
             #[cfg(feature = "tls")]
             PhysLayerImpl::Tls(x) => x.write_all(data).await,
-            /* TODO
             #[cfg(test)]
             PhysLayerImpl::Mock(x) => x.write_all(data).await,
-             */
         }
     }
 }
