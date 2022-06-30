@@ -893,7 +893,6 @@ dependencies = [
  "pkcs8",
  "rasn",
  "tokio",
- "tokio-mock",
  "tokio-rustls",
  "tokio-serial",
  "tokio-stream",
@@ -1236,14 +1235,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
-]
-
-[[package]]
-name = "tokio-mock"
-version = "0.2.0"
-source = "git+https://github.com/stepfunc/tokio-mock.git?tag=0.2.0#53467dabf52c0e6da41523e4c1ff5c1d81f5d83f"
-dependencies = [
- "tokio",
 ]
 
 [[package]]

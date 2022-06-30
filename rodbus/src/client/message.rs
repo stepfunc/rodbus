@@ -272,9 +272,7 @@ where
         }
     }
 
-    pub(crate) fn channel(
-        tx: crate::tokio::sync::oneshot::Sender<Result<T, RequestError>>,
-    ) -> Self {
+    pub(crate) fn channel(tx: tokio::sync::oneshot::Sender<Result<T, RequestError>>) -> Self {
         Self::new(|x: Result<T, RequestError>| {
             let _ = tx.send(x);
         })

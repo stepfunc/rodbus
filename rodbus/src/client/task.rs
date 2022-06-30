@@ -3,12 +3,12 @@ use std::time::Duration;
 use tracing::Instrument;
 
 use crate::common::phys::PhysLayer;
-use crate::tokio::time::Instant;
-use crate::{tokio, DecodeLevel};
+use tokio::time::Instant;
 
 use crate::client::message::{Command, Request, Setting};
 use crate::common::frame::{FrameHeader, FrameWriter, FramedReader, TxId};
 use crate::error::*;
+use crate::DecodeLevel;
 
 /**
 * We execute requests in a session until one of the following occurs
@@ -226,6 +226,7 @@ impl ClientLoop {
     }
 }
 
+/*
 #[cfg(test)]
 mod tests {
     use std::io::ErrorKind;
@@ -240,8 +241,9 @@ mod tests {
     use crate::*;
 
     use crate::server::response::BitWriter;
-    use crate::tokio::test::*;
     use crate::types::{AddressRange, Indexed, ReadBitsRange, UnitId};
+
+
 
     struct ClientFixture {
         client: ClientLoop,
@@ -421,3 +423,4 @@ mod tests {
         );
     }
 }
+*/

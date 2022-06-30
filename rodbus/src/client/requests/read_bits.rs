@@ -60,7 +60,7 @@ impl ReadBits {
 
     pub(crate) fn channel(
         request: ReadBitsRange,
-        tx: crate::tokio::sync::oneshot::Sender<Result<Vec<Indexed<bool>>, RequestError>>,
+        tx: tokio::sync::oneshot::Sender<Result<Vec<Indexed<bool>>, RequestError>>,
     ) -> Self {
         Self::new(
             request,

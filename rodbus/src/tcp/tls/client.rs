@@ -3,6 +3,7 @@ use std::io::{self, ErrorKind};
 use std::path::Path;
 use std::sync::Arc;
 
+use tokio::net::TcpStream;
 use tokio_rustls::{rustls, webpki};
 use tracing::Instrument;
 
@@ -10,8 +11,7 @@ use crate::client::{Channel, HostAddr, ReconnectStrategy};
 use crate::common::phys::PhysLayer;
 use crate::tcp::client::{TcpChannelTask, TcpTaskConnectionHandler};
 use crate::tcp::tls::{load_certs, load_private_key, CertificateMode, MinTlsVersion, TlsError};
-use crate::tokio;
-use crate::tokio::net::TcpStream;
+
 use crate::DecodeLevel;
 
 /// TLS configuration
