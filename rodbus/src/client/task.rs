@@ -232,7 +232,10 @@ mod tests {
 
     use super::*;
     use crate::client::{Channel, RequestParam};
+    use crate::common::function::FunctionCode;
+    use crate::common::traits::{Loggable, Serialize};
     use crate::decode::*;
+    use crate::mock::Event;
 
     use crate::types::{AddressRange, UnitId};
 
@@ -257,7 +260,6 @@ mod tests {
         (channel, join_handle, io_handle)
     }
 
-    /*
     fn get_framed_adu<T>(function: FunctionCode, payload: &T) -> Vec<u8>
     where
         T: Serialize + Loggable + Sized,
@@ -269,7 +271,6 @@ mod tests {
             .unwrap();
         Vec::from(bytes)
     }
-    */
 
     #[tokio::test]
     async fn task_completes_with_shutdown_error_when_all_channels_dropped() {
@@ -298,48 +299,35 @@ mod tests {
         assert_eq!(result, Err(RequestError::Io(error_kind)));
     }
 
+    #[tokio::test]
+    async fn returns_timeout_when_no_response() {
+        let (mut channel, _task, mut io) = spawn_client_loop();
+
+        // the expected request
+        let range = AddressRange::try_from(7, 2).unwrap();
+        let request = get_framed_adu(FunctionCode::ReadCoils, &range);
+        io.write(&request);
+
+        // spawn a task that will perform the read coils
+        let request_task = tokio::spawn(async move {
+            channel
+                .read_coils(
+                    RequestParam::new(UnitId::new(1), Duration::from_secs(5)),
+                    range,
+                )
+                .await
+        });
+        // wait until the task writes the request so that we know it's in the correct state
+        assert_eq!(io.next_event().await, Event::Write);
+
+        // pausing the time will cause the timer to "auto advance"
+        tokio::time::pause();
+
+        let result = request_task.await.unwrap();
+        assert_eq!(result, Err(RequestError::ResponseTimeout));
+    }
+
     /*
-    #[test]
-    fn returns_shutdown_when_future_dropped() {
-        let (mut fixture, mut tx) = ClientFixture::new();
-
-        // expect a read coils
-        let range = AddressRange::try_from(7, 2).unwrap();
-        let request = get_framed_adu(FunctionCode::ReadCoils, &range);
-        fixture.io_handle.write(&request);
-
-        let rx = fixture.read_coils(&mut tx, range, Duration::from_secs(5));
-        fixture.assert_pending();
-
-        // drop the fixture!
-        drop(fixture);
-
-        assert_ready_eq!(spawn(rx).poll(), Ok(Err(RequestError::Shutdown)));
-    }
-
-    #[test]
-    fn returns_timeout_when_no_response() {
-        let (mut fixture, mut tx) = ClientFixture::new();
-
-        let range = AddressRange::try_from(7, 2).unwrap();
-
-        let request = get_framed_adu(FunctionCode::ReadCoils, &range);
-
-        fixture.io_handle.write(&request);
-
-        let rx = fixture.read_coils(&mut tx, range, Duration::from_secs(0));
-        fixture.assert_pending();
-
-        crate::tokio::time::advance(Duration::from_secs(5));
-        fixture.assert_pending();
-
-        drop(tx);
-
-        fixture.assert_run(SessionError::Shutdown);
-
-        assert_ready_eq!(spawn(rx).poll(), Ok(Err(RequestError::ResponseTimeout)));
-    }
-
     #[test]
     fn framing_errors_kill_the_session_while_idle() {
         let (mut fixture, _tx) = ClientFixture::new();

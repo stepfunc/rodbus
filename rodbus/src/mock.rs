@@ -5,8 +5,13 @@ use tokio::io::ReadBuf;
 
 pub fn mock() -> (Mock, Handle) {
     let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
-    let mock = Mock { next: None, rx };
-    let handle = Handle { tx };
+    let (event_tx, event_rx) = tokio::sync::mpsc::unbounded_channel();
+    let mock = Mock {
+        next: None,
+        rx,
+        tx: event_tx,
+    };
+    let handle = Handle { tx, rx: event_rx };
     (mock, handle)
 }
 
@@ -15,10 +20,13 @@ pub struct Mock {
     next: Option<Action>,
     // how additional actions can be received
     rx: tokio::sync::mpsc::UnboundedReceiver<Action>,
+    // how events get pushed back to the test
+    tx: tokio::sync::mpsc::UnboundedSender<Event>,
 }
 
 pub struct Handle {
     tx: tokio::sync::mpsc::UnboundedSender<Action>,
+    rx: tokio::sync::mpsc::UnboundedReceiver<Event>,
 }
 
 impl Handle {
@@ -36,6 +44,10 @@ impl Handle {
 
     pub fn write_error(&mut self, kind: ErrorKind) {
         self.tx.send(Action::write_error(kind)).unwrap()
+    }
+
+    pub async fn next_event(&mut self) -> Event {
+        self.rx.recv().await.unwrap()
     }
 }
 
@@ -55,6 +67,29 @@ enum ActionType {
 struct Action {
     direction: Direction,
     action_type: ActionType,
+}
+
+impl Action {
+    fn get_event(&self) -> Event {
+        match self.direction {
+            Direction::Read => match &self.action_type {
+                ActionType::Data(_) => Event::Read,
+                ActionType::Error(_) => Event::ReadErr,
+            },
+            Direction::Write => match &self.action_type {
+                ActionType::Data(_) => Event::Write,
+                ActionType::Error(_) => Event::WriteErr,
+            },
+        }
+    }
+}
+
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub enum Event {
+    Write,
+    Read,
+    WriteErr,
+    ReadErr,
 }
 
 impl Action {
@@ -88,15 +123,21 @@ impl Action {
 }
 
 impl Mock {
+    fn pop_event(&mut self, dir: Direction, x: Action) -> Option<ActionType> {
+        if x.direction == dir {
+            self.tx.send(x.get_event()).unwrap();
+            Some(x.action_type)
+        } else {
+            // it's not the right direction so store it
+            self.next = Some(x);
+            None
+        }
+    }
+
     fn pop(&mut self, dir: Direction, cx: &mut Context) -> Option<ActionType> {
         // if there is a pending action
         if let Some(x) = self.next.take() {
-            return if x.direction == dir {
-                Some(x.action_type)
-            } else {
-                self.next = Some(x);
-                None
-            };
+            return self.pop_event(dir, x);
         }
 
         if let Poll::Ready(action) = self.rx.poll_recv(cx) {
@@ -105,13 +146,7 @@ impl Mock {
                     panic!("The sending side of the channel was closed");
                 }
                 Some(x) => {
-                    return if x.direction == dir {
-                        Some(x.action_type)
-                    } else {
-                        // it's not the right direction so store it
-                        self.next = Some(x);
-                        None
-                    };
+                    return self.pop_event(dir, x);
                 }
             }
         }
