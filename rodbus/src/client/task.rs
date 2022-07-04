@@ -236,6 +236,8 @@ mod tests {
     use crate::common::traits::{Loggable, Serialize};
     use crate::decode::*;
     use crate::mock::Event;
+    use crate::server::response::BitWriter;
+    use crate::{ExceptionCode, Indexed, ReadBitsRange};
 
     use crate::types::{AddressRange, UnitId};
 
@@ -336,13 +338,11 @@ mod tests {
         assert_eq!(task.await.unwrap(), SessionError::BadFrame);
     }
 
-    /*
-    #[test]
-    fn transmit_read_coils_when_requested() {
-        let (mut fixture, mut tx) = ClientFixture::new();
+    #[tokio::test]
+    async fn transmit_read_coils_when_requested() {
+        let (mut channel, _task, mut io) = spawn_client_loop();
 
         let range = AddressRange::try_from(7, 2).unwrap();
-
         let request = get_framed_adu(FunctionCode::ReadCoils, &range);
         let response = get_framed_adu(
             FunctionCode::ReadCoils,
@@ -353,18 +353,17 @@ mod tests {
             }),
         );
 
-        fixture.io_handle.write(&request);
-        fixture.io_handle.read(&response);
+        io.write(&request);
+        io.read(&response);
 
-        let rx = fixture.read_coils(&mut tx, range, Duration::from_secs(1));
-        drop(tx);
+        let coils = channel
+            .read_coils(
+                RequestParam::new(UnitId::new(1), Duration::from_secs(1)),
+                range,
+            )
+            .await
+            .unwrap();
 
-        fixture.assert_run(SessionError::Shutdown);
-
-        assert_ready_eq!(
-            spawn(rx).poll(),
-            Ok(Ok(vec![Indexed::new(7, true), Indexed::new(8, false)]))
-        );
+        assert_eq!(coils, vec![Indexed::new(7, true), Indexed::new(8, false)]);
     }
-    */
 }
