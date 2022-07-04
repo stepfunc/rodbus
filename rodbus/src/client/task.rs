@@ -229,19 +229,12 @@ impl ClientLoop {
 #[cfg(test)]
 mod tests {
     use std::io::ErrorKind;
-    use std::task::Poll;
 
     use super::*;
-    use crate::client::message::RequestDetails;
-    use crate::client::requests::read_bits::ReadBits;
-    use crate::client::Channel;
-    use crate::common::function::FunctionCode;
-    use crate::common::traits::{Loggable, Serialize};
+    use crate::client::{Channel, RequestParam};
     use crate::decode::*;
-    use crate::*;
 
-    use crate::server::response::BitWriter;
-    use crate::types::{AddressRange, Indexed, ReadBitsRange, UnitId};
+    use crate::types::{AddressRange, UnitId};
 
     fn spawn_client_loop() -> (
         Channel,
@@ -280,25 +273,32 @@ mod tests {
 
     #[tokio::test]
     async fn task_completes_with_shutdown_error_when_all_channels_dropped() {
-        let (channel, task, io) = spawn_client_loop();
+        let (channel, task, _io) = spawn_client_loop();
         drop(channel);
         assert_eq!(task.await.unwrap(), SessionError::Shutdown);
     }
 
-    /*
-    #[test]
-    fn returns_io_error_when_write_fails() {
-        let (mut fixture, mut tx) = ClientFixture::new();
+    #[tokio::test]
+    async fn returns_io_error_when_write_fails() {
+        let (mut channel, _task, mut io) = spawn_client_loop();
 
-        // fail the first write
-        fixture.io_handle.write_error(ErrorKind::UnexpectedEof);
+        let error_kind = ErrorKind::ConnectionReset;
+
+        // fail the first write, doesn't matter what the error is so long as it gets returned the same
+        io.write_error(error_kind);
 
         // ask for a read coils
-        let range = AddressRange::try_from(7, 2).unwrap();
-        let _ = fixture.read_coils(&mut tx, range, Duration::from_secs(5));
-        fixture.assert_run(SessionError::IoError(ErrorKind::UnexpectedEof));
+        let result = channel
+            .read_coils(
+                RequestParam::new(UnitId::new(1), Duration::from_secs(5)),
+                AddressRange::try_from(7, 2).unwrap(),
+            )
+            .await;
+
+        assert_eq!(result, Err(RequestError::Io(error_kind)));
     }
 
+    /*
     #[test]
     fn returns_shutdown_when_future_dropped() {
         let (mut fixture, mut tx) = ClientFixture::new();
