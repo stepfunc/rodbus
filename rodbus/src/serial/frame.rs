@@ -471,7 +471,7 @@ mod tests {
     ];
 
     fn assert_can_parse_frame(mut reader: FramedReader, frame: &[u8]) {
-        let (io, mut io_handle) = crate::mock::mock();
+        let (io, mut io_handle) = tokio_mock_io::mock();
         let mut layer = PhysLayer::new_mock(io);
         let mut task =
             tokio_test::task::spawn(reader.next_frame(&mut layer, DecodeLevel::nothing()));
@@ -554,7 +554,7 @@ mod tests {
     }
 
     fn assert_can_parse_frame_byte_per_byte(mut reader: FramedReader, frame: &[u8]) {
-        let (io, mut io_handle) = crate::mock::mock();
+        let (io, mut io_handle) = tokio_mock_io::mock();
         let mut layer = PhysLayer::new_mock(io);
         let mut task =
             tokio_test::task::spawn(reader.next_frame(&mut layer, DecodeLevel::nothing()));
@@ -600,7 +600,7 @@ mod tests {
     }
 
     fn assert_can_parse_two_frames(mut reader: FramedReader, frame: &[u8]) {
-        let (io, mut io_handle) = crate::mock::mock();
+        let (io, mut io_handle) = tokio_mock_io::mock();
         let mut layer = PhysLayer::new_mock(io);
 
         // Build single array with two identical frames
@@ -681,7 +681,7 @@ mod tests {
         ];
 
         let mut reader = FramedReader::rtu_request();
-        let (io, mut io_handle) = crate::mock::mock();
+        let (io, mut io_handle) = tokio_mock_io::mock();
         let mut layer = PhysLayer::new_mock(io);
         let mut task =
             tokio_test::task::spawn(reader.next_frame(&mut layer, DecodeLevel::nothing()));

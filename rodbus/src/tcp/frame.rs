@@ -237,7 +237,7 @@ mod tests {
 
     fn test_segmented_parse(split_at: usize) {
         let (f1, f2) = SIMPLE_FRAME.split_at(split_at);
-        let (io, mut io_handle) = crate::mock::mock();
+        let (io, mut io_handle) = tokio_mock_io::mock();
         let mut reader = FramedReader::tcp();
         let mut layer = PhysLayer::new_mock(io);
         let mut task =
@@ -255,7 +255,7 @@ mod tests {
     }
 
     fn test_error(input: &[u8]) -> RequestError {
-        let (io, mut io_handle) = crate::mock::mock();
+        let (io, mut io_handle) = tokio_mock_io::mock();
         let mut reader = FramedReader::tcp();
         let mut layer = PhysLayer::new_mock(io);
         let mut task =
@@ -289,7 +289,7 @@ mod tests {
 
     #[test]
     fn can_parse_frame_from_stream() {
-        let (io, mut io_handle) = crate::mock::mock();
+        let (io, mut io_handle) = tokio_mock_io::mock();
         let mut reader = FramedReader::tcp();
         let mut layer = PhysLayer::new_mock(io);
         let mut task =
@@ -309,7 +309,7 @@ mod tests {
         let header = &[0x00, 0x07, 0x00, 0x00, 0x00, 0xFE, 0x2A];
         let payload = &[0xCC; 253];
 
-        let (io, mut io_handle) = crate::mock::mock();
+        let (io, mut io_handle) = tokio_mock_io::mock();
         let mut reader = FramedReader::tcp();
         let mut task = tokio_test::task::spawn(async {
             assert_eq!(

@@ -235,19 +235,19 @@ mod tests {
     use crate::common::function::FunctionCode;
     use crate::common::traits::{Loggable, Serialize};
     use crate::decode::*;
-    use crate::mock::Event;
     use crate::server::response::BitWriter;
+    use crate::types::{AddressRange, UnitId};
     use crate::{ExceptionCode, Indexed, ReadBitsRange};
 
-    use crate::types::{AddressRange, UnitId};
+    use tokio_mock_io::Event;
 
     fn spawn_client_loop() -> (
         Channel,
         tokio::task::JoinHandle<SessionError>,
-        crate::mock::Handle,
+        tokio_mock_io::Handle,
     ) {
         let (tx, rx) = tokio::sync::mpsc::channel(16);
-        let (mock, io_handle) = crate::mock::mock();
+        let (mock, io_handle) = tokio_mock_io::mock();
         let mut client_loop = ClientLoop::new(
             rx,
             FrameWriter::tcp(),
