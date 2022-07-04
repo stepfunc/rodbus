@@ -330,6 +330,36 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn returns_shutdown_when_task_dropped() {
+        let (mut channel, task, mut io) = spawn_client_loop();
+
+        // the expected request
+        let range = AddressRange::try_from(7, 2).unwrap();
+        let request = get_framed_adu(FunctionCode::ReadCoils, &range);
+        io.write(&request);
+
+        // spawn a task that will perform the read coils
+        let request_task = tokio::spawn(async move {
+            channel
+                .read_coils(
+                    RequestParam::new(UnitId::new(1), Duration::from_secs(5)),
+                    range,
+                )
+                .await
+        });
+        // wait until the task writes the request so that we know it's in the correct state
+        assert_eq!(io.next_event().await, Event::Write(request.len()));
+
+        // now drop the task
+        task.abort();
+        assert!(task.await.is_err());
+
+        // the promise will get dropped causing the request to fail with Shutdown
+        let res = request_task.await.unwrap();
+        assert_eq!(res, Err(RequestError::Shutdown));
+    }
+
+    #[tokio::test]
     async fn framing_errors_kill_the_session_while_idle() {
         let (_channel, task, mut io) = spawn_client_loop();
 
