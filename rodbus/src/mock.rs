@@ -73,12 +73,12 @@ impl Action {
     fn get_event(&self) -> Event {
         match self.direction {
             Direction::Read => match &self.action_type {
-                ActionType::Data(_) => Event::Read,
-                ActionType::Error(_) => Event::ReadErr,
+                ActionType::Data(x) => Event::Read(x.len()),
+                ActionType::Error(x) => Event::ReadErr(*x),
             },
             Direction::Write => match &self.action_type {
-                ActionType::Data(_) => Event::Write,
-                ActionType::Error(_) => Event::WriteErr,
+                ActionType::Data(x) => Event::Write(x.len()),
+                ActionType::Error(x) => Event::WriteErr(*x),
             },
         }
     }
@@ -86,10 +86,10 @@ impl Action {
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum Event {
-    Write,
-    Read,
-    WriteErr,
-    ReadErr,
+    Write(usize),
+    Read(usize),
+    WriteErr(ErrorKind),
+    ReadErr(ErrorKind),
 }
 
 impl Action {

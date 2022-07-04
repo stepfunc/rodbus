@@ -318,7 +318,7 @@ mod tests {
                 .await
         });
         // wait until the task writes the request so that we know it's in the correct state
-        assert_eq!(io.next_event().await, Event::Write);
+        assert_eq!(io.next_event().await, Event::Write(request.len()));
 
         // pausing the time will cause the timer to "auto advance"
         tokio::time::pause();
@@ -327,18 +327,16 @@ mod tests {
         assert_eq!(result, Err(RequestError::ResponseTimeout));
     }
 
-    /*
-    #[test]
-    fn framing_errors_kill_the_session_while_idle() {
-        let (mut fixture, _tx) = ClientFixture::new();
+    #[tokio::test]
+    async fn framing_errors_kill_the_session_while_idle() {
+        let (_channel, task, mut io) = spawn_client_loop();
 
-        fixture
-            .io_handle
-            .read(&[0x00, 0x00, 0xCA, 0xFE, 0x00, 0x01, 0x01]); // non-Modbus protocol id
+        io.read(&[0x00, 0x00, 0xCA, 0xFE, 0x00, 0x01, 0x01]); // non-Modbus protocol id
 
-        fixture.assert_run(SessionError::BadFrame);
+        assert_eq!(task.await.unwrap(), SessionError::BadFrame);
     }
 
+    /*
     #[test]
     fn transmit_read_coils_when_requested() {
         let (mut fixture, mut tx) = ClientFixture::new();
