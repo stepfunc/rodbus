@@ -3,12 +3,12 @@ use std::time::Duration;
 use tracing::Instrument;
 
 use crate::common::phys::PhysLayer;
-use crate::tokio::time::Instant;
-use crate::{tokio, DecodeLevel};
+use tokio::time::Instant;
 
 use crate::client::message::{Command, Request, Setting};
 use crate::common::frame::{FrameHeader, FrameWriter, FramedReader, TxId};
 use crate::error::*;
+use crate::DecodeLevel;
 
 /**
 * We execute requests in a session until one of the following occurs
@@ -229,81 +229,37 @@ impl ClientLoop {
 #[cfg(test)]
 mod tests {
     use std::io::ErrorKind;
-    use std::task::Poll;
 
     use super::*;
-    use crate::client::message::RequestDetails;
-    use crate::client::requests::read_bits::ReadBits;
+    use crate::client::{Channel, RequestParam};
     use crate::common::function::FunctionCode;
     use crate::common::traits::{Loggable, Serialize};
     use crate::decode::*;
-    use crate::*;
-
     use crate::server::response::BitWriter;
-    use crate::tokio::test::*;
-    use crate::types::{AddressRange, Indexed, ReadBitsRange, UnitId};
+    use crate::types::{AddressRange, UnitId};
+    use crate::{ExceptionCode, Indexed, ReadBitsRange};
 
-    struct ClientFixture {
-        client: ClientLoop,
-        io: PhysLayer,
-        io_handle: io::ScriptHandle,
-    }
+    use tokio_mock_io::Event;
 
-    impl ClientFixture {
-        fn new() -> (Self, tokio::sync::mpsc::Sender<Command>) {
-            let (tx, rx) = tokio::sync::mpsc::channel(10);
-            let (io, io_handle) = io::mock();
-            (
-                Self {
-                    client: ClientLoop::new(
-                        rx,
-                        FrameWriter::tcp(),
-                        FramedReader::tcp(),
-                        DecodeLevel::default().application(AppDecodeLevel::DataValues),
-                    ),
-                    io: PhysLayer::new_mock(io),
-                    io_handle,
-                },
-                tx,
-            )
-        }
-
-        fn read_coils(
-            &mut self,
-            tx: &mut tokio::sync::mpsc::Sender<Command>,
-            range: AddressRange,
-            timeout: Duration,
-        ) -> tokio::sync::oneshot::Receiver<Result<Vec<Indexed<bool>>, RequestError>> {
-            let (response_tx, response_rx) = tokio::sync::oneshot::channel();
-            let details = RequestDetails::ReadCoils(ReadBits::channel(
-                range.of_read_bits().unwrap(),
-                response_tx,
-            ));
-            let request = Request::new(UnitId::new(1), timeout, details);
-
-            let mut task = spawn(tx.send(Command::Request(request)));
-            match task.poll() {
-                Poll::Ready(result) => match result {
-                    Ok(()) => response_rx,
-                    Err(_) => {
-                        panic!("can't send");
-                    }
-                },
-                Poll::Pending => {
-                    panic!("task not completed");
-                }
-            }
-        }
-
-        fn assert_pending(&mut self) {
-            let mut task = spawn(self.client.run(&mut self.io));
-            assert_pending!(task.poll());
-        }
-
-        fn assert_run(&mut self, err: SessionError) {
-            let mut task = spawn(self.client.run(&mut self.io));
-            assert_ready_eq!(task.poll(), err);
-        }
+    fn spawn_client_loop() -> (
+        Channel,
+        tokio::task::JoinHandle<SessionError>,
+        tokio_mock_io::Handle,
+    ) {
+        let (tx, rx) = tokio::sync::mpsc::channel(16);
+        let (mock, io_handle) = tokio_mock_io::mock();
+        let mut client_loop = ClientLoop::new(
+            rx,
+            FrameWriter::tcp(),
+            FramedReader::tcp(),
+            DecodeLevel::default().application(AppDecodeLevel::DataValues),
+        );
+        let join_handle = tokio::spawn(async move {
+            let mut phys = PhysLayer::new_mock(mock);
+            client_loop.run(&mut phys).await
+        });
+        let channel = Channel { tx };
+        (channel, join_handle, io_handle)
     }
 
     fn get_framed_adu<T>(function: FunctionCode, payload: &T) -> Vec<u8>
@@ -318,85 +274,105 @@ mod tests {
         Vec::from(bytes)
     }
 
-    #[test]
-    fn task_completes_with_shutdown_error_when_sender_dropped() {
-        let (mut fixture, tx) = ClientFixture::new();
-        drop(tx);
-
-        fixture.assert_run(SessionError::Shutdown);
+    #[tokio::test]
+    async fn task_completes_with_shutdown_error_when_all_channels_dropped() {
+        let (channel, task, _io) = spawn_client_loop();
+        drop(channel);
+        assert_eq!(task.await.unwrap(), SessionError::Shutdown);
     }
 
-    #[test]
-    fn returns_io_error_when_write_fails() {
-        let (mut fixture, mut tx) = ClientFixture::new();
+    #[tokio::test]
+    async fn returns_io_error_when_write_fails() {
+        let (mut channel, _task, mut io) = spawn_client_loop();
 
-        // fail the first write
-        fixture.io_handle.write_error(ErrorKind::UnexpectedEof);
+        let error_kind = ErrorKind::ConnectionReset;
+
+        // fail the first write, doesn't matter what the error is so long as it gets returned the same
+        io.write_error(error_kind);
 
         // ask for a read coils
-        let range = AddressRange::try_from(7, 2).unwrap();
-        let _ = fixture.read_coils(&mut tx, range, Duration::from_secs(5));
-        fixture.assert_run(SessionError::IoError(ErrorKind::UnexpectedEof));
+        let result = channel
+            .read_coils(
+                RequestParam::new(UnitId::new(1), Duration::from_secs(5)),
+                AddressRange::try_from(7, 2).unwrap(),
+            )
+            .await;
+
+        assert_eq!(result, Err(RequestError::Io(error_kind)));
     }
 
-    #[test]
-    fn returns_shutdown_when_future_dropped() {
-        let (mut fixture, mut tx) = ClientFixture::new();
+    #[tokio::test]
+    async fn returns_timeout_when_no_response() {
+        let (mut channel, _task, mut io) = spawn_client_loop();
 
-        // expect a read coils
+        // the expected request
         let range = AddressRange::try_from(7, 2).unwrap();
         let request = get_framed_adu(FunctionCode::ReadCoils, &range);
-        fixture.io_handle.write(&request);
+        io.write(&request);
 
-        let rx = fixture.read_coils(&mut tx, range, Duration::from_secs(5));
-        fixture.assert_pending();
+        // spawn a task that will perform the read coils
+        let request_task = tokio::spawn(async move {
+            channel
+                .read_coils(
+                    RequestParam::new(UnitId::new(1), Duration::from_secs(5)),
+                    range,
+                )
+                .await
+        });
+        // wait until the task writes the request so that we know it's in the correct state
+        assert_eq!(io.next_event().await, Event::Write(request.len()));
 
-        // drop the fixture!
-        drop(fixture);
+        // pausing the time will cause the timer to "auto advance"
+        tokio::time::pause();
 
-        assert_ready_eq!(spawn(rx).poll(), Ok(Err(RequestError::Shutdown)));
+        let result = request_task.await.unwrap();
+        assert_eq!(result, Err(RequestError::ResponseTimeout));
     }
 
-    #[test]
-    fn returns_timeout_when_no_response() {
-        let (mut fixture, mut tx) = ClientFixture::new();
+    #[tokio::test]
+    async fn returns_shutdown_when_task_dropped() {
+        let (mut channel, task, mut io) = spawn_client_loop();
 
+        // the expected request
         let range = AddressRange::try_from(7, 2).unwrap();
-
         let request = get_framed_adu(FunctionCode::ReadCoils, &range);
+        io.write(&request);
 
-        fixture.io_handle.write(&request);
+        // spawn a task that will perform the read coils
+        let request_task = tokio::spawn(async move {
+            channel
+                .read_coils(
+                    RequestParam::new(UnitId::new(1), Duration::from_secs(5)),
+                    range,
+                )
+                .await
+        });
+        // wait until the task writes the request so that we know it's in the correct state
+        assert_eq!(io.next_event().await, Event::Write(request.len()));
 
-        let rx = fixture.read_coils(&mut tx, range, Duration::from_secs(0));
-        fixture.assert_pending();
+        // now drop the task
+        task.abort();
+        assert!(task.await.is_err());
 
-        crate::tokio::time::advance(Duration::from_secs(5));
-        fixture.assert_pending();
-
-        drop(tx);
-
-        fixture.assert_run(SessionError::Shutdown);
-
-        assert_ready_eq!(spawn(rx).poll(), Ok(Err(RequestError::ResponseTimeout)));
+        // the promise will get dropped causing the request to fail with Shutdown
+        let res = request_task.await.unwrap();
+        assert_eq!(res, Err(RequestError::Shutdown));
     }
 
-    #[test]
-    fn framing_errors_kill_the_session_while_idle() {
-        let (mut fixture, _tx) = ClientFixture::new();
+    #[tokio::test]
+    async fn framing_errors_kill_the_session_while_idle() {
+        let (_channel, task, mut io) = spawn_client_loop();
 
-        fixture
-            .io_handle
-            .read(&[0x00, 0x00, 0xCA, 0xFE, 0x00, 0x01, 0x01]); // non-Modbus protocol id
+        io.read(&[0x00, 0x00, 0xCA, 0xFE, 0x00, 0x01, 0x01]); // non-Modbus protocol id
 
-        fixture.assert_run(SessionError::BadFrame);
+        assert_eq!(task.await.unwrap(), SessionError::BadFrame);
     }
 
-    #[test]
-    fn transmit_read_coils_when_requested() {
-        let (mut fixture, mut tx) = ClientFixture::new();
+    #[tokio::test]
+    async fn transmit_read_coils_when_requested() {
+        let (mut channel, _task, mut io) = spawn_client_loop();
 
         let range = AddressRange::try_from(7, 2).unwrap();
-
         let request = get_framed_adu(FunctionCode::ReadCoils, &range);
         let response = get_framed_adu(
             FunctionCode::ReadCoils,
@@ -407,17 +383,17 @@ mod tests {
             }),
         );
 
-        fixture.io_handle.write(&request);
-        fixture.io_handle.read(&response);
+        io.write(&request);
+        io.read(&response);
 
-        let rx = fixture.read_coils(&mut tx, range, Duration::from_secs(1));
-        drop(tx);
+        let coils = channel
+            .read_coils(
+                RequestParam::new(UnitId::new(1), Duration::from_secs(1)),
+                range,
+            )
+            .await
+            .unwrap();
 
-        fixture.assert_run(SessionError::Shutdown);
-
-        assert_ready_eq!(
-            spawn(rx).poll(),
-            Ok(Ok(vec![Indexed::new(7, true), Indexed::new(8, false)]))
-        );
+        assert_eq!(coils, vec![Indexed::new(7, true), Indexed::new(8, false)]);
     }
 }

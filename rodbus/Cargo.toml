@@ -11,7 +11,7 @@ readme = "../README.md"
 
 [dependencies]
 crc = "2.0"
-tokio-mock = { git = "https://github.com/stepfunc/tokio-mock.git", tag = "0.2.0" }
+tokio = { version = "1", features = ["net", "sync", "io-util", "io-std", "time", "rt", "rt-multi-thread", "macros"] }
 tokio-serial = "5.4"
 tracing = "0.1"
 
@@ -22,9 +22,10 @@ rasn = { git = "https://github.com/stepfunc/rasn.git", tag = "0.1.2", optional =
 tokio-rustls = { version = "0.23", features = ["dangerous_configuration", "tls12"], default-features = false, optional = true }
 
 [dev-dependencies]
-tokio = { version = "1.5", features = ["rt-multi-thread", "macros"] }
 tokio-stream = "0.1"
 tokio-util = { version = "0.6", features = ["codec"] }
+tokio-test = "0.4.2"
+tokio-mock-io = { git = "https://github.com/stepfunc/tokio-mock-io.git", tag = "0.1.0" }
 tracing-subscriber = "0.2"
 
 [features]

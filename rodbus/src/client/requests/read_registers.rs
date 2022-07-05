@@ -63,7 +63,7 @@ impl ReadRegisters {
 
     pub(crate) fn channel(
         request: ReadRegistersRange,
-        tx: crate::tokio::sync::oneshot::Sender<Result<Vec<Indexed<u16>>, RequestError>>,
+        tx: tokio::sync::oneshot::Sender<Result<Vec<Indexed<u16>>, RequestError>>,
     ) -> Self {
         Self::new(
             request,

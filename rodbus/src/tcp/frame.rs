@@ -202,7 +202,6 @@ mod tests {
     use std::task::Poll;
 
     use crate::common::phys::PhysLayer;
-    use crate::tokio::test::*;
 
     use crate::common::frame::{FrameDestination, FramedReader};
     use crate::common::function::FunctionCode;
@@ -238,10 +237,11 @@ mod tests {
 
     fn test_segmented_parse(split_at: usize) {
         let (f1, f2) = SIMPLE_FRAME.split_at(split_at);
-        let (io, mut io_handle) = io::mock();
+        let (io, mut io_handle) = tokio_mock_io::mock();
         let mut reader = FramedReader::tcp();
         let mut layer = PhysLayer::new_mock(io);
-        let mut task = spawn(reader.next_frame(&mut layer, DecodeLevel::nothing()));
+        let mut task =
+            tokio_test::task::spawn(reader.next_frame(&mut layer, DecodeLevel::nothing()));
 
         assert!(task.poll().is_pending());
         io_handle.read(f1);
@@ -255,10 +255,11 @@ mod tests {
     }
 
     fn test_error(input: &[u8]) -> RequestError {
-        let (io, mut io_handle) = io::mock();
+        let (io, mut io_handle) = tokio_mock_io::mock();
         let mut reader = FramedReader::tcp();
         let mut layer = PhysLayer::new_mock(io);
-        let mut task = spawn(reader.next_frame(&mut layer, DecodeLevel::nothing()));
+        let mut task =
+            tokio_test::task::spawn(reader.next_frame(&mut layer, DecodeLevel::nothing()));
 
         io_handle.read(input);
         if let Poll::Ready(frame) = task.poll() {
@@ -288,10 +289,11 @@ mod tests {
 
     #[test]
     fn can_parse_frame_from_stream() {
-        let (io, mut io_handle) = io::mock();
+        let (io, mut io_handle) = tokio_mock_io::mock();
         let mut reader = FramedReader::tcp();
         let mut layer = PhysLayer::new_mock(io);
-        let mut task = spawn(reader.next_frame(&mut layer, DecodeLevel::nothing()));
+        let mut task =
+            tokio_test::task::spawn(reader.next_frame(&mut layer, DecodeLevel::nothing()));
 
         io_handle.read(SIMPLE_FRAME);
         if let Poll::Ready(frame) = task.poll() {
@@ -307,9 +309,9 @@ mod tests {
         let header = &[0x00, 0x07, 0x00, 0x00, 0x00, 0xFE, 0x2A];
         let payload = &[0xCC; 253];
 
-        let (io, mut io_handle) = io::mock();
+        let (io, mut io_handle) = tokio_mock_io::mock();
         let mut reader = FramedReader::tcp();
-        let mut task = spawn(async {
+        let mut task = tokio_test::task::spawn(async {
             assert_eq!(
                 reader
                     .next_frame(&mut PhysLayer::new_mock(io), DecodeLevel::nothing())
@@ -320,11 +322,11 @@ mod tests {
             );
         });
 
-        assert_pending!(task.poll());
+        tokio_test::assert_pending!(task.poll());
         io_handle.read(header);
-        assert_pending!(task.poll());
+        tokio_test::assert_pending!(task.poll());
         io_handle.read(payload);
-        assert_ready!(task.poll());
+        tokio_test::assert_ready!(task.poll());
     }
 
     #[test]

@@ -8,9 +8,9 @@ use crate::common::phys::PhysLayer;
 use crate::decode::DecodeLevel;
 use crate::server::handler::{RequestHandler, ServerHandlerMap};
 use crate::server::task::{Authorization, ServerSetting};
-use crate::tokio;
-use crate::tokio::net::TcpListener;
+
 use std::net::SocketAddr;
+use tokio::net::TcpListener;
 
 #[cfg(feature = "tls")]
 use crate::server::AuthorizationHandler;
@@ -81,7 +81,7 @@ pub(crate) enum TcpServerConnectionHandler {
 impl TcpServerConnectionHandler {
     async fn handle(
         &mut self,
-        socket: crate::tokio::net::TcpStream,
+        socket: tokio::net::TcpStream,
     ) -> Result<(PhysLayer, Authorization), String> {
         match self {
             Self::Tcp => Ok((PhysLayer::new_tcp(socket), Authorization::None)),

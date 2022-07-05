@@ -10,7 +10,6 @@ use crate::client::requests::write_single::SingleWrite;
 use crate::error::*;
 use crate::serial::client::SerialChannelTask;
 use crate::serial::SerialSettings;
-use crate::tokio;
 use crate::types::{AddressRange, BitIterator, Indexed, RegisterIterator, UnitId};
 use crate::DecodeLevel;
 

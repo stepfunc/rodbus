@@ -211,4 +211,3 @@ pub use error::RequestError;
 // internal modules
 mod common;
 mod tcp;
-mod tokio;

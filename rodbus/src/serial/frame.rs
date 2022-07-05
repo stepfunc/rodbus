@@ -274,7 +274,6 @@ mod tests {
 
     use crate::common::frame::FramedReader;
     use crate::common::phys::PhysLayer;
-    use crate::tokio::test::*;
     use crate::DecodeLevel;
 
     use super::*;
@@ -472,9 +471,10 @@ mod tests {
     ];
 
     fn assert_can_parse_frame(mut reader: FramedReader, frame: &[u8]) {
-        let (io, mut io_handle) = io::mock();
+        let (io, mut io_handle) = tokio_mock_io::mock();
         let mut layer = PhysLayer::new_mock(io);
-        let mut task = spawn(reader.next_frame(&mut layer, DecodeLevel::nothing()));
+        let mut task =
+            tokio_test::task::spawn(reader.next_frame(&mut layer, DecodeLevel::nothing()));
 
         io_handle.read(frame);
         if let Poll::Ready(received_frame) = task.poll() {
@@ -554,9 +554,10 @@ mod tests {
     }
 
     fn assert_can_parse_frame_byte_per_byte(mut reader: FramedReader, frame: &[u8]) {
-        let (io, mut io_handle) = io::mock();
+        let (io, mut io_handle) = tokio_mock_io::mock();
         let mut layer = PhysLayer::new_mock(io);
-        let mut task = spawn(reader.next_frame(&mut layer, DecodeLevel::nothing()));
+        let mut task =
+            tokio_test::task::spawn(reader.next_frame(&mut layer, DecodeLevel::nothing()));
 
         // Send bytes to parser byte per byte
         for byte in frame.into_iter().take(frame.len() - 1) {
@@ -599,7 +600,7 @@ mod tests {
     }
 
     fn assert_can_parse_two_frames(mut reader: FramedReader, frame: &[u8]) {
-        let (io, mut io_handle) = io::mock();
+        let (io, mut io_handle) = tokio_mock_io::mock();
         let mut layer = PhysLayer::new_mock(io);
 
         // Build single array with two identical frames
@@ -614,7 +615,8 @@ mod tests {
 
         // First frame
         {
-            let mut task = spawn(reader.next_frame(&mut layer, DecodeLevel::nothing()));
+            let mut task =
+                tokio_test::task::spawn(reader.next_frame(&mut layer, DecodeLevel::nothing()));
             if let Poll::Ready(received_frame) = task.poll() {
                 let received_frame = received_frame.unwrap();
                 assert_eq!(received_frame.header.tx_id, None);
@@ -633,7 +635,8 @@ mod tests {
 
         // Second frame
         {
-            let mut task = spawn(reader.next_frame(&mut layer, DecodeLevel::nothing()));
+            let mut task =
+                tokio_test::task::spawn(reader.next_frame(&mut layer, DecodeLevel::nothing()));
             if let Poll::Ready(received_frame) = task.poll() {
                 let received_frame = received_frame.unwrap();
                 assert_eq!(received_frame.header.tx_id, None);
@@ -678,9 +681,10 @@ mod tests {
         ];
 
         let mut reader = FramedReader::rtu_request();
-        let (io, mut io_handle) = io::mock();
+        let (io, mut io_handle) = tokio_mock_io::mock();
         let mut layer = PhysLayer::new_mock(io);
-        let mut task = spawn(reader.next_frame(&mut layer, DecodeLevel::nothing()));
+        let mut task =
+            tokio_test::task::spawn(reader.next_frame(&mut layer, DecodeLevel::nothing()));
 
         io_handle.read(READ_COILS_REQUEST_WRONG_CRC);
         if let Poll::Ready(received_frame) = task.poll() {

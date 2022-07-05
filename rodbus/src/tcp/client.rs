@@ -3,15 +3,15 @@ use tracing::Instrument;
 use crate::client::{Channel, HostAddr};
 use crate::common::phys::PhysLayer;
 use crate::decode::DecodeLevel;
-use crate::tokio;
-use crate::tokio::net::TcpStream;
-use crate::tokio::sync::mpsc::Receiver;
 
 use crate::client::channel::ReconnectStrategy;
 use crate::client::message::Command;
 use crate::client::task::{ClientLoop, SessionError};
 use crate::common::frame::{FrameWriter, FramedReader};
 use crate::error::Shutdown;
+
+use tokio::net::TcpStream;
+use tokio::sync::mpsc::Receiver;
 
 pub(crate) fn spawn_tcp_channel(
     host: HostAddr,

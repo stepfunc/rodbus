@@ -1,7 +1,7 @@
 use crate::decode::PhysDecodeLevel;
-use crate::tokio::io::{AsyncReadExt, AsyncWriteExt};
-use crate::tokio::time::{Duration, Instant};
 use std::fmt::Write;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::time::{Duration, Instant};
 use tokio_serial::SerialPort;
 
 pub(crate) struct PhysLayer {
@@ -10,18 +10,18 @@ pub(crate) struct PhysLayer {
 
 // encapsulates all possible physical layers as an enum
 pub(crate) enum PhysLayerImpl {
-    Tcp(crate::tokio::net::TcpStream),
+    Tcp(tokio::net::TcpStream),
     Serial(tokio_serial::SerialStream, Duration, Option<Instant>),
     // TLS type is boxed because its size is huge
     #[cfg(feature = "tls")]
-    Tls(Box<tokio_rustls::TlsStream<crate::tokio::net::TcpStream>>),
+    Tls(Box<tokio_rustls::TlsStream<tokio::net::TcpStream>>),
     #[cfg(test)]
-    Mock(tokio_mock::mock::test::io::MockIo),
+    Mock(tokio_mock_io::Mock),
 }
 
 impl std::fmt::Debug for PhysLayer {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self.layer {
+        match &self.layer {
             PhysLayerImpl::Tcp(_) => f.write_str("Tcp"),
             PhysLayerImpl::Serial(_, _, _) => f.write_str("Serial"),
             #[cfg(feature = "tls")]
@@ -33,7 +33,7 @@ impl std::fmt::Debug for PhysLayer {
 }
 
 impl PhysLayer {
-    pub(crate) fn new_tcp(socket: crate::tokio::net::TcpStream) -> Self {
+    pub(crate) fn new_tcp(socket: tokio::net::TcpStream) -> Self {
         Self {
             layer: PhysLayerImpl::Tcp(socket),
         }
@@ -47,14 +47,14 @@ impl PhysLayer {
     }
 
     #[cfg(feature = "tls")]
-    pub(crate) fn new_tls(socket: tokio_rustls::TlsStream<crate::tokio::net::TcpStream>) -> Self {
+    pub(crate) fn new_tls(socket: tokio_rustls::TlsStream<tokio::net::TcpStream>) -> Self {
         Self {
             layer: PhysLayerImpl::Tls(Box::new(socket)),
         }
     }
 
     #[cfg(test)]
-    pub(crate) fn new_mock(mock: tokio_mock::mock::test::io::MockIo) -> Self {
+    pub(crate) fn new_mock(mock: tokio_mock_io::Mock) -> Self {
         Self {
             layer: PhysLayerImpl::Mock(mock),
         }
@@ -97,7 +97,7 @@ impl PhysLayer {
             PhysLayerImpl::Serial(x, inter_char_delay, last_activity) => {
                 // Respect inter-character delay
                 if let Some(last_activity) = last_activity {
-                    crate::tokio::time::sleep_until(*last_activity + *inter_char_delay).await;
+                    tokio::time::sleep_until(*last_activity + *inter_char_delay).await;
                 }
                 *last_activity = Some(Instant::now());
 

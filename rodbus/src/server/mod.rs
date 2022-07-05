@@ -8,7 +8,6 @@ use crate::decode::DecodeLevel;
 use crate::serial::SerialSettings;
 use crate::server::task::{Authorization, ServerSetting, SessionTask};
 use crate::tcp::server::{ServerTask, TcpServerConnectionHandler};
-use crate::tokio;
 
 /// server handling
 pub(crate) mod handler;
@@ -67,8 +66,8 @@ pub async fn spawn_tcp_server_task<T: RequestHandler>(
     addr: SocketAddr,
     handlers: ServerHandlerMap<T>,
     decode: DecodeLevel,
-) -> Result<ServerHandle, crate::tokio::io::Error> {
-    let listener = crate::tokio::net::TcpListener::bind(addr).await?;
+) -> Result<ServerHandle, std::io::Error> {
+    let listener = tokio::net::TcpListener::bind(addr).await?;
 
     let (tx, rx) = tokio::sync::mpsc::channel(SERVER_SETTING_CHANNEL_CAPACITY);
     tokio::spawn(create_tcp_server_task_impl(
@@ -100,8 +99,8 @@ pub async fn create_tcp_server_task<T: RequestHandler>(
     addr: SocketAddr,
     handlers: ServerHandlerMap<T>,
     decode: DecodeLevel,
-) -> Result<impl std::future::Future<Output = ()>, crate::tokio::io::Error> {
-    let listener = crate::tokio::net::TcpListener::bind(addr).await?;
+) -> Result<impl std::future::Future<Output = ()>, std::io::Error> {
+    let listener = tokio::net::TcpListener::bind(addr).await?;
     Ok(create_tcp_server_task_impl(
         rx,
         max_sessions,
@@ -116,7 +115,7 @@ async fn create_tcp_server_task_impl<T: RequestHandler>(
     rx: tokio::sync::mpsc::Receiver<ServerSetting>,
     max_sessions: usize,
     addr: SocketAddr,
-    listener: crate::tokio::net::TcpListener,
+    listener: tokio::net::TcpListener,
     handlers: ServerHandlerMap<T>,
     decode: DecodeLevel,
 ) {
@@ -145,7 +144,7 @@ pub fn spawn_rtu_server_task<T: RequestHandler>(
     settings: SerialSettings,
     handlers: ServerHandlerMap<T>,
     decode: DecodeLevel,
-) -> Result<ServerHandle, crate::tokio::io::Error> {
+) -> Result<ServerHandle, std::io::Error> {
     let serial = crate::serial::open(path, settings)?;
 
     let (tx, rx) = tokio::sync::mpsc::channel(SERVER_SETTING_CHANNEL_CAPACITY);
@@ -175,7 +174,7 @@ pub fn create_rtu_server_task<T: RequestHandler>(
     settings: SerialSettings,
     handlers: ServerHandlerMap<T>,
     decode: DecodeLevel,
-) -> Result<impl std::future::Future<Output = ()>, crate::tokio::io::Error> {
+) -> Result<impl std::future::Future<Output = ()>, std::io::Error> {
     let serial = crate::serial::open(path, settings)?;
 
     Ok(create_rtu_server_task_impl(
@@ -230,8 +229,8 @@ pub async fn spawn_tls_server_task<T: RequestHandler>(
     auth_handler: std::sync::Arc<dyn AuthorizationHandler>,
     tls_config: TlsServerConfig,
     decode: DecodeLevel,
-) -> Result<ServerHandle, crate::tokio::io::Error> {
-    let listener = crate::tokio::net::TcpListener::bind(addr).await?;
+) -> Result<ServerHandle, std::io::Error> {
+    let listener = tokio::net::TcpListener::bind(addr).await?;
 
     let (tx, rx) = tokio::sync::mpsc::channel(SERVER_SETTING_CHANNEL_CAPACITY);
     tokio::spawn(create_tls_server_task_impl(
@@ -270,8 +269,8 @@ pub async fn create_tls_server_task<T: RequestHandler>(
     auth_handler: std::sync::Arc<dyn AuthorizationHandler>,
     tls_config: TlsServerConfig,
     decode: DecodeLevel,
-) -> Result<impl std::future::Future<Output = ()>, crate::tokio::io::Error> {
-    let listener = crate::tokio::net::TcpListener::bind(addr).await?;
+) -> Result<impl std::future::Future<Output = ()>, std::io::Error> {
+    let listener = tokio::net::TcpListener::bind(addr).await?;
     Ok(create_tls_server_task_impl(
         rx,
         max_sessions,
@@ -290,7 +289,7 @@ async fn create_tls_server_task_impl<T: RequestHandler>(
     rx: tokio::sync::mpsc::Receiver<ServerSetting>,
     max_sessions: usize,
     addr: SocketAddr,
-    listener: crate::tokio::net::TcpListener,
+    listener: tokio::net::TcpListener,
     handlers: ServerHandlerMap<T>,
     auth_handler: std::sync::Arc<dyn AuthorizationHandler>,
     tls_config: TlsServerConfig,

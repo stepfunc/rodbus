@@ -120,7 +120,7 @@ impl ReadBuffer {
 mod tests {
     use super::*;
     use crate::decode::PhysDecodeLevel;
-    use crate::tokio::test::*;
+    use tokio_test::*;
 
     #[test]
     fn errors_when_reading_too_many_bytes() {
@@ -136,27 +136,21 @@ mod tests {
     }
 
     #[test]
-    fn shifts_contents_when_buffer_at_capacity() {
+    fn preserves_data_over_multiple_reads() {
         let mut buffer = ReadBuffer::new();
 
-        let (io, mut io_handle) = io::mock();
+        let (io, mut io_handle) = tokio_mock_io::mock();
         let mut phys = PhysLayer::new_mock(io);
 
         {
-            let buf_ref = &mut buffer;
-            let mut task = spawn(async {
-                buf_ref
-                    .read_some(&mut phys, PhysDecodeLevel::Nothing)
-                    .await
-                    .unwrap()
-            });
-            assert_pending!(task.poll());
+            let mut task =
+                tokio_test::task::spawn(buffer.read_some(&mut phys, PhysDecodeLevel::Nothing));
+            tokio_test::assert_pending!(task.poll());
         }
 
         {
-            let buf_ref = &mut buffer;
-            let mut task = spawn(async {
-                buf_ref
+            let mut task = task::spawn(async {
+                buffer
                     .read_some(&mut phys, PhysDecodeLevel::Nothing)
                     .await
                     .unwrap()
@@ -168,9 +162,8 @@ mod tests {
         assert_eq!(buffer.read(2).unwrap(), &[0x01, 0x02]);
 
         {
-            let buf_ref = &mut buffer;
-            let mut task = spawn(async {
-                buf_ref
+            let mut task = task::spawn(async {
+                buffer
                     .read_some(&mut phys, PhysDecodeLevel::Nothing)
                     .await
                     .unwrap()

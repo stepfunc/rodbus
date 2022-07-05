@@ -1,6 +1,6 @@
 use crate::common::phys::PhysLayer;
 use crate::server::{AuthorizationHandler, AuthorizationResult};
-use crate::{tokio, DecodeLevel, UnitId};
+use crate::{DecodeLevel, UnitId};
 
 use crate::common::cursor::ReadCursor;
 use crate::common::frame::{
@@ -90,7 +90,7 @@ where
     }
 
     async fn run_one(&mut self) -> Result<(), RequestError> {
-        crate::tokio::select! {
+        tokio::select! {
             frame = self.reader.next_frame(&mut self.io, self.decode) => {
                 let frame = frame?;
                 self.handle_frame(frame).await

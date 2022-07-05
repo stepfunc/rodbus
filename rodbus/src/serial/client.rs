@@ -3,7 +3,7 @@ use std::time::Duration;
 use crate::common::phys::PhysLayer;
 use crate::decode::DecodeLevel;
 use crate::serial::SerialSettings;
-use crate::tokio::sync::mpsc::Receiver;
+use tokio::sync::mpsc::Receiver;
 
 use crate::client::message::Command;
 use crate::client::task::{ClientLoop, SessionError};

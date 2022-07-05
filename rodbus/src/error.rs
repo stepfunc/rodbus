@@ -1,5 +1,3 @@
-use crate::tokio;
-
 /// The task processing requests has terminated
 #[derive(Clone, Copy, Debug)]
 pub struct Shutdown;

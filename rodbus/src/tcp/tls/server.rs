@@ -2,6 +2,7 @@ use std::io::{self, ErrorKind};
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
+use tokio::net::TcpStream;
 use tokio_rustls::rustls;
 use tokio_rustls::rustls::server::AllowAnyAuthenticatedClient;
 
@@ -9,7 +10,6 @@ use crate::common::phys::PhysLayer;
 use crate::server::task::Authorization;
 use crate::server::AuthorizationHandler;
 use crate::tcp::tls::{load_certs, load_private_key, CertificateMode, MinTlsVersion, TlsError};
-use crate::tokio::net::TcpStream;
 
 type RoleContainer = Arc<Mutex<Option<String>>>;
 type ConfigBuilderCallback =
