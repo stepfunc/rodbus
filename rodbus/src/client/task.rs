@@ -308,7 +308,6 @@ mod tests {
         // the expected request
         let range = AddressRange::try_from(7, 2).unwrap();
         let request = get_framed_adu(FunctionCode::ReadCoils, &range);
-        io.write(&request);
 
         // spawn a task that will perform the read coils
         let request_task = tokio::spawn(async move {
@@ -320,7 +319,7 @@ mod tests {
                 .await
         });
         // wait until the task writes the request so that we know it's in the correct state
-        assert_eq!(io.next_event().await, Event::Write(request.len()));
+        assert_eq!(io.next_event().await, Event::Write(request));
 
         // pausing the time will cause the timer to "auto advance"
         tokio::time::pause();
@@ -336,7 +335,6 @@ mod tests {
         // the expected request
         let range = AddressRange::try_from(7, 2).unwrap();
         let request = get_framed_adu(FunctionCode::ReadCoils, &range);
-        io.write(&request);
 
         // spawn a task that will perform the read coils
         let request_task = tokio::spawn(async move {
@@ -348,7 +346,7 @@ mod tests {
                 .await
         });
         // wait until the task writes the request so that we know it's in the correct state
-        assert_eq!(io.next_event().await, Event::Write(request.len()));
+        assert_eq!(io.next_event().await, Event::Write(request));
 
         // now drop the task
         task.abort();
@@ -383,17 +381,21 @@ mod tests {
             }),
         );
 
-        io.write(&request);
+        let coils = tokio::spawn(async move {
+            channel
+                .read_coils(
+                    RequestParam::new(UnitId::new(1), Duration::from_secs(1)),
+                    range,
+                )
+                .await
+        });
+
+        assert_eq!(io.next_event().await, Event::Write(request));
         io.read(&response);
 
-        let coils = channel
-            .read_coils(
-                RequestParam::new(UnitId::new(1), Duration::from_secs(1)),
-                range,
-            )
-            .await
-            .unwrap();
-
-        assert_eq!(coils, vec![Indexed::new(7, true), Indexed::new(8, false)]);
+        assert_eq!(
+            coils.await.unwrap().unwrap(),
+            vec![Indexed::new(7, true), Indexed::new(8, false)]
+        );
     }
 }
