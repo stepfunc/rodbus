@@ -282,23 +282,21 @@ pub(crate) unsafe fn server_create_tcp(
     let address = get_socket_addr(ip_addr, port)?;
     let endpoints = endpoints.as_mut().ok_or(ffi::ParamError::NullParameter)?;
 
-    let (tx, rx) = tokio::sync::mpsc::channel(1);
-
     let handler_map = endpoints.drain_and_convert();
-    let task = runtime
+    let create_server = rodbus::server::spawn_tcp_server_task(
+        max_sessions as usize,
+        address,
+        handler_map.clone(),
+        decode_level.into(),
+    );
+
+    let handle = runtime
         .inner
-        .block_on(rodbus::server::create_tcp_server_task(
-            rx,
-            max_sessions as usize,
-            address,
-            handler_map.clone(),
-            decode_level.into(),
-        ))
+        .block_on(create_server)
         .map_err(|_| ffi::ParamError::ServerBindError)?;
-    runtime.inner.spawn(task);
 
     let server_handle = Server {
-        inner: ServerHandle::new(tx),
+        inner: handle,
         runtime: runtime.handle(),
         map: handler_map,
     };
@@ -315,22 +313,21 @@ pub(crate) unsafe fn server_create_rtu(
 ) -> Result<*mut crate::Server, ffi::ParamError> {
     let runtime = runtime.as_ref().ok_or(ffi::ParamError::NullParameter)?;
     let endpoints = endpoints.as_mut().ok_or(ffi::ParamError::NullParameter)?;
-
-    let (tx, rx) = tokio::sync::mpsc::channel(1);
-
     let handler_map = endpoints.drain_and_convert();
-    let task = rodbus::server::create_rtu_server_task(
-        rx,
+
+    // enter the runtime context so we can spawn
+    let _enter = runtime.inner.enter();
+
+    let handle = rodbus::server::spawn_rtu_server_task(
         &path.to_string_lossy(),
         serial_params.into(),
         handler_map.clone(),
         decode_level.into(),
     )
     .map_err(|_| ffi::ParamError::ServerBindError)?;
-    runtime.inner.spawn(task);
 
     let server_handle = Server {
-        inner: ServerHandle::new(tx),
+        inner: handle,
         runtime: runtime.handle(),
         map: handler_map,
     };
@@ -359,8 +356,6 @@ pub(crate) unsafe fn server_create_tls(
         password => Some(password),
     };
 
-    let (tx, rx) = tokio::sync::mpsc::channel(1);
-
     let auth_handler = AuthorizationHandlerWrapper::new(auth_handler).wrap();
 
     let tls_config = TlsServerConfig::new(
@@ -377,22 +372,22 @@ pub(crate) unsafe fn server_create_tls(
     })?;
 
     let handler_map = endpoints.drain_and_convert();
-    let task = runtime
+    let create_server = rodbus::server::spawn_tls_server_task(
+        max_sessions as usize,
+        address,
+        handler_map.clone(),
+        auth_handler,
+        tls_config,
+        decode_level.into(),
+    );
+
+    let handle = runtime
         .inner
-        .block_on(rodbus::server::create_tls_server_task(
-            rx,
-            max_sessions as usize,
-            address,
-            handler_map.clone(),
-            auth_handler,
-            tls_config,
-            decode_level.into(),
-        ))
+        .block_on(create_server)
         .map_err(|_| ffi::ParamError::ServerBindError)?;
-    runtime.inner.spawn(task);
 
     let server_handle = Server {
-        inner: ServerHandle::new(tx),
+        inner: handle,
         runtime: runtime.handle(),
         map: handler_map,
     };
