@@ -33,17 +33,18 @@ pub(crate) unsafe fn client_channel_create_tcp(
 ) -> Result<*mut crate::ClientChannel, ffi::ParamError> {
     let runtime = runtime.as_ref().ok_or(ffi::ParamError::NullParameter)?;
 
-    let (handle, task) = rodbus::client::create_tcp_handle_and_task(
+    // enter the runtime context so we can spawn
+    let _enter = runtime.inner.enter();
+
+    let channel = rodbus::client::spawn_tcp_client_task(
         get_host_addr(host, port)?,
         max_queued_requests as usize,
         retry_strategy.into(),
         decode_level.into(),
     );
 
-    runtime.inner.spawn(task);
-
     Ok(Box::into_raw(Box::new(ClientChannel {
-        inner: handle,
+        inner: channel,
         runtime: runtime.handle(),
     })))
 }
@@ -58,7 +59,10 @@ pub(crate) unsafe fn client_channel_create_rtu(
 ) -> Result<*mut crate::ClientChannel, ffi::ParamError> {
     let runtime = runtime.as_ref().ok_or(ffi::ParamError::NullParameter)?;
 
-    let (handle, task) = rodbus::client::create_rtu_handle_and_task(
+    // enter the runtime context so we can spawn
+    let _enter = runtime.inner.enter();
+
+    let channel = rodbus::client::spawn_rtu_client_task(
         &path.to_string_lossy(),
         serial_params.into(),
         max_queued_requests as usize,
@@ -66,10 +70,8 @@ pub(crate) unsafe fn client_channel_create_rtu(
         decode_level.into(),
     );
 
-    runtime.inner.spawn(task);
-
     Ok(Box::into_raw(Box::new(ClientChannel {
-        inner: handle,
+        inner: channel,
         runtime: runtime.handle(),
     })))
 }
@@ -105,18 +107,21 @@ pub(crate) unsafe fn client_channel_create_tls(
         err
     })?;
 
-    let (handle, task) = rodbus::client::create_tls_handle_and_task(
-        get_host_addr(host, port)?,
+    let host_addr = get_host_addr(host, port)?;
+
+    // enter the runtime context so we can spawn
+    let _enter = runtime.inner.enter();
+
+    let channel = rodbus::client::spawn_tls_client_task(
+        host_addr,
         max_queued_requests as usize,
         retry_strategy.into(),
         tls_config,
         decode_level.into(),
     );
 
-    runtime.inner.spawn(task);
-
     Ok(Box::into_raw(Box::new(ClientChannel {
-        inner: handle,
+        inner: channel,
         runtime: runtime.handle(),
     })))
 }
