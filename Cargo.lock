@@ -302,9 +302,9 @@ checksum = "ccaeedb56da03b09f598226e25e80088cb4cd25f316e6e4df7d695f0feeb1403"
 
 [[package]]
 name = "crypto-common"
-version = "0.1.4"
+version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5999502d32b9c48d492abe66392408144895020ec4709e549e840799f3bb74c0"
+checksum = "2ccfd8c0ee4cce11e45b3fd6f9d5e69e0cc62912aa6a0cb1bf4617b0eba5a12f"
 dependencies = [
  "generic-array",
  "typenum",
@@ -907,7 +907,7 @@ dependencies = [
 
 [[package]]
 name = "rodbus"
-version = "1.0.0-alpha6"
+version = "1.0.0-alpha7"
 dependencies = [
  "crc",
  "pem",
@@ -926,7 +926,7 @@ dependencies = [
 
 [[package]]
 name = "rodbus-bindings"
-version = "1.0.0-alpha6"
+version = "1.0.0-alpha7"
 dependencies = [
  "ci-script",
  "rodbus-ffi",
@@ -935,7 +935,7 @@ dependencies = [
 
 [[package]]
 name = "rodbus-client"
-version = "1.0.0-alpha6"
+version = "1.0.0-alpha7"
 dependencies = [
  "clap",
  "rodbus",
@@ -946,7 +946,7 @@ dependencies = [
 
 [[package]]
 name = "rodbus-ffi"
-version = "1.0.0-alpha6"
+version = "1.0.0-alpha7"
 dependencies = [
  "lazy_static",
  "num_cpus",
@@ -961,7 +961,7 @@ dependencies = [
 
 [[package]]
 name = "rodbus-schema"
-version = "1.0.0-alpha6"
+version = "1.0.0-alpha7"
 dependencies = [
  "oo-bindgen",
  "rodbus",
@@ -969,7 +969,7 @@ dependencies = [
 
 [[package]]
 name = "rodbus_ffi_java"
-version = "1.0.0-alpha6"
+version = "1.0.0-alpha7"
 dependencies = [
  "java-oo-bindgen",
  "jni",
