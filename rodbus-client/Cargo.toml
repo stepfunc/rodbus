@@ -16,6 +16,6 @@ path = "src/main.rs"
 [dependencies]
 rodbus = { path = "../rodbus", version = "1.0.0-alpha6" }
 clap = "2.33"
-tokio = { version = "1.5", features = ["macros", "time"] }
+tokio = { version = "1", features = ["macros", "time"] }
 tracing = "0.1"
 tracing-subscriber = "0.2"
