@@ -81,6 +81,8 @@ impl TlsServerConfig {
                         )));
                     }
 
+                    let peer_cert = Arc::new(peer_cert);
+
                     Arc::new(move |role_container| {
                         let verifier = SelfSignedCertificateClientCertVerifier::new(
                             peer_cert.clone(),
@@ -191,14 +193,14 @@ impl rustls::server::ClientCertVerifier for CaChainClientCertVerifier {
 }
 
 struct SelfSignedCertificateClientCertVerifier {
-    cert: rustls::Certificate,
+    cert: Arc<rustls::Certificate>,
     role_container: RoleContainer,
 }
 
 impl SelfSignedCertificateClientCertVerifier {
     #[allow(clippy::new_ret_no_self)]
     fn new(
-        cert: rustls::Certificate,
+        cert: Arc<rustls::Certificate>,
         role_container: RoleContainer,
     ) -> Arc<dyn rustls::server::ClientCertVerifier> {
         Arc::new(SelfSignedCertificateClientCertVerifier {
@@ -241,7 +243,7 @@ impl rustls::server::ClientCertVerifier for SelfSignedCertificateClientCertVerif
         }
 
         // Check that presented certificate matches byte-for-byte the expected certificate
-        if end_entity != &self.cert {
+        if end_entity != self.cert.as_ref() {
             return Err(rustls::Error::InvalidCertificateData(
                 "client certificate doesn't match the expected self-signed certificate".to_string(),
             ));
