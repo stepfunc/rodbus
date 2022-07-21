@@ -72,44 +72,44 @@ class WriterHandler : public rodbus::WriteHandler
 // ANCHOR: auth_handler
 class AuthorizationHandler : public rodbus::AuthorizationHandler
 {
-    rodbus::AuthorizationResult read_coils(uint8_t unit_id, const rodbus::AddressRange& range, const char* role) override
+    rodbus::Authorization read_coils(uint8_t unit_id, const rodbus::AddressRange& range, const char* role) override
     {
-        return rodbus::AuthorizationResult::authorized;
+        return rodbus::Authorization::allow;
     }
 
-    rodbus::AuthorizationResult read_discrete_inputs(uint8_t unit_id, const rodbus::AddressRange& range, const char* role) override
+    rodbus::Authorization read_discrete_inputs(uint8_t unit_id, const rodbus::AddressRange &range, const char *role) override
     {
-        return rodbus::AuthorizationResult::authorized;
+        return rodbus::Authorization::allow;
     }
 
-    rodbus::AuthorizationResult read_holding_registers(uint8_t unit_id, const rodbus::AddressRange& range, const char* role) override
+    rodbus::Authorization read_holding_registers(uint8_t unit_id, const rodbus::AddressRange &range, const char *role) override
     {
-        return rodbus::AuthorizationResult::authorized;
+        return rodbus::Authorization::allow;
     }
 
-    rodbus::AuthorizationResult read_input_registers(uint8_t unit_id, const rodbus::AddressRange& range, const char* role) override
+    rodbus::Authorization read_input_registers(uint8_t unit_id, const rodbus::AddressRange &range, const char *role) override
     {
-        return rodbus::AuthorizationResult::authorized;
+        return rodbus::Authorization::allow;
     }
 
-    rodbus::AuthorizationResult write_single_coil(uint8_t unit_id, uint16_t idx, const char* role) override
+    rodbus::Authorization write_single_coil(uint8_t unit_id, uint16_t idx, const char *role) override
     {
-        return rodbus::AuthorizationResult::not_authorized;
+        return rodbus::Authorization::deny;
     }
 
-    rodbus::AuthorizationResult write_single_register(uint8_t unit_id, uint16_t idx, const char* role) override
+    rodbus::Authorization write_single_register(uint8_t unit_id, uint16_t idx, const char *role) override
     {
-        return rodbus::AuthorizationResult::not_authorized;
+        return rodbus::Authorization::deny;
     }
 
-    rodbus::AuthorizationResult write_multiple_coils(uint8_t unit_id, const rodbus::AddressRange& range, const char* role) override
+    rodbus::Authorization write_multiple_coils(uint8_t unit_id, const rodbus::AddressRange &range, const char *role) override
     {
-        return rodbus::AuthorizationResult::not_authorized;
+        return rodbus::Authorization::deny;
     }
 
-    rodbus::AuthorizationResult write_multiple_registers(uint8_t unit_id, const rodbus::AddressRange& range, const char* role) override
+    rodbus::Authorization write_multiple_registers(uint8_t unit_id, const rodbus::AddressRange &range, const char *role) override
     {
-        return rodbus::AuthorizationResult::not_authorized;
+        return rodbus::Authorization::deny;
     }
 };
 // ANCHOR_END: auth_handler

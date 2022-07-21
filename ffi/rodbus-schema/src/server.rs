@@ -441,15 +441,9 @@ fn build_authorization_handler(
     common: &CommonDefinitions,
 ) -> BackTraced<AsynchronousInterface> {
     let auth_result = lib
-        .define_enum("authorization_result")?
-        .push(
-            "authorized",
-            "Client is authorized to perform the operation",
-        )?
-        .push(
-            "not_authorized",
-            "Client is non authorized to perform the operation",
-        )?
+        .define_enum("authorization")?
+        .push("allow", "Client is authorized to perform the operation")?
+        .push("deny", "Client is NOT authorized to perform the operation")?
         .doc("Authorization result used by {interface:authorization_handler}")?
         .build()?;
 

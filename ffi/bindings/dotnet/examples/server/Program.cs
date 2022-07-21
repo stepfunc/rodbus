@@ -77,44 +77,44 @@ namespace example
         // ANCHOR: auth_handler
         class AuthorizationHandler : IAuthorizationHandler
         {
-            public AuthorizationResult ReadCoils(byte unitId, AddressRange range, string role)
+            public Authorization ReadCoils(byte unitId, AddressRange range, string role)
             {
-                return AuthorizationResult.Authorized;
+                return Authorization.Allow;
             }
 
-            public AuthorizationResult ReadDiscreteInputs(byte unitId, AddressRange range, string role)
+            public Authorization ReadDiscreteInputs(byte unitId, AddressRange range, string role)
             {
-                return AuthorizationResult.Authorized;
+                return Authorization.Allow;
             }
 
-            public AuthorizationResult ReadHoldingRegisters(byte unitId, AddressRange range, string role)
+            public Authorization ReadHoldingRegisters(byte unitId, AddressRange range, string role)
             {
-                return AuthorizationResult.Authorized;
+                return Authorization.Allow;
             }
 
-            public AuthorizationResult ReadInputRegisters(byte unitId, AddressRange range, string role)
+            public Authorization ReadInputRegisters(byte unitId, AddressRange range, string role)
             {
-                return AuthorizationResult.Authorized;
+                return Authorization.Allow;
             }
 
-            public AuthorizationResult WriteSingleCoil(byte unitId, ushort idx, string role)
+            public Authorization WriteSingleCoil(byte unitId, ushort idx, string role)
             {
-                return AuthorizationResult.NotAuthorized;
+                return Authorization.Deny;
             }
 
-            public AuthorizationResult WriteSingleRegister(byte unitId, ushort idx, string role)
+            public Authorization WriteSingleRegister(byte unitId, ushort idx, string role)
             {
-                return AuthorizationResult.NotAuthorized;
+                return Authorization.Deny;
             }
 
-            public AuthorizationResult WriteMultipleCoils(byte unitId, AddressRange range, string role)
+            public Authorization WriteMultipleCoils(byte unitId, AddressRange range, string role)
             {
-                return AuthorizationResult.NotAuthorized;
+                return Authorization.Deny;
             }
 
-            public AuthorizationResult WriteMultipleRegisters(byte unitId, AddressRange range, string role)
+            public Authorization WriteMultipleRegisters(byte unitId, AddressRange range, string role)
             {
-                return AuthorizationResult.NotAuthorized;
+                return Authorization.Deny;
             }
         }
         // ANCHOR_END: auth_handler

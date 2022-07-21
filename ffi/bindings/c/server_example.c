@@ -54,19 +54,19 @@ rodbus_write_result_t on_write_multiple_registers(uint16_t start, rodbus_registe
 // ANCHOR_END: write_handler
 
 // ANCHOR: auth_handler
-rodbus_authorization_result_t auth_read(uint8_t unit_id, rodbus_address_range_t range, const char* role, void* ctx)
+rodbus_authorization_t auth_read(uint8_t unit_id, rodbus_address_range_t range, const char* role, void* ctx)
 {
-    return RODBUS_AUTHORIZATION_RESULT_AUTHORIZED;
+    return RODBUS_AUTHORIZATION_ALLOW;
 }
 
-rodbus_authorization_result_t auth_single_write(uint8_t unit_id, uint16_t idx, const char* role, void* ctx)
+rodbus_authorization_t auth_single_write(uint8_t unit_id, uint16_t idx, const char *role, void *ctx)
 {
-    return RODBUS_AUTHORIZATION_RESULT_NOT_AUTHORIZED;
+    return RODBUS_AUTHORIZATION_DENY;
 }
 
-rodbus_authorization_result_t auth_multiple_writes(uint8_t unit_id, rodbus_address_range_t range, const char* role, void* ctx)
+rodbus_authorization_t auth_multiple_writes(uint8_t unit_id, rodbus_address_range_t range, const char *role, void *ctx)
 {
-    return RODBUS_AUTHORIZATION_RESULT_NOT_AUTHORIZED;
+    return RODBUS_AUTHORIZATION_DENY;
 }
 // ANCHOR_END: auth_handler
 

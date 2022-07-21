@@ -103,11 +103,11 @@ impl From<ffi::SerialPortSettings> for rodbus::serial::SerialSettings {
     }
 }
 
-impl From<ffi::AuthorizationResult> for Authorization {
-    fn from(x: ffi::AuthorizationResult) -> Self {
+impl From<ffi::Authorization> for Authorization {
+    fn from(x: ffi::Authorization) -> Self {
         match x {
-            ffi::AuthorizationResult::Authorized => Self::Allow,
-            ffi::AuthorizationResult::NotAuthorized => Self::Deny,
+            ffi::Authorization::Allow => Self::Allow,
+            ffi::Authorization::Deny => Self::Deny,
         }
     }
 }

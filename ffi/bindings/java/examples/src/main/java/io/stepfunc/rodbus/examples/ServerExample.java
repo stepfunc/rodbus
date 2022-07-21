@@ -72,36 +72,36 @@ class ExampleWriteHandler implements WriteHandler {
 // ANCHOR: auth_handler
 class TestAuthorizationHandler implements AuthorizationHandler
 {
-    public AuthorizationResult readCoils(UByte unitId, AddressRange range, String role) {
-        return AuthorizationResult.AUTHORIZED;
+    public Authorization readCoils(UByte unitId, AddressRange range, String role) {
+        return Authorization.ALLOW;
     }
 
-    public AuthorizationResult readDiscreteInputs(UByte unitId, AddressRange range, String role) {
-        return AuthorizationResult.AUTHORIZED;
+    public Authorization readDiscreteInputs(UByte unitId, AddressRange range, String role) {
+        return Authorization.ALLOW;
     }
 
-    public AuthorizationResult readHoldingRegisters(UByte unitId, AddressRange range, String role) {
-        return AuthorizationResult.AUTHORIZED;
+    public Authorization readHoldingRegisters(UByte unitId, AddressRange range, String role) {
+        return Authorization.ALLOW;
     }
 
-    public AuthorizationResult readInputRegisters(UByte unitId, AddressRange range, String role) {
-        return AuthorizationResult.AUTHORIZED;
+    public Authorization readInputRegisters(UByte unitId, AddressRange range, String role) {
+        return Authorization.ALLOW;
     }
 
-    public AuthorizationResult writeSingleCoil(UByte unitId, UShort idx, String role) {
-        return AuthorizationResult.NOT_AUTHORIZED;
+    public Authorization writeSingleCoil(UByte unitId, UShort idx, String role) {
+        return Authorization.ALLOW;
     }
 
-    public AuthorizationResult writeSingleRegister(UByte unitId, UShort idx, String role) {
-        return AuthorizationResult.NOT_AUTHORIZED;
+    public Authorization writeSingleRegister(UByte unitId, UShort idx, String role) {
+        return Authorization.DENY;
     }
 
-    public AuthorizationResult writeMultipleCoils(UByte unitId, AddressRange range, String role) {
-        return AuthorizationResult.NOT_AUTHORIZED;
+    public Authorization writeMultipleCoils(UByte unitId, AddressRange range, String role) {
+        return Authorization.DENY;
     }
 
-    public AuthorizationResult writeMultipleRegisters(UByte unitId, AddressRange range, String role) {
-        return AuthorizationResult.NOT_AUTHORIZED;
+    public Authorization writeMultipleRegisters(UByte unitId, AddressRange range, String role) {
+        return Authorization.DENY;
     }
 }
 // ANCHOR_END: auth_handler
