@@ -128,8 +128,9 @@ pub fn spawn_rtu_server_task<T: RequestHandler>(
     Ok(ServerHandle::new(tx))
 }
 
-/// Spawns a "raw" TLS server task onto the runtime. This TLS server does not require that
-/// client certs contain the Role extension and allows all operations for authenticated clients.
+/// Spawns a "raw" TLS server task onto the runtime. This TLS server does NOT require that
+/// the client certificate contain the Role extension and allows all operations for any authenticated
+/// client.
 ///
 /// This method can only be called from within the runtime context. Use `Runtime::enter()`
 /// to create a context on the current thread if necessary.
@@ -154,8 +155,8 @@ pub async fn spawn_tls_server_task<T: RequestHandler>(
 }
 
 /// Spawns a "Secure Modbus" TLS server task onto the runtime. This TLS server requires that
-/// client certs contain the Role extension and checks the authorization of requests against the
-/// supplied handler.
+/// the client certificate contain the Role extension and checks the authorization of requests against
+/// the supplied handler.
 ///
 /// This method can only be called from within the runtime context. Use `Runtime::enter()`
 /// to create a context on the current thread if necessary.

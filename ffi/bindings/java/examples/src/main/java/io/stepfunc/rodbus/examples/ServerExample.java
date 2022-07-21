@@ -177,7 +177,7 @@ public class ServerExample {
 
     private static Server createTlsServer(Runtime runtime, DeviceMap map, TlsServerConfig tlsConfig) {
         // ANCHOR: tls_server_create
-        Server server = Server.createTls(runtime, "127.0.0.1", ushort(802), ushort(10), map, tlsConfig, new TestAuthorizationHandler(), DecodeLevel.nothing());
+        Server server = Server.createTlsWithAuthz(runtime, "127.0.0.1", ushort(802), ushort(10), map, tlsConfig, new TestAuthorizationHandler(), DecodeLevel.nothing());
         // ANCHOR_END: tls_server_create
 
         return server;

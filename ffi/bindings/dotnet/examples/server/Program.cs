@@ -205,7 +205,7 @@ namespace example
         private static Server CreateTlsServer(Runtime runtime, DeviceMap map, TlsServerConfig tlsConfig)
         {
             // ANCHOR: tls_server_create            
-            var server = Server.CreateTls(runtime, "127.0.0.1", 802, 10, map, tlsConfig, new AuthorizationHandler(), DecodeLevel.Nothing());
+            var server = Server.CreateTlsWithAuthz(runtime, "127.0.0.1", 802, 10, map, tlsConfig, new AuthorizationHandler(), DecodeLevel.Nothing());
             // ANCHOR_END: tls_server_create
 
             return server;

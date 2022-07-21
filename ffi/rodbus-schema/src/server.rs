@@ -98,7 +98,7 @@ pub(crate) fn build_server(
         .build_static("create_rtu")?;
 
     let tls_constructor = lib
-        .define_function("server_create_tls")?
+        .define_function("server_create_tls_with_authz")?
         .param(
             "runtime",
             common.runtime_handle.clone(),
@@ -128,7 +128,7 @@ pub(crate) fn build_server(
         .doc(doc("Launch a Modbus Security (TLS) server.")
             .details("Recommended port for Modbus Security is 802.")
             .details("When the maximum number of concurrent sessions is reached, the oldest session is closed."))?
-        .build_static("create_tls")?;
+        .build_static("create_tls_with_authz")?;
 
     let destructor = lib.define_destructor(
         server.clone(),

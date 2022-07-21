@@ -336,7 +336,7 @@ pub(crate) unsafe fn server_create_rtu(
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(crate) unsafe fn server_create_tls(
+pub(crate) unsafe fn server_create_tls_with_authz(
     runtime: *mut crate::Runtime,
     ip_addr: &std::ffi::CStr,
     port: u16,
