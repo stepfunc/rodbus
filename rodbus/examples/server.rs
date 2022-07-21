@@ -253,8 +253,8 @@ fn get_ca_chain_config() -> Result<TlsServerConfig, Box<dyn std::error::Error>> 
     // ANCHOR: tls_ca_chain_config
     let tls_config = TlsServerConfig::new(
         &Path::new("./certs/ca_chain/ca_cert.pem"),
-        &Path::new("./certs/ca_chain/entity1_cert.pem"),
-        &Path::new("./certs/ca_chain/entity1_key.pem"),
+        &Path::new("./certs/ca_chain/server_cert.pem"),
+        &Path::new("./certs/ca_chain/server_key.pem"),
         None, // no password
         MinTlsVersion::V1_2,
         CertificateMode::AuthorityBased,

@@ -85,6 +85,7 @@ impl TlsServerConfig {
                     None => AuthorizationType::None,
                     // full secure modbus requires the client certificate contain a role
                     Some(handler) => {
+
                         // get the peer cert data
                         let peer_cert = stream
                             .get_ref()
@@ -99,6 +100,8 @@ impl TlsServerConfig {
                             .map_err(|err| format!("ASNError: {}", err))?;
                         let role =
                             extract_modbus_role(&parsed).map_err(|err| format!("{}", err))?;
+
+                        tracing::info!("client role: {}", role);
                         AuthorizationType::Handler(handler, role)
                     }
                 };
