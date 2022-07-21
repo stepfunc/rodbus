@@ -7,7 +7,7 @@ use tokio_rustls::rustls;
 use tokio_rustls::rustls::server::AllowAnyAuthenticatedClient;
 
 use crate::common::phys::PhysLayer;
-use crate::server::task::Authorization;
+use crate::server::task::AuthorizationType;
 use crate::server::AuthorizationHandler;
 use crate::tcp::tls::{load_certs, load_private_key, CertificateMode, MinTlsVersion, TlsError};
 
@@ -75,14 +75,14 @@ impl TlsServerConfig {
         &mut self,
         socket: TcpStream,
         auth_handler: Option<Arc<dyn AuthorizationHandler>>,
-    ) -> Result<(PhysLayer, Authorization), String> {
+    ) -> Result<(PhysLayer, AuthorizationType), String> {
         let connector = tokio_rustls::TlsAcceptor::from(self.inner.clone());
         match connector.accept(socket).await {
             Err(err) => Err(format!("failed to establish TLS session: {}", err)),
             Ok(stream) => {
-                let handler = match auth_handler {
+                let auth_type = match auth_handler {
                     // bare TLS mode without authz
-                    None => Authorization::None,
+                    None => AuthorizationType::None,
                     // full secure modbus requires the client certificate contain a role
                     Some(handler) => {
                         // get the peer cert data
@@ -99,13 +99,13 @@ impl TlsServerConfig {
                             .map_err(|err| format!("ASNError: {}", err))?;
                         let role =
                             extract_modbus_role(&parsed).map_err(|err| format!("{}", err))?;
-                        Authorization::Handler(handler, role)
+                        AuthorizationType::Handler(handler, role)
                     }
                 };
 
                 let layer = PhysLayer::new_tls(tokio_rustls::TlsStream::from(stream));
 
-                Ok((layer, handler))
+                Ok((layer, auth_type))
             }
         }
     }

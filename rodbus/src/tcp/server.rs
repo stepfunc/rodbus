@@ -7,7 +7,7 @@ use crate::common::frame::{FrameWriter, FramedReader};
 use crate::common::phys::PhysLayer;
 use crate::decode::DecodeLevel;
 use crate::server::handler::{RequestHandler, ServerHandlerMap};
-use crate::server::task::{Authorization, ServerSetting};
+use crate::server::task::{AuthorizationType, ServerSetting};
 
 use std::net::SocketAddr;
 use tokio::net::TcpListener;
@@ -82,9 +82,9 @@ impl TcpServerConnectionHandler {
     async fn handle(
         &mut self,
         socket: tokio::net::TcpStream,
-    ) -> Result<(PhysLayer, Authorization), String> {
+    ) -> Result<(PhysLayer, AuthorizationType), String> {
         match self {
-            Self::Tcp => Ok((PhysLayer::new_tcp(socket), Authorization::None)),
+            Self::Tcp => Ok((PhysLayer::new_tcp(socket), AuthorizationType::None)),
             #[cfg(feature = "tls")]
             Self::Tls(config, auth_handler) => {
                 let res = config.handle_connection(socket, auth_handler.clone()).await;

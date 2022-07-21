@@ -132,12 +132,12 @@ impl AuthorizationHandlerWrapper {
 }
 
 impl AuthorizationHandler for AuthorizationHandlerWrapper {
-    fn read_coils(&self, unit_id: UnitId, range: AddressRange, role: &str) -> AuthorizationResult {
+    fn read_coils(&self, unit_id: UnitId, range: AddressRange, role: &str) -> Authorization {
         let role = unsafe { &CString::from_vec_unchecked(role.into()) };
         self.inner
             .read_coils(unit_id.value, range.into(), role)
             .map(|result| result.into())
-            .unwrap_or(AuthorizationResult::NotAuthorized)
+            .unwrap_or(Authorization::Deny)
     }
 
     fn read_discrete_inputs(
@@ -145,12 +145,12 @@ impl AuthorizationHandler for AuthorizationHandlerWrapper {
         unit_id: UnitId,
         range: AddressRange,
         role: &str,
-    ) -> AuthorizationResult {
+    ) -> Authorization {
         let role = unsafe { &CString::from_vec_unchecked(role.into()) };
         self.inner
             .read_discrete_inputs(unit_id.value, range.into(), role)
             .map(|result| result.into())
-            .unwrap_or(AuthorizationResult::NotAuthorized)
+            .unwrap_or(Authorization::Deny)
     }
 
     fn read_holding_registers(
@@ -158,12 +158,12 @@ impl AuthorizationHandler for AuthorizationHandlerWrapper {
         unit_id: UnitId,
         range: AddressRange,
         role: &str,
-    ) -> AuthorizationResult {
+    ) -> Authorization {
         let role = unsafe { &CString::from_vec_unchecked(role.into()) };
         self.inner
             .read_holding_registers(unit_id.value, range.into(), role)
             .map(|result| result.into())
-            .unwrap_or(AuthorizationResult::NotAuthorized)
+            .unwrap_or(Authorization::Deny)
     }
 
     fn read_input_registers(
@@ -171,28 +171,28 @@ impl AuthorizationHandler for AuthorizationHandlerWrapper {
         unit_id: UnitId,
         range: AddressRange,
         role: &str,
-    ) -> AuthorizationResult {
+    ) -> Authorization {
         let role = unsafe { &CString::from_vec_unchecked(role.into()) };
         self.inner
             .read_input_registers(unit_id.value, range.into(), role)
             .map(|result| result.into())
-            .unwrap_or(AuthorizationResult::NotAuthorized)
+            .unwrap_or(Authorization::Deny)
     }
 
-    fn write_single_coil(&self, unit_id: UnitId, idx: u16, role: &str) -> AuthorizationResult {
+    fn write_single_coil(&self, unit_id: UnitId, idx: u16, role: &str) -> Authorization {
         let role = unsafe { &CString::from_vec_unchecked(role.into()) };
         self.inner
             .write_single_coil(unit_id.value, idx, role)
             .map(|result| result.into())
-            .unwrap_or(AuthorizationResult::NotAuthorized)
+            .unwrap_or(Authorization::Deny)
     }
 
-    fn write_single_register(&self, unit_id: UnitId, idx: u16, role: &str) -> AuthorizationResult {
+    fn write_single_register(&self, unit_id: UnitId, idx: u16, role: &str) -> Authorization {
         let role = unsafe { &CString::from_vec_unchecked(role.into()) };
         self.inner
             .write_single_register(unit_id.value, idx, role)
             .map(|result| result.into())
-            .unwrap_or(AuthorizationResult::NotAuthorized)
+            .unwrap_or(Authorization::Deny)
     }
 
     fn write_multiple_coils(
@@ -200,12 +200,12 @@ impl AuthorizationHandler for AuthorizationHandlerWrapper {
         unit_id: UnitId,
         range: AddressRange,
         role: &str,
-    ) -> AuthorizationResult {
+    ) -> Authorization {
         let role = unsafe { &CString::from_vec_unchecked(role.into()) };
         self.inner
             .write_multiple_coils(unit_id.value, range.into(), role)
             .map(|result| result.into())
-            .unwrap_or(AuthorizationResult::NotAuthorized)
+            .unwrap_or(Authorization::Deny)
     }
 
     fn write_multiple_registers(
@@ -213,12 +213,12 @@ impl AuthorizationHandler for AuthorizationHandlerWrapper {
         unit_id: UnitId,
         range: AddressRange,
         role: &str,
-    ) -> AuthorizationResult {
+    ) -> Authorization {
         let role = unsafe { &CString::from_vec_unchecked(role.into()) };
         self.inner
             .write_multiple_registers(unit_id.value, range.into(), role)
             .map(|result| result.into())
-            .unwrap_or(AuthorizationResult::NotAuthorized)
+            .unwrap_or(Authorization::Deny)
     }
 }
 

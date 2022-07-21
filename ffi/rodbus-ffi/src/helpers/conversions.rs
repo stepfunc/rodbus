@@ -1,6 +1,6 @@
 use rodbus::client::{CertificateMode, MinTlsVersion, ReconnectStrategy, TlsError};
 use rodbus::error::Shutdown;
-use rodbus::server::AuthorizationResult;
+use rodbus::server::Authorization;
 use rodbus::AddressRange;
 
 use crate::ffi;
@@ -103,11 +103,11 @@ impl From<ffi::SerialPortSettings> for rodbus::serial::SerialSettings {
     }
 }
 
-impl From<ffi::AuthorizationResult> for AuthorizationResult {
+impl From<ffi::AuthorizationResult> for Authorization {
     fn from(x: ffi::AuthorizationResult) -> Self {
         match x {
-            ffi::AuthorizationResult::Authorized => Self::Authorized,
-            ffi::AuthorizationResult::NotAuthorized => Self::NotAuthorized,
+            ffi::AuthorizationResult::Authorized => Self::Allow,
+            ffi::AuthorizationResult::NotAuthorized => Self::Deny,
         }
     }
 }

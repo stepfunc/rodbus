@@ -157,11 +157,11 @@ where
 
 /// Authorization result
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AuthorizationResult {
+pub enum Authorization {
     /// Client is authorized to perform the operation
-    Authorized,
+    Allow,
     /// Client is non authorized to perform the operation
-    NotAuthorized,
+    Deny,
 }
 
 /// Authorization handler used in Modbus Security protocol
@@ -176,13 +176,8 @@ pub trait AuthorizationHandler: Send + Sync + 'static {
     }
 
     /// Authorize a Read Coils request
-    fn read_coils(
-        &self,
-        _unit_id: UnitId,
-        _range: AddressRange,
-        _role: &str,
-    ) -> AuthorizationResult {
-        AuthorizationResult::NotAuthorized
+    fn read_coils(&self, _unit_id: UnitId, _range: AddressRange, _role: &str) -> Authorization {
+        Authorization::Deny
     }
 
     /// Authorize a Read Discrete Inputs request
@@ -191,8 +186,8 @@ pub trait AuthorizationHandler: Send + Sync + 'static {
         _unit_id: UnitId,
         _range: AddressRange,
         _role: &str,
-    ) -> AuthorizationResult {
-        AuthorizationResult::NotAuthorized
+    ) -> Authorization {
+        Authorization::Deny
     }
 
     /// Authorize a Read Holding Registers request
@@ -201,8 +196,8 @@ pub trait AuthorizationHandler: Send + Sync + 'static {
         _unit_id: UnitId,
         _range: AddressRange,
         _role: &str,
-    ) -> AuthorizationResult {
-        AuthorizationResult::NotAuthorized
+    ) -> Authorization {
+        Authorization::Deny
     }
 
     /// Authorize a Read Input Registers request
@@ -211,23 +206,18 @@ pub trait AuthorizationHandler: Send + Sync + 'static {
         _unit_id: UnitId,
         _range: AddressRange,
         _role: &str,
-    ) -> AuthorizationResult {
-        AuthorizationResult::NotAuthorized
+    ) -> Authorization {
+        Authorization::Deny
     }
 
     /// Authorize a Write Single Coil request
-    fn write_single_coil(&self, _unit_id: UnitId, _idx: u16, _role: &str) -> AuthorizationResult {
-        AuthorizationResult::NotAuthorized
+    fn write_single_coil(&self, _unit_id: UnitId, _idx: u16, _role: &str) -> Authorization {
+        Authorization::Deny
     }
 
     /// Authorize a Write Single Register request
-    fn write_single_register(
-        &self,
-        _unit_id: UnitId,
-        _idx: u16,
-        _role: &str,
-    ) -> AuthorizationResult {
-        AuthorizationResult::NotAuthorized
+    fn write_single_register(&self, _unit_id: UnitId, _idx: u16, _role: &str) -> Authorization {
+        Authorization::Deny
     }
 
     /// Authorize a Write Multiple Coils request
@@ -236,8 +226,8 @@ pub trait AuthorizationHandler: Send + Sync + 'static {
         _unit_id: UnitId,
         _range: AddressRange,
         _role: &str,
-    ) -> AuthorizationResult {
-        AuthorizationResult::NotAuthorized
+    ) -> Authorization {
+        Authorization::Deny
     }
 
     /// Authorize a Write Multiple Registers request
@@ -246,8 +236,8 @@ pub trait AuthorizationHandler: Send + Sync + 'static {
         _unit_id: UnitId,
         _range: AddressRange,
         _role: &str,
-    ) -> AuthorizationResult {
-        AuthorizationResult::NotAuthorized
+    ) -> Authorization {
+        Authorization::Deny
     }
 }
 
@@ -264,13 +254,8 @@ impl ReadOnlyAuthorizationHandler {
 }
 
 impl AuthorizationHandler for ReadOnlyAuthorizationHandler {
-    fn read_coils(
-        &self,
-        _unit_id: UnitId,
-        _range: AddressRange,
-        _role: &str,
-    ) -> AuthorizationResult {
-        AuthorizationResult::Authorized
+    fn read_coils(&self, _unit_id: UnitId, _range: AddressRange, _role: &str) -> Authorization {
+        Authorization::Allow
     }
 
     /// Authorize a Read Discrete Inputs request
@@ -279,8 +264,8 @@ impl AuthorizationHandler for ReadOnlyAuthorizationHandler {
         _unit_id: UnitId,
         _range: AddressRange,
         _role: &str,
-    ) -> AuthorizationResult {
-        AuthorizationResult::Authorized
+    ) -> Authorization {
+        Authorization::Allow
     }
 
     /// Authorize a Read Holding Registers request
@@ -289,8 +274,8 @@ impl AuthorizationHandler for ReadOnlyAuthorizationHandler {
         _unit_id: UnitId,
         _range: AddressRange,
         _role: &str,
-    ) -> AuthorizationResult {
-        AuthorizationResult::Authorized
+    ) -> Authorization {
+        Authorization::Allow
     }
 
     /// Authorize a Read Input Registers request
@@ -299,23 +284,18 @@ impl AuthorizationHandler for ReadOnlyAuthorizationHandler {
         _unit_id: UnitId,
         _range: AddressRange,
         _role: &str,
-    ) -> AuthorizationResult {
-        AuthorizationResult::Authorized
+    ) -> Authorization {
+        Authorization::Allow
     }
 
     /// Authorize a Write Single Coil request
-    fn write_single_coil(&self, _unit_id: UnitId, _idx: u16, _role: &str) -> AuthorizationResult {
-        AuthorizationResult::NotAuthorized
+    fn write_single_coil(&self, _unit_id: UnitId, _idx: u16, _role: &str) -> Authorization {
+        Authorization::Deny
     }
 
     /// Authorize a Write Single Register request
-    fn write_single_register(
-        &self,
-        _unit_id: UnitId,
-        _idx: u16,
-        _role: &str,
-    ) -> AuthorizationResult {
-        AuthorizationResult::NotAuthorized
+    fn write_single_register(&self, _unit_id: UnitId, _idx: u16, _role: &str) -> Authorization {
+        Authorization::Deny
     }
 
     /// Authorize a Write Multiple Coils request
@@ -324,8 +304,8 @@ impl AuthorizationHandler for ReadOnlyAuthorizationHandler {
         _unit_id: UnitId,
         _range: AddressRange,
         _role: &str,
-    ) -> AuthorizationResult {
-        AuthorizationResult::NotAuthorized
+    ) -> Authorization {
+        Authorization::Deny
     }
 
     /// Authorize a Write Multiple Registers request
@@ -334,8 +314,8 @@ impl AuthorizationHandler for ReadOnlyAuthorizationHandler {
         _unit_id: UnitId,
         _range: AddressRange,
         _role: &str,
-    ) -> AuthorizationResult {
-        AuthorizationResult::NotAuthorized
+    ) -> Authorization {
+        Authorization::Deny
     }
 }
 

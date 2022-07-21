@@ -5,7 +5,7 @@ use tracing::Instrument;
 use crate::common::phys::PhysLayer;
 use crate::decode::DecodeLevel;
 use crate::serial::SerialSettings;
-use crate::server::task::{Authorization, ServerSetting, SessionTask};
+use crate::server::task::{AuthorizationType, ServerSetting, SessionTask};
 use crate::tcp::server::{ServerTask, TcpServerConnectionHandler};
 
 /// server handling
@@ -112,7 +112,7 @@ pub fn spawn_rtu_server_task<T: RequestHandler>(
         SessionTask::new(
             phys,
             handlers,
-            Authorization::None,
+            AuthorizationType::None,
             FrameWriter::rtu(),
             FramedReader::rtu_request(),
             rx,
