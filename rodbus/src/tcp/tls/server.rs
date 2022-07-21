@@ -35,6 +35,19 @@ pub struct TlsServerConfig {
     config_builder: ConfigBuilderCallback,
 }
 
+fn build_cert_store(certs: &[rustls::Certificate]) -> Result<rustls::RootCertStore, TlsError> {
+    let mut roots = rustls::RootCertStore::empty();
+    for cert in certs {
+        roots.add(cert).map_err(|err| {
+            TlsError::InvalidPeerCertificate(io::Error::new(
+                ErrorKind::InvalidData,
+                err.to_string(),
+            ))
+        })?;
+    }
+    Ok(roots)
+}
+
 impl TlsServerConfig {
     /// Create a TLS server config
     pub fn new(
@@ -52,15 +65,7 @@ impl TlsServerConfig {
         let config_builder: ConfigBuilderCallback = match certificate_mode {
             CertificateMode::AuthorityBased => {
                 // Build root certificate store
-                let mut roots = rustls::RootCertStore::empty();
-                for cert in &peer_certs {
-                    roots.add(cert).map_err(|err| {
-                        TlsError::InvalidPeerCertificate(io::Error::new(
-                            ErrorKind::InvalidData,
-                            err.to_string(),
-                        ))
-                    })?;
-                }
+                let roots = build_cert_store(&peer_certs)?;
 
                 Arc::new(move |role_container| {
                     let verifier = CaChainClientCertVerifier::new(roots.clone(), role_container);
