@@ -81,10 +81,11 @@ impl TlsServerConfig {
             Err(err) => Err(format!("failed to establish TLS session: {}", err)),
             Ok(stream) => {
                 let handler = match auth_handler {
+                    // bare TLS mode without authz
                     None => Authorization::None,
+                    // full secure modbus requires the client certificate contain a role
                     Some(handler) => {
-                        // we need to extract the role from the peer certificate!
-                        // first get the peer certificate
+                        // get the peer cert data
                         let peer_cert = stream
                             .get_ref()
                             .1

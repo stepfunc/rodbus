@@ -372,7 +372,7 @@ pub(crate) unsafe fn server_create_tls(
     })?;
 
     let handler_map = endpoints.drain_and_convert();
-    let create_server = rodbus::server::spawn_tls_server_task(
+    let create_server = rodbus::server::spawn_tls_server_task_with_authz(
         max_sessions as usize,
         address,
         handler_map.clone(),

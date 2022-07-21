@@ -128,8 +128,10 @@ pub fn spawn_rtu_server_task<T: RequestHandler>(
     Ok(ServerHandle::new(tx))
 }
 
-/// Spawns a TLS server task onto the runtime. This method can only
-/// be called from within the runtime context. Use `Runtime::enter()`
+/// Spawns a "raw" TLS server task onto the runtime. This TLS server does not require that
+/// client certs contain the Role extension and allows all operations for authenticated clients.
+///
+/// This method can only be called from within the runtime context. Use `Runtime::enter()`
 /// to create a context on the current thread if necessary.
 ///
 /// Each incoming connection will spawn a new task to handle it.
@@ -137,7 +139,7 @@ pub fn spawn_rtu_server_task<T: RequestHandler>(
 /// * `max_sessions` - Maximum number of concurrent sessions
 /// * `addr` - A socket address to bound to
 /// * `handlers` - A map of handlers keyed by a unit id
-/// * `auth_handler` - Authorization handler
+/// * `auth_handler` - Optional Authorization handler
 /// * `tls_config` - TLS configuration
 /// * `decode` - Decode log level
 #[cfg(feature = "tls")]
@@ -145,7 +147,53 @@ pub async fn spawn_tls_server_task<T: RequestHandler>(
     max_sessions: usize,
     addr: SocketAddr,
     handlers: ServerHandlerMap<T>,
+    tls_config: TlsServerConfig,
+    decode: DecodeLevel,
+) -> Result<ServerHandle, std::io::Error> {
+    spawn_tls_server_task_impl(max_sessions, addr, handlers, None, tls_config, decode).await
+}
+
+/// Spawns a "Secure Modbus" TLS server task onto the runtime. This TLS server requires that
+/// client certs contain the Role extension and checks the authorization of requests against the
+/// supplied handler.
+///
+/// This method can only be called from within the runtime context. Use `Runtime::enter()`
+/// to create a context on the current thread if necessary.
+///
+/// Each incoming connection will spawn a new task to handle it.
+///
+/// * `max_sessions` - Maximum number of concurrent sessions
+/// * `addr` - A socket address to bound to
+/// * `handlers` - A map of handlers keyed by a unit id
+/// * `auth_handler` - Handler used to authorize requests
+/// * `tls_config` - TLS configuration
+/// * `decode` - Decode log level
+#[cfg(feature = "tls")]
+pub async fn spawn_tls_server_task_with_authz<T: RequestHandler>(
+    max_sessions: usize,
+    addr: SocketAddr,
+    handlers: ServerHandlerMap<T>,
     auth_handler: std::sync::Arc<dyn AuthorizationHandler>,
+    tls_config: TlsServerConfig,
+    decode: DecodeLevel,
+) -> Result<ServerHandle, std::io::Error> {
+    spawn_tls_server_task_impl(
+        max_sessions,
+        addr,
+        handlers,
+        Some(auth_handler),
+        tls_config,
+        decode,
+    )
+    .await
+}
+
+#[cfg(feature = "tls")]
+async fn spawn_tls_server_task_impl<T: RequestHandler>(
+    max_sessions: usize,
+    addr: SocketAddr,
+    handlers: ServerHandlerMap<T>,
+    auth_handler: Option<std::sync::Arc<dyn AuthorizationHandler>>,
     tls_config: TlsServerConfig,
     decode: DecodeLevel,
 ) -> Result<ServerHandle, std::io::Error> {
