@@ -244,8 +244,8 @@ rodbus::TlsServerConfig get_tls_ca_config()
     // ANCHOR: tls_ca_chain_config
     auto tls_config = rodbus::TlsServerConfig(
         "./certs/ca_chain/ca_cert.pem",
-        "./certs/ca_chain/entity2_cert.pem",
-        "./certs/ca_chain/entity2_key.pem",
+        "./certs/ca_chain/server_cert.pem",
+        "./certs/ca_chain/server_key.pem",
         "" // no password
     );
     // ANCHOR_END: tls_ca_chain_config
