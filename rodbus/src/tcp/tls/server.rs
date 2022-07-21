@@ -1,6 +1,6 @@
 use std::io::{self, ErrorKind};
 use std::path::Path;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use tokio::net::TcpStream;
 use tokio_rustls::rustls;
@@ -11,41 +11,10 @@ use crate::server::task::Authorization;
 use crate::server::AuthorizationHandler;
 use crate::tcp::tls::{load_certs, load_private_key, CertificateMode, MinTlsVersion, TlsError};
 
-#[derive(Default, Clone)]
-struct RoleContainer {
-    inner: Arc<Mutex<Option<String>>>,
-}
-
-impl RoleContainer {
-    pub(crate) fn set(&self, role: String) {
-        self.inner.lock().unwrap().replace(role);
-    }
-
-    pub(crate) fn consume(&self) -> Option<String> {
-        self.inner.lock().unwrap().take()
-    }
-}
-
-type ConfigBuilderCallback =
-    Arc<dyn Fn(RoleContainer) -> Result<rustls::ServerConfig, String> + Send + Sync + 'static>;
-
 /// TLS configuration
 #[derive(Clone)]
 pub struct TlsServerConfig {
-    config_builder: ConfigBuilderCallback,
-}
-
-fn build_cert_store(certs: &[rustls::Certificate]) -> Result<rustls::RootCertStore, TlsError> {
-    let mut roots = rustls::RootCertStore::empty();
-    for cert in certs {
-        roots.add(cert).map_err(|err| {
-            TlsError::InvalidPeerCertificate(io::Error::new(
-                ErrorKind::InvalidData,
-                err.to_string(),
-            ))
-        })?;
-    }
-    Ok(roots)
+    inner: Arc<rustls::ServerConfig>,
 }
 
 impl TlsServerConfig {
@@ -62,20 +31,19 @@ impl TlsServerConfig {
         let local_certs = load_certs(local_cert_path, true)?;
         let private_key = load_private_key(private_key_path, password)?;
 
-        let config_builder: ConfigBuilderCallback = match certificate_mode {
+        let verifier: Arc<dyn rustls::server::ClientCertVerifier> = match certificate_mode {
             CertificateMode::AuthorityBased => {
                 // Build root certificate store
-                let roots = build_cert_store(&peer_certs)?;
-
-                Arc::new(move |role_container| {
-                    let verifier = CaChainClientCertVerifier::new(roots.clone(), role_container);
-                    build_server_config(
-                        verifier,
-                        min_tls_version,
-                        local_certs.clone(),
-                        private_key.clone(),
-                    )
-                })
+                let mut roots = rustls::RootCertStore::empty();
+                for cert in peer_certs.as_slice() {
+                    roots.add(cert).map_err(|err| {
+                        TlsError::InvalidPeerCertificate(io::Error::new(
+                            ErrorKind::InvalidData,
+                            err.to_string(),
+                        ))
+                    })?;
+                }
+                CaChainClientCertVerifier::create(roots)
             }
             CertificateMode::SelfSigned => {
                 if let Some(peer_cert) = peer_certs.pop() {
@@ -86,21 +54,7 @@ impl TlsServerConfig {
                         )));
                     }
 
-                    let peer_cert = Arc::new(peer_cert);
-
-                    Arc::new(move |role_container| {
-                        let verifier = SelfSignedCertificateClientCertVerifier::new(
-                            peer_cert.clone(),
-                            role_container,
-                        );
-
-                        build_server_config(
-                            verifier,
-                            min_tls_version,
-                            local_certs.clone(),
-                            private_key.clone(),
-                        )
-                    })
+                    SelfSignedCertificateClientCertVerifier::new(peer_cert)
                 } else {
                     return Err(TlsError::InvalidPeerCertificate(io::Error::new(
                         ErrorKind::InvalidData,
@@ -110,11 +64,11 @@ impl TlsServerConfig {
             }
         };
 
-        Ok(TlsServerConfig { config_builder })
-    }
+        let config = build_server_config(verifier, min_tls_version, local_certs, private_key)?;
 
-    fn build(&self, role_container: RoleContainer) -> Result<Arc<rustls::ServerConfig>, String> {
-        Ok(Arc::new((self.config_builder)(role_container)?))
+        Ok(TlsServerConfig {
+            inner: Arc::new(config),
+        })
     }
 
     pub(crate) async fn handle_connection(
@@ -122,19 +76,23 @@ impl TlsServerConfig {
         socket: TcpStream,
         auth_handler: Arc<dyn AuthorizationHandler>,
     ) -> Result<(PhysLayer, Authorization), String> {
-        let role_container = RoleContainer::default();
-        let tls_config = self.build(role_container.clone())?;
-
-        let connector = tokio_rustls::TlsAcceptor::from(tls_config);
+        let connector = tokio_rustls::TlsAcceptor::from(self.inner.clone());
         match connector.accept(socket).await {
             Err(err) => Err(format!("failed to establish TLS session: {}", err)),
             Ok(stream) => {
                 let layer = PhysLayer::new_tls(tokio_rustls::TlsStream::from(stream));
+
+                // TODO - optionally extract the role!
+                /*
                 let role = role_container
                     .consume()
                     .ok_or_else(|| "client did not present Modbus role".to_string())?;
+                 */
 
-                Ok((layer, Authorization::Handler(auth_handler, role)))
+                Ok((
+                    layer,
+                    Authorization::Handler(auth_handler, "TODO".to_string()),
+                ))
             }
         }
     }
@@ -142,20 +100,12 @@ impl TlsServerConfig {
 
 struct CaChainClientCertVerifier {
     inner: Arc<dyn rustls::server::ClientCertVerifier>,
-    role_container: RoleContainer,
 }
 
 impl CaChainClientCertVerifier {
-    #[allow(clippy::new_ret_no_self)]
-    fn new(
-        roots: rustls::RootCertStore,
-        role_container: RoleContainer,
-    ) -> Arc<dyn rustls::server::ClientCertVerifier> {
+    fn create(roots: rustls::RootCertStore) -> Arc<dyn rustls::server::ClientCertVerifier> {
         let inner = AllowAnyAuthenticatedClient::new(roots);
-        Arc::new(CaChainClientCertVerifier {
-            inner,
-            role_container,
-        })
+        Arc::new(CaChainClientCertVerifier { inner })
     }
 }
 
@@ -182,36 +132,18 @@ impl rustls::server::ClientCertVerifier for CaChainClientCertVerifier {
     ) -> Result<rustls::server::ClientCertVerified, rustls::Error> {
         self.inner
             .verify_client_cert(end_entity, intermediates, now)?;
-
-        // Extract Modbus Role ID
-        let parsed_cert = rasn::x509::Certificate::parse(&end_entity.0).map_err(|err| {
-            rustls::Error::InvalidCertificateData(format!(
-                "unable to parse cert with rasn: {:?}",
-                err
-            ))
-        })?;
-        let role = extract_modbus_role(&parsed_cert)?;
-        self.role_container.set(role);
-
         Ok(rustls::server::ClientCertVerified::assertion())
     }
 }
 
 struct SelfSignedCertificateClientCertVerifier {
-    cert: Arc<rustls::Certificate>,
-    role_container: RoleContainer,
+    cert: rustls::Certificate,
 }
 
 impl SelfSignedCertificateClientCertVerifier {
     #[allow(clippy::new_ret_no_self)]
-    fn new(
-        cert: Arc<rustls::Certificate>,
-        role_container: RoleContainer,
-    ) -> Arc<dyn rustls::server::ClientCertVerifier> {
-        Arc::new(SelfSignedCertificateClientCertVerifier {
-            cert,
-            role_container,
-        })
+    fn new(cert: rustls::Certificate) -> Arc<dyn rustls::server::ClientCertVerifier> {
+        Arc::new(SelfSignedCertificateClientCertVerifier { cert })
     }
 }
 
@@ -248,7 +180,7 @@ impl rustls::server::ClientCertVerifier for SelfSignedCertificateClientCertVerif
         }
 
         // Check that presented certificate matches byte-for-byte the expected certificate
-        if end_entity != self.cert.as_ref() {
+        if end_entity != &self.cert {
             return Err(rustls::Error::InvalidCertificateData(
                 "client certificate doesn't match the expected self-signed certificate".to_string(),
             ));
@@ -260,10 +192,6 @@ impl rustls::server::ClientCertVerifier for SelfSignedCertificateClientCertVerif
                 err
             ))
         })?;
-
-        // Extract Modbus Role ID
-        let role = extract_modbus_role(&parsed_cert)?;
-        self.role_container.set(role);
 
         // Check that the certificate is still valid
         let now = now
@@ -286,22 +214,20 @@ fn build_server_config(
     min_tls_version: MinTlsVersion,
     local_certs: Vec<rustls::Certificate>,
     private_key: rustls::PrivateKey,
-) -> Result<rustls::ServerConfig, String> {
-    rustls::ServerConfig::builder()
+) -> Result<rustls::ServerConfig, TlsError> {
+    let config = rustls::ServerConfig::builder()
         .with_safe_default_cipher_suites()
         .with_safe_default_kx_groups()
         .with_protocol_versions(min_tls_version.to_rustls())
-        .map_err(|err| {
-            format!(
-                "cipher suites or kx groups mismatch with TLS version: {}",
-                err
-            )
-        })?
+        .map_err(|err| TlsError::BadConfig(err.to_string()))?
         .with_client_cert_verifier(verifier)
         .with_single_cert(local_certs, private_key)
-        .map_err(|err| err.to_string())
+        .map_err(|err| TlsError::BadConfig(err.to_string()))?;
+
+    Ok(config)
 }
 
+/*
 fn extract_modbus_role(cert: &rasn::x509::Certificate) -> Result<String, rustls::Error> {
     // Parse the extensions
     let extensions = cert
@@ -343,3 +269,4 @@ fn extract_modbus_role(cert: &rasn::x509::Certificate) -> Result<String, rustls:
 
     Ok(role.to_string())
 }
+ */
