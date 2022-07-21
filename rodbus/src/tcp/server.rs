@@ -87,7 +87,9 @@ impl TcpServerConnectionHandler {
             Self::Tcp => Ok((PhysLayer::new_tcp(socket), Authorization::None)),
             #[cfg(feature = "tls")]
             Self::Tls(config, auth_handler) => {
-                let res = config.handle_connection(socket, auth_handler.clone()).await;
+                let res = config
+                    .handle_connection(socket, Some(auth_handler.clone()))
+                    .await;
                 if res.is_ok() {
                     tracing::info!("completed TLS handshake");
                 }

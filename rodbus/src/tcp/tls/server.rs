@@ -74,25 +74,37 @@ impl TlsServerConfig {
     pub(crate) async fn handle_connection(
         &mut self,
         socket: TcpStream,
-        auth_handler: Arc<dyn AuthorizationHandler>,
+        auth_handler: Option<Arc<dyn AuthorizationHandler>>,
     ) -> Result<(PhysLayer, Authorization), String> {
         let connector = tokio_rustls::TlsAcceptor::from(self.inner.clone());
         match connector.accept(socket).await {
             Err(err) => Err(format!("failed to establish TLS session: {}", err)),
             Ok(stream) => {
+                let handler = match auth_handler {
+                    None => Authorization::None,
+                    Some(handler) => {
+                        // we need to extract the role from the peer certificate!
+                        // first get the peer certificate
+                        let peer_cert = stream
+                            .get_ref()
+                            .1
+                            .peer_certificates()
+                            .and_then(|x| x.first())
+                            .ok_or_else(|| "No peer certificate".to_string())?
+                            .0
+                            .as_slice();
+
+                        let parsed = rasn::x509::Certificate::parse(peer_cert)
+                            .map_err(|err| format!("ASNError: {}", err))?;
+                        let role =
+                            extract_modbus_role(&parsed).map_err(|err| format!("{}", err))?;
+                        Authorization::Handler(handler, role)
+                    }
+                };
+
                 let layer = PhysLayer::new_tls(tokio_rustls::TlsStream::from(stream));
 
-                // TODO - optionally extract the role!
-                /*
-                let role = role_container
-                    .consume()
-                    .ok_or_else(|| "client did not present Modbus role".to_string())?;
-                 */
-
-                Ok((
-                    layer,
-                    Authorization::Handler(auth_handler, "TODO".to_string()),
-                ))
+                Ok((layer, handler))
             }
         }
     }
@@ -227,7 +239,6 @@ fn build_server_config(
     Ok(config)
 }
 
-/*
 fn extract_modbus_role(cert: &rasn::x509::Certificate) -> Result<String, rustls::Error> {
     // Parse the extensions
     let extensions = cert
@@ -260,7 +271,7 @@ fn extract_modbus_role(cert: &rasn::x509::Certificate) -> Result<String, rustls:
         )
     })?;
 
-    // Check that there is only one extension
+    // Check that there is only one role extension
     if it.next().is_some() {
         return Err(rustls::Error::InvalidCertificateData(
             "certificate has more than one Modbus extension".to_string(),
@@ -269,4 +280,3 @@ fn extract_modbus_role(cert: &rasn::x509::Certificate) -> Result<String, rustls:
 
     Ok(role.to_string())
 }
- */
