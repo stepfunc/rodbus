@@ -203,7 +203,7 @@ async fn run_tls(tls_config: TlsServerConfig) -> Result<(), Box<dyn std::error::
     let (handler, map) = create_handler();
 
     // ANCHOR: tls_server_create
-    let server = rodbus::server::spawn_tls_server_task(
+    let server = rodbus::server::spawn_tls_server_task_with_authz(
         1,
         "127.0.0.1:802".parse()?,
         map,
