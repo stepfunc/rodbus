@@ -11,7 +11,21 @@ use crate::server::task::Authorization;
 use crate::server::AuthorizationHandler;
 use crate::tcp::tls::{load_certs, load_private_key, CertificateMode, MinTlsVersion, TlsError};
 
-type RoleContainer = Arc<Mutex<Option<String>>>;
+#[derive(Default, Clone)]
+struct RoleContainer {
+    inner: Arc<Mutex<Option<String>>>,
+}
+
+impl RoleContainer {
+    pub(crate) fn set(&self, role: String) {
+        self.inner.lock().unwrap().replace(role);
+    }
+
+    pub(crate) fn consume(&self) -> Option<String> {
+        self.inner.lock().unwrap().take()
+    }
+}
+
 type ConfigBuilderCallback =
     Arc<dyn Fn(RoleContainer) -> Result<rustls::ServerConfig, String> + Send + Sync + 'static>;
 
@@ -101,7 +115,7 @@ impl TlsServerConfig {
         socket: TcpStream,
         auth_handler: Arc<dyn AuthorizationHandler>,
     ) -> Result<(PhysLayer, Authorization), String> {
-        let role_container = Arc::new(Mutex::new(None));
+        let role_container = RoleContainer::default();
         let tls_config = self.build(role_container.clone())?;
 
         let connector = tokio_rustls::TlsAcceptor::from(tls_config);
@@ -110,9 +124,7 @@ impl TlsServerConfig {
             Ok(stream) => {
                 let layer = PhysLayer::new_tls(tokio_rustls::TlsStream::from(stream));
                 let role = role_container
-                    .lock()
-                    .unwrap()
-                    .clone()
+                    .consume()
                     .ok_or_else(|| "client did not present Modbus role".to_string())?;
 
                 Ok((layer, Authorization::Handler(auth_handler, role)))
@@ -172,7 +184,7 @@ impl rustls::server::ClientCertVerifier for CaChainClientCertVerifier {
             ))
         })?;
         let role = extract_modbus_role(&parsed_cert)?;
-        self.role_container.lock().unwrap().replace(role);
+        self.role_container.set(role);
 
         Ok(rustls::server::ClientCertVerified::assertion())
     }
@@ -244,7 +256,7 @@ impl rustls::server::ClientCertVerifier for SelfSignedCertificateClientCertVerif
 
         // Extract Modbus Role ID
         let role = extract_modbus_role(&parsed_cert)?;
-        self.role_container.lock().unwrap().replace(role);
+        self.role_container.set(role);
 
         // Check that the certificate is still valid
         let now = now
