@@ -113,9 +113,9 @@ namespace example
             // ANCHOR: tls_ca_chain_config
             var tlsConfig = new TlsClientConfig(
                 "test.com",
-                "./certs/self_signed/ca_cert.pem",
-                "./certs/self_signed/entity1_cert.pem",
-                "./certs/self_signed/entity1_key.pem",
+                "./certs/ca_chain/ca_cert.pem",
+                "./certs/ca_chain/client_cert.pem",
+                "./certs/ca_chain/client_key.pem",
                 "" // no password
             );
             // ANCHOR_END: tls_ca_chain_config

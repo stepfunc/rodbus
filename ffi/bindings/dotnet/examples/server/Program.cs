@@ -77,44 +77,44 @@ namespace example
         // ANCHOR: auth_handler
         class AuthorizationHandler : IAuthorizationHandler
         {
-            public AuthorizationResult ReadCoils(byte unitId, AddressRange range, string role)
+            public Authorization ReadCoils(byte unitId, AddressRange range, string role)
             {
-                return AuthorizationResult.Authorized;
+                return Authorization.Allow;
             }
 
-            public AuthorizationResult ReadDiscreteInputs(byte unitId, AddressRange range, string role)
+            public Authorization ReadDiscreteInputs(byte unitId, AddressRange range, string role)
             {
-                return AuthorizationResult.Authorized;
+                return Authorization.Allow;
             }
 
-            public AuthorizationResult ReadHoldingRegisters(byte unitId, AddressRange range, string role)
+            public Authorization ReadHoldingRegisters(byte unitId, AddressRange range, string role)
             {
-                return AuthorizationResult.Authorized;
+                return Authorization.Allow;
             }
 
-            public AuthorizationResult ReadInputRegisters(byte unitId, AddressRange range, string role)
+            public Authorization ReadInputRegisters(byte unitId, AddressRange range, string role)
             {
-                return AuthorizationResult.Authorized;
+                return Authorization.Allow;
             }
 
-            public AuthorizationResult WriteSingleCoil(byte unitId, ushort idx, string role)
+            public Authorization WriteSingleCoil(byte unitId, ushort idx, string role)
             {
-                return AuthorizationResult.NotAuthorized;
+                return Authorization.Deny;
             }
 
-            public AuthorizationResult WriteSingleRegister(byte unitId, ushort idx, string role)
+            public Authorization WriteSingleRegister(byte unitId, ushort idx, string role)
             {
-                return AuthorizationResult.NotAuthorized;
+                return Authorization.Deny;
             }
 
-            public AuthorizationResult WriteMultipleCoils(byte unitId, AddressRange range, string role)
+            public Authorization WriteMultipleCoils(byte unitId, AddressRange range, string role)
             {
-                return AuthorizationResult.NotAuthorized;
+                return Authorization.Deny;
             }
 
-            public AuthorizationResult WriteMultipleRegisters(byte unitId, AddressRange range, string role)
+            public Authorization WriteMultipleRegisters(byte unitId, AddressRange range, string role)
             {
-                return AuthorizationResult.NotAuthorized;
+                return Authorization.Deny;
             }
         }
         // ANCHOR_END: auth_handler
@@ -205,7 +205,7 @@ namespace example
         private static Server CreateTlsServer(Runtime runtime, DeviceMap map, TlsServerConfig tlsConfig)
         {
             // ANCHOR: tls_server_create            
-            var server = Server.CreateTls(runtime, "127.0.0.1", 802, 10, map, tlsConfig, new AuthorizationHandler(), DecodeLevel.Nothing());
+            var server = Server.CreateTlsWithAuthz(runtime, "127.0.0.1", 802, 10, map, tlsConfig, new AuthorizationHandler(), DecodeLevel.Nothing());
             // ANCHOR_END: tls_server_create
 
             return server;
@@ -216,8 +216,8 @@ namespace example
             // ANCHOR: tls_ca_chain_config
             var tlsConfig = new TlsServerConfig(
                 "./certs/ca_chain/ca_cert.pem",
-                "./certs/ca_chain/entity2_cert.pem",
-                "./certs/ca_chain/entity2_key.pem",
+                "./certs/ca_chain/server_cert.pem",
+                "./certs/ca_chain/server_key.pem",
                 "" // no password
             );
             // ANCHOR_END: tls_ca_chain_config

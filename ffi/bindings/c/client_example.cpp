@@ -200,8 +200,8 @@ rodbus::TlsClientConfig get_tls_ca_config()
     auto tls_config = rodbus::TlsClientConfig(
         "test.com",
         "./certs/ca_chain/ca_cert.pem",
-        "./certs/ca_chain/entity1_cert.pem",
-        "./certs/ca_chain/entity1_key.pem",
+        "./certs/ca_chain/client_cert.pem",
+        "./certs/ca_chain/client_key.pem",
         "" // no password
     );
     // ANCHOR_END: tls_ca_chain_config

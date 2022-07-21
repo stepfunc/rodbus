@@ -203,7 +203,7 @@ async fn run_tls(tls_config: TlsServerConfig) -> Result<(), Box<dyn std::error::
     let (handler, map) = create_handler();
 
     // ANCHOR: tls_server_create
-    let server = rodbus::server::spawn_tls_server_task(
+    let server = rodbus::server::spawn_tls_server_task_with_authz(
         1,
         "127.0.0.1:802".parse()?,
         map,
@@ -253,8 +253,8 @@ fn get_ca_chain_config() -> Result<TlsServerConfig, Box<dyn std::error::Error>> 
     // ANCHOR: tls_ca_chain_config
     let tls_config = TlsServerConfig::new(
         &Path::new("./certs/ca_chain/ca_cert.pem"),
-        &Path::new("./certs/ca_chain/entity1_cert.pem"),
-        &Path::new("./certs/ca_chain/entity1_key.pem"),
+        &Path::new("./certs/ca_chain/server_cert.pem"),
+        &Path::new("./certs/ca_chain/server_key.pem"),
         None, // no password
         MinTlsVersion::V1_2,
         CertificateMode::AuthorityBased,

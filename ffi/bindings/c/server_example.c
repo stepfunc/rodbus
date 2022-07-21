@@ -54,19 +54,19 @@ rodbus_write_result_t on_write_multiple_registers(uint16_t start, rodbus_registe
 // ANCHOR_END: write_handler
 
 // ANCHOR: auth_handler
-rodbus_authorization_result_t auth_read(uint8_t unit_id, rodbus_address_range_t range, const char* role, void* ctx)
+rodbus_authorization_t auth_read(uint8_t unit_id, rodbus_address_range_t range, const char* role, void* ctx)
 {
-    return RODBUS_AUTHORIZATION_RESULT_AUTHORIZED;
+    return RODBUS_AUTHORIZATION_ALLOW;
 }
 
-rodbus_authorization_result_t auth_single_write(uint8_t unit_id, uint16_t idx, const char* role, void* ctx)
+rodbus_authorization_t auth_single_write(uint8_t unit_id, uint16_t idx, const char *role, void *ctx)
 {
-    return RODBUS_AUTHORIZATION_RESULT_NOT_AUTHORIZED;
+    return RODBUS_AUTHORIZATION_DENY;
 }
 
-rodbus_authorization_result_t auth_multiple_writes(uint8_t unit_id, rodbus_address_range_t range, const char* role, void* ctx)
+rodbus_authorization_t auth_multiple_writes(uint8_t unit_id, rodbus_address_range_t range, const char *role, void *ctx)
 {
-    return RODBUS_AUTHORIZATION_RESULT_NOT_AUTHORIZED;
+    return RODBUS_AUTHORIZATION_DENY;
 }
 // ANCHOR_END: auth_handler
 
@@ -262,8 +262,8 @@ rodbus_tls_server_config_t get_ca_tls_config()
     // ANCHOR: tls_ca_chain_config
     rodbus_tls_server_config_t tls_config = rodbus_tls_server_config_init(
         "./certs/ca_chain/ca_cert.pem",
-        "./certs/ca_chain/entity2_cert.pem",
-        "./certs/ca_chain/entity2_key.pem",
+        "./certs/ca_chain/server_cert.pem",
+        "./certs/ca_chain/server_key.pem",
         "" // no password
     );
     // ANCHOR_END: tls_ca_chain_config
@@ -278,7 +278,7 @@ int run_tls_channel(rodbus_runtime_t* runtime, rodbus_tls_server_config_t tls_co
     rodbus_device_map_t* map = build_device_map();
     rodbus_authorization_handler_t auth_handler = get_auth_handler();
     rodbus_decode_level_t decode_level = rodbus_decode_level_nothing();
-    rodbus_param_error_t err = rodbus_server_create_tls(runtime, "127.0.0.1", 802, 100, map, tls_config, auth_handler, decode_level, &server);
+    rodbus_param_error_t err = rodbus_server_create_tls_with_authz(runtime, "127.0.0.1", 802, 100, map, tls_config, auth_handler, decode_level, &server);
     rodbus_device_map_destroy(map);
 
     if (err) {

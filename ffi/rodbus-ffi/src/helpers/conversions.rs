@@ -1,6 +1,6 @@
 use rodbus::client::{CertificateMode, MinTlsVersion, ReconnectStrategy, TlsError};
 use rodbus::error::Shutdown;
-use rodbus::server::AuthorizationResult;
+use rodbus::server::Authorization;
 use rodbus::AddressRange;
 
 use crate::ffi;
@@ -103,11 +103,11 @@ impl From<ffi::SerialPortSettings> for rodbus::serial::SerialSettings {
     }
 }
 
-impl From<ffi::AuthorizationResult> for AuthorizationResult {
-    fn from(x: ffi::AuthorizationResult) -> Self {
+impl From<ffi::Authorization> for Authorization {
+    fn from(x: ffi::Authorization) -> Self {
         match x {
-            ffi::AuthorizationResult::Authorized => Self::Authorized,
-            ffi::AuthorizationResult::NotAuthorized => Self::NotAuthorized,
+            ffi::Authorization::Allow => Self::Allow,
+            ffi::Authorization::Deny => Self::Deny,
         }
     }
 }
@@ -119,7 +119,7 @@ impl From<TlsError> for ffi::ParamError {
             TlsError::InvalidPeerCertificate(_) => ffi::ParamError::InvalidPeerCertificate,
             TlsError::InvalidLocalCertificate(_) => ffi::ParamError::InvalidLocalCertificate,
             TlsError::InvalidPrivateKey(_) => ffi::ParamError::InvalidPrivateKey,
-            TlsError::Other(_) => ffi::ParamError::OtherTlsError,
+            TlsError::BadConfig(_) => ffi::ParamError::BadTlsConfig,
         }
     }
 }

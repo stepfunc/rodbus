@@ -97,7 +97,41 @@ pub(crate) fn build_server(
         .doc("Launch a RTU server.")?
         .build_static("create_rtu")?;
 
-    let tls_constructor = lib
+    let tls_constructor_with_authz = lib
+        .define_function("server_create_tls_with_authz")?
+        .param(
+            "runtime",
+            common.runtime_handle.clone(),
+            "runtime on which to spawn the server",
+        )?
+        .param("address", StringType, address_doc)?
+        .param("port", Primitive::U16, port_doc)?
+        .param("max_sessions", Primitive::U16, "Maximum number of concurrent sessions")?
+        .param(
+            "endpoints",
+            handler_map.declaration.clone(),
+            "map of endpoints which is emptied upon passing to this function",
+        )?
+        .param(
+            "tls_config",
+            tls_server_config.clone(),
+            "TLS server configuration",
+        )?
+        .param(
+            "authorization_handler",
+        authorization_handler,
+            "Authorization handler"
+        )?
+        .param("decode_level", common.decode_level.clone(), "Decode levels for this server")?
+        .returns(server.clone(), "Modbus Security (TLS) server instance")?
+        .fails_with(common.error_type.clone())?
+        .doc(doc("Create a Modbus Security (TLS) server.")
+            .details("This server requires that the client certificate contains the role extension and authorizes each request against the supplied handler.")
+            .details("Recommended port for Modbus Security is 802.")
+            .details("When the maximum number of concurrent sessions is reached, the oldest session is closed."))?
+        .build_static("create_tls_with_authz")?;
+
+    let tls_constructor_raw = lib
         .define_function("server_create_tls")?
         .param(
             "runtime",
@@ -117,16 +151,11 @@ pub(crate) fn build_server(
             tls_server_config,
             "TLS server configuration",
         )?
-        .param(
-            "authorization_handler",
-        authorization_handler,
-            "Authorization handler"
-        )?
         .param("decode_level", common.decode_level.clone(), "Decode levels for this server")?
         .returns(server.clone(), "Modbus Security (TLS) server instance")?
         .fails_with(common.error_type.clone())?
-        .doc(doc("Launch a Modbus Security (TLS) server.")
-            .details("Recommended port for Modbus Security is 802.")
+        .doc(doc("Create a TLS server that does NOT require the client role extension")
+            .details("This functionality is not standardized by Modbus.org, but nevertheless is commonly implemented")
             .details("When the maximum number of concurrent sessions is reached, the oldest session is closed."))?
         .build_static("create_tls")?;
 
@@ -153,7 +182,8 @@ pub(crate) fn build_server(
     let server = lib.define_class(&server)?
         .static_method(tcp_constructor)?
         .static_method(rtu_constructor)?
-        .static_method(tls_constructor)?
+        .static_method(tls_constructor_with_authz)?
+        .static_method(tls_constructor_raw)?
         .method(update_fn)?
         .method(set_decode_level_fn)?
         .destructor(destructor)?
@@ -411,15 +441,9 @@ fn build_authorization_handler(
     common: &CommonDefinitions,
 ) -> BackTraced<AsynchronousInterface> {
     let auth_result = lib
-        .define_enum("authorization_result")?
-        .push(
-            "authorized",
-            "Client is authorized to perform the operation",
-        )?
-        .push(
-            "not_authorized",
-            "Client is non authorized to perform the operation",
-        )?
+        .define_enum("authorization")?
+        .push("allow", "Client is authorized to perform the operation")?
+        .push("deny", "Client is NOT authorized to perform the operation")?
         .doc("Authorization result used by {interface:authorization_handler}")?
         .build()?;
 

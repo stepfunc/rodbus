@@ -132,12 +132,12 @@ impl AuthorizationHandlerWrapper {
 }
 
 impl AuthorizationHandler for AuthorizationHandlerWrapper {
-    fn read_coils(&self, unit_id: UnitId, range: AddressRange, role: &str) -> AuthorizationResult {
+    fn read_coils(&self, unit_id: UnitId, range: AddressRange, role: &str) -> Authorization {
         let role = unsafe { &CString::from_vec_unchecked(role.into()) };
         self.inner
             .read_coils(unit_id.value, range.into(), role)
             .map(|result| result.into())
-            .unwrap_or(AuthorizationResult::NotAuthorized)
+            .unwrap_or(Authorization::Deny)
     }
 
     fn read_discrete_inputs(
@@ -145,12 +145,12 @@ impl AuthorizationHandler for AuthorizationHandlerWrapper {
         unit_id: UnitId,
         range: AddressRange,
         role: &str,
-    ) -> AuthorizationResult {
+    ) -> Authorization {
         let role = unsafe { &CString::from_vec_unchecked(role.into()) };
         self.inner
             .read_discrete_inputs(unit_id.value, range.into(), role)
             .map(|result| result.into())
-            .unwrap_or(AuthorizationResult::NotAuthorized)
+            .unwrap_or(Authorization::Deny)
     }
 
     fn read_holding_registers(
@@ -158,12 +158,12 @@ impl AuthorizationHandler for AuthorizationHandlerWrapper {
         unit_id: UnitId,
         range: AddressRange,
         role: &str,
-    ) -> AuthorizationResult {
+    ) -> Authorization {
         let role = unsafe { &CString::from_vec_unchecked(role.into()) };
         self.inner
             .read_holding_registers(unit_id.value, range.into(), role)
             .map(|result| result.into())
-            .unwrap_or(AuthorizationResult::NotAuthorized)
+            .unwrap_or(Authorization::Deny)
     }
 
     fn read_input_registers(
@@ -171,28 +171,28 @@ impl AuthorizationHandler for AuthorizationHandlerWrapper {
         unit_id: UnitId,
         range: AddressRange,
         role: &str,
-    ) -> AuthorizationResult {
+    ) -> Authorization {
         let role = unsafe { &CString::from_vec_unchecked(role.into()) };
         self.inner
             .read_input_registers(unit_id.value, range.into(), role)
             .map(|result| result.into())
-            .unwrap_or(AuthorizationResult::NotAuthorized)
+            .unwrap_or(Authorization::Deny)
     }
 
-    fn write_single_coil(&self, unit_id: UnitId, idx: u16, role: &str) -> AuthorizationResult {
+    fn write_single_coil(&self, unit_id: UnitId, idx: u16, role: &str) -> Authorization {
         let role = unsafe { &CString::from_vec_unchecked(role.into()) };
         self.inner
             .write_single_coil(unit_id.value, idx, role)
             .map(|result| result.into())
-            .unwrap_or(AuthorizationResult::NotAuthorized)
+            .unwrap_or(Authorization::Deny)
     }
 
-    fn write_single_register(&self, unit_id: UnitId, idx: u16, role: &str) -> AuthorizationResult {
+    fn write_single_register(&self, unit_id: UnitId, idx: u16, role: &str) -> Authorization {
         let role = unsafe { &CString::from_vec_unchecked(role.into()) };
         self.inner
             .write_single_register(unit_id.value, idx, role)
             .map(|result| result.into())
-            .unwrap_or(AuthorizationResult::NotAuthorized)
+            .unwrap_or(Authorization::Deny)
     }
 
     fn write_multiple_coils(
@@ -200,12 +200,12 @@ impl AuthorizationHandler for AuthorizationHandlerWrapper {
         unit_id: UnitId,
         range: AddressRange,
         role: &str,
-    ) -> AuthorizationResult {
+    ) -> Authorization {
         let role = unsafe { &CString::from_vec_unchecked(role.into()) };
         self.inner
             .write_multiple_coils(unit_id.value, range.into(), role)
             .map(|result| result.into())
-            .unwrap_or(AuthorizationResult::NotAuthorized)
+            .unwrap_or(Authorization::Deny)
     }
 
     fn write_multiple_registers(
@@ -213,12 +213,12 @@ impl AuthorizationHandler for AuthorizationHandlerWrapper {
         unit_id: UnitId,
         range: AddressRange,
         role: &str,
-    ) -> AuthorizationResult {
+    ) -> Authorization {
         let role = unsafe { &CString::from_vec_unchecked(role.into()) };
         self.inner
             .write_multiple_registers(unit_id.value, range.into(), role)
             .map(|result| result.into())
-            .unwrap_or(AuthorizationResult::NotAuthorized)
+            .unwrap_or(Authorization::Deny)
     }
 }
 
@@ -335,7 +335,6 @@ pub(crate) unsafe fn server_create_rtu(
     Ok(Box::into_raw(Box::new(server_handle)))
 }
 
-#[allow(clippy::too_many_arguments)]
 pub(crate) unsafe fn server_create_tls(
     runtime: *mut crate::Runtime,
     ip_addr: &std::ffi::CStr,
@@ -343,7 +342,52 @@ pub(crate) unsafe fn server_create_tls(
     max_sessions: u16,
     endpoints: *mut crate::DeviceMap,
     tls_config: ffi::TlsServerConfig,
+    decode_level: ffi::DecodeLevel,
+) -> Result<*mut crate::Server, ffi::ParamError> {
+    server_create_tls_impl(
+        runtime,
+        ip_addr,
+        port,
+        max_sessions,
+        endpoints,
+        tls_config,
+        None,
+        decode_level,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) unsafe fn server_create_tls_with_authz(
+    runtime: *mut crate::Runtime,
+    ip_addr: &std::ffi::CStr,
+    port: u16,
+    max_sessions: u16,
+    endpoints: *mut crate::DeviceMap,
+    tls_config: ffi::TlsServerConfig,
     auth_handler: ffi::AuthorizationHandler,
+    decode_level: ffi::DecodeLevel,
+) -> Result<*mut crate::Server, ffi::ParamError> {
+    server_create_tls_impl(
+        runtime,
+        ip_addr,
+        port,
+        max_sessions,
+        endpoints,
+        tls_config,
+        Some(auth_handler),
+        decode_level,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) unsafe fn server_create_tls_impl(
+    runtime: *mut crate::Runtime,
+    ip_addr: &std::ffi::CStr,
+    port: u16,
+    max_sessions: u16,
+    endpoints: *mut crate::DeviceMap,
+    tls_config: ffi::TlsServerConfig,
+    auth_handler: Option<ffi::AuthorizationHandler>,
     decode_level: ffi::DecodeLevel,
 ) -> Result<*mut crate::Server, ffi::ParamError> {
     let runtime = runtime.as_ref().ok_or(ffi::ParamError::NullParameter)?;
@@ -355,8 +399,6 @@ pub(crate) unsafe fn server_create_tls(
         "" => None,
         password => Some(password),
     };
-
-    let auth_handler = AuthorizationHandlerWrapper::new(auth_handler).wrap();
 
     let tls_config = TlsServerConfig::new(
         Path::new(tls_config.peer_cert_path().to_string_lossy().as_ref()),
@@ -372,19 +414,38 @@ pub(crate) unsafe fn server_create_tls(
     })?;
 
     let handler_map = endpoints.drain_and_convert();
-    let create_server = rodbus::server::spawn_tls_server_task(
-        max_sessions as usize,
-        address,
-        handler_map.clone(),
-        auth_handler,
-        tls_config,
-        decode_level.into(),
-    );
 
-    let handle = runtime
-        .inner
-        .block_on(create_server)
-        .map_err(|_| ffi::ParamError::ServerBindError)?;
+    let handle = match auth_handler {
+        Some(auth) => {
+            let create_server = rodbus::server::spawn_tls_server_task_with_authz(
+                max_sessions as usize,
+                address,
+                handler_map.clone(),
+                AuthorizationHandlerWrapper::new(auth).wrap(),
+                tls_config,
+                decode_level.into(),
+            );
+
+            runtime
+                .inner
+                .block_on(create_server)
+                .map_err(|_| ffi::ParamError::ServerBindError)?
+        }
+        None => {
+            let create_server = rodbus::server::spawn_tls_server_task(
+                max_sessions as usize,
+                address,
+                handler_map.clone(),
+                tls_config,
+                decode_level.into(),
+            );
+
+            runtime
+                .inner
+                .block_on(create_server)
+                .map_err(|_| ffi::ParamError::ServerBindError)?
+        }
+    };
 
     let server_handle = Server {
         inner: handle,

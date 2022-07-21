@@ -1,5 +1,5 @@
 use crate::common::phys::PhysLayer;
-use crate::server::{AuthorizationHandler, AuthorizationResult};
+use crate::server::{Authorization, AuthorizationHandler};
 use crate::{DecodeLevel, UnitId};
 
 use crate::common::cursor::ReadCursor;
@@ -25,7 +25,7 @@ where
 {
     io: PhysLayer,
     handlers: ServerHandlerMap<T>,
-    auth: Authorization,
+    auth: AuthorizationType,
     commands: tokio::sync::mpsc::Receiver<ServerSetting>,
     writer: FrameWriter,
     reader: FramedReader,
@@ -39,7 +39,7 @@ where
     pub(crate) fn new(
         io: PhysLayer,
         handlers: ServerHandlerMap<T>,
-        auth: Authorization,
+        auth: AuthorizationType,
         writer: FrameWriter,
         reader: FramedReader,
         commands: tokio::sync::mpsc::Receiver<ServerSetting>,
@@ -156,7 +156,7 @@ where
         }
 
         // check authorization
-        if let AuthorizationResult::NotAuthorized = self
+        if let Authorization::Deny = self
             .auth
             .is_authorized(frame.header.destination.into_unit_id(), &request)
         {
@@ -207,7 +207,7 @@ where
 }
 
 /// Determines how authorization of user defined requests are handled
-pub(crate) enum Authorization {
+pub(crate) enum AuthorizationType {
     /// Requests do not require authorization checks (TCP / RTU)
     None,
     /// Requests are authorized using a user-supplied handler
@@ -215,13 +215,13 @@ pub(crate) enum Authorization {
     Handler(Arc<dyn AuthorizationHandler>, String),
 }
 
-impl Authorization {
+impl AuthorizationType {
     fn check_authorization(
         handler: &dyn AuthorizationHandler,
         unit_id: UnitId,
         request: &Request,
         role: &str,
-    ) -> AuthorizationResult {
+    ) -> Authorization {
         match request {
             Request::ReadCoils(x) => handler.read_coils(unit_id, x.inner, role),
             Request::ReadDiscreteInputs(x) => handler.read_discrete_inputs(unit_id, x.inner, role),
@@ -240,12 +240,12 @@ impl Authorization {
         }
     }
 
-    pub(crate) fn is_authorized(&self, unit_id: UnitId, request: &Request) -> AuthorizationResult {
+    pub(crate) fn is_authorized(&self, unit_id: UnitId, request: &Request) -> Authorization {
         match self {
-            Authorization::None => AuthorizationResult::Authorized,
-            Authorization::Handler(handler, role) => {
+            AuthorizationType::None => Authorization::Allow,
+            AuthorizationType::Handler(handler, role) => {
                 let result = Self::check_authorization(handler.as_ref(), unit_id, request, role);
-                if let AuthorizationResult::NotAuthorized = result {
+                if let Authorization::Deny = result {
                     tracing::warn!(
                         "Role \"{}\" not authorized for request: {:?}",
                         role,

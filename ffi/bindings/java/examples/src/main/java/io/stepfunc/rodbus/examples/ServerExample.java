@@ -72,36 +72,36 @@ class ExampleWriteHandler implements WriteHandler {
 // ANCHOR: auth_handler
 class TestAuthorizationHandler implements AuthorizationHandler
 {
-    public AuthorizationResult readCoils(UByte unitId, AddressRange range, String role) {
-        return AuthorizationResult.AUTHORIZED;
+    public Authorization readCoils(UByte unitId, AddressRange range, String role) {
+        return Authorization.ALLOW;
     }
 
-    public AuthorizationResult readDiscreteInputs(UByte unitId, AddressRange range, String role) {
-        return AuthorizationResult.AUTHORIZED;
+    public Authorization readDiscreteInputs(UByte unitId, AddressRange range, String role) {
+        return Authorization.ALLOW;
     }
 
-    public AuthorizationResult readHoldingRegisters(UByte unitId, AddressRange range, String role) {
-        return AuthorizationResult.AUTHORIZED;
+    public Authorization readHoldingRegisters(UByte unitId, AddressRange range, String role) {
+        return Authorization.ALLOW;
     }
 
-    public AuthorizationResult readInputRegisters(UByte unitId, AddressRange range, String role) {
-        return AuthorizationResult.AUTHORIZED;
+    public Authorization readInputRegisters(UByte unitId, AddressRange range, String role) {
+        return Authorization.ALLOW;
     }
 
-    public AuthorizationResult writeSingleCoil(UByte unitId, UShort idx, String role) {
-        return AuthorizationResult.NOT_AUTHORIZED;
+    public Authorization writeSingleCoil(UByte unitId, UShort idx, String role) {
+        return Authorization.ALLOW;
     }
 
-    public AuthorizationResult writeSingleRegister(UByte unitId, UShort idx, String role) {
-        return AuthorizationResult.NOT_AUTHORIZED;
+    public Authorization writeSingleRegister(UByte unitId, UShort idx, String role) {
+        return Authorization.DENY;
     }
 
-    public AuthorizationResult writeMultipleCoils(UByte unitId, AddressRange range, String role) {
-        return AuthorizationResult.NOT_AUTHORIZED;
+    public Authorization writeMultipleCoils(UByte unitId, AddressRange range, String role) {
+        return Authorization.DENY;
     }
 
-    public AuthorizationResult writeMultipleRegisters(UByte unitId, AddressRange range, String role) {
-        return AuthorizationResult.NOT_AUTHORIZED;
+    public Authorization writeMultipleRegisters(UByte unitId, AddressRange range, String role) {
+        return Authorization.DENY;
     }
 }
 // ANCHOR_END: auth_handler
@@ -177,7 +177,7 @@ public class ServerExample {
 
     private static Server createTlsServer(Runtime runtime, DeviceMap map, TlsServerConfig tlsConfig) {
         // ANCHOR: tls_server_create
-        Server server = Server.createTls(runtime, "127.0.0.1", ushort(802), ushort(10), map, tlsConfig, new TestAuthorizationHandler(), DecodeLevel.nothing());
+        Server server = Server.createTlsWithAuthz(runtime, "127.0.0.1", ushort(802), ushort(10), map, tlsConfig, new TestAuthorizationHandler(), DecodeLevel.nothing());
         // ANCHOR_END: tls_server_create
 
         return server;
@@ -187,8 +187,8 @@ public class ServerExample {
         // ANCHOR: tls_ca_chain_config
         TlsServerConfig tlsConfig = new TlsServerConfig(
                 "./certs/ca_chain/ca_cert.pem",
-                "./certs/ca_chain/entity2_cert.pem",
-                "./certs/ca_chain/entity2_key.pem",
+                "./certs/ca_chain/server_cert.pem",
+                "./certs/ca_chain/server_key.pem",
                 "" // no password
         );
         // ANCHOR_END: tls_ca_chain_config
