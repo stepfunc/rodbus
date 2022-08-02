@@ -125,6 +125,10 @@ impl TcpChannelTask {
                             }
                         }
                         Ok(mut phys) => {
+                            // reset the retry strategy now that we have a successful connection
+                            // we do this here so that the reset happens after a TLS handshake
+                            self.connect_retry.reset();
+                            // run the physical layer independent processing loop
                             match self.client_loop.run(&mut phys).await {
                                 // the mpsc was closed, end the task
                                 SessionError::Shutdown => return Shutdown,
