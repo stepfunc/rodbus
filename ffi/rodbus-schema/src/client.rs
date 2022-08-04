@@ -7,6 +7,7 @@ pub(crate) fn build(lib: &mut LibraryBuilder, common: &CommonDefinitions) -> Bac
 
     let retry_strategy = build_retry_strategy(lib)?;
     let tls_client_config = build_tls_client_config(lib, common)?;
+    let client_state_listener = define_tcp_client_state_listener(lib)?;
 
     let tcp_client_create_fn = lib
         .define_function("client_channel_create_tcp")?
@@ -35,6 +36,11 @@ pub(crate) fn build(lib: &mut LibraryBuilder, common: &CommonDefinitions) -> Bac
             "decode_level",
             common.decode_level.clone(),
             "Decode levels for this client",
+        )?
+        .param(
+            "listener",
+            client_state_listener.clone(),
+            "TCP connection listener used to receive updates on the status of the channel",
         )?
         .returns(channel.clone(), "Pointer to the created channel")?
         .fails_with(common.error_type.clone())?
@@ -106,6 +112,11 @@ pub(crate) fn build(lib: &mut LibraryBuilder, common: &CommonDefinitions) -> Bac
             "decode_level",
             common.decode_level.clone(),
             "Decode levels for this client",
+        )?
+        .param(
+            "listener",
+            client_state_listener,
+            "TCP connection listener used to receive updates on the status of the channel",
         )?
         .returns(
             channel.clone(),
@@ -254,6 +265,43 @@ pub(crate) fn build(lib: &mut LibraryBuilder, common: &CommonDefinitions) -> Bac
         .build()?;
 
     Ok(())
+}
+
+fn define_tcp_client_state_listener(lib: &mut LibraryBuilder) -> BackTraced<AsynchronousInterface> {
+    let client_state_enum = lib
+        .define_enum("client_state")?
+        .push("disabled", "Client is disabled and idle until disabled")?
+        .push(
+            "connecting",
+            "Client is trying to establish a connection to the remote device",
+        )?
+        .push("connected", "Client is connected to the remote device")?
+        .push(
+            "wait_after_failed_connect",
+            "Failed to establish a connection, waiting before retrying",
+        )?
+        .push(
+            "wait_after_disconnect",
+            "Client was disconnected, waiting before retrying",
+        )?
+        .push("shutdown", "Client is shutting down")?
+        .doc(
+            doc("State of the client connection.")
+                .details("Use by the {interface:client_state_listener}."),
+        )?
+        .build()?;
+
+    let listener = lib
+        .define_interface(
+            "client_state_listener",
+            "Callback for monitoring the client TCP connection state",
+        )?
+        .begin_callback("on_change", "Called when the client state changed")?
+        .param("state", client_state_enum, "New state")?
+        .end_callback()?
+        .build_async()?;
+
+    Ok(listener)
 }
 
 fn build_async_read_method(
