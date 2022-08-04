@@ -8,6 +8,7 @@ pub(crate) fn build(lib: &mut LibraryBuilder, common: &CommonDefinitions) -> Bac
     let retry_strategy = build_retry_strategy(lib)?;
     let tls_client_config = build_tls_client_config(lib, common)?;
     let client_state_listener = define_tcp_client_state_listener(lib)?;
+    let port_state_listener = define_port_state_listener(lib)?;
 
     let tcp_client_create_fn = lib
         .define_function("client_channel_create_tcp")?
@@ -78,6 +79,11 @@ pub(crate) fn build(lib: &mut LibraryBuilder, common: &CommonDefinitions) -> Bac
             "decode_level",
             common.decode_level.clone(),
             "Decode levels for this client",
+        )?
+        .param(
+            "listener",
+            port_state_listener,
+            "Listener used to receive updates on the status of the serial port",
         )?
         .returns(channel.clone(), "Pointer to the created channel")?
         .fails_with(common.error_type.clone())?
@@ -265,6 +271,29 @@ pub(crate) fn build(lib: &mut LibraryBuilder, common: &CommonDefinitions) -> Bac
         .build()?;
 
     Ok(())
+}
+
+fn define_port_state_listener(lib: &mut LibraryBuilder) -> BackTraced<AsynchronousInterface> {
+    let port_state = lib
+        .define_enum("port_state")?
+        .push("disabled", "Disabled until enabled")?
+        .push("wait", "Waiting to perform an open retry")?
+        .push("open", "Port is open")?
+        .push("shutdown", "Task has been shut down")?
+        .doc("State of the serial port")?
+        .build()?;
+
+    let port_state_listener = lib
+        .define_interface(
+            "port_state_listener",
+            "Callback interface for receiving updates about the state of a serial port",
+        )?
+        .begin_callback("on_change", "Invoked when the serial port changes state")?
+        .param("state", port_state, "New state of the port")?
+        .end_callback()?
+        .build_async()?;
+
+    Ok(port_state_listener)
 }
 
 fn define_tcp_client_state_listener(lib: &mut LibraryBuilder) -> BackTraced<AsynchronousInterface> {
