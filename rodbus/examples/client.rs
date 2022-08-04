@@ -163,6 +163,8 @@ fn print_write_result<T>(result: Result<T, RequestError>) {
 }
 
 async fn run_channel(mut channel: Channel) -> Result<(), Box<dyn std::error::Error>> {
+    channel.enable().await?;
+
     // ANCHOR: request_param
     let params = RequestParam::new(UnitId::new(1), Duration::from_secs(1));
     // ANCHOR_END: request_param
@@ -171,6 +173,14 @@ async fn run_channel(mut channel: Channel) -> Result<(), Box<dyn std::error::Err
     loop {
         match reader.next().await.unwrap()?.as_str() {
             "x" => return Ok(()),
+            "ec" => {
+                // enable channel
+                channel.enable().await?;
+            }
+            "dc" => {
+                // disable channel
+                channel.disable().await?;
+            }
             "ed" => {
                 // enable decoding
                 channel

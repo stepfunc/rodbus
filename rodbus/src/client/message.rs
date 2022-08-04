@@ -17,6 +17,8 @@ use std::time::Duration;
 
 pub(crate) enum Setting {
     DecodeLevel(DecodeLevel),
+    Enable,
+    Disable,
 }
 
 pub(crate) enum Command {

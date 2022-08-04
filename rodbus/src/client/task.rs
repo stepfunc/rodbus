@@ -15,11 +15,19 @@ use crate::DecodeLevel;
 */
 #[derive(Debug, PartialEq)]
 pub(crate) enum SessionError {
-    // the stream errors
+    /// the stream errors
     IoError(std::io::ErrorKind),
-    // unrecoverable framing issue,
+    /// unrecoverable framing issue,
     BadFrame,
-    // the mpsc is closed (dropped) on the sender side
+    /// channel was disabled
+    Disabled,
+    /// the mpsc is closed (dropped) on the sender side
+    Shutdown,
+}
+
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub(crate) enum StateChange {
+    Disable,
     Shutdown,
 }
 
@@ -31,6 +39,9 @@ impl std::fmt::Display for SessionError {
             }
             SessionError::BadFrame => {
                 write!(f, "Parser encountered a bad frame")
+            }
+            SessionError::Disabled => {
+                write!(f, "Channel was disabled")
             }
             SessionError::Shutdown => {
                 write!(f, "Shutdown was requested")
@@ -56,6 +67,7 @@ pub(crate) struct ClientLoop {
     reader: FramedReader,
     tx_id: TxId,
     decode: DecodeLevel,
+    enabled: bool,
 }
 
 impl ClientLoop {
@@ -71,6 +83,7 @@ impl ClientLoop {
             reader,
             tx_id: TxId::default(),
             decode,
+            enabled: false,
         }
     }
 
@@ -78,9 +91,24 @@ impl ClientLoop {
         match cmd {
             Command::Setting(setting) => {
                 self.change_setting(setting);
+                if !self.enabled {
+                    return Err(SessionError::Disabled);
+                }
                 Ok(())
             }
             Command::Request(mut request) => self.run_one_request(io, &mut request).await,
+        }
+    }
+
+    pub(crate) async fn wait_for_enabled(&mut self) -> Result<(), Shutdown> {
+        loop {
+            if self.enabled {
+                return Ok(());
+            }
+
+            if let Err(StateChange::Shutdown) = self.fail_next_request().await {
+                return Err(Shutdown);
+            }
         }
     }
 
@@ -192,10 +220,43 @@ impl ClientLoop {
                 tracing::info!("Decode level changed: {:?}", level);
                 self.decode = level;
             }
+            Setting::Enable => {
+                if !self.enabled {
+                    self.enabled = true;
+                    tracing::info!("channel enabled");
+                }
+            }
+            Setting::Disable => {
+                if self.enabled {
+                    self.enabled = false;
+                    tracing::info!("channel disabled");
+                }
+            }
         }
     }
 
-    pub(crate) async fn fail_requests_for(&mut self, duration: Duration) -> Result<(), Shutdown> {
+    async fn fail_next_request(&mut self) -> Result<(), StateChange> {
+        match self.rx.recv().await {
+            None => return Err(StateChange::Disable),
+            Some(cmd) => match cmd {
+                Command::Request(mut req) => {
+                    req.details.fail(RequestError::NoConnection);
+                }
+                Command::Setting(x) => {
+                    self.change_setting(x);
+                    if !self.enabled {
+                        return Err(StateChange::Disable);
+                    }
+                }
+            },
+        }
+        Ok(())
+    }
+
+    pub(crate) async fn fail_requests_for(
+        &mut self,
+        duration: Duration,
+    ) -> Result<(), StateChange> {
         let deadline = Instant::now() + duration;
 
         loop {
@@ -204,22 +265,8 @@ impl ClientLoop {
                     // Timeout occurred
                     return Ok(())
                 }
-                x = self.rx.recv() => match x {
-                    Some(cmd) => {
-                        match cmd {
-                            Command::Request(mut req) => {
-                                // fail request, do another iteration
-                                req.details.fail(RequestError::NoConnection)
-                            }
-                            Command::Setting(setting) => {
-                                self.change_setting(setting);
-                            }
-                        }
-                    }
-                    None => {
-                        // channel was closed
-                        return Err(Shutdown)
-                    }
+                x = self.fail_next_request() => {
+                    x?
                 }
             }
         }
