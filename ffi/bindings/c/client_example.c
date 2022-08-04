@@ -54,6 +54,10 @@ void on_write_failure(rodbus_request_error_t error, void *ctx)
 
 run_channel(rodbus_client_channel_t* channel)
 {
+    // ANCHOR: enable_channel
+    rodbus_client_channel_enable(channel);
+    // ANCHOR_END: enable_channel
+    
     // request param that we will be reusing
     // ANCHOR: request_param
     rodbus_request_param_t param = rodbus_request_param_init(1,   // Unit ID
@@ -97,6 +101,12 @@ run_channel(rodbus_client_channel_t* channel)
 
         if (strcmp(cbuf, "x\n") == 0) {
             break;
+        }
+        else if (strcmp(cbuf, "ec\n") == 0) {
+            rodbus_client_channel_enable(channel);
+        }
+        else if (strcmp(cbuf, "dc\n") == 0) {
+            rodbus_client_channel_disable(channel);
         }
         else if (strcmp(cbuf, "rc\n") == 0) {
             // ANCHOR: read_coils

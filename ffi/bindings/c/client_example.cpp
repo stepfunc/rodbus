@@ -64,6 +64,10 @@ class WriteCallback : public rodbus::WriteCallback
 
 int run_channel(rodbus::ClientChannel& channel)
 {
+    // ANCHOR: enable_channel
+    channel.enable();
+    // ANCHOR_END: enable_channel
+
     // request param that we will be reusing
     // ANCHOR: request_param
     const auto param = rodbus::RequestParam(1, // Unit ID
@@ -85,6 +89,14 @@ int run_channel(rodbus::ClientChannel& channel)
 
         if (cmd == "x") {
             return 0;
+        }
+        else if (cmd == "ec") {
+            // enable channel
+            channel.enable();
+        }
+        else if (cmd == "dc") {
+            // disable channel
+            channel.disable();
         }
         else if (cmd == "ed") {
             // enable decoding
