@@ -87,10 +87,6 @@ impl ClientLoop {
         }
     }
 
-    pub(crate) fn is_disabled(&self) -> bool {
-        !self.enabled
-    }
-
     async fn run_cmd(&mut self, cmd: Command, io: &mut PhysLayer) -> Result<(), SessionError> {
         match cmd {
             Command::Setting(setting) => {

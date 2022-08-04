@@ -55,7 +55,7 @@ where
     T: std::fmt::Debug,
 {
     fn update(&mut self, value: T) -> MaybeAsync<()> {
-        tracing::info!("Channel: {:?}", value);
+        tracing::info!("Channel Listener: {:?}", value);
         MaybeAsync::ready(())
     }
 }
