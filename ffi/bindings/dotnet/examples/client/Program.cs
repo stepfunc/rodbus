@@ -140,6 +140,10 @@ namespace example
 
         private static async Task RunChannel(ClientChannel channel)
         {
+            // ANCHOR: enable_channel
+            channel.Enable();
+            // ANCHOR_END: enable_channel
+
             // ANCHOR: request_param
             var param = new RequestParam(1, TimeSpan.FromSeconds(1));
             // ANCHOR_END: request_param
@@ -153,6 +157,12 @@ namespace example
                 {
                     case "x":
                         return;
+                    case "ec":
+                        channel.Enable();
+                        break;
+                    case "dc":
+                        channel.Disable();
+                        break;
                     case "ed":
                         channel.SetDecodeLevel(new DecodeLevel(AppDecodeLevel.DataValues, FrameDecodeLevel.Header, PhysDecodeLevel.Length));
                         break;
