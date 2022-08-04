@@ -72,6 +72,7 @@ async fn run() -> Result<(), Error> {
         1,
         default_reconnect_strategy(),
         AppDecodeLevel::DataValues.into(),
+        None,
     );
     let params = RequestParam::new(args.id, Duration::from_secs(1));
 

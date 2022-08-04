@@ -1,6 +1,6 @@
 use crate::ffi;
-use rodbus::client::{HostAddr, WriteMultiple};
-use rodbus::AddressRange;
+use rodbus::client::{ClientState, HostAddr, Listener, WriteMultiple};
+use rodbus::{AddressRange, MaybeAsync};
 use std::net::IpAddr;
 use std::path::Path;
 use std::time::Duration;
@@ -30,6 +30,7 @@ pub(crate) unsafe fn client_channel_create_tcp(
     max_queued_requests: u16,
     retry_strategy: ffi::RetryStrategy,
     decode_level: ffi::DecodeLevel,
+    listener: ffi::ClientStateListener,
 ) -> Result<*mut crate::ClientChannel, ffi::ParamError> {
     let runtime = runtime.as_ref().ok_or(ffi::ParamError::NullParameter)?;
 
@@ -41,6 +42,7 @@ pub(crate) unsafe fn client_channel_create_tcp(
         max_queued_requests as usize,
         retry_strategy.into(),
         decode_level.into(),
+        Some(listener.into()),
     );
 
     Ok(Box::into_raw(Box::new(ClientChannel {
@@ -84,6 +86,7 @@ pub(crate) unsafe fn client_channel_create_tls(
     retry_strategy: ffi::RetryStrategy,
     tls_config: ffi::TlsClientConfig,
     decode_level: ffi::DecodeLevel,
+    listener: ffi::ClientStateListener,
 ) -> Result<*mut crate::ClientChannel, ffi::ParamError> {
     let runtime = runtime.as_ref().ok_or(ffi::ParamError::NullParameter)?;
 
@@ -118,6 +121,7 @@ pub(crate) unsafe fn client_channel_create_tls(
         retry_strategy.into(),
         tls_config,
         decode_level.into(),
+        Some(listener.into()),
     );
 
     Ok(Box::into_raw(Box::new(ClientChannel {
@@ -305,4 +309,34 @@ pub(crate) unsafe fn client_channel_set_decode_level(
         .runtime
         .spawn(channel.inner.set_decode_level(level.into()))?;
     Ok(())
+}
+
+impl From<ClientState> for ffi::ClientState {
+    fn from(x: ClientState) -> Self {
+        match x {
+            ClientState::Disabled => ffi::ClientState::Disabled,
+            ClientState::Connecting => ffi::ClientState::Connecting,
+            ClientState::Connected => ffi::ClientState::Connected,
+            ClientState::WaitAfterFailedConnect(_) => ffi::ClientState::WaitAfterFailedConnect,
+            ClientState::WaitAfterDisconnect(_) => ffi::ClientState::WaitAfterDisconnect,
+            ClientState::Shutdown => ffi::ClientState::Shutdown,
+        }
+    }
+}
+
+struct ClientStateListener {
+    inner: ffi::ClientStateListener,
+}
+
+impl Listener<ClientState> for ClientStateListener {
+    fn update(&mut self, value: ClientState) -> MaybeAsync<()> {
+        self.inner.on_change(value.into());
+        MaybeAsync::ready(())
+    }
+}
+
+impl From<ffi::ClientStateListener> for Box<dyn Listener<ClientState>> {
+    fn from(x: ffi::ClientStateListener) -> Self {
+        Box::new(ClientStateListener { inner: x })
+    }
 }

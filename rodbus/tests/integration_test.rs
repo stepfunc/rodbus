@@ -114,6 +114,7 @@ async fn test_requests_and_responses() {
         10,
         default_reconnect_strategy(),
         DecodeLevel::default(),
+        None,
     );
 
     channel.enable().await.unwrap();

@@ -66,6 +66,11 @@ class IntegrationTest {
         }
     }
 
+    static class NullClientStateListener implements ClientStateListener {
+        @Override
+        public void onChange(ClientState state) {}
+    }
+
     @Test
     void clientAndServerCommunication() throws ExecutionException, InterruptedException {
         final RuntimeConfig runtimeConfig = new RuntimeConfig();
@@ -82,7 +87,7 @@ class IntegrationTest {
         });
 
         final Server server = Server.createTcp(runtime, ENDPOINT, PORT, ushort(100), deviceMap, DecodeLevel.nothing());
-        final ClientChannel client = ClientChannel.createTcp(runtime, ENDPOINT, PORT, ushort(10), new RetryStrategy(), DecodeLevel.nothing());
+        final ClientChannel client = ClientChannel.createTcp(runtime, ENDPOINT, PORT, ushort(10), new RetryStrategy(), DecodeLevel.nothing(), new NullClientStateListener());
 
         client.enable();
 

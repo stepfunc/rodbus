@@ -6,12 +6,14 @@ use crate::serial::SerialSettings;
 
 /// persistent communication channel such as a TCP connection
 pub(crate) mod channel;
+pub(crate) mod listener;
 pub(crate) mod message;
 pub(crate) mod requests;
 pub(crate) mod task;
 
 pub use crate::client::channel::strategy::*;
 pub use crate::client::channel::*;
+pub use crate::client::listener::*;
 pub use crate::client::requests::write_multiple::WriteMultiple;
 
 #[cfg(feature = "tls")]
@@ -81,13 +83,21 @@ impl HostAddr {
 /// * `max_queued_requests` - The maximum size of the request queue
 /// * `retry` - A boxed trait object that controls when the connection is retried on failure
 /// * `decode` - Decode log level
+/// * `listener` - Callback for the TCP connection state
 pub fn spawn_tcp_client_task(
     host: HostAddr,
     max_queued_requests: usize,
     retry: Box<dyn ReconnectStrategy + Send>,
     decode: DecodeLevel,
+    listener: Option<Box<dyn Listener<ClientState>>>,
 ) -> Channel {
-    crate::tcp::client::spawn_tcp_channel(host, max_queued_requests, retry, decode)
+    crate::tcp::client::spawn_tcp_channel(
+        host,
+        max_queued_requests,
+        retry,
+        decode,
+        listener.unwrap_or_else(|| NullListener::create()),
+    )
 }
 
 /// Spawns a channel task onto the runtime that opens a serial port and processes
@@ -126,6 +136,7 @@ pub fn spawn_rtu_client_task(
 /// * `retry` - A boxed trait object that controls when the connection is retried on failure
 /// * `tls_config` - TLS configuration
 /// * `decode` - Decode log level
+/// * `listener` - Callback for the TCP connection state
 #[cfg(feature = "tls")]
 pub fn spawn_tls_client_task(
     host: HostAddr,
@@ -133,6 +144,14 @@ pub fn spawn_tls_client_task(
     retry: Box<dyn ReconnectStrategy + Send>,
     tls_config: TlsClientConfig,
     decode: DecodeLevel,
+    listener: Option<Box<dyn Listener<ClientState>>>,
 ) -> Channel {
-    spawn_tls_channel(host, max_queued_requests, retry, tls_config, decode)
+    spawn_tls_channel(
+        host,
+        max_queued_requests,
+        retry,
+        tls_config,
+        decode,
+        listener.unwrap_or_else(|| NullListener::create()),
+    )
 }
