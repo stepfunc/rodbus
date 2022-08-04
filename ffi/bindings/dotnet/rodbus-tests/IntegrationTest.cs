@@ -60,6 +60,14 @@ namespace rodbus_tests
         }
     }
 
+    class ClientStateListener : IClientStateListener
+    {
+        public void OnChange(ClientState state)
+        {
+            
+        }
+    }
+
     [TestClass]
     public class IntegrationTest
     {
@@ -183,7 +191,7 @@ namespace rodbus_tests
             });
 
             var server = Server.CreateTcp(runtime, ENDPOINT, PORT, 100, map, DecodeLevel.Nothing());
-            var client = ClientChannel.CreateTcp(runtime, ENDPOINT, PORT, 10, new RetryStrategy(), DecodeLevel.Nothing());
+            var client = ClientChannel.CreateTcp(runtime, ENDPOINT, PORT, 10, new RetryStrategy(), DecodeLevel.Nothing(), new ClientStateListener());
 
             client.Enable();
 

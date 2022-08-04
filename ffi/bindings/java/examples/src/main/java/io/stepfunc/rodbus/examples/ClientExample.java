@@ -20,6 +20,15 @@ class ConsoleLogger implements Logger {
 }
 // ANCHOR_END: logging_interface
 
+// ANCHOR: client_state_listener
+class PrintingClientStateListener implements ClientStateListener {
+    @Override
+    public void onChange(ClientState state) {
+        System.out.printf("client state: %s", state);
+    }
+}
+// ANCHOR_END: client_state_listener
+
 public class ClientExample {
     public static void main(String[] args) throws Exception {
         // ANCHOR: logging_init
@@ -68,7 +77,7 @@ public class ClientExample {
 
     private static ClientChannel createTcpChannel(Runtime runtime) {
         // ANCHOR: create_tcp_channel
-        ClientChannel channel = ClientChannel.createTcp(runtime, "127.0.0.1", ushort(502), ushort(100), new RetryStrategy(), DecodeLevel.nothing());
+        ClientChannel channel = ClientChannel.createTcp(runtime, "127.0.0.1", ushort(502), ushort(100), new RetryStrategy(), DecodeLevel.nothing(), new PrintingClientStateListener());
         // ANCHOR_END: create_tcp_channel
 
         return channel;
@@ -91,7 +100,7 @@ public class ClientExample {
 
     private static ClientChannel createTlsChannel(Runtime runtime, TlsClientConfig tlsConfig) {
         // ANCHOR: create_tls_channel
-        ClientChannel channel = ClientChannel.createTls(runtime, "127.0.0.1", ushort(802), ushort(100), new RetryStrategy(), tlsConfig, DecodeLevel.nothing());
+        ClientChannel channel = ClientChannel.createTls(runtime, "127.0.0.1", ushort(802), ushort(100), new RetryStrategy(), tlsConfig, DecodeLevel.nothing(), new PrintingClientStateListener());
         // ANCHOR_END: create_tls_channel
 
         return channel;
