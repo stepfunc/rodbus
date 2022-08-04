@@ -26,7 +26,7 @@ impl<T> Listener<T> for NullListener {
 }
 
 /// state of TCP/TLS client connection
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum ClientState {
     /// client is disabled
     Disabled,
