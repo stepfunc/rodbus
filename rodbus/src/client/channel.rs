@@ -34,7 +34,9 @@ pub trait ReconnectStrategy {
     /// Reset internal state. Called when a connection is successful
     fn reset(&mut self);
     /// Return the next delay before making another connection attempt
-    fn next_delay(&mut self) -> Duration;
+    fn after_failed_connect(&mut self) -> Duration;
+    /// Return the delay to wait after a disconnect before attempting to reconnect
+    fn after_disconnect(&mut self) -> Duration;
 }
 
 /// Helper functions for returning instances of `Box<dyn ReconnectStrategy>`
@@ -77,10 +79,14 @@ pub(crate) mod strategy {
             self.current = self.min;
         }
 
-        fn next_delay(&mut self) -> Duration {
+        fn after_failed_connect(&mut self) -> Duration {
             let ret = self.current;
             self.current = std::cmp::min(2 * self.current, self.max);
             ret
+        }
+
+        fn after_disconnect(&mut self) -> Duration {
+            self.min
         }
     }
 }

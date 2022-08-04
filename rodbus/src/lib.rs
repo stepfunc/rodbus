@@ -51,6 +51,7 @@
 //!        10,
 //!        default_reconnect_strategy(),
 //!        DecodeLevel::default(),
+//!        None
 //!    );
 //!
 //!    let param = RequestParam::new(
@@ -202,11 +203,13 @@ pub mod server;
 // modules that are re-exported
 pub(crate) mod decode;
 pub(crate) mod exception;
+pub(crate) mod maybe_async;
 pub(crate) mod types;
 
 // re-exports
 pub use crate::decode::*;
 pub use crate::exception::*;
+pub use crate::maybe_async::*;
 pub use crate::types::*;
 pub use error::RequestError;
 

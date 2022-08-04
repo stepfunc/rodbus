@@ -1,6 +1,6 @@
 use tracing::Instrument;
 
-use crate::client::{Channel, HostAddr};
+use crate::client::{Channel, ClientState, HostAddr, Listener};
 use crate::common::phys::PhysLayer;
 use crate::decode::DecodeLevel;
 
@@ -18,8 +18,10 @@ pub(crate) fn spawn_tcp_channel(
     max_queued_requests: usize,
     connect_retry: Box<dyn ReconnectStrategy + Send>,
     decode: DecodeLevel,
+    listener: Box<dyn Listener<ClientState>>,
 ) -> Channel {
-    let (handle, task) = create_tcp_channel(host, max_queued_requests, connect_retry, decode);
+    let (handle, task) =
+        create_tcp_channel(host, max_queued_requests, connect_retry, decode, listener);
     tokio::spawn(task);
     handle
 }
@@ -29,6 +31,7 @@ pub(crate) fn create_tcp_channel(
     max_queued_requests: usize,
     connect_retry: Box<dyn ReconnectStrategy + Send>,
     decode: DecodeLevel,
+    listener: Box<dyn Listener<ClientState>>,
 ) -> (Channel, impl std::future::Future<Output = ()>) {
     let (tx, rx) = tokio::sync::mpsc::channel(max_queued_requests);
     let task = async move {
@@ -38,6 +41,7 @@ pub(crate) fn create_tcp_channel(
             TcpTaskConnectionHandler::Tcp,
             connect_retry,
             decode,
+            listener,
         )
         .run()
         .instrument(tracing::info_span!("Modbus-Client-TCP", endpoint = ?host))
@@ -71,6 +75,7 @@ pub(crate) struct TcpChannelTask {
     connect_retry: Box<dyn ReconnectStrategy + Send>,
     connection_handler: TcpTaskConnectionHandler,
     client_loop: ClientLoop,
+    listener: Box<dyn Listener<ClientState>>,
 }
 
 impl TcpChannelTask {
@@ -80,18 +85,26 @@ impl TcpChannelTask {
         connection_handler: TcpTaskConnectionHandler,
         connect_retry: Box<dyn ReconnectStrategy + Send>,
         decode: DecodeLevel,
+        listener: Box<dyn Listener<ClientState>>,
     ) -> Self {
         Self {
             host,
             connect_retry,
             connection_handler,
             client_loop: ClientLoop::new(rx, FrameWriter::tcp(), FramedReader::tcp(), decode),
+            listener,
         }
     }
 
     // runs until it is shut down
     pub(crate) async fn run(&mut self) -> Shutdown {
-        // try to connect
+        self.listener.update(ClientState::Disabled).get().await;
+        let ret = self.run_inner().await;
+        self.listener.update(ClientState::Shutdown).get().await;
+        ret
+    }
+
+    async fn run_inner(&mut self) -> Shutdown {
         loop {
             if let Err(Shutdown) = self.client_loop.wait_for_enabled().await {
                 return Shutdown;
@@ -100,19 +113,28 @@ impl TcpChannelTask {
             if let Err(StateChange::Shutdown) = self.try_connect_and_run().await {
                 return Shutdown;
             }
+
+            if self.client_loop.is_disabled() {
+                self.listener.update(ClientState::Disabled).get().await;
+            }
         }
     }
 
     async fn try_connect_and_run(&mut self) -> Result<(), StateChange> {
+        self.listener.update(ClientState::Connecting).get().await;
         match self.host.connect().await {
             Err(err) => {
-                let delay = self.connect_retry.next_delay();
+                let delay = self.connect_retry.after_failed_connect();
                 tracing::warn!(
                     "failed to connect to {}: {} - waiting {} ms before next attempt",
                     self.host,
                     err,
                     delay.as_millis()
                 );
+                self.listener
+                    .update(ClientState::WaitAfterFailedConnect(delay))
+                    .get()
+                    .await;
                 self.client_loop.fail_requests_for(delay).await
             }
             Ok(socket) => {
@@ -121,15 +143,20 @@ impl TcpChannelTask {
                 }
                 match self.connection_handler.handle(socket, &self.host).await {
                     Err(err) => {
-                        let delay = self.connect_retry.next_delay();
+                        let delay = self.connect_retry.after_failed_connect();
                         tracing::warn!(
                             "{} - waiting {} ms before next attempt",
                             err,
                             delay.as_millis()
                         );
+                        self.listener
+                            .update(ClientState::WaitAfterFailedConnect(delay))
+                            .get()
+                            .await;
                         self.client_loop.fail_requests_for(delay).await
                     }
                     Ok(mut phys) => {
+                        self.listener.update(ClientState::Connected).get().await;
                         // reset the retry strategy now that we have a successful connection
                         // we do this here so that the reset happens after a TLS handshake
                         self.connect_retry.reset();
@@ -138,9 +165,16 @@ impl TcpChannelTask {
                             // the mpsc was closed, end the task
                             SessionError::Shutdown => Err(StateChange::Shutdown),
                             // re-establish the connection
-                            SessionError::Disabled
-                            | SessionError::IoError(_)
-                            | SessionError::BadFrame => Ok(()),
+                            SessionError::Disabled => Ok(()),
+                            SessionError::IoError(_) | SessionError::BadFrame => {
+                                let delay = self.connect_retry.after_disconnect();
+                                tracing::warn!("waiting {:?} to reconnect", delay);
+                                self.listener
+                                    .update(ClientState::WaitAfterDisconnect(delay))
+                                    .get()
+                                    .await;
+                                self.client_loop.fail_requests_for(delay).await
+                            }
                         }
                     }
                 }

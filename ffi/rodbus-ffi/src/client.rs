@@ -41,6 +41,7 @@ pub(crate) unsafe fn client_channel_create_tcp(
         max_queued_requests as usize,
         retry_strategy.into(),
         decode_level.into(),
+        None,
     );
 
     Ok(Box::into_raw(Box::new(ClientChannel {
@@ -118,6 +119,7 @@ pub(crate) unsafe fn client_channel_create_tls(
         retry_strategy.into(),
         tls_config,
         decode_level.into(),
+        None,
     );
 
     Ok(Box::into_raw(Box::new(ClientChannel {

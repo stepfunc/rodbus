@@ -49,6 +49,17 @@ async fn main() -> Result<(), Box<dyn Error>> {
     }
 }
 
+struct LoggingListener;
+impl<T> Listener<T> for LoggingListener
+where
+    T: std::fmt::Debug,
+{
+    fn update(&mut self, value: T) -> MaybeAsync<()> {
+        tracing::info!("Channel: {:?}", value);
+        MaybeAsync::ready(())
+    }
+}
+
 async fn run_tcp() -> Result<(), Box<dyn std::error::Error>> {
     // ANCHOR: create_tcp_channel
     let channel = spawn_tcp_client_task(
@@ -56,6 +67,7 @@ async fn run_tcp() -> Result<(), Box<dyn std::error::Error>> {
         1,
         default_reconnect_strategy(),
         DecodeLevel::default(),
+        Some(Box::new(LoggingListener)),
     );
     // ANCHOR_END: create_tcp_channel
 
@@ -93,6 +105,7 @@ async fn run_tls(tls_config: TlsClientConfig) -> Result<(), Box<dyn std::error::
             FrameDecodeLevel::Nothing,
             PhysDecodeLevel::Nothing,
         ),
+        Some(Box::new(LoggingListener)),
     );
     // ANCHOR_END: create_tls_channel
 
