@@ -12,7 +12,16 @@ class Logger : public rodbus::Logger {
         std::cout << message;
     }
 };
-/// ANCHOR_END: logging_callback
+/// ANCHOR_END: client_state_callback
+
+/// ANCHOR: logging_callback
+class PrintingClientStateListener : public rodbus::ClientStateListener {
+    void on_change(rodbus::ClientState state) override
+    { 
+        std::cout << "client state: " << rodbus::to_string(state) << std::endl;        
+    }
+};
+/// ANCHOR_END: client_state_callback
 
 // ANCHOR: bit_read_callback
 class BitReadCallback : public rodbus::BitReadCallback
@@ -165,8 +174,9 @@ int run_tcp_channel(rodbus::Runtime& runtime)
         "127.0.0.1",
         502,
         100,
-        rodbus::RetryStrategy(), 
-        rodbus::DecodeLevel::nothing()
+        rodbus::RetryStrategy(),
+        rodbus::DecodeLevel::nothing(),
+        std::make_unique<PrintingClientStateListener>()
     );
     // ANCHOR_END: create_tcp_channel
 
@@ -199,7 +209,8 @@ int run_tls_channel(rodbus::Runtime& runtime, const rodbus::TlsClientConfig& tls
         100,
         rodbus::RetryStrategy(),
         tls_config,
-        rodbus::DecodeLevel::nothing()
+        rodbus::DecodeLevel::nothing(),
+        std::make_unique<PrintingClientStateListener>()
     );
     // ANCHOR_END: create_tls_channel
 
