@@ -84,6 +84,8 @@ class IntegrationTest {
         final Server server = Server.createTcp(runtime, ENDPOINT, PORT, ushort(100), deviceMap, DecodeLevel.nothing());
         final ClientChannel client = ClientChannel.createTcp(runtime, ENDPOINT, PORT, ushort(10), new RetryStrategy(), DecodeLevel.nothing());
 
+        client.enable();
+
         // Set a unique pattern to test reads
         server.updateDatabase(UNIT_ID, db -> {
             db.updateDiscreteInput(ushort(3), true);

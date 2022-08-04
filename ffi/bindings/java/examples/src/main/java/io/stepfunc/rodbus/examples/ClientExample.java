@@ -126,6 +126,10 @@ public class ClientExample {
     }
 
     private static void run(ClientChannel channel) throws Exception {
+        // ANCHOR: enable_channel
+        channel.enable();
+        // ANCHOR_END: enable_channel
+
         // ANCHOR: request_param
         final RequestParam param = new RequestParam(ubyte(1), Duration.ofSeconds(1));
         // ANCHOR_END: request_param
@@ -140,6 +144,16 @@ public class ClientExample {
             switch (line) {
                 case "x":
                     return;
+                case "ec": {
+                    // enable channel
+                    channel.enable();
+                    break;
+                }
+                case "dc": {
+                    // disable channel
+                    channel.disable();
+                    break;
+                }
                 case "ed": {
                     // enable decoding
                     channel.setDecodeLevel(new DecodeLevel(AppDecodeLevel.DATA_VALUES, FrameDecodeLevel.HEADER, PhysDecodeLevel.LENGTH));

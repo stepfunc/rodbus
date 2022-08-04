@@ -209,11 +209,32 @@ pub(crate) fn build(lib: &mut LibraryBuilder, common: &CommonDefinitions) -> Bac
         .doc("Set the decoding level for the channel")?
         .build()?;
 
+    let enable_fn = lib
+        .define_method("enable", channel.clone())?
+        .fails_with(common.error_type.clone())?
+        .doc(
+            doc("Enable channel communications")
+                .warning("May not be called from within the context of the runtime"),
+        )?
+        .build()?;
+
+    let disable_fn = lib
+        .define_method("disable", channel.clone())?
+        .fails_with(common.error_type.clone())?
+        .doc(
+            doc("Disable channel communications")
+                .warning("May not be called from within the context of the runtime"),
+        )?
+        .build()?;
+
     lib.define_class(&channel)?
         // abstract factory methods
         .static_method(tcp_client_create_fn)?
         .static_method(rtu_client_create_fn)?
         .static_method(tls_client_create_fn)?
+        // enable/disable
+        .method(enable_fn)?
+        .method(disable_fn)?
         // setting methods
         .method(set_decode_level_fn)?
         // read methods

@@ -115,6 +115,9 @@ async fn test_requests_and_responses() {
         default_reconnect_strategy(),
         DecodeLevel::default(),
     );
+
+    channel.enable().await.unwrap();
+
     let params = RequestParam::new(UnitId::new(0x01), Duration::from_secs(1));
 
     {

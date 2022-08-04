@@ -124,12 +124,24 @@ impl Channel {
         let path = path.to_string();
         let (tx, rx) = tokio::sync::mpsc::channel(max_queued_requests);
         let task = async move {
-            SerialChannelTask::new(&path, serial_settings, rx, retry_delay, decode)
+            let _ = SerialChannelTask::new(&path, serial_settings, rx, retry_delay, decode)
                 .run()
                 .instrument(tracing::info_span!("Modbus-Client-RTU", "port" = ?path))
-                .await
+                .await;
         };
         (Channel { tx }, task)
+    }
+
+    /// Enable communications
+    pub async fn enable(&self) -> Result<(), Shutdown> {
+        self.tx.send(Command::Setting(Setting::Enable)).await?;
+        Ok(())
+    }
+
+    /// Disable communications
+    pub async fn disable(&self) -> Result<(), Shutdown> {
+        self.tx.send(Command::Setting(Setting::Disable)).await?;
+        Ok(())
     }
 
     /// Read coils from the server

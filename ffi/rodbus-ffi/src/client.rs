@@ -280,6 +280,22 @@ pub(crate) unsafe fn client_channel_write_multiple_registers(
     Ok(())
 }
 
+pub(crate) unsafe fn client_channel_enable(
+    channel: *mut crate::ClientChannel,
+) -> Result<(), ffi::ParamError> {
+    let channel = channel.as_ref().ok_or(ffi::ParamError::NullParameter)?;
+    channel.runtime.block_on(channel.inner.enable())??;
+    Ok(())
+}
+
+pub(crate) unsafe fn client_channel_disable(
+    channel: *mut crate::ClientChannel,
+) -> Result<(), ffi::ParamError> {
+    let channel = channel.as_ref().ok_or(ffi::ParamError::NullParameter)?;
+    channel.runtime.block_on(channel.inner.disable())??;
+    Ok(())
+}
+
 pub(crate) unsafe fn client_channel_set_decode_level(
     channel: *mut crate::ClientChannel,
     level: ffi::DecodeLevel,

@@ -6,7 +6,7 @@ use crate::decode::DecodeLevel;
 
 use crate::client::channel::ReconnectStrategy;
 use crate::client::message::Command;
-use crate::client::task::{ClientLoop, SessionError};
+use crate::client::task::{ClientLoop, SessionError, StateChange};
 use crate::common::frame::{FrameWriter, FramedReader};
 use crate::error::Shutdown;
 
@@ -93,48 +93,54 @@ impl TcpChannelTask {
     pub(crate) async fn run(&mut self) -> Shutdown {
         // try to connect
         loop {
-            match self.host.connect().await {
-                Err(err) => {
-                    let delay = self.connect_retry.next_delay();
-                    tracing::warn!(
-                        "failed to connect to {}: {} - waiting {} ms before next attempt",
-                        self.host,
-                        err,
-                        delay.as_millis()
-                    );
-                    if self.client_loop.fail_requests_for(delay).await.is_err() {
-                        // this occurs when the mpsc is dropped, so the task can exit
-                        return Shutdown;
-                    }
+            if let Err(Shutdown) = self.client_loop.wait_for_enabled().await {
+                return Shutdown;
+            }
+
+            if let Err(StateChange::Shutdown) = self.try_connect_and_run().await {
+                return Shutdown;
+            }
+        }
+    }
+
+    async fn try_connect_and_run(&mut self) -> Result<(), StateChange> {
+        match self.host.connect().await {
+            Err(err) => {
+                let delay = self.connect_retry.next_delay();
+                tracing::warn!(
+                    "failed to connect to {}: {} - waiting {} ms before next attempt",
+                    self.host,
+                    err,
+                    delay.as_millis()
+                );
+                self.client_loop.fail_requests_for(delay).await
+            }
+            Ok(socket) => {
+                if let Ok(addr) = socket.peer_addr() {
+                    tracing::info!("connected to: {}", addr);
                 }
-                Ok(socket) => {
-                    if let Ok(addr) = socket.peer_addr() {
-                        tracing::info!("connected to: {}", addr);
+                match self.connection_handler.handle(socket, &self.host).await {
+                    Err(err) => {
+                        let delay = self.connect_retry.next_delay();
+                        tracing::warn!(
+                            "{} - waiting {} ms before next attempt",
+                            err,
+                            delay.as_millis()
+                        );
+                        self.client_loop.fail_requests_for(delay).await
                     }
-                    match self.connection_handler.handle(socket, &self.host).await {
-                        Err(err) => {
-                            let delay = self.connect_retry.next_delay();
-                            tracing::warn!(
-                                "{} - waiting {} ms before next attempt",
-                                err,
-                                delay.as_millis()
-                            );
-                            if self.client_loop.fail_requests_for(delay).await.is_err() {
-                                // this occurs when the mpsc is dropped, so the task can exit
-                                return Shutdown;
-                            }
-                        }
-                        Ok(mut phys) => {
-                            // reset the retry strategy now that we have a successful connection
-                            // we do this here so that the reset happens after a TLS handshake
-                            self.connect_retry.reset();
-                            // run the physical layer independent processing loop
-                            match self.client_loop.run(&mut phys).await {
-                                // the mpsc was closed, end the task
-                                SessionError::Shutdown => return Shutdown,
-                                // re-establish the connection
-                                SessionError::IoError(_) | SessionError::BadFrame => {}
-                            }
+                    Ok(mut phys) => {
+                        // reset the retry strategy now that we have a successful connection
+                        // we do this here so that the reset happens after a TLS handshake
+                        self.connect_retry.reset();
+                        // run the physical layer independent processing loop
+                        match self.client_loop.run(&mut phys).await {
+                            // the mpsc was closed, end the task
+                            SessionError::Shutdown => Err(StateChange::Shutdown),
+                            // re-establish the connection
+                            SessionError::Disabled
+                            | SessionError::IoError(_)
+                            | SessionError::BadFrame => Ok(()),
                         }
                     }
                 }

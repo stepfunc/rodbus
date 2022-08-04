@@ -133,7 +133,7 @@ impl RequestHandler for SimpleHandler {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // initialize logging
     tracing_subscriber::fmt()
-        .with_max_level(tracing::Level::DEBUG)
+        .with_max_level(tracing::Level::INFO)
         .with_target(false)
         .init();
 
