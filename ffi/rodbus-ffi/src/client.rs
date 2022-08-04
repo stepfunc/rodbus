@@ -70,6 +70,7 @@ pub(crate) unsafe fn client_channel_create_rtu(
         max_queued_requests as usize,
         open_retry_delay,
         decode_level.into(),
+        None,
     );
 
     Ok(Box::into_raw(Box::new(ClientChannel {

@@ -1,7 +1,7 @@
 use crate::MaybeAsync;
 
 /// A generic listener type that can be invoked multiple times
-pub trait Listener<T>: Send + Sync {
+pub trait Listener<T>: Send {
     /// inform the listener that the value has changed
     fn update(&mut self, _value: T) -> MaybeAsync<()> {
         MaybeAsync::ready(())
@@ -39,5 +39,18 @@ pub enum ClientState {
     /// client is waiting to retry after a disconnection
     WaitAfterDisconnect(std::time::Duration),
     /// client has been shut down
+    Shutdown,
+}
+
+/// State of the serial port
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub enum PortState {
+    /// Disabled and idle until enabled
+    Disabled,
+    /// waiting to perform an open retry
+    Wait(std::time::Duration),
+    /// Port is open
+    Open,
+    /// Task has been shut down
     Shutdown,
 }

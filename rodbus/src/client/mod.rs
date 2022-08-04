@@ -115,6 +115,7 @@ pub fn spawn_rtu_client_task(
     max_queued_requests: usize,
     retry_delay: Duration,
     decode: DecodeLevel,
+    listener: Option<Box<dyn Listener<PortState>>>,
 ) -> Channel {
     Channel::spawn_rtu(
         path,
@@ -122,6 +123,7 @@ pub fn spawn_rtu_client_task(
         max_queued_requests,
         retry_delay,
         decode,
+        listener,
     )
 }
 
