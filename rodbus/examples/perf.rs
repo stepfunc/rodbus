@@ -47,6 +47,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         num_sessions,
         addr,
         ServerHandlerMap::single(UnitId::new(1), handler),
+        AddressFilter::Any,
         DecodeLevel::new(
             AppDecodeLevel::Nothing,
             FrameDecodeLevel::Nothing,

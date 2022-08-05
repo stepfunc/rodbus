@@ -287,6 +287,7 @@ pub(crate) unsafe fn server_create_tcp(
         max_sessions as usize,
         address,
         handler_map.clone(),
+        AddressFilter::Any,
         decode_level.into(),
     );
 
@@ -423,6 +424,7 @@ pub(crate) unsafe fn server_create_tls_impl(
                 handler_map.clone(),
                 AuthorizationHandlerWrapper::new(auth).wrap(),
                 tls_config,
+                AddressFilter::Any,
                 decode_level.into(),
             );
 
@@ -437,6 +439,7 @@ pub(crate) unsafe fn server_create_tls_impl(
                 address,
                 handler_map.clone(),
                 tls_config,
+                AddressFilter::Any,
                 decode_level.into(),
             );
 

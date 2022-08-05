@@ -9,6 +9,7 @@ use crate::decode::DecodeLevel;
 use crate::server::handler::{RequestHandler, ServerHandlerMap};
 use crate::server::task::{AuthorizationType, ServerSetting};
 
+use crate::server::AddressFilter;
 use std::net::SocketAddr;
 use tokio::net::TcpListener;
 
@@ -102,6 +103,7 @@ pub(crate) struct ServerTask<T: RequestHandler> {
     handlers: ServerHandlerMap<T>,
     tracker: SessionTracker,
     connection_handler: TcpServerConnectionHandler,
+    filter: AddressFilter,
     decode: DecodeLevel,
     tx: tokio::sync::mpsc::Sender<SessionClose>,
     rx: tokio::sync::mpsc::Receiver<SessionClose>,
@@ -116,6 +118,7 @@ where
         listener: TcpListener,
         handlers: ServerHandlerMap<T>,
         connection_handler: TcpServerConnectionHandler,
+        filter: AddressFilter,
         decode: DecodeLevel,
     ) -> Self {
         let (tx, rx) = tokio::sync::mpsc::channel(8);
@@ -125,6 +128,7 @@ where
             handlers,
             tracker: SessionTracker::new(max_sessions),
             connection_handler,
+            filter,
             decode,
             tx,
             rx,
@@ -172,7 +176,11 @@ where
                             return;
                         }
                         Ok((socket, addr)) => {
-                            self.handle(socket, addr).await
+                            if self.filter.matches(addr.ip()) {
+                                self.handle(socket, addr).await
+                            } else {
+                                tracing::warn!("IP address {:?} does not match filter {:?}, closing connection", addr.ip(), self.filter);
+                            }
                         }
                    }
                }
