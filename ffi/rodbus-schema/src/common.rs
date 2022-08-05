@@ -53,6 +53,10 @@ fn build_error_type(lib: &mut LibraryBuilder) -> BackTraced<ErrorTypeHandle> {
             "param_exception",
             ExceptionType::UncheckedException,
         )?
+        .add_error(
+            "no_support",
+            "The FFI library was compiled without support for this feature",
+        )?
         .add_error("null_parameter", "Null parameter")?
         .add_error(
             "logging_already_configured",

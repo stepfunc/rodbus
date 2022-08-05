@@ -1,8 +1,7 @@
 use crate::ffi;
-use rodbus::client::{ClientState, HostAddr, Listener, PortState, WriteMultiple};
+use rodbus::client::{ClientState, HostAddr, Listener, WriteMultiple};
 use rodbus::{AddressRange, MaybeAsync};
 use std::net::IpAddr;
-use std::path::Path;
 use std::time::Duration;
 
 pub struct ClientChannel {
@@ -51,6 +50,20 @@ pub(crate) unsafe fn client_channel_create_tcp(
     })))
 }
 
+#[cfg(not(feature = "serial"))]
+pub(crate) unsafe fn client_channel_create_rtu(
+    _runtime: *mut crate::Runtime,
+    _path: &std::ffi::CStr,
+    _serial_params: ffi::SerialPortSettings,
+    _max_queued_requests: u16,
+    _open_retry_delay: Duration,
+    _decode_level: ffi::DecodeLevel,
+    _listener: ffi::PortStateListener,
+) -> Result<*mut crate::ClientChannel, ffi::ParamError> {
+    Err(ffi::ParamError::NoSupport)
+}
+
+#[cfg(feature = "serial")]
 pub(crate) unsafe fn client_channel_create_rtu(
     runtime: *mut crate::Runtime,
     path: &std::ffi::CStr,
@@ -80,6 +93,21 @@ pub(crate) unsafe fn client_channel_create_rtu(
     })))
 }
 
+#[cfg(not(feature = "tls"))]
+pub(crate) unsafe fn client_channel_create_tls(
+    _runtime: *mut crate::Runtime,
+    _host: &std::ffi::CStr,
+    _port: u16,
+    _max_queued_requests: u16,
+    _retry_strategy: ffi::RetryStrategy,
+    _tls_config: ffi::TlsClientConfig,
+    _decode_level: ffi::DecodeLevel,
+    _listener: ffi::ClientStateListener,
+) -> Result<*mut crate::ClientChannel, ffi::ParamError> {
+    Err(ffi::ParamError::NoSupport)
+}
+
+#[cfg(feature = "tls")]
 pub(crate) unsafe fn client_channel_create_tls(
     runtime: *mut crate::Runtime,
     host: &std::ffi::CStr,
@@ -90,6 +118,8 @@ pub(crate) unsafe fn client_channel_create_tls(
     decode_level: ffi::DecodeLevel,
     listener: ffi::ClientStateListener,
 ) -> Result<*mut crate::ClientChannel, ffi::ParamError> {
+    use std::path::Path;
+
     let runtime = runtime.as_ref().ok_or(ffi::ParamError::NullParameter)?;
 
     let password = tls_config.password().to_string_lossy();
@@ -326,13 +356,14 @@ impl From<ClientState> for ffi::ClientState {
     }
 }
 
-impl From<PortState> for ffi::PortState {
-    fn from(x: PortState) -> Self {
+#[cfg(feature = "serial")]
+impl From<rodbus::client::PortState> for ffi::PortState {
+    fn from(x: rodbus::client::PortState) -> Self {
         match x {
-            PortState::Disabled => ffi::PortState::Disabled,
-            PortState::Wait(_) => ffi::PortState::Wait,
-            PortState::Open => ffi::PortState::Open,
-            PortState::Shutdown => ffi::PortState::Shutdown,
+            rodbus::client::PortState::Disabled => ffi::PortState::Disabled,
+            rodbus::client::PortState::Wait(_) => ffi::PortState::Wait,
+            rodbus::client::PortState::Open => ffi::PortState::Open,
+            rodbus::client::PortState::Shutdown => ffi::PortState::Shutdown,
         }
     }
 }
@@ -341,19 +372,8 @@ struct ClientStateListener {
     inner: ffi::ClientStateListener,
 }
 
-struct PortStateListener {
-    inner: ffi::PortStateListener,
-}
-
 impl Listener<ClientState> for ClientStateListener {
     fn update(&mut self, value: ClientState) -> MaybeAsync<()> {
-        self.inner.on_change(value.into());
-        MaybeAsync::ready(())
-    }
-}
-
-impl Listener<PortState> for PortStateListener {
-    fn update(&mut self, value: PortState) -> MaybeAsync<()> {
         self.inner.on_change(value.into());
         MaybeAsync::ready(())
     }
@@ -365,7 +385,21 @@ impl From<ffi::ClientStateListener> for Box<dyn Listener<ClientState>> {
     }
 }
 
-impl From<ffi::PortStateListener> for Box<dyn Listener<PortState>> {
+#[cfg(feature = "serial")]
+struct PortStateListener {
+    inner: ffi::PortStateListener,
+}
+
+#[cfg(feature = "serial")]
+impl Listener<rodbus::client::PortState> for PortStateListener {
+    fn update(&mut self, value: rodbus::client::PortState) -> MaybeAsync<()> {
+        self.inner.on_change(value.into());
+        MaybeAsync::ready(())
+    }
+}
+
+#[cfg(feature = "serial")]
+impl From<ffi::PortStateListener> for Box<dyn Listener<rodbus::client::PortState>> {
     fn from(x: ffi::PortStateListener) -> Self {
         Box::new(PortStateListener { inner: x })
     }

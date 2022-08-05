@@ -1,4 +1,4 @@
-use rodbus::client::{CertificateMode, MinTlsVersion, ReconnectStrategy, TlsError};
+use rodbus::client::ReconnectStrategy;
 use rodbus::error::Shutdown;
 use rodbus::server::Authorization;
 use rodbus::AddressRange;
@@ -75,6 +75,7 @@ impl From<AddressRange> for ffi::AddressRange {
     }
 }
 
+#[cfg(feature = "tls")]
 impl From<ffi::SerialPortSettings> for rodbus::serial::SerialSettings {
     fn from(from: ffi::SerialPortSettings) -> Self {
         Self {
@@ -112,32 +113,39 @@ impl From<ffi::Authorization> for Authorization {
     }
 }
 
-impl From<TlsError> for ffi::ParamError {
-    fn from(error: TlsError) -> Self {
+#[cfg(feature = "tls")]
+impl From<rodbus::client::TlsError> for ffi::ParamError {
+    fn from(error: rodbus::client::TlsError) -> Self {
         match error {
-            TlsError::InvalidDnsName => ffi::ParamError::InvalidDnsName,
-            TlsError::InvalidPeerCertificate(_) => ffi::ParamError::InvalidPeerCertificate,
-            TlsError::InvalidLocalCertificate(_) => ffi::ParamError::InvalidLocalCertificate,
-            TlsError::InvalidPrivateKey(_) => ffi::ParamError::InvalidPrivateKey,
-            TlsError::BadConfig(_) => ffi::ParamError::BadTlsConfig,
+            rodbus::client::TlsError::InvalidDnsName => ffi::ParamError::InvalidDnsName,
+            rodbus::client::TlsError::InvalidPeerCertificate(_) => {
+                ffi::ParamError::InvalidPeerCertificate
+            }
+            rodbus::client::TlsError::InvalidLocalCertificate(_) => {
+                ffi::ParamError::InvalidLocalCertificate
+            }
+            rodbus::client::TlsError::InvalidPrivateKey(_) => ffi::ParamError::InvalidPrivateKey,
+            rodbus::client::TlsError::BadConfig(_) => ffi::ParamError::BadTlsConfig,
         }
     }
 }
 
-impl From<ffi::MinTlsVersion> for MinTlsVersion {
+#[cfg(feature = "tls")]
+impl From<ffi::MinTlsVersion> for rodbus::client::MinTlsVersion {
     fn from(from: ffi::MinTlsVersion) -> Self {
         match from {
-            ffi::MinTlsVersion::V12 => MinTlsVersion::V1_2,
-            ffi::MinTlsVersion::V13 => MinTlsVersion::V1_3,
+            ffi::MinTlsVersion::V12 => rodbus::client::MinTlsVersion::V1_2,
+            ffi::MinTlsVersion::V13 => rodbus::client::MinTlsVersion::V1_3,
         }
     }
 }
 
-impl From<ffi::CertificateMode> for CertificateMode {
+#[cfg(feature = "tls")]
+impl From<ffi::CertificateMode> for rodbus::client::CertificateMode {
     fn from(from: ffi::CertificateMode) -> Self {
         match from {
-            ffi::CertificateMode::AuthorityBased => CertificateMode::AuthorityBased,
-            ffi::CertificateMode::SelfSigned => CertificateMode::SelfSigned,
+            ffi::CertificateMode::AuthorityBased => rodbus::client::CertificateMode::AuthorityBased,
+            ffi::CertificateMode::SelfSigned => rodbus::client::CertificateMode::SelfSigned,
         }
     }
 }
