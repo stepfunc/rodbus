@@ -12,7 +12,6 @@ readme = "../README.md"
 [dependencies]
 crc = "2.0"
 tokio = { version = "1", features = ["net", "sync", "io-util", "io-std", "time", "rt", "rt-multi-thread", "macros"] }
-tokio-serial = "5.4"
 tracing = "0.1"
 
 # TLS dependencies
@@ -20,6 +19,7 @@ pem = { version = "1.0", optional = true }
 pkcs8 = { version = "0.7", features = ["encryption", "pem", "std"], optional = true }
 rasn = { git = "https://github.com/stepfunc/rasn.git", tag = "0.1.2", optional = true }
 tokio-rustls = { version = "0.23", features = ["dangerous_configuration", "tls12"], default-features = false, optional = true }
+tokio-serial = { version = "5.4", default-features = false, optional = true }
 
 [dev-dependencies]
 tokio-stream = "0.1"
@@ -29,5 +29,6 @@ tokio-mock-io = { git = "https://github.com/stepfunc/tokio-mock-io.git", tag = "
 tracing-subscriber = "0.2"
 
 [features]
-default = ["tls"]
+default = ["tls", "serial"]
 tls = ["pem", "pkcs8", "rasn", "tokio-rustls"]
+serial = ["tokio-serial"]
