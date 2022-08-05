@@ -80,6 +80,7 @@ impl<'a> ReadCursor<'a> {
 
 impl<'a> WriteCursor<'a> {
     #[cfg_attr(feature = "no-panic", no_panic)]
+    #[cfg(feature = "serial")]
     pub(crate) fn get(&self, range: Range<usize>) -> Option<&[u8]> {
         self.dest.get(range)
     }
@@ -142,6 +143,7 @@ impl<'a> WriteCursor<'a> {
     }
 
     #[cfg_attr(feature = "no-panic", no_panic)]
+    #[cfg(feature = "serial")]
     pub(crate) fn write_u16_le(&mut self, value: u16) -> Result<(), InternalError> {
         if self.remaining() < 2 {
             // don't write any bytes if there's isn't space for the whole thing

@@ -61,6 +61,7 @@ impl ReadBuffer {
     }
 
     #[cfg_attr(feature = "no-panic", no_panic)]
+    #[cfg(feature = "serial")]
     pub(crate) fn peek_at(&mut self, idx: usize) -> Result<u8, InternalError> {
         let len = self.len();
         if len < idx {
@@ -80,6 +81,7 @@ impl ReadBuffer {
     }
 
     #[cfg_attr(feature = "no-panic", no_panic)]
+    #[cfg(feature = "serial")]
     pub(crate) fn read_u16_le(&mut self) -> Result<u16, InternalError> {
         let b1 = self.read_u8()? as u16;
         let b2 = self.read_u8()? as u16;

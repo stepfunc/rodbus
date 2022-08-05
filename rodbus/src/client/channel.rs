@@ -1,16 +1,11 @@
 use std::time::Duration;
 
-use crate::client::{Listener, NullListener, PortState};
-use tracing::Instrument;
-
 use crate::client::message::{Command, Promise, Request, RequestDetails, Setting};
 use crate::client::requests::read_bits::ReadBits;
 use crate::client::requests::read_registers::ReadRegisters;
 use crate::client::requests::write_multiple::{MultipleWriteRequest, WriteMultiple};
 use crate::client::requests::write_single::SingleWrite;
 use crate::error::*;
-use crate::serial::client::SerialChannelTask;
-use crate::serial::SerialSettings;
 use crate::types::{AddressRange, BitIterator, Indexed, RegisterIterator, UnitId};
 use crate::DecodeLevel;
 
@@ -103,13 +98,14 @@ impl RequestParam {
 }
 
 impl Channel {
+    #[cfg(feature = "serial")]
     pub(crate) fn spawn_rtu(
         path: &str,
-        serial_settings: SerialSettings,
+        serial_settings: crate::serial::SerialSettings,
         max_queued_requests: usize,
         retry_delay: Duration,
         decode: DecodeLevel,
-        listener: Option<Box<dyn Listener<PortState>>>,
+        listener: Option<Box<dyn crate::client::Listener<crate::client::PortState>>>,
     ) -> Self {
         let (handle, task) = Self::create_rtu_handle_and_task(
             path,
@@ -123,24 +119,27 @@ impl Channel {
         handle
     }
 
+    #[cfg(feature = "serial")]
     pub(crate) fn create_rtu_handle_and_task(
         path: &str,
-        serial_settings: SerialSettings,
+        serial_settings: crate::serial::SerialSettings,
         max_queued_requests: usize,
         retry_delay: Duration,
         decode: DecodeLevel,
-        listener: Option<Box<dyn Listener<PortState>>>,
+        listener: Option<Box<dyn crate::client::Listener<crate::client::PortState>>>,
     ) -> (Self, impl std::future::Future<Output = ()>) {
+        use tracing::Instrument;
+
         let path = path.to_string();
         let (tx, rx) = tokio::sync::mpsc::channel(max_queued_requests);
         let task = async move {
-            let _ = SerialChannelTask::new(
+            let _ = crate::serial::client::SerialChannelTask::new(
                 &path,
                 serial_settings,
                 rx,
                 retry_delay,
                 decode,
-                listener.unwrap_or_else(|| NullListener::create()),
+                listener.unwrap_or_else(|| crate::client::NullListener::create()),
             )
             .run()
             .instrument(tracing::info_span!("Modbus-Client-RTU", "port" = ?path))

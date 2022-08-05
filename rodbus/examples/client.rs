@@ -1,6 +1,5 @@
 use std::error::Error;
 use std::net::{IpAddr, Ipv4Addr};
-use std::path::Path;
 use std::process::exit;
 use std::time::Duration;
 
@@ -8,7 +7,6 @@ use tokio_stream::StreamExt;
 use tokio_util::codec::{FramedRead, LinesCodec};
 
 use rodbus::client::*;
-use rodbus::serial::*;
 use rodbus::*;
 
 // ANCHOR: runtime_init
@@ -34,6 +32,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     };
     match transport {
         "tcp" => run_tcp().await,
+        #[cfg(feature = "serial")]
         "rtu" => run_rtu().await,
         #[cfg(feature = "tls")]
         "tls-ca" => run_tls(get_ca_chain_config()?).await,
@@ -74,13 +73,14 @@ async fn run_tcp() -> Result<(), Box<dyn std::error::Error>> {
     run_channel(channel).await
 }
 
+#[cfg(feature = "serial")]
 async fn run_rtu() -> Result<(), Box<dyn std::error::Error>> {
     // ANCHOR: create_rtu_channel
     let channel = spawn_rtu_client_task(
-        "/dev/ttySIM0",            // path
-        SerialSettings::default(), // serial settings
-        1,                         // max queued requests
-        Duration::from_secs(1),    // retry delay
+        "/dev/ttySIM0",                            // path
+        rodbus::serial::SerialSettings::default(), // serial settings
+        1,                                         // max queued requests
+        Duration::from_secs(1),                    // retry delay
         DecodeLevel::new(
             AppDecodeLevel::DataValues,
             FrameDecodeLevel::Payload,
@@ -115,6 +115,7 @@ async fn run_tls(tls_config: TlsClientConfig) -> Result<(), Box<dyn std::error::
 
 #[cfg(feature = "tls")]
 fn get_self_signed_config() -> Result<TlsClientConfig, Box<dyn std::error::Error>> {
+    use std::path::Path;
     // ANCHOR: tls_self_signed_config
     let tls_config = TlsClientConfig::new(
         "test.com",
@@ -132,6 +133,7 @@ fn get_self_signed_config() -> Result<TlsClientConfig, Box<dyn std::error::Error
 
 #[cfg(feature = "tls")]
 fn get_ca_chain_config() -> Result<TlsClientConfig, Box<dyn std::error::Error>> {
+    use std::path::Path;
     // ANCHOR: tls_ca_chain_config
     let tls_config = TlsClientConfig::new(
         "test.com",

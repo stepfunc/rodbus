@@ -12,4 +12,4 @@ readme = "../README.md"
 
 [dependencies]
 oo-bindgen = { git = "https://github.com/stepfunc/oo_bindgen.git", tag = "0.2.1" }
-rodbus = { path = "../../rodbus" }
+rodbus = { path = "../../rodbus", default-features = false }

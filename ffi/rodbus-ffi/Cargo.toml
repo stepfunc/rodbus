@@ -17,10 +17,15 @@ lazy_static = "1.0"
 tracing = "0.1"
 tracing-core = "0.1"
 tracing-subscriber = "0.2"
-rodbus = { path = "../../rodbus", features = ["tls"] }
+rodbus = { path = "../../rodbus", default-features = false }
 tokio = { version = "1.5", features = ["rt-multi-thread"]}
 num_cpus = "1"
 
 [build-dependencies]
 rodbus-schema = { path = "../rodbus-schema" }
 rust-oo-bindgen = { git = "https://github.com/stepfunc/oo_bindgen.git", tag = "0.2.1" }
+
+[features]
+default = ["serial", "tls"]
+serial = ["rodbus/serial"]
+tls = ["rodbus/tls"]

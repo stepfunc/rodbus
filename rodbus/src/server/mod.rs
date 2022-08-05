@@ -2,10 +2,8 @@ use std::net::SocketAddr;
 
 use tracing::Instrument;
 
-use crate::common::phys::PhysLayer;
 use crate::decode::DecodeLevel;
-use crate::serial::SerialSettings;
-use crate::server::task::{AuthorizationType, ServerSetting, SessionTask};
+use crate::server::task::ServerSetting;
 use crate::tcp::server::{ServerTask, TcpServerConnectionHandler};
 
 /// server handling
@@ -19,7 +17,6 @@ pub(crate) mod types;
 /// Fine for this to be a constant since the corresponding channel is only used to change settings
 pub(crate) const SERVER_SETTING_CHANNEL_CAPACITY: usize = 8;
 
-use crate::common::frame::{FrameWriter, FramedReader};
 use crate::error::Shutdown;
 
 pub use address_filter::*;
@@ -101,9 +98,10 @@ pub async fn spawn_tcp_server_task<T: RequestHandler>(
 /// * `serial_settings` = Serial port settings
 /// * `handlers` - A map of handlers keyed by a unit id
 /// * `decode` - Decode log level
+#[cfg(feature = "serial")]
 pub fn spawn_rtu_server_task<T: RequestHandler>(
     path: &str,
-    settings: SerialSettings,
+    settings: crate::serial::SerialSettings,
     handlers: ServerHandlerMap<T>,
     decode: DecodeLevel,
 ) -> Result<ServerHandle, std::io::Error> {
@@ -111,15 +109,15 @@ pub fn spawn_rtu_server_task<T: RequestHandler>(
 
     let (tx, rx) = tokio::sync::mpsc::channel(SERVER_SETTING_CHANNEL_CAPACITY);
 
-    let phys = PhysLayer::new_serial(serial);
+    let phys = crate::common::phys::PhysLayer::new_serial(serial);
     let path = path.to_string();
     let task = async move {
-        SessionTask::new(
+        crate::server::task::SessionTask::new(
             phys,
             handlers,
-            AuthorizationType::None,
-            FrameWriter::rtu(),
-            FramedReader::rtu_request(),
+            crate::server::task::AuthorizationType::None,
+            crate::common::frame::FrameWriter::rtu(),
+            crate::common::frame::FramedReader::rtu_request(),
             rx,
             decode,
         )

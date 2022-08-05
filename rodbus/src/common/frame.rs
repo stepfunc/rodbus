@@ -6,7 +6,6 @@ use crate::common::cursor::WriteCursor;
 use crate::common::function::FunctionCode;
 use crate::common::traits::{Loggable, LoggableDisplay, Serialize};
 use crate::error::RequestError;
-use crate::serial::frame::{RtuDisplay, RtuParser};
 use crate::tcp::frame::{MbapDisplay, MbapHeader, MbapParser};
 use crate::types::UnitId;
 use crate::{DecodeLevel, ExceptionCode, FrameDecodeLevel};
@@ -22,10 +21,20 @@ pub(crate) mod constants {
 
     pub(crate) const MAX_ADU_LENGTH: usize = 253;
 
+    #[cfg(feature = "serial")]
+    const fn serial_frame_size() -> usize {
+        crate::serial::frame::constants::MAX_FRAME_LENGTH
+    }
+
+    #[cfg(not(feature = "serial"))]
+    const fn serial_frame_size() -> usize {
+        0
+    }
+
     /// the maximum size of a TCP or serial frame
     pub(crate) const MAX_FRAME_LENGTH: usize = max(
         crate::tcp::frame::constants::MAX_FRAME_LENGTH,
-        crate::serial::frame::constants::MAX_FRAME_LENGTH,
+        serial_frame_size(),
     );
 }
 
@@ -121,6 +130,7 @@ impl FrameHeader {
         }
     }
 
+    #[cfg(feature = "serial")]
     pub(crate) fn new_rtu_header(destination: FrameDestination) -> Self {
         FrameHeader {
             destination,
@@ -161,7 +171,8 @@ impl Frame {
 
 ///  Defines an interface for parsing frames (TCP or RTU)
 pub(crate) enum FrameParser {
-    Rtu(RtuParser),
+    #[cfg(feature = "serial")]
+    Rtu(crate::serial::frame::RtuParser),
     Tcp(MbapParser),
 }
 
@@ -178,6 +189,7 @@ impl FrameParser {
         decode_level: FrameDecodeLevel,
     ) -> Result<Option<Frame>, RequestError> {
         match self {
+            #[cfg(feature = "serial")]
             FrameParser::Rtu(x) => x.parse(cursor, decode_level),
             FrameParser::Tcp(x) => x.parse(cursor, decode_level),
         }
@@ -186,6 +198,7 @@ impl FrameParser {
     /// Reset the parser state. Called whenever an error occurs
     pub(crate) fn reset(&mut self) {
         match self {
+            #[cfg(feature = "serial")]
             FrameParser::Rtu(x) => x.reset(),
             FrameParser::Tcp(x) => x.reset(),
         }
@@ -194,6 +207,7 @@ impl FrameParser {
 
 pub(crate) enum FrameType {
     Mbap(MbapHeader),
+    #[cfg(feature = "serial")]
     // destination and CRC
     Rtu(FrameDestination, u16),
 }
@@ -216,6 +230,7 @@ impl FrameInfo {
 
 enum FormatType {
     Tcp,
+    #[cfg(feature = "serial")]
     Rtu,
 }
 
@@ -229,6 +244,7 @@ impl FormatType {
     ) -> Result<FrameInfo, RequestError> {
         match self {
             FormatType::Tcp => crate::tcp::frame::format_mbap(cursor, header, function, body),
+            #[cfg(feature = "serial")]
             FormatType::Rtu => crate::serial::frame::format_rtu_pdu(cursor, header, function, body),
         }
     }
@@ -373,10 +389,16 @@ impl FrameWriter {
                         MbapDisplay::new(decode_level.frame, header, frame_bytes)
                     );
                 }
+                #[cfg(feature = "serial")]
                 FrameType::Rtu(dest, crc) => {
                     tracing::info!(
                         "RTU TX - {}",
-                        RtuDisplay::new(decode_level.frame, dest, frame_bytes, crc)
+                        crate::serial::frame::RtuDisplay::new(
+                            decode_level.frame,
+                            dest,
+                            frame_bytes,
+                            crc
+                        )
                     );
                 }
             }
@@ -389,6 +411,7 @@ impl FrameWriter {
         Self::new(FormatType::Tcp)
     }
 
+    #[cfg(feature = "serial")]
     pub(crate) fn rtu() -> Self {
         Self::new(FormatType::Rtu)
     }
@@ -404,12 +427,18 @@ impl FramedReader {
         Self::new(FrameParser::Tcp(MbapParser::new()))
     }
 
+    #[cfg(feature = "serial")]
     pub(crate) fn rtu_request() -> Self {
-        Self::new(FrameParser::Rtu(RtuParser::new_request_parser()))
+        Self::new(FrameParser::Rtu(
+            crate::serial::frame::RtuParser::new_request_parser(),
+        ))
     }
 
+    #[cfg(feature = "serial")]
     pub(crate) fn rtu_response() -> Self {
-        Self::new(FrameParser::Rtu(RtuParser::new_response_parser()))
+        Self::new(FrameParser::Rtu(
+            crate::serial::frame::RtuParser::new_response_parser(),
+        ))
     }
 
     fn new(parser: FrameParser) -> Self {

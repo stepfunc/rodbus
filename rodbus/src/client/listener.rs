@@ -43,6 +43,7 @@ pub enum ClientState {
 }
 
 /// state of the serial port
+#[cfg(feature = "serial")]
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum PortState {
     /// disabled and idle until enabled

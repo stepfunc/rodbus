@@ -1,8 +1,6 @@
 use std::net::{IpAddr, SocketAddr};
-use std::time::Duration;
 
 use crate::decode::DecodeLevel;
-use crate::serial::SerialSettings;
 
 /// persistent communication channel such as a TCP connection
 pub(crate) mod channel;
@@ -109,11 +107,12 @@ pub fn spawn_tcp_client_task(
 /// * `max_queued_requests` - The maximum size of the request queue
 /// * `retry` - Delay between attempts to open the serial port
 /// * `decode` - Decode log level
+#[cfg(feature = "serial")]
 pub fn spawn_rtu_client_task(
     path: &str,
-    serial_settings: SerialSettings,
+    serial_settings: crate::serial::SerialSettings,
     max_queued_requests: usize,
-    retry_delay: Duration,
+    retry_delay: std::time::Duration,
     decode: DecodeLevel,
     listener: Option<Box<dyn Listener<PortState>>>,
 ) -> Channel {
