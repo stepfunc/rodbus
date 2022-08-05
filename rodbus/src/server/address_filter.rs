@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
 /// Represents IPv4 addresses which may contain "*" wildcards
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct WildcardIPv4 {
     pub(crate) b3: Option<u8>,
     pub(crate) b2: Option<u8>,
@@ -10,7 +10,7 @@ pub struct WildcardIPv4 {
 }
 
 /// Error returned when an IPv4 wildcard is not in the correct format
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct BadIpv4Wildcard;
 
 fn get_byte(value: &str) -> Result<Option<u8>, BadIpv4Wildcard> {
