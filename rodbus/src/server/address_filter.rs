@@ -62,9 +62,9 @@ impl WildcardIPv4 {
 
 /// Address filter used to control which master address(es) may connect to an outstation.
 ///
-/// Note: User code not exhaustively match against this enum as new variants may be added in the future.
+/// Note: User code cannot exhaustively match against this enum as new variants may be added in the future.
 #[non_exhaustive]
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub enum AddressFilter {
     /// allow any address
     Any,
