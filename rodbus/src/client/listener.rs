@@ -42,15 +42,15 @@ pub enum ClientState {
     Shutdown,
 }
 
-/// State of the serial port
-#[derive(Copy, Clone, Debug, PartialEq)]
+/// state of the serial port
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum PortState {
-    /// Disabled and idle until enabled
+    /// disabled and idle until enabled
     Disabled,
     /// waiting to perform an open retry
     Wait(std::time::Duration),
-    /// Port is open
+    /// port is open
     Open,
-    /// Task has been shut down
+    /// port has been shut down
     Shutdown,
 }
