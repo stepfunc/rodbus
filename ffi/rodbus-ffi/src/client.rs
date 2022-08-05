@@ -1,5 +1,5 @@
 use crate::ffi;
-use rodbus::client::{ClientState, HostAddr, Listener, WriteMultiple};
+use rodbus::client::{ClientState, HostAddr, Listener, PortState, WriteMultiple};
 use rodbus::{AddressRange, MaybeAsync};
 use std::net::IpAddr;
 use std::path::Path;
@@ -58,6 +58,7 @@ pub(crate) unsafe fn client_channel_create_rtu(
     max_queued_requests: u16,
     open_retry_delay: Duration,
     decode_level: ffi::DecodeLevel,
+    listener: ffi::PortStateListener,
 ) -> Result<*mut crate::ClientChannel, ffi::ParamError> {
     let runtime = runtime.as_ref().ok_or(ffi::ParamError::NullParameter)?;
 
@@ -70,6 +71,7 @@ pub(crate) unsafe fn client_channel_create_rtu(
         max_queued_requests as usize,
         open_retry_delay,
         decode_level.into(),
+        Some(listener.into()),
     );
 
     Ok(Box::into_raw(Box::new(ClientChannel {
@@ -324,8 +326,23 @@ impl From<ClientState> for ffi::ClientState {
     }
 }
 
+impl From<PortState> for ffi::PortState {
+    fn from(x: PortState) -> Self {
+        match x {
+            PortState::Disabled => ffi::PortState::Disabled,
+            PortState::Wait(_) => ffi::PortState::Wait,
+            PortState::Open => ffi::PortState::Open,
+            PortState::Shutdown => ffi::PortState::Shutdown,
+        }
+    }
+}
+
 struct ClientStateListener {
     inner: ffi::ClientStateListener,
+}
+
+struct PortStateListener {
+    inner: ffi::PortStateListener,
 }
 
 impl Listener<ClientState> for ClientStateListener {
@@ -335,8 +352,21 @@ impl Listener<ClientState> for ClientStateListener {
     }
 }
 
+impl Listener<PortState> for PortStateListener {
+    fn update(&mut self, value: PortState) -> MaybeAsync<()> {
+        self.inner.on_change(value.into());
+        MaybeAsync::ready(())
+    }
+}
+
 impl From<ffi::ClientStateListener> for Box<dyn Listener<ClientState>> {
     fn from(x: ffi::ClientStateListener) -> Self {
         Box::new(ClientStateListener { inner: x })
+    }
+}
+
+impl From<ffi::PortStateListener> for Box<dyn Listener<PortState>> {
+    fn from(x: ffi::PortStateListener) -> Self {
+        Box::new(PortStateListener { inner: x })
     }
 }

@@ -7,6 +7,7 @@ use tokio::sync::mpsc::Receiver;
 
 use crate::client::message::Command;
 use crate::client::task::{ClientLoop, SessionError, StateChange};
+use crate::client::{Listener, PortState};
 use crate::common::frame::{FrameWriter, FramedReader};
 use crate::error::Shutdown;
 
@@ -15,6 +16,7 @@ pub(crate) struct SerialChannelTask {
     serial_settings: SerialSettings,
     retry_delay: Duration,
     client_loop: ClientLoop,
+    listener: Box<dyn Listener<PortState>>,
 }
 
 impl SerialChannelTask {
@@ -24,6 +26,7 @@ impl SerialChannelTask {
         rx: Receiver<Command>,
         retry_delay: Duration,
         decode: DecodeLevel,
+        listener: Box<dyn Listener<PortState>>,
     ) -> Self {
         Self {
             path: path.to_string(),
@@ -35,10 +38,18 @@ impl SerialChannelTask {
                 FramedReader::rtu_response(),
                 decode,
             ),
+            listener,
         }
     }
 
     pub(crate) async fn run(&mut self) -> Shutdown {
+        self.listener.update(PortState::Disabled).get().await;
+        let ret = self.run_inner().await;
+        self.listener.update(PortState::Shutdown).get().await;
+        ret
+    }
+
+    async fn run_inner(&mut self) -> Shutdown {
         loop {
             // wait for the channel to be enabled
             if let Err(Shutdown) = self.client_loop.wait_for_enabled().await {
@@ -48,12 +59,20 @@ impl SerialChannelTask {
             if let Err(StateChange::Shutdown) = self.try_open_and_run().await {
                 return Shutdown;
             }
+
+            if !self.client_loop.is_enabled() {
+                self.listener.update(PortState::Disabled).get().await;
+            }
         }
     }
 
     pub(crate) async fn try_open_and_run(&mut self) -> Result<(), StateChange> {
         match crate::serial::open(self.path.as_str(), self.serial_settings) {
             Err(err) => {
+                self.listener
+                    .update(PortState::Wait(self.retry_delay))
+                    .get()
+                    .await;
                 tracing::warn!(
                     "{} - waiting {} ms to re-open port",
                     err,
@@ -62,6 +81,7 @@ impl SerialChannelTask {
                 self.client_loop.fail_requests_for(self.retry_delay).await
             }
             Ok(serial) => {
+                self.listener.update(PortState::Open).get().await;
                 let mut phys = PhysLayer::new_serial(serial);
                 tracing::info!("serial port open");
                 match self.client_loop.run(&mut phys).await {

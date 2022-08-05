@@ -86,6 +86,7 @@ async fn run_rtu() -> Result<(), Box<dyn std::error::Error>> {
             FrameDecodeLevel::Payload,
             PhysDecodeLevel::Nothing,
         ),
+        Some(Box::new(LoggingListener)),
     );
     // ANCHOR_END: create_rtu_channel
 

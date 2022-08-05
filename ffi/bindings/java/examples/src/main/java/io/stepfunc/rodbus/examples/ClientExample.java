@@ -29,6 +29,15 @@ class PrintingClientStateListener implements ClientStateListener {
 }
 // ANCHOR_END: client_state_listener
 
+// ANCHOR: port_state_listener
+class PrintingPortStateListener implements PortStateListener {
+    @Override
+    public void onChange(PortState state) {
+        System.out.printf("port state: %s", state);
+    }
+}
+// ANCHOR_END: port_state_listener
+
 public class ClientExample {
     public static void main(String[] args) throws Exception {
         // ANCHOR: logging_init
@@ -91,7 +100,8 @@ public class ClientExample {
                 new SerialPortSettings(), // serial settings
                 ushort(1), // max queued requests
                 Duration.ofSeconds(1), // retry delay
-                DecodeLevel.nothing() // decode level
+                DecodeLevel.nothing(), // decode level
+                new PrintingPortStateListener()
         );
         // ANCHOR_END: create_rtu_channel
 

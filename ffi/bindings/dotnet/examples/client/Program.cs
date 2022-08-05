@@ -28,6 +28,16 @@ namespace example
         }
         // ANCHOR_END: client_state_listener
 
+        // ANCHOR: port_state_listener
+        class PortStateListener : IPortStateListener
+        {
+            public void OnChange(PortState state)
+            {
+                Console.Write($"port state: {state}");
+            }
+        }
+        // ANCHOR_END: port_state_listener
+
         static void Main(string[] args)
         {
             // ANCHOR: logging_init
@@ -102,7 +112,8 @@ namespace example
                 new SerialPortSettings(), // serial settings
                 1, // max queued requests
                 TimeSpan.FromSeconds(1), // retry delay
-                DecodeLevel.Nothing()
+                DecodeLevel.Nothing(),
+                new PortStateListener()
             );
             // ANCHOR_END: create_rtu_channel
 

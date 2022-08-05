@@ -57,9 +57,19 @@ void on_client_state_change(rodbus_client_state_t state, void *ctx)
     printf("client state: %s\n", rodbus_client_state_to_string(state)); 
 }
 
+void on_port_state_change(rodbus_port_state_t state, void *ctx)
+{ 
+    printf("port state: %s\n", rodbus_port_state_to_string(state));
+}
+
 rodbus_client_state_listener_t get_client_listener()
 {
     return rodbus_client_state_listener_init(on_client_state_change, NULL, NULL);
+}
+
+rodbus_port_state_listener_t get_port_listener()
+{ 
+    return rodbus_port_state_listener_init(on_port_state_change, NULL, NULL);
 }
 
 run_channel(rodbus_client_channel_t* channel)
@@ -204,6 +214,7 @@ int run_rtu_channel(rodbus_runtime_t* runtime)
         1, // max queued requests
         1000, // retry delay (in ms)
         decode_level, // decode level
+        get_port_listener(),
         &channel
     );
     if (err) {

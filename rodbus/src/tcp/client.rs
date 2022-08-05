@@ -113,6 +113,10 @@ impl TcpChannelTask {
             if let Err(StateChange::Shutdown) = self.try_connect_and_run().await {
                 return Shutdown;
             }
+
+            if !self.client_loop.is_enabled() {
+                self.listener.update(ClientState::Disabled).get().await;
+            }
         }
     }
 
@@ -161,11 +165,9 @@ impl TcpChannelTask {
                             // the mpsc was closed, end the task
                             SessionError::Shutdown => Err(StateChange::Shutdown),
                             // re-establish the connection
-                            SessionError::Disabled => {
-                                self.listener.update(ClientState::Disabled).get().await;
-                                Ok(())
-                            }
-                            SessionError::IoError(_) | SessionError::BadFrame => {
+                            SessionError::Disabled
+                            | SessionError::IoError(_)
+                            | SessionError::BadFrame => {
                                 let delay = self.connect_retry.after_disconnect();
                                 tracing::warn!("waiting {:?} to reconnect", delay);
                                 self.listener

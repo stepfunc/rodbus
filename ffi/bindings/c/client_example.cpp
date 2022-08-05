@@ -14,11 +14,20 @@ class Logger : public rodbus::Logger {
 };
 /// ANCHOR_END: client_state_callback
 
-/// ANCHOR: logging_callback
+/// ANCHOR: client_state_callback
 class PrintingClientStateListener : public rodbus::ClientStateListener {
     void on_change(rodbus::ClientState state) override
     { 
         std::cout << "client state: " << rodbus::to_string(state) << std::endl;        
+    }
+};
+/// ANCHOR_END: client_state_callback
+
+/// ANCHOR: client_state_callback
+class PrintingPortStateListener : public rodbus::PortStateListener {
+    void on_change(rodbus::PortState state) override
+    { 
+        std::cout << "port state: " << rodbus::to_string(state) << std::endl;
     }
 };
 /// ANCHOR_END: client_state_callback
@@ -192,7 +201,8 @@ int run_rtu_channel(rodbus::Runtime& runtime)
         rodbus::SerialPortSettings(),
         1,
         std::chrono::seconds(1),
-        rodbus::DecodeLevel::nothing()
+        rodbus::DecodeLevel::nothing(),
+        std::make_unique<PrintingPortStateListener>()
     );
     // ANCHOR_END: create_rtu_channel
 

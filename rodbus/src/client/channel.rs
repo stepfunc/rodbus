@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+use crate::client::{Listener, NullListener, PortState};
 use tracing::Instrument;
 
 use crate::client::message::{Command, Promise, Request, RequestDetails, Setting};
@@ -108,6 +109,7 @@ impl Channel {
         max_queued_requests: usize,
         retry_delay: Duration,
         decode: DecodeLevel,
+        listener: Option<Box<dyn Listener<PortState>>>,
     ) -> Self {
         let (handle, task) = Self::create_rtu_handle_and_task(
             path,
@@ -115,6 +117,7 @@ impl Channel {
             max_queued_requests,
             retry_delay,
             decode,
+            listener,
         );
         tokio::spawn(task);
         handle
@@ -126,14 +129,22 @@ impl Channel {
         max_queued_requests: usize,
         retry_delay: Duration,
         decode: DecodeLevel,
+        listener: Option<Box<dyn Listener<PortState>>>,
     ) -> (Self, impl std::future::Future<Output = ()>) {
         let path = path.to_string();
         let (tx, rx) = tokio::sync::mpsc::channel(max_queued_requests);
         let task = async move {
-            let _ = SerialChannelTask::new(&path, serial_settings, rx, retry_delay, decode)
-                .run()
-                .instrument(tracing::info_span!("Modbus-Client-RTU", "port" = ?path))
-                .await;
+            let _ = SerialChannelTask::new(
+                &path,
+                serial_settings,
+                rx,
+                retry_delay,
+                decode,
+                listener.unwrap_or_else(|| NullListener::create()),
+            )
+            .run()
+            .instrument(tracing::info_span!("Modbus-Client-RTU", "port" = ?path))
+            .await;
         };
         (Channel { tx }, task)
     }
