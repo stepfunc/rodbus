@@ -10,7 +10,12 @@ crate-type = ["cdylib"]
 
 [dependencies]
 jni = "0.19"
-rodbus-ffi = { path = "../rodbus-ffi" }
+rodbus-ffi = { path = "../rodbus-ffi", default-features = false }
+
+[features]
+default = ["serial", "tls"]
+serial = ["rodbus-ffi/serial"]
+tls = ["rodbus-ffi/tls"]
 
 [build-dependencies]
 rodbus-schema = { path = "../rodbus-schema" }
