@@ -13,7 +13,7 @@
     </When>
     <Otherwise>
       <ItemGroup>
-        <PackageReference Include="rodbus" Version="1.0.0-alpha8" />
+        <PackageReference Include="rodbus" Version="1.0.0-alpha9" />
       </ItemGroup>
     </Otherwise>
   </Choose>

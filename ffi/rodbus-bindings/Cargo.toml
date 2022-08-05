@@ -1,6 +1,6 @@
 [package]
 name = "rodbus-bindings"
-version = "1.0.0-alpha8"
+version = "1.0.0-alpha9"
 authors = ["Step Function I/O LLC <info@stepfunc.io>"]
 edition = "2021"
 license = "GPL-3.0-only"

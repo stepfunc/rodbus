@@ -3,6 +3,7 @@
 * Add RTU support. See [#56](https://github.com/stepfunc/rodbus/pull/56).
 * Dynamic protocol decoding. See [#61](https://github.com/stepfunc/rodbus/pull/66).
 * Resolve host names on client. See [#68](https://github.com/stepfunc/rodbus/pull/68).
+* Add communication channel state callbacks. See [#77](https://github.com/stepfunc/rodbus/issues/77).
 * Properly reset TCP connection retry timeout on success. See [#82](https://github.com/stepfunc/rodbus/issues/82).
 
 ### 0.9.1 ###
