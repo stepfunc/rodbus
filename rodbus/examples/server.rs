@@ -171,6 +171,7 @@ async fn run_tcp() -> Result<(), Box<dyn std::error::Error>> {
         1,
         "127.0.0.1:502".parse()?,
         map,
+        AddressFilter::Any,
         DecodeLevel::default(),
     )
     .await?;
@@ -209,6 +210,7 @@ async fn run_tls(tls_config: TlsServerConfig) -> Result<(), Box<dyn std::error::
         map,
         ReadOnlyAuthorizationHandler::create(),
         tls_config,
+        AddressFilter::Any,
         DecodeLevel::default(),
     )
     .await?;

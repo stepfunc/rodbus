@@ -36,6 +36,7 @@ pub(crate) fn build_server(
     )?;
     let tls_server_config = build_tls_server_config(lib, common)?;
     let authorization_handler = build_authorization_handler(lib, common)?;
+    let address_filter = define_address_filter(lib, common)?;
 
     let server = lib.declare_class("server")?;
 
@@ -51,6 +52,7 @@ pub(crate) fn build_server(
         )?
         .param("address", StringType, address_doc)?
         .param("port", Primitive::U16, port_doc)?
+        .param("filter", address_filter.declaration(), "Filter used to limit which IP address(es) can connect")?
         .param("max_sessions", Primitive::U16, "Maximum number of concurrent sessions")?
         .param(
             "endpoints",
@@ -106,6 +108,7 @@ pub(crate) fn build_server(
         )?
         .param("address", StringType, address_doc)?
         .param("port", Primitive::U16, port_doc)?
+        .param("filter", address_filter.declaration(), "Filter used to limit which IP address(es) can connect")?
         .param("max_sessions", Primitive::U16, "Maximum number of concurrent sessions")?
         .param(
             "endpoints",
@@ -140,6 +143,7 @@ pub(crate) fn build_server(
         )?
         .param("address", StringType, address_doc)?
         .param("port", Primitive::U16, port_doc)?
+        .param("filter", address_filter.declaration(), "Filter used to limit which IP address(es) can connect")?
         .param("max_sessions", Primitive::U16, "Maximum number of concurrent sessions")?
         .param(
             "endpoints",
@@ -709,4 +713,48 @@ fn build_write_result_struct(
         .build()?;
 
     Ok(write_result)
+}
+
+fn define_address_filter(
+    lib: &mut LibraryBuilder,
+    common: &CommonDefinitions,
+) -> BackTraced<ClassHandle> {
+    let address_filter = lib.declare_class("address_filter")?;
+
+    let address_filter_any_fn = lib
+        .define_function("address_filter_any")?
+        .returns(address_filter.clone(), "Address filter")?
+        .doc("Create an address filter that accepts any IP address")?
+        .build_static("any")?;
+
+    let constructor = lib
+        .define_constructor(address_filter.clone())?
+        .param("address", StringType, "IP address to accept")?
+        .fails_with(common.error_type.clone())?
+        .doc(
+            doc("Create an address filter that matches a specific address or wildcards")
+                .details("Examples: 192.168.1.26, 192.168.0.*, *.*.*.*")
+                .details("Wildcards are only supported for IPv4 addresses"),
+        )?
+        .build()?;
+
+    let add = lib
+        .define_method("add", address_filter.clone())?
+        .param("address", StringType, "IP address to add")?
+        .fails_with(common.error_type.clone())?
+        .doc("Add an accepted IP address to the filter")?
+        .build()?;
+
+    let destructor = lib.define_destructor(address_filter.clone(), "Destroy an address filter")?;
+
+    let address_filter = lib
+        .define_class(&address_filter)?
+        .constructor(constructor)?
+        .destructor(destructor)?
+        .static_method(address_filter_any_fn)?
+        .method(add)?
+        .doc("Server address filter")?
+        .build()?;
+
+    Ok(address_filter)
 }

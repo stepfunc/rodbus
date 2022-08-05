@@ -199,7 +199,9 @@ int run_tcp_channel(rodbus_runtime_t* runtime)
     rodbus_server_t* server = NULL;
     rodbus_device_map_t* map = build_device_map();
     rodbus_decode_level_t decode_level = rodbus_decode_level_nothing();
-    rodbus_param_error_t err = rodbus_server_create_tcp(runtime, "127.0.0.1", 502, 100, map, decode_level, &server);
+    rodbus_address_filter_t* filter = rodbus_address_filter_any();
+    rodbus_param_error_t err = rodbus_server_create_tcp(runtime, "127.0.0.1", 502, filter, 100, map, decode_level, &server);
+    rodbus_address_filter_destroy(filter);
     rodbus_device_map_destroy(map);
 
     if (err) {
@@ -278,7 +280,9 @@ int run_tls_channel(rodbus_runtime_t* runtime, rodbus_tls_server_config_t tls_co
     rodbus_device_map_t* map = build_device_map();
     rodbus_authorization_handler_t auth_handler = get_auth_handler();
     rodbus_decode_level_t decode_level = rodbus_decode_level_nothing();
-    rodbus_param_error_t err = rodbus_server_create_tls_with_authz(runtime, "127.0.0.1", 802, 100, map, tls_config, auth_handler, decode_level, &server);
+    rodbus_address_filter_t* filter = rodbus_address_filter_any();
+    rodbus_param_error_t err = rodbus_server_create_tls_with_authz(runtime, "127.0.0.1", 802, filter, 100, map, tls_config, auth_handler, decode_level, &server);
+    rodbus_address_filter_destroy(filter);
     rodbus_device_map_destroy(map);
 
     if (err) {

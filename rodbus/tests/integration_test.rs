@@ -104,6 +104,7 @@ async fn test_requests_and_responses() {
         1,
         addr,
         ServerHandlerMap::single(UnitId::new(1), handler.clone()),
+        AddressFilter::Any,
         DecodeLevel::default(),
     )
     .await

@@ -187,7 +187,7 @@ namespace example
         private static Server CreateTcpServer(Runtime runtime, DeviceMap map)
         {
             // ANCHOR: tcp_server_create            
-            var server = Server.CreateTcp(runtime, "127.0.0.1", 502, 100, map, DecodeLevel.Nothing());
+            var server = Server.CreateTcp(runtime, "127.0.0.1", 502, AddressFilter.Any(), 100, map, DecodeLevel.Nothing());
             // ANCHOR_END: tcp_server_create
 
             return server;
@@ -205,7 +205,7 @@ namespace example
         private static Server CreateTlsServer(Runtime runtime, DeviceMap map, TlsServerConfig tlsConfig)
         {
             // ANCHOR: tls_server_create            
-            var server = Server.CreateTlsWithAuthz(runtime, "127.0.0.1", 802, 10, map, tlsConfig, new AuthorizationHandler(), DecodeLevel.Nothing());
+            var server = Server.CreateTlsWithAuthz(runtime, "127.0.0.1", 802, AddressFilter.Any(), 10, map, tlsConfig, new AuthorizationHandler(), DecodeLevel.Nothing());
             // ANCHOR_END: tls_server_create
 
             return server;

@@ -211,7 +211,8 @@ int run_tcp_server(rodbus::Runtime& runtime)
     auto device_map = create_device_map();
 
     // ANCHOR: tcp_server_create
-    auto server = rodbus::Server::create_tcp(runtime, "127.0.0.1", 502, 100, device_map, rodbus::DecodeLevel::nothing());
+    auto filter = rodbus::AddressFilter::any();
+    auto server = rodbus::Server::create_tcp(runtime, "127.0.0.1", 502, filter, 100, device_map, rodbus::DecodeLevel::nothing());
     // ANCHOR_END: tcp_server_create
 
     return run_server(server);
@@ -233,7 +234,8 @@ int run_tls_server(rodbus::Runtime& runtime, const rodbus::TlsServerConfig& tls_
     auto device_map = create_device_map();
 
     // ANCHOR: tls_server_create
-    auto server = rodbus::Server::create_tls_with_authz(runtime, "127.0.0.1", 802, 100, device_map, tls_config, std::make_unique<AuthorizationHandler>(), rodbus::DecodeLevel::nothing());
+    auto filter = rodbus::AddressFilter::any();
+    auto server = rodbus::Server::create_tls_with_authz(runtime, "127.0.0.1", 802, filter, 100, device_map, tls_config, std::make_unique<AuthorizationHandler>(), rodbus::DecodeLevel::nothing());
     // ANCHOR_END: tls_server_create
 
     return run_server(server);

@@ -118,6 +118,7 @@
 //!        1,
 //!        SocketAddr::from_str("127.0.0.1:502")?,
 //!        map,
+//!        AddressFilter::Any,
 //!        DecodeLevel::default(),
 //!    ).await?;
 //!

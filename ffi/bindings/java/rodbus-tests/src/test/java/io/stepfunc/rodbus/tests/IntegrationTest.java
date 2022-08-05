@@ -86,7 +86,7 @@ class IntegrationTest {
             }
         });
 
-        final Server server = Server.createTcp(runtime, ENDPOINT, PORT, ushort(100), deviceMap, DecodeLevel.nothing());
+        final Server server = Server.createTcp(runtime, ENDPOINT, PORT, AddressFilter.any(), ushort(100), deviceMap, DecodeLevel.nothing());
         final ClientChannel client = ClientChannel.createTcp(runtime, ENDPOINT, PORT, ushort(10), new RetryStrategy(), DecodeLevel.nothing(), new NullClientStateListener());
 
         client.enable();

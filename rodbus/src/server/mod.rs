@@ -9,6 +9,7 @@ use crate::server::task::{AuthorizationType, ServerSetting, SessionTask};
 use crate::tcp::server::{ServerTask, TcpServerConnectionHandler};
 
 /// server handling
+mod address_filter;
 pub(crate) mod handler;
 pub(crate) mod request;
 pub(crate) mod response;
@@ -20,6 +21,8 @@ pub(crate) const SERVER_SETTING_CHANNEL_CAPACITY: usize = 8;
 
 use crate::common::frame::{FrameWriter, FramedReader};
 use crate::error::Shutdown;
+
+pub use address_filter::*;
 pub use handler::*;
 pub use types::*;
 
@@ -64,6 +67,7 @@ pub async fn spawn_tcp_server_task<T: RequestHandler>(
     max_sessions: usize,
     addr: SocketAddr,
     handlers: ServerHandlerMap<T>,
+    filter: AddressFilter,
     decode: DecodeLevel,
 ) -> Result<ServerHandle, std::io::Error> {
     let listener = tokio::net::TcpListener::bind(addr).await?;
@@ -76,6 +80,7 @@ pub async fn spawn_tcp_server_task<T: RequestHandler>(
             listener,
             handlers,
             TcpServerConnectionHandler::Tcp,
+            filter,
             decode,
         )
         .run(rx)
@@ -149,9 +154,19 @@ pub async fn spawn_tls_server_task<T: RequestHandler>(
     addr: SocketAddr,
     handlers: ServerHandlerMap<T>,
     tls_config: TlsServerConfig,
+    filter: AddressFilter,
     decode: DecodeLevel,
 ) -> Result<ServerHandle, std::io::Error> {
-    spawn_tls_server_task_impl(max_sessions, addr, handlers, None, tls_config, decode).await
+    spawn_tls_server_task_impl(
+        max_sessions,
+        addr,
+        handlers,
+        None,
+        tls_config,
+        filter,
+        decode,
+    )
+    .await
 }
 
 /// Spawns a "Secure Modbus" TLS server task onto the runtime. This TLS server requires that
@@ -176,6 +191,7 @@ pub async fn spawn_tls_server_task_with_authz<T: RequestHandler>(
     handlers: ServerHandlerMap<T>,
     auth_handler: std::sync::Arc<dyn AuthorizationHandler>,
     tls_config: TlsServerConfig,
+    filter: AddressFilter,
     decode: DecodeLevel,
 ) -> Result<ServerHandle, std::io::Error> {
     spawn_tls_server_task_impl(
@@ -184,6 +200,7 @@ pub async fn spawn_tls_server_task_with_authz<T: RequestHandler>(
         handlers,
         Some(auth_handler),
         tls_config,
+        filter,
         decode,
     )
     .await
@@ -196,6 +213,7 @@ async fn spawn_tls_server_task_impl<T: RequestHandler>(
     handlers: ServerHandlerMap<T>,
     auth_handler: Option<std::sync::Arc<dyn AuthorizationHandler>>,
     tls_config: TlsServerConfig,
+    filter: AddressFilter,
     decode: DecodeLevel,
 ) -> Result<ServerHandle, std::io::Error> {
     let listener = tokio::net::TcpListener::bind(addr).await?;
@@ -208,6 +226,7 @@ async fn spawn_tls_server_task_impl<T: RequestHandler>(
             listener,
             handlers,
             TcpServerConnectionHandler::Tls(tls_config, auth_handler),
+            filter,
             decode,
         )
         .run(rx)

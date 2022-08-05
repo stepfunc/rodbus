@@ -161,7 +161,7 @@ public class ServerExample {
 
     private static Server createTcpServer(Runtime runtime, DeviceMap map) {
         // ANCHOR: tcp_server_create
-        Server server = Server.createTcp(runtime, "127.0.0.1", ushort(502), ushort(100), map, DecodeLevel.nothing());
+        Server server = Server.createTcp(runtime, "127.0.0.1", ushort(502), AddressFilter.any(), ushort(100), map, DecodeLevel.nothing());
         // ANCHOR_END: tcp_server_create
 
         return server;
@@ -177,7 +177,7 @@ public class ServerExample {
 
     private static Server createTlsServer(Runtime runtime, DeviceMap map, TlsServerConfig tlsConfig) {
         // ANCHOR: tls_server_create
-        Server server = Server.createTlsWithAuthz(runtime, "127.0.0.1", ushort(802), ushort(10), map, tlsConfig, new TestAuthorizationHandler(), DecodeLevel.nothing());
+        Server server = Server.createTlsWithAuthz(runtime, "127.0.0.1", ushort(802), AddressFilter.any(), ushort(10), map, tlsConfig, new TestAuthorizationHandler(), DecodeLevel.nothing());
         // ANCHOR_END: tls_server_create
 
         return server;
