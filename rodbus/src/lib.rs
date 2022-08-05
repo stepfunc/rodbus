@@ -197,6 +197,7 @@ pub mod constants;
 /// Error types associated with making requests
 pub mod error;
 /// Serial (RTU) API
+#[cfg(feature = "serial")]
 pub mod serial;
 /// Server API
 pub mod server;

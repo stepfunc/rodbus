@@ -60,12 +60,12 @@ impl TcpTaskConnectionHandler {
     async fn handle(
         &mut self,
         socket: TcpStream,
-        endpoint: &HostAddr,
+        _endpoint: &HostAddr,
     ) -> Result<PhysLayer, String> {
         match self {
             Self::Tcp => Ok(PhysLayer::new_tcp(socket)),
             #[cfg(feature = "tls")]
-            Self::Tls(config) => config.handle_connection(socket, endpoint).await,
+            Self::Tls(config) => config.handle_connection(socket, _endpoint).await,
         }
     }
 }

@@ -1,5 +1,4 @@
 use std::collections::BTreeMap;
-use std::sync::Arc;
 
 use tracing::Instrument;
 
@@ -75,7 +74,7 @@ pub(crate) enum TcpServerConnectionHandler {
     #[cfg(feature = "tls")]
     Tls(
         crate::tcp::tls::TlsServerConfig,
-        Option<Arc<dyn AuthorizationHandler>>,
+        Option<std::sync::Arc<dyn AuthorizationHandler>>,
     ),
 }
 
