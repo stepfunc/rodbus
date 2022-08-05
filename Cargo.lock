@@ -964,7 +964,6 @@ name = "rodbus-schema"
 version = "1.0.0-alpha9"
 dependencies = [
  "oo-bindgen",
- "rodbus",
 ]
 
 [[package]]

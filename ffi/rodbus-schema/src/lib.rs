@@ -9,6 +9,9 @@ mod logging;
 mod runtime;
 mod server;
 
+// derived from Cargo.toml
+const VERSION: &str = env!("CARGO_PKG_VERSION");
+
 pub fn build_lib() -> BackTraced<Library> {
     let info = LibraryInfo {
         description: "Safe and fast Modbus library".to_string(),
@@ -57,7 +60,7 @@ pub fn build_lib() -> BackTraced<Library> {
         InterfaceSettings::default(),
     )?;
 
-    let mut builder = LibraryBuilder::new(Version::parse(rodbus::VERSION).unwrap(), info, settings);
+    let mut builder = LibraryBuilder::new(Version::parse(VERSION).unwrap(), info, settings);
 
     let common = CommonDefinitions::build(&mut builder)?;
 

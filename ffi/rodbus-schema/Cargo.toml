@@ -1,5 +1,6 @@
 [package]
 name = "rodbus-schema"
+# this is the version that all the FFI libraries get, since it's in their schema
 version = "1.0.0-alpha9"
 authors = ["Step Function I/O LLC <info@stepfunc.io>"]
 edition = "2021"
@@ -12,4 +13,3 @@ readme = "../README.md"
 
 [dependencies]
 oo-bindgen = { git = "https://github.com/stepfunc/oo_bindgen.git", tag = "0.2.1" }
-rodbus = { path = "../../rodbus", default-features = false }
