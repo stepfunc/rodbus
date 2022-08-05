@@ -4,7 +4,7 @@ use rodbus::server::ServerHandle;
 use rodbus::AddressRange;
 use rodbus::{ExceptionCode, Indexed, UnitId};
 use std::collections::HashMap;
-use std::ffi::CString;
+use std::ffi::{CStr, CString};
 use std::net::{IpAddr, SocketAddr};
 use std::path::Path;
 
@@ -274,11 +274,13 @@ pub(crate) unsafe fn server_create_tcp(
     runtime: *mut crate::Runtime,
     ip_addr: &std::ffi::CStr,
     port: u16,
+    filter: *mut crate::AddressFilter,
     max_sessions: u16,
     endpoints: *mut crate::DeviceMap,
     decode_level: ffi::DecodeLevel,
 ) -> Result<*mut crate::Server, ffi::ParamError> {
     let runtime = runtime.as_ref().ok_or(ffi::ParamError::NullParameter)?;
+    let filter = filter.as_ref().ok_or(ffi::ParamError::NullParameter)?;
     let address = get_socket_addr(ip_addr, port)?;
     let endpoints = endpoints.as_mut().ok_or(ffi::ParamError::NullParameter)?;
 
@@ -287,7 +289,7 @@ pub(crate) unsafe fn server_create_tcp(
         max_sessions as usize,
         address,
         handler_map.clone(),
-        AddressFilter::Any,
+        filter.into(),
         decode_level.into(),
     );
 
@@ -340,6 +342,7 @@ pub(crate) unsafe fn server_create_tls(
     runtime: *mut crate::Runtime,
     ip_addr: &std::ffi::CStr,
     port: u16,
+    filter: *mut crate::AddressFilter,
     max_sessions: u16,
     endpoints: *mut crate::DeviceMap,
     tls_config: ffi::TlsServerConfig,
@@ -349,6 +352,7 @@ pub(crate) unsafe fn server_create_tls(
         runtime,
         ip_addr,
         port,
+        filter,
         max_sessions,
         endpoints,
         tls_config,
@@ -362,6 +366,7 @@ pub(crate) unsafe fn server_create_tls_with_authz(
     runtime: *mut crate::Runtime,
     ip_addr: &std::ffi::CStr,
     port: u16,
+    filter: *mut crate::AddressFilter,
     max_sessions: u16,
     endpoints: *mut crate::DeviceMap,
     tls_config: ffi::TlsServerConfig,
@@ -372,6 +377,7 @@ pub(crate) unsafe fn server_create_tls_with_authz(
         runtime,
         ip_addr,
         port,
+        filter,
         max_sessions,
         endpoints,
         tls_config,
@@ -385,6 +391,7 @@ pub(crate) unsafe fn server_create_tls_impl(
     runtime: *mut crate::Runtime,
     ip_addr: &std::ffi::CStr,
     port: u16,
+    filter: *mut crate::AddressFilter,
     max_sessions: u16,
     endpoints: *mut crate::DeviceMap,
     tls_config: ffi::TlsServerConfig,
@@ -392,6 +399,7 @@ pub(crate) unsafe fn server_create_tls_impl(
     decode_level: ffi::DecodeLevel,
 ) -> Result<*mut crate::Server, ffi::ParamError> {
     let runtime = runtime.as_ref().ok_or(ffi::ParamError::NullParameter)?;
+    let filter = filter.as_ref().ok_or(ffi::ParamError::NullParameter)?;
     let address = get_socket_addr(ip_addr, port)?;
     let endpoints = endpoints.as_mut().ok_or(ffi::ParamError::NullParameter)?;
 
@@ -424,7 +432,7 @@ pub(crate) unsafe fn server_create_tls_impl(
                 handler_map.clone(),
                 AuthorizationHandlerWrapper::new(auth).wrap(),
                 tls_config,
-                AddressFilter::Any,
+                filter.into(),
                 decode_level.into(),
             );
 
@@ -439,7 +447,7 @@ pub(crate) unsafe fn server_create_tls_impl(
                 address,
                 handler_map.clone(),
                 tls_config,
-                AddressFilter::Any,
+                rodbus::server::AddressFilter::Any,
                 decode_level.into(),
             );
 
@@ -493,4 +501,82 @@ pub(crate) unsafe fn server_set_decode_level(
         .runtime
         .block_on(server.inner.set_decode_level(level.into()))??;
     Ok(())
+}
+
+pub enum AddressFilter {
+    Any,
+    WildcardIpv4(WildcardIPv4),
+    AnyOf(std::collections::HashSet<std::net::IpAddr>),
+}
+
+pub fn address_filter_any() -> *mut AddressFilter {
+    Box::into_raw(Box::new(AddressFilter::Any))
+}
+
+fn parse_address_filter(s: &str) -> Result<AddressFilter, ffi::ParamError> {
+    // first try to parse it as a normal IP
+    match s.parse::<IpAddr>() {
+        Ok(x) => {
+            let mut set = std::collections::HashSet::new();
+            set.insert(x);
+            Ok(AddressFilter::AnyOf(set))
+        }
+        Err(_) => {
+            // now try to parse as a wildcard
+            let wc: WildcardIPv4 = s.parse()?;
+            Ok(AddressFilter::WildcardIpv4(wc))
+        }
+    }
+}
+
+impl From<BadIpv4Wildcard> for ffi::ParamError {
+    fn from(_: BadIpv4Wildcard) -> Self {
+        ffi::ParamError::InvalidIpAddress
+    }
+}
+
+pub fn address_filter_create(address: &CStr) -> Result<*mut AddressFilter, ffi::ParamError> {
+    let address = parse_address_filter(address.to_string_lossy().as_ref())?;
+    Ok(Box::into_raw(Box::new(address)))
+}
+
+pub unsafe fn address_filter_add(
+    address_filter: *mut AddressFilter,
+    address: &CStr,
+) -> Result<(), ffi::ParamError> {
+    let address_filter = address_filter
+        .as_mut()
+        .ok_or(ffi::ParamError::NullParameter)?;
+    let address = address.to_string_lossy().parse()?;
+
+    match address_filter {
+        AddressFilter::Any => {
+            // can't add addresses to an "any" specification
+            return Err(ffi::ParamError::InvalidIpAddress);
+        }
+        AddressFilter::AnyOf(set) => {
+            set.insert(address);
+        }
+        AddressFilter::WildcardIpv4(_) => {
+            // can't add addresses to a wildcard specification
+            return Err(ffi::ParamError::InvalidIpAddress);
+        }
+    }
+    Ok(())
+}
+
+pub unsafe fn address_filter_destroy(address_filter: *mut AddressFilter) {
+    if !address_filter.is_null() {
+        Box::from_raw(address_filter);
+    }
+}
+
+impl From<&AddressFilter> for rodbus::server::AddressFilter {
+    fn from(from: &AddressFilter) -> Self {
+        match from {
+            AddressFilter::Any => rodbus::server::AddressFilter::Any,
+            AddressFilter::AnyOf(set) => rodbus::server::AddressFilter::AnyOf(set.clone()),
+            AddressFilter::WildcardIpv4(wc) => rodbus::server::AddressFilter::WildcardIpv4(*wc),
+        }
+    }
 }
