@@ -1,9 +1,9 @@
-use std::path::Path;
 use std::process::exit;
 
 use tokio_stream::StreamExt;
 use tokio_util::codec::{FramedRead, LinesCodec};
 
+#[cfg(feature = "serial")]
 use rodbus::serial::*;
 use rodbus::server::*;
 use rodbus::*;
@@ -148,6 +148,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
     match transport {
         "tcp" => run_tcp().await,
+        #[cfg(feature = "serial")]
         "rtu" => run_rtu().await,
         #[cfg(feature = "tls")]
         "tls-ca" => run_tls(get_ca_chain_config()?).await,
@@ -180,6 +181,7 @@ async fn run_tcp() -> Result<(), Box<dyn std::error::Error>> {
     run_server(server, handler).await
 }
 
+#[cfg(feature = "serial")]
 async fn run_rtu() -> Result<(), Box<dyn std::error::Error>> {
     let (handler, map) = create_handler();
 
@@ -236,6 +238,7 @@ fn create_handler() -> (
 
 #[cfg(feature = "tls")]
 fn get_self_signed_config() -> Result<TlsServerConfig, Box<dyn std::error::Error>> {
+    use std::path::Path;
     // ANCHOR: tls_self_signed_config
     let tls_config = TlsServerConfig::new(
         &Path::new("./certs/self_signed/entity1_cert.pem"),
@@ -252,6 +255,7 @@ fn get_self_signed_config() -> Result<TlsServerConfig, Box<dyn std::error::Error
 
 #[cfg(feature = "tls")]
 fn get_ca_chain_config() -> Result<TlsServerConfig, Box<dyn std::error::Error>> {
+    use std::path::Path;
     // ANCHOR: tls_ca_chain_config
     let tls_config = TlsServerConfig::new(
         &Path::new("./certs/ca_chain/ca_cert.pem"),
