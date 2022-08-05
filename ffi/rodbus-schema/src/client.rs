@@ -299,7 +299,7 @@ fn define_port_state_listener(lib: &mut LibraryBuilder) -> BackTraced<Asynchrono
 fn define_tcp_client_state_listener(lib: &mut LibraryBuilder) -> BackTraced<AsynchronousInterface> {
     let client_state_enum = lib
         .define_enum("client_state")?
-        .push("disabled", "Client is disabled and idle until disabled")?
+        .push("disabled", "Client is disabled and idle until enabled")?
         .push(
             "connecting",
             "Client is trying to establish a connection to the remote device",
