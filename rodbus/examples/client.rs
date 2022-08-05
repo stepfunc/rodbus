@@ -7,8 +7,6 @@ use tokio_stream::StreamExt;
 use tokio_util::codec::{FramedRead, LinesCodec};
 
 use rodbus::client::*;
-#[cfg(feature = "serial")]
-use rodbus::serial::*;
 use rodbus::*;
 
 // ANCHOR: runtime_init
@@ -79,10 +77,10 @@ async fn run_tcp() -> Result<(), Box<dyn std::error::Error>> {
 async fn run_rtu() -> Result<(), Box<dyn std::error::Error>> {
     // ANCHOR: create_rtu_channel
     let channel = spawn_rtu_client_task(
-        "/dev/ttySIM0",            // path
-        SerialSettings::default(), // serial settings
-        1,                         // max queued requests
-        Duration::from_secs(1),    // retry delay
+        "/dev/ttySIM0",                            // path
+        rodbus::serial::SerialSettings::default(), // serial settings
+        1,                                         // max queued requests
+        Duration::from_secs(1),                    // retry delay
         DecodeLevel::new(
             AppDecodeLevel::DataValues,
             FrameDecodeLevel::Payload,

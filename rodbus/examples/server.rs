@@ -3,8 +3,6 @@ use std::process::exit;
 use tokio_stream::StreamExt;
 use tokio_util::codec::{FramedRead, LinesCodec};
 
-#[cfg(feature = "serial")]
-use rodbus::serial::*;
 use rodbus::server::*;
 use rodbus::*;
 
@@ -188,7 +186,7 @@ async fn run_rtu() -> Result<(), Box<dyn std::error::Error>> {
     // ANCHOR: rtu_server_create
     let server = rodbus::server::spawn_rtu_server_task(
         "/dev/ttySIM1",
-        SerialSettings::default(),
+        rodbus::serial::SerialSettings::default(),
         map,
         DecodeLevel::new(
             AppDecodeLevel::DataValues,
