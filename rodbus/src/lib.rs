@@ -4,11 +4,11 @@
 //! # Features
 //!
 //! * Panic-free parsing
-//! * Focus on maximal correctness and compliance to the specification
+//! * Correctness and compliance to the specification
 //! * Automatic connection management with configurable reconnect strategy
 //! * Scalable performance using Tokio's multi-threaded executor
 //! * async (futures) and callback based API modes
-//! * Automatically generated bindings for C, Java, and .NET
+//! * Automatically generated bindings for C, C++, Java, and .NET
 //!
 //! # Supported modes
 //!
@@ -28,7 +28,7 @@
 //!
 //! # Future support
 //!
-//! * Additional function code support
+//! * Additional function code support as requested by customers
 //!
 //! # Example Client
 //!
@@ -53,6 +53,8 @@
 //!        DecodeLevel::default(),
 //!        None
 //!    );
+//!
+//!    channel.enable().await?;
 //!
 //!    let param = RequestParam::new(
 //!        UnitId::new(0x02),

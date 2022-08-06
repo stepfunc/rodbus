@@ -7,7 +7,7 @@ use std::time::Duration;
 use clap::{App, Arg, ArgMatches, SubCommand};
 
 use rodbus::client::*;
-use rodbus::error::{InvalidRange, InvalidRequest};
+use rodbus::error::{InvalidRange, InvalidRequest, Shutdown};
 use rodbus::*;
 
 #[derive(Debug)]
@@ -19,6 +19,7 @@ enum Error {
     BadCharInBitString(char),
     Request(rodbus::error::RequestError),
     MissingSubCommand,
+    Shutdown,
 }
 
 enum Command {
@@ -74,6 +75,7 @@ async fn run() -> Result<(), Error> {
         AppDecodeLevel::DataValues.into(),
         None,
     );
+    channel.enable().await?;
     let params = RequestParam::new(args.id, Duration::from_secs(1));
 
     match args.period {
@@ -445,6 +447,7 @@ impl std::fmt::Display for Error {
             Error::BadCharInBitString(char) => write!(f, "Bad character in bit string: {}", char),
             Error::Request(err) => err.fmt(f),
             Error::MissingSubCommand => f.write_str("No sub-command provided"),
+            Error::Shutdown => f.write_str("channel was shut down"),
         }
     }
 }
@@ -482,5 +485,11 @@ impl From<InvalidRange> for Error {
 impl From<InvalidRequest> for Error {
     fn from(err: InvalidRequest) -> Self {
         Error::Request(err.into())
+    }
+}
+
+impl From<Shutdown> for Error {
+    fn from(_: Shutdown) -> Self {
+        Self::Shutdown
     }
 }
