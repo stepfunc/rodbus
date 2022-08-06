@@ -159,7 +159,7 @@ where
                 println!("index: {} value: {}", bit.index, bit.value);
             }
         }
-        Err(rodbus::error::RequestError::Exception(exception)) => {
+        Err(rodbus::RequestError::Exception(exception)) => {
             println!("Modbus exception: {}", exception);
         }
         Err(err) => println!("read error: {}", err),
@@ -171,7 +171,7 @@ fn print_write_result<T>(result: Result<T, RequestError>) {
         Ok(_) => {
             println!("write successful");
         }
-        Err(rodbus::error::RequestError::Exception(exception)) => {
+        Err(rodbus::RequestError::Exception(exception)) => {
             println!("Modbus exception: {}", exception);
         }
         Err(err) => println!("writer error: {}", err),

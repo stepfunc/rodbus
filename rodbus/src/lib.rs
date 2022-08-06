@@ -196,26 +196,26 @@ pub mod client;
 /// Public constant values related to the Modbus specification
 pub mod constants;
 
-/// Error types associated with making requests
-pub mod error;
-/// Serial (RTU) API
-#[cfg(feature = "serial")]
-pub mod serial;
 /// Server API
 pub mod server;
 
 // modules that are re-exported
 pub(crate) mod decode;
+pub(crate) mod error;
 pub(crate) mod exception;
 pub(crate) mod maybe_async;
+#[cfg(feature = "serial")]
+mod serial;
 pub(crate) mod types;
 
 // re-exports
 pub use crate::decode::*;
+pub use crate::error::*;
 pub use crate::exception::*;
 pub use crate::maybe_async::*;
+#[cfg(feature = "serial")]
+pub use crate::serial::*;
 pub use crate::types::*;
-pub use error::RequestError;
 
 // internal modules
 mod common;

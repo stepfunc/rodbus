@@ -7,8 +7,8 @@ use std::time::Duration;
 use clap::{App, Arg, ArgMatches, SubCommand};
 
 use rodbus::client::*;
-use rodbus::error::{InvalidRange, InvalidRequest, Shutdown};
 use rodbus::*;
+use rodbus::{InvalidRange, InvalidRequest, Shutdown};
 
 #[derive(Debug)]
 enum Error {
@@ -17,7 +17,7 @@ enum Error {
     BadInt(std::num::ParseIntError),
     BadBool(std::str::ParseBoolError),
     BadCharInBitString(char),
-    Request(rodbus::error::RequestError),
+    Request(rodbus::RequestError),
     MissingSubCommand,
     Shutdown,
 }
@@ -452,8 +452,8 @@ impl std::fmt::Display for Error {
     }
 }
 
-impl From<rodbus::error::RequestError> for Error {
-    fn from(err: rodbus::error::RequestError) -> Self {
+impl From<rodbus::RequestError> for Error {
+    fn from(err: rodbus::RequestError) -> Self {
         Error::Request(err)
     }
 }

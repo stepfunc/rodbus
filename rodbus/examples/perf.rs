@@ -4,8 +4,8 @@ use std::time::Duration;
 
 use rodbus::client::*;
 use rodbus::constants::limits::MAX_READ_REGISTERS_COUNT;
-use rodbus::error::RequestError;
 use rodbus::server::*;
+use rodbus::RequestError;
 use rodbus::*;
 
 struct Handler;
