@@ -960,20 +960,20 @@ dependencies = [
 ]
 
 [[package]]
-name = "rodbus-schema"
-version = "1.0.0-alpha9"
-dependencies = [
- "oo-bindgen",
-]
-
-[[package]]
-name = "rodbus_ffi_java"
+name = "rodbus-ffi-java"
 version = "1.0.0-alpha9"
 dependencies = [
  "java-oo-bindgen",
  "jni",
  "rodbus-ffi",
  "rodbus-schema",
+]
+
+[[package]]
+name = "rodbus-schema"
+version = "1.0.0-alpha9"
+dependencies = [
+ "oo-bindgen",
 ]
 
 [[package]]
