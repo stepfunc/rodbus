@@ -929,7 +929,6 @@ name = "rodbus-bindings"
 version = "1.0.0-alpha9"
 dependencies = [
  "ci-script",
- "rodbus-ffi",
  "rodbus-schema",
 ]
 
