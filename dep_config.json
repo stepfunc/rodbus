@@ -1,0 +1,1514 @@
+{
+  "build_only": [
+    "addr2line",
+    "adler",
+    "autocfg",
+    "backtrace",
+    "cc",
+    "dunce",
+    "gimli",
+    "heck",
+    "java-oo-bindgen",
+    "miniz_oxide",
+    "object",
+    "oo-bindgen",
+    "pathdiff",
+    "pest",
+    "platforms",
+    "rodbus-ffi-java",
+    "rodbus-schema",
+    "rust-oo-bindgen",
+    "rustc-demangle",
+    "same-file",
+    "semver",
+    "semver-parser",
+    "ucd-trie",
+    "unicode-segmentation",
+    "version_check",
+    "walkdir",
+    "winapi-util"
+  ],
+  "vendor": [
+    "rasn",
+    "rodbus",
+    "rodbus-ffi"
+  ],
+  "third_party": {
+    "aes": {
+      "id": "aes",
+      "url": "",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2018 Artyom Pavlov"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "aho-corasick": {
+      "id": "aho-corasick",
+      "url": "",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2015 Andrew Gallant"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "ansi_term": {
+      "id": "ansi_term",
+      "url": "",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2014 Benjamin Sago"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "base64": {
+      "id": "base64",
+      "url": "",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2015 Alice Maz"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "base64ct": {
+      "id": "base64ct",
+      "url": "",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2014 Steve \"Sc00bz\" Thomas (steve at tobtu dot com)",
+                "Copyright (c) 2021 The RustCrypto Project Developers"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "block-buffer": {
+      "id": "block-buffer",
+      "url": "",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2018-2019 The RustCrypto Project Developers"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "block-modes": {
+      "id": "block-modes",
+      "url": "",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2018-2019 The RustCrypto Project Developers"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "block-padding": {
+      "id": "block-padding",
+      "url": "",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2018-2019 The RustCrypto Project Developers"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "bytes": {
+      "id": "bytes",
+      "url": "",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2018 Carl Lerche"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "cesu8": {
+      "id": "cesu8",
+      "url": "",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2016 Eric Kidd"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "cfg-if": {
+      "id": "cfg-if",
+      "url": "",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2014 Alex Crichton"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "chrono": {
+      "id": "chrono",
+      "url": "",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2014, Kang Seonghoon"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "cipher": {
+      "id": "cipher",
+      "url": "",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2016-2020 The RustCrypto Project Developers"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "combine": {
+      "id": "combine",
+      "url": "",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2015 Markus Westerlind"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "const-oid": {
+      "id": "const-oid",
+      "url": "",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2020-2022 The RustCrypto Project Developers"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "cpufeatures": {
+      "id": "cpufeatures",
+      "url": "",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2020 The RustCrypto Project Developers"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "crc": {
+      "id": "crc",
+      "url": "",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2017 crc-rs Developers"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "crc-catalog": {
+      "id": "crc-catalog",
+      "url": "",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2019 Akhil Velagapudi"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "crypto-common": {
+      "id": "crypto-common",
+      "url": "",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2021 RustCrypto Developers"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "crypto-mac": {
+      "id": "crypto-mac",
+      "url": "",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2021 RustCrypto Developers"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "der": {
+      "id": "der",
+      "url": "",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2020-2022 The RustCrypto Project Developers"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "digest": {
+      "id": "digest",
+      "url": "",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2017 Artyom Pavlov"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "futures": {
+      "id": "futures",
+      "url": "",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2016 Alex Crichton",
+                "Copyright (c) 2017 The Tokio Authors"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "futures-channel": {
+      "id": "futures-channel",
+      "url": "",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2016 Alex Crichton",
+                "Copyright (c) 2017 The Tokio Authors"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "futures-core": {
+      "id": "futures-core",
+      "url": "",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2016 Alex Crichton",
+                "Copyright (c) 2017 The Tokio Authors"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "futures-executor": {
+      "id": "futures-executor",
+      "url": "",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2016 Alex Crichton",
+                "Copyright (c) 2017 The Tokio Authors"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "futures-io": {
+      "id": "futures-io",
+      "url": "",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2016 Alex Crichton",
+                "Copyright (c) 2017 The Tokio Authors"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "futures-macro": {
+      "id": "futures-macro",
+      "url": "",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2016 Alex Crichton",
+                "Copyright (c) 2017 The Tokio Authors"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "futures-sink": {
+      "id": "futures-sink",
+      "url": "",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2016 Alex Crichton",
+                "Copyright (c) 2017 The Tokio Authors"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "futures-task": {
+      "id": "futures-task",
+      "url": "",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2016 Alex Crichton",
+                "Copyright (c) 2017 The Tokio Authors"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "futures-util": {
+      "id": "futures-util",
+      "url": "",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2016 Alex Crichton",
+                "Copyright (c) 2017 The Tokio Authors"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "generic-array": {
+      "id": "generic-array",
+      "url": "",
+      "authors": null,
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2015 Bartłomiej Kamiński"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "hmac": {
+      "id": "hmac",
+      "url": "",
+      "authors": null,
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2017 Artyom Pavlov"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "itoa": {
+      "id": "itoa",
+      "url": "",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": "NotPresent"
+          }
+        }
+      ]
+    },
+    "jni": {
+      "id": "jni",
+      "url": "",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2016 Prevoty, Inc. and jni-rs contributors"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "jni-sys": {
+      "id": "jni-sys",
+      "url": "",
+      "authors": null,
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2015 The rust-jni-sys Developers"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "lazy_static": {
+      "id": "lazy_static",
+      "url": "",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2010 The Rust Project Developers"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "libc": {
+      "id": "libc",
+      "url": "",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2014-2020 The Rust Project Developers"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "log": {
+      "id": "log",
+      "url": "",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2014 The Rust Project Developers"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "matchers": {
+      "id": "matchers",
+      "url": "",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2019 Eliza Weisman"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "memchr": {
+      "id": "memchr",
+      "url": "",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2015 Andrew Gallant"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "mio": {
+      "id": "mio",
+      "url": "",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2014 Carl Lerche and other MIO contributors"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "mio-serial": {
+      "id": "mio-serial",
+      "url": "",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2017 Zac Berkowitz (zac.berkowitz@gmail.com)"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "num-integer": {
+      "id": "num-integer",
+      "url": "",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2014 The Rust Project Developers"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "num-traits": {
+      "id": "num-traits",
+      "url": "",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2014 The Rust Project Developers"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "num_cpus": {
+      "id": "num_cpus",
+      "url": "",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2015"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "once_cell": {
+      "id": "once_cell",
+      "url": "",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": "NotPresent"
+          }
+        }
+      ]
+    },
+    "opaque-debug": {
+      "id": "opaque-debug",
+      "url": "",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2018-2019 The RustCrypto Project Developers"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "pbkdf2": {
+      "id": "pbkdf2",
+      "url": "",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2017 Artyom Pavlov",
+                "Copyright (c) 2018-2021 The RustCrypto Project Developers"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "pem": {
+      "id": "pem",
+      "url": "",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2016 Jonathan Creekmore"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "pem-rfc7468": {
+      "id": "pem-rfc7468",
+      "url": "",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2021 The RustCrypto Project Developers"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "pin-project-lite": {
+      "id": "pin-project-lite",
+      "url": "",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": "NotPresent"
+          }
+        }
+      ]
+    },
+    "pin-utils": {
+      "id": "pin-utils",
+      "url": "",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2018 The pin-utils authors"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "pkcs5": {
+      "id": "pkcs5",
+      "url": "",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2021 The RustCrypto Project Developers"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "pkcs8": {
+      "id": "pkcs8",
+      "url": "",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2020 The RustCrypto Project Developers"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "proc-macro2": {
+      "id": "proc-macro2",
+      "url": "",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2014 Alex Crichton"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "quote": {
+      "id": "quote",
+      "url": "",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2016 The Rust Project Developers"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "rand_core": {
+      "id": "rand_core",
+      "url": "",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright 2018 Developers of the Rand project",
+                "Copyright (c) 2014 The Rust Project Developers"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "regex": {
+      "id": "regex",
+      "url": "",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2014 The Rust Project Developers"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "regex-automata": {
+      "id": "regex-automata",
+      "url": "",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2015 Andrew Gallant"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "regex-syntax": {
+      "id": "regex-syntax",
+      "url": "",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2014 The Rust Project Developers"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "ring": {
+      "id": "ring",
+      "url": "",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2015-2016 the fiat-crypto authors (see https://github.com/mit-plv/fiat-crypto/blob/master/AUTHORS)"
+              ]
+            }
+          }
+        },
+        {
+          "ISC": {
+            "copyright": {
+              "Lines": [
+                "Copyright 2015-2016 Brian Smith"
+              ]
+            }
+          }
+        },
+        "OpenSSL"
+      ]
+    },
+    "rustls": {
+      "id": "rustls",
+      "url": "",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2016 Joseph Birr-Pixton <jpixton@gmail.com>"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "ryu": {
+      "id": "ryu",
+      "url": "",
+      "licenses": [
+        "BSLv1"
+      ]
+    },
+    "salsa20": {
+      "id": "salsa20",
+      "url": "",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2019 Eric McCorkle"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "scrypt": {
+      "id": "scrypt",
+      "url": "",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2021 The RustCrypto Project Developers"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "sct": {
+      "id": "sct",
+      "url": "",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2016 Joseph Birr-Pixton <jpixton@gmail.com>"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "serde": {
+      "id": "serde",
+      "url": "",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": "NotPresent"
+          }
+        }
+      ]
+    },
+    "serde_json": {
+      "id": "serde_json",
+      "url": "",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": "NotPresent"
+          }
+        }
+      ]
+    },
+    "serialport": {
+      "id": "serialport",
+      "url": "",
+      "licenses": [
+        "MPLv2"
+      ]
+    },
+    "sha2": {
+      "id": "sha2",
+      "url": "",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2006-2009 Graydon Hoare",
+                "Copyright (c) 2009-2013 Mozilla Foundation",
+                "Copyright (c) 2016 Artyom Pavlov"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "sharded-slab": {
+      "id": "sharded-slab",
+      "url": "",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2019 Eliza Weisman"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "slab": {
+      "id": "slab",
+      "url": "",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2019 Carl Lerche"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "smallvec": {
+      "id": "smallvec",
+      "url": "",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2018 The Servo Project Developers"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "socket2": {
+      "id": "socket2",
+      "url": "",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2014 Alex Crichton"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "spin": {
+      "id": "spin",
+      "url": "",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2014 Mathijs van de Nes"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "spki": {
+      "id": "spki",
+      "url": "",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2021-2022 The RustCrypto Project Developers"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "subtle": {
+      "id": "subtle",
+      "url": "",
+      "licenses": [
+        {
+          "BSD3": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2016-2017 Isis Agora Lovecruft, Henry de Valence. All rights reserved."
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "syn": {
+      "id": "syn",
+      "url": "",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": "NotPresent"
+          }
+        }
+      ]
+    },
+    "thiserror": {
+      "id": "thiserror",
+      "url": "",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": "NotPresent"
+          }
+        }
+      ]
+    },
+    "thiserror-impl": {
+      "id": "thiserror-impl",
+      "url": "",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": "NotPresent"
+          }
+        }
+      ]
+    },
+    "thread_local": {
+      "id": "thread_local",
+      "url": "",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2016 The Rust Project Developers"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "tokio": {
+      "id": "tokio",
+      "url": "",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2022 Tokio Contributors"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "tokio-macros": {
+      "id": "tokio-macros",
+      "url": "",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2022 Tokio Contributors"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "tokio-rustls": {
+      "id": "tokio-rustls",
+      "url": "",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2019 Tokio Contributors"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "tokio-serial": {
+      "id": "tokio-serial",
+      "url": "",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2017 Zac Berkowitz and other tokio-serial contributors."
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "tracing": {
+      "id": "tracing",
+      "url": "",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2019 Tokio Contributors"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "tracing-attributes": {
+      "id": "tracing-attributes",
+      "url": "",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2019 Tokio Contributors"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "tracing-core": {
+      "id": "tracing-core",
+      "url": "",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2019 Tokio Contributors"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "tracing-log": {
+      "id": "tracing-log",
+      "url": "",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2019 Tokio Contributors"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "tracing-serde": {
+      "id": "tracing-serde",
+      "url": "",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2019 Tokio Contributors"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "tracing-subscriber": {
+      "id": "tracing-subscriber",
+      "url": "",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2019 Tokio Contributors"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "typenum": {
+      "id": "typenum",
+      "url": "",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2014 Paho Lurie-Gregg"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "unicode-ident": {
+      "id": "unicode-ident",
+      "url": "",
+      "licenses": [
+        "UnicodeDFS2016",
+        {
+          "MIT": {
+            "copyright": "NotPresent"
+          }
+        }
+      ]
+    },
+    "untrusted": {
+      "id": "untrusted",
+      "url": "",
+      "licenses": [
+        {
+          "ISC": {
+            "copyright": {
+              "Lines": [
+                "Copyright 2015-2016 Brian Smith."
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "webpki": {
+      "id": "webpki",
+      "url": "",
+      "licenses": [
+        {
+          "ISC": {
+            "copyright": {
+              "Lines": [
+                "Copyright 2015 Brian Smith."
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "winapi": {
+      "id": "winapi",
+      "url": "",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2015-2018 The winapi-rs Developers"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "windows-sys": {
+      "id": "windows-sys",
+      "url": "",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) Microsoft Corporation"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "windows_x86_64_msvc": {
+      "id": "windows_x86_64_msvc",
+      "url": "",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) Microsoft Corporation"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "zeroize": {
+      "id": "zeroize",
+      "url": "",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2018-2021 The RustCrypto Project Developers"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  }
+}
