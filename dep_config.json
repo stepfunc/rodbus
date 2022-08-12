@@ -15,7 +15,6 @@
     "pathdiff",
     "pest",
     "platforms",
-    "rodbus-ffi-java",
     "rodbus-schema",
     "rust-oo-bindgen",
     "rustc-demangle",
@@ -31,12 +30,13 @@
   "vendor": [
     "rasn",
     "rodbus",
-    "rodbus-ffi"
+    "rodbus-ffi",
+    "rodbus-ffi-java"
   ],
   "third_party": {
     "aes": {
       "id": "aes",
-      "url": "",
+      "source": "crates.io",
       "licenses": [
         {
           "MIT": {
@@ -51,7 +51,7 @@
     },
     "aho-corasick": {
       "id": "aho-corasick",
-      "url": "",
+      "source": "crates.io",
       "licenses": [
         {
           "MIT": {
@@ -66,7 +66,7 @@
     },
     "ansi_term": {
       "id": "ansi_term",
-      "url": "",
+      "source": "crates.io",
       "licenses": [
         {
           "MIT": {
@@ -81,7 +81,7 @@
     },
     "base64": {
       "id": "base64",
-      "url": "",
+      "source": "crates.io",
       "licenses": [
         {
           "MIT": {
@@ -96,7 +96,7 @@
     },
     "base64ct": {
       "id": "base64ct",
-      "url": "",
+      "source": "crates.io",
       "licenses": [
         {
           "MIT": {
@@ -110,9 +110,24 @@
         }
       ]
     },
+    "bitflags": {
+      "id": "bitflags",
+      "source": "crates.io",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2014 The Rust Project Developers"
+              ]
+            }
+          }
+        }
+      ]
+    },
     "block-buffer": {
       "id": "block-buffer",
-      "url": "",
+      "source": "crates.io",
       "licenses": [
         {
           "MIT": {
@@ -127,7 +142,7 @@
     },
     "block-modes": {
       "id": "block-modes",
-      "url": "",
+      "source": "crates.io",
       "licenses": [
         {
           "MIT": {
@@ -142,7 +157,7 @@
     },
     "block-padding": {
       "id": "block-padding",
-      "url": "",
+      "source": "crates.io",
       "licenses": [
         {
           "MIT": {
@@ -157,7 +172,7 @@
     },
     "bytes": {
       "id": "bytes",
-      "url": "",
+      "source": "crates.io",
       "licenses": [
         {
           "MIT": {
@@ -172,7 +187,7 @@
     },
     "cesu8": {
       "id": "cesu8",
-      "url": "",
+      "source": "crates.io",
       "licenses": [
         {
           "MIT": {
@@ -187,7 +202,7 @@
     },
     "cfg-if": {
       "id": "cfg-if",
-      "url": "",
+      "source": "crates.io",
       "licenses": [
         {
           "MIT": {
@@ -202,7 +217,7 @@
     },
     "chrono": {
       "id": "chrono",
-      "url": "",
+      "source": "crates.io",
       "licenses": [
         {
           "MIT": {
@@ -217,7 +232,7 @@
     },
     "cipher": {
       "id": "cipher",
-      "url": "",
+      "source": "crates.io",
       "licenses": [
         {
           "MIT": {
@@ -232,7 +247,7 @@
     },
     "combine": {
       "id": "combine",
-      "url": "",
+      "source": "crates.io",
       "licenses": [
         {
           "MIT": {
@@ -247,7 +262,7 @@
     },
     "const-oid": {
       "id": "const-oid",
-      "url": "",
+      "source": "crates.io",
       "licenses": [
         {
           "MIT": {
@@ -262,7 +277,7 @@
     },
     "cpufeatures": {
       "id": "cpufeatures",
-      "url": "",
+      "source": "crates.io",
       "licenses": [
         {
           "MIT": {
@@ -277,7 +292,7 @@
     },
     "crc": {
       "id": "crc",
-      "url": "",
+      "source": "crates.io",
       "licenses": [
         {
           "MIT": {
@@ -292,7 +307,7 @@
     },
     "crc-catalog": {
       "id": "crc-catalog",
-      "url": "",
+      "source": "crates.io",
       "licenses": [
         {
           "MIT": {
@@ -307,7 +322,7 @@
     },
     "crypto-common": {
       "id": "crypto-common",
-      "url": "",
+      "source": "crates.io",
       "licenses": [
         {
           "MIT": {
@@ -322,7 +337,7 @@
     },
     "crypto-mac": {
       "id": "crypto-mac",
-      "url": "",
+      "source": "crates.io",
       "licenses": [
         {
           "MIT": {
@@ -337,7 +352,7 @@
     },
     "der": {
       "id": "der",
-      "url": "",
+      "source": "crates.io",
       "licenses": [
         {
           "MIT": {
@@ -352,7 +367,7 @@
     },
     "digest": {
       "id": "digest",
-      "url": "",
+      "source": "crates.io",
       "licenses": [
         {
           "MIT": {
@@ -367,7 +382,7 @@
     },
     "futures": {
       "id": "futures",
-      "url": "",
+      "source": "crates.io",
       "licenses": [
         {
           "MIT": {
@@ -383,7 +398,7 @@
     },
     "futures-channel": {
       "id": "futures-channel",
-      "url": "",
+      "source": "crates.io",
       "licenses": [
         {
           "MIT": {
@@ -399,7 +414,7 @@
     },
     "futures-core": {
       "id": "futures-core",
-      "url": "",
+      "source": "crates.io",
       "licenses": [
         {
           "MIT": {
@@ -415,7 +430,7 @@
     },
     "futures-executor": {
       "id": "futures-executor",
-      "url": "",
+      "source": "crates.io",
       "licenses": [
         {
           "MIT": {
@@ -431,7 +446,7 @@
     },
     "futures-io": {
       "id": "futures-io",
-      "url": "",
+      "source": "crates.io",
       "licenses": [
         {
           "MIT": {
@@ -447,7 +462,7 @@
     },
     "futures-macro": {
       "id": "futures-macro",
-      "url": "",
+      "source": "crates.io",
       "licenses": [
         {
           "MIT": {
@@ -463,7 +478,7 @@
     },
     "futures-sink": {
       "id": "futures-sink",
-      "url": "",
+      "source": "crates.io",
       "licenses": [
         {
           "MIT": {
@@ -479,7 +494,7 @@
     },
     "futures-task": {
       "id": "futures-task",
-      "url": "",
+      "source": "crates.io",
       "licenses": [
         {
           "MIT": {
@@ -495,7 +510,7 @@
     },
     "futures-util": {
       "id": "futures-util",
-      "url": "",
+      "source": "crates.io",
       "licenses": [
         {
           "MIT": {
@@ -511,7 +526,7 @@
     },
     "generic-array": {
       "id": "generic-array",
-      "url": "",
+      "source": "crates.io",
       "authors": null,
       "licenses": [
         {
@@ -527,7 +542,7 @@
     },
     "hmac": {
       "id": "hmac",
-      "url": "",
+      "source": "crates.io",
       "authors": null,
       "licenses": [
         {
@@ -543,7 +558,7 @@
     },
     "itoa": {
       "id": "itoa",
-      "url": "",
+      "source": "crates.io",
       "licenses": [
         {
           "MIT": {
@@ -554,7 +569,7 @@
     },
     "jni": {
       "id": "jni",
-      "url": "",
+      "source": "crates.io",
       "licenses": [
         {
           "MIT": {
@@ -569,7 +584,7 @@
     },
     "jni-sys": {
       "id": "jni-sys",
-      "url": "",
+      "source": "crates.io",
       "authors": null,
       "licenses": [
         {
@@ -585,7 +600,7 @@
     },
     "lazy_static": {
       "id": "lazy_static",
-      "url": "",
+      "source": "crates.io",
       "licenses": [
         {
           "MIT": {
@@ -600,7 +615,7 @@
     },
     "libc": {
       "id": "libc",
-      "url": "",
+      "source": "crates.io",
       "licenses": [
         {
           "MIT": {
@@ -615,7 +630,7 @@
     },
     "log": {
       "id": "log",
-      "url": "",
+      "source": "crates.io",
       "licenses": [
         {
           "MIT": {
@@ -630,7 +645,7 @@
     },
     "matchers": {
       "id": "matchers",
-      "url": "",
+      "source": "crates.io",
       "licenses": [
         {
           "MIT": {
@@ -645,7 +660,7 @@
     },
     "memchr": {
       "id": "memchr",
-      "url": "",
+      "source": "crates.io",
       "licenses": [
         {
           "MIT": {
@@ -658,9 +673,24 @@
         }
       ]
     },
+    "memoffset": {
+      "id": "memoffset",
+      "source": "crates.io",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2017 Gilad Naaman"
+              ]
+            }
+          }
+        }
+      ]
+    },
     "mio": {
       "id": "mio",
-      "url": "",
+      "source": "crates.io",
       "licenses": [
         {
           "MIT": {
@@ -675,7 +705,7 @@
     },
     "mio-serial": {
       "id": "mio-serial",
-      "url": "",
+      "source": "crates.io",
       "licenses": [
         {
           "MIT": {
@@ -688,9 +718,24 @@
         }
       ]
     },
+    "nix": {
+      "id": "nix",
+      "source": "crates.io",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2015 Carl Lerche + nix-rust Authors"
+              ]
+            }
+          }
+        }
+      ]
+    },
     "num-integer": {
       "id": "num-integer",
-      "url": "",
+      "source": "crates.io",
       "licenses": [
         {
           "MIT": {
@@ -705,7 +750,7 @@
     },
     "num-traits": {
       "id": "num-traits",
-      "url": "",
+      "source": "crates.io",
       "licenses": [
         {
           "MIT": {
@@ -720,7 +765,7 @@
     },
     "num_cpus": {
       "id": "num_cpus",
-      "url": "",
+      "source": "crates.io",
       "licenses": [
         {
           "MIT": {
@@ -735,7 +780,7 @@
     },
     "once_cell": {
       "id": "once_cell",
-      "url": "",
+      "source": "crates.io",
       "licenses": [
         {
           "MIT": {
@@ -746,7 +791,7 @@
     },
     "opaque-debug": {
       "id": "opaque-debug",
-      "url": "",
+      "source": "crates.io",
       "licenses": [
         {
           "MIT": {
@@ -761,7 +806,7 @@
     },
     "pbkdf2": {
       "id": "pbkdf2",
-      "url": "",
+      "source": "crates.io",
       "licenses": [
         {
           "MIT": {
@@ -777,7 +822,7 @@
     },
     "pem": {
       "id": "pem",
-      "url": "",
+      "source": "crates.io",
       "licenses": [
         {
           "MIT": {
@@ -792,7 +837,7 @@
     },
     "pem-rfc7468": {
       "id": "pem-rfc7468",
-      "url": "",
+      "source": "crates.io",
       "licenses": [
         {
           "MIT": {
@@ -807,7 +852,7 @@
     },
     "pin-project-lite": {
       "id": "pin-project-lite",
-      "url": "",
+      "source": "crates.io",
       "licenses": [
         {
           "MIT": {
@@ -818,7 +863,7 @@
     },
     "pin-utils": {
       "id": "pin-utils",
-      "url": "",
+      "source": "crates.io",
       "licenses": [
         {
           "MIT": {
@@ -833,7 +878,7 @@
     },
     "pkcs5": {
       "id": "pkcs5",
-      "url": "",
+      "source": "crates.io",
       "licenses": [
         {
           "MIT": {
@@ -848,7 +893,7 @@
     },
     "pkcs8": {
       "id": "pkcs8",
-      "url": "",
+      "source": "crates.io",
       "licenses": [
         {
           "MIT": {
@@ -863,7 +908,7 @@
     },
     "proc-macro2": {
       "id": "proc-macro2",
-      "url": "",
+      "source": "crates.io",
       "licenses": [
         {
           "MIT": {
@@ -878,7 +923,7 @@
     },
     "quote": {
       "id": "quote",
-      "url": "",
+      "source": "crates.io",
       "licenses": [
         {
           "MIT": {
@@ -893,7 +938,7 @@
     },
     "rand_core": {
       "id": "rand_core",
-      "url": "",
+      "source": "crates.io",
       "licenses": [
         {
           "MIT": {
@@ -909,7 +954,7 @@
     },
     "regex": {
       "id": "regex",
-      "url": "",
+      "source": "crates.io",
       "licenses": [
         {
           "MIT": {
@@ -924,7 +969,7 @@
     },
     "regex-automata": {
       "id": "regex-automata",
-      "url": "",
+      "source": "crates.io",
       "licenses": [
         {
           "MIT": {
@@ -939,7 +984,7 @@
     },
     "regex-syntax": {
       "id": "regex-syntax",
-      "url": "",
+      "source": "crates.io",
       "licenses": [
         {
           "MIT": {
@@ -954,7 +999,7 @@
     },
     "ring": {
       "id": "ring",
-      "url": "",
+      "source": "crates.io",
       "licenses": [
         {
           "MIT": {
@@ -979,7 +1024,7 @@
     },
     "rustls": {
       "id": "rustls",
-      "url": "",
+      "source": "crates.io",
       "licenses": [
         {
           "MIT": {
@@ -994,14 +1039,14 @@
     },
     "ryu": {
       "id": "ryu",
-      "url": "",
+      "source": "crates.io",
       "licenses": [
         "BSLv1"
       ]
     },
     "salsa20": {
       "id": "salsa20",
-      "url": "",
+      "source": "crates.io",
       "licenses": [
         {
           "MIT": {
@@ -1016,7 +1061,7 @@
     },
     "scrypt": {
       "id": "scrypt",
-      "url": "",
+      "source": "crates.io",
       "licenses": [
         {
           "MIT": {
@@ -1031,7 +1076,7 @@
     },
     "sct": {
       "id": "sct",
-      "url": "",
+      "source": "crates.io",
       "licenses": [
         {
           "MIT": {
@@ -1046,7 +1091,7 @@
     },
     "serde": {
       "id": "serde",
-      "url": "",
+      "source": "crates.io",
       "licenses": [
         {
           "MIT": {
@@ -1057,7 +1102,7 @@
     },
     "serde_json": {
       "id": "serde_json",
-      "url": "",
+      "source": "crates.io",
       "licenses": [
         {
           "MIT": {
@@ -1068,14 +1113,14 @@
     },
     "serialport": {
       "id": "serialport",
-      "url": "",
+      "source": "crates.io",
       "licenses": [
         "MPLv2"
       ]
     },
     "sha2": {
       "id": "sha2",
-      "url": "",
+      "source": "crates.io",
       "licenses": [
         {
           "MIT": {
@@ -1092,7 +1137,7 @@
     },
     "sharded-slab": {
       "id": "sharded-slab",
-      "url": "",
+      "source": "crates.io",
       "licenses": [
         {
           "MIT": {
@@ -1107,7 +1152,7 @@
     },
     "slab": {
       "id": "slab",
-      "url": "",
+      "source": "crates.io",
       "licenses": [
         {
           "MIT": {
@@ -1122,7 +1167,7 @@
     },
     "smallvec": {
       "id": "smallvec",
-      "url": "",
+      "source": "crates.io",
       "licenses": [
         {
           "MIT": {
@@ -1137,7 +1182,7 @@
     },
     "socket2": {
       "id": "socket2",
-      "url": "",
+      "source": "crates.io",
       "licenses": [
         {
           "MIT": {
@@ -1152,7 +1197,7 @@
     },
     "spin": {
       "id": "spin",
-      "url": "",
+      "source": "crates.io",
       "licenses": [
         {
           "MIT": {
@@ -1167,7 +1212,7 @@
     },
     "spki": {
       "id": "spki",
-      "url": "",
+      "source": "crates.io",
       "licenses": [
         {
           "MIT": {
@@ -1182,7 +1227,7 @@
     },
     "subtle": {
       "id": "subtle",
-      "url": "",
+      "source": "crates.io",
       "licenses": [
         {
           "BSD3": {
@@ -1197,7 +1242,7 @@
     },
     "syn": {
       "id": "syn",
-      "url": "",
+      "source": "crates.io",
       "licenses": [
         {
           "MIT": {
@@ -1208,7 +1253,7 @@
     },
     "thiserror": {
       "id": "thiserror",
-      "url": "",
+      "source": "crates.io",
       "licenses": [
         {
           "MIT": {
@@ -1219,7 +1264,7 @@
     },
     "thiserror-impl": {
       "id": "thiserror-impl",
-      "url": "",
+      "source": "crates.io",
       "licenses": [
         {
           "MIT": {
@@ -1230,7 +1275,7 @@
     },
     "thread_local": {
       "id": "thread_local",
-      "url": "",
+      "source": "crates.io",
       "licenses": [
         {
           "MIT": {
@@ -1245,7 +1290,7 @@
     },
     "tokio": {
       "id": "tokio",
-      "url": "",
+      "source": "crates.io",
       "licenses": [
         {
           "MIT": {
@@ -1260,7 +1305,7 @@
     },
     "tokio-macros": {
       "id": "tokio-macros",
-      "url": "",
+      "source": "crates.io",
       "licenses": [
         {
           "MIT": {
@@ -1275,7 +1320,7 @@
     },
     "tokio-rustls": {
       "id": "tokio-rustls",
-      "url": "",
+      "source": "crates.io",
       "licenses": [
         {
           "MIT": {
@@ -1290,7 +1335,7 @@
     },
     "tokio-serial": {
       "id": "tokio-serial",
-      "url": "",
+      "source": "crates.io",
       "licenses": [
         {
           "MIT": {
@@ -1305,7 +1350,7 @@
     },
     "tracing": {
       "id": "tracing",
-      "url": "",
+      "source": "crates.io",
       "licenses": [
         {
           "MIT": {
@@ -1320,7 +1365,7 @@
     },
     "tracing-attributes": {
       "id": "tracing-attributes",
-      "url": "",
+      "source": "crates.io",
       "licenses": [
         {
           "MIT": {
@@ -1335,7 +1380,7 @@
     },
     "tracing-core": {
       "id": "tracing-core",
-      "url": "",
+      "source": "crates.io",
       "licenses": [
         {
           "MIT": {
@@ -1350,7 +1395,7 @@
     },
     "tracing-log": {
       "id": "tracing-log",
-      "url": "",
+      "source": "crates.io",
       "licenses": [
         {
           "MIT": {
@@ -1365,7 +1410,7 @@
     },
     "tracing-serde": {
       "id": "tracing-serde",
-      "url": "",
+      "source": "crates.io",
       "licenses": [
         {
           "MIT": {
@@ -1380,7 +1425,7 @@
     },
     "tracing-subscriber": {
       "id": "tracing-subscriber",
-      "url": "",
+      "source": "crates.io",
       "licenses": [
         {
           "MIT": {
@@ -1395,7 +1440,7 @@
     },
     "typenum": {
       "id": "typenum",
-      "url": "",
+      "source": "crates.io",
       "licenses": [
         {
           "MIT": {
@@ -1410,7 +1455,7 @@
     },
     "unicode-ident": {
       "id": "unicode-ident",
-      "url": "",
+      "source": "crates.io",
       "licenses": [
         "UnicodeDFS2016",
         {
@@ -1422,7 +1467,7 @@
     },
     "untrusted": {
       "id": "untrusted",
-      "url": "",
+      "source": "crates.io",
       "licenses": [
         {
           "ISC": {
@@ -1437,7 +1482,7 @@
     },
     "webpki": {
       "id": "webpki",
-      "url": "",
+      "source": "crates.io",
       "licenses": [
         {
           "ISC": {
@@ -1452,7 +1497,7 @@
     },
     "winapi": {
       "id": "winapi",
-      "url": "",
+      "source": "crates.io",
       "licenses": [
         {
           "MIT": {
@@ -1467,7 +1512,7 @@
     },
     "windows-sys": {
       "id": "windows-sys",
-      "url": "",
+      "source": "crates.io",
       "licenses": [
         {
           "MIT": {
@@ -1482,7 +1527,7 @@
     },
     "windows_x86_64_msvc": {
       "id": "windows_x86_64_msvc",
-      "url": "",
+      "source": "crates.io",
       "licenses": [
         {
           "MIT": {
@@ -1497,7 +1542,7 @@
     },
     "zeroize": {
       "id": "zeroize",
-      "url": "",
+      "source": "crates.io",
       "licenses": [
         {
           "MIT": {
