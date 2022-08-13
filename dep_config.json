@@ -275,6 +275,21 @@
         }
       ]
     },
+    "CoreFoundation-sys": {
+      "id": "CoreFoundation-sys",
+      "source": "crates.io",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2015 David Cuddeback"
+              ]
+            }
+          }
+        }
+      ]
+    },
     "cpufeatures": {
       "id": "cpufeatures",
       "source": "crates.io",
@@ -543,13 +558,27 @@
     "hmac": {
       "id": "hmac",
       "source": "crates.io",
-      "authors": null,
       "licenses": [
         {
           "MIT": {
             "copyright": {
               "Lines": [
                 "Copyright (c) 2017 Artyom Pavlov"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "IOKit-sys": {
+      "id": "IOKit-sys",
+      "source": "crates.io",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2015 David Cuddeback"
               ]
             }
           }
@@ -637,6 +666,21 @@
             "copyright": {
               "Lines": [
                 "Copyright (c) 2014 The Rust Project Developers"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "mach": {
+      "id": "mach",
+      "source": "crates.io",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2019 Nick Fitzgerald"
               ]
             }
           }
