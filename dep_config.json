@@ -27,12 +27,20 @@
     "walkdir",
     "winapi-util"
   ],
-  "vendor": [
-    "rasn",
-    "rodbus",
-    "rodbus-ffi",
-    "rodbus-ffi-java"
-  ],
+  "vendor": {
+    "rasn": {
+      "url": "https://github.com/stepfunc/rasn"
+    },
+    "rodbus": {
+      "url": "https://github.com/stepfunc/rodbus"
+    },
+    "rodbus-ffi": {
+      "url": "https://github.com/stepfunc/rodbus"
+    },
+    "rodbus-ffi-java": {
+      "url": "https://github.com/stepfunc/rodbus"
+    }
+  },
   "third_party": {
     "aes": {
       "id": "aes",
