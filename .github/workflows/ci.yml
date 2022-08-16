@@ -141,11 +141,16 @@ jobs:
         run: Copy-Item -Path .cargo/config-windows.toml -Destination .cargo/config.toml
       - name: Caching
         uses: Swatinem/rust-cache@v1
-      - name: Build
+      - name: Build FFI
         uses: actions-rs/cargo@v1
         with:
           command: build
-          args: --release
+          args: -p rodbus-ffi --release --target ${{ matrix.target }} --message-format json
+      - name: Build JNI
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: -p rodbus-ffi-java --release --target ${{ matrix.target }} --message-format json
       - name: C bindings
         uses: actions-rs/cargo@v1
         with:
