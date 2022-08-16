@@ -36,45 +36,6 @@ jobs:
         with:
           command: clippy
           args: -- -D warnings
-  # Check dependencies
-  dependencies:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v2
-        with:
-          path: rodbus
-      - name: Checkout complicense
-        uses: actions/checkout@v2
-        with:
-          repository: stepfunc/complicense
-          path: complicense
-      - name: Install Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          override: true
-      - name: Caching
-        uses: Swatinem/rust-cache@v1
-      - name: Install cargo-license
-        uses: actions-rs/cargo@v1
-        with:
-          command: install
-          args: cargo-license
-      - name: Generate dependencies.json
-        working-directory: rodbus/rodbus
-        run: cargo-license --avoid-dev-deps --avoid-build-deps -j > ../dependencies.json
-      - name: Generate dependencies.txt
-        working-directory: complicense
-        run: cargo run -- --import ../rodbus/dependencies.json --config ../rodbus/deps-config.json --token ${{ github.token }} > ../rodbus/dependencies.txt
-      - name: Upload dependencies info
-        uses: actions/upload-artifact@v2
-        with:
-          name: dependencies
-          path: |
-            rodbus/dependencies.json
-            rodbus/dependencies.txt
   # Run the unit tests on Windows and Linux
   test:
     strategy:
@@ -340,7 +301,7 @@ jobs:
           path: ~/doc
   # Package all the generated bindings
   packaging:
-    needs: [dependencies, documentation, bindings-windows, bindings-macos, cross]
+    needs: [documentation, bindings-windows, bindings-macos, cross]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -353,10 +314,6 @@ jobs:
           override: true
       - name: Caching
         uses: Swatinem/rust-cache@v1
-      - name: Download dependencies
-        uses: actions/download-artifact@v2
-        with:
-          name: dependencies
       - name: Download compiled FFI
         uses: actions/download-artifact@v2
         with:
@@ -440,7 +397,5 @@ jobs:
             release/*.zip
             artifacts/dotnet-bindings/rodbus*
             artifacts/java-bindings/*.jar
-            artifacts/dependencies/dependencies.txt
-            artifacts/dependencies/dependencies.json
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
