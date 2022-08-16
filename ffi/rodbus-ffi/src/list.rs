@@ -10,7 +10,7 @@ pub(crate) unsafe fn bit_list_create(size_hint: u32) -> *mut crate::BitList {
 
 pub(crate) unsafe fn bit_list_destroy(list: *mut crate::BitList) {
     if !list.is_null() {
-        Box::from_raw(list);
+        drop(Box::from_raw(list));
     };
 }
 
@@ -32,7 +32,7 @@ pub(crate) unsafe fn register_list_create(size_hint: u32) -> *mut crate::Registe
 
 pub(crate) unsafe fn register_list_destroy(list: *mut crate::RegisterList) {
     if !list.is_null() {
-        Box::from_raw(list);
+        drop(Box::from_raw(list));
     };
 }
 
