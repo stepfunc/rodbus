@@ -328,7 +328,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: run
-          args: --bin rodbus-bindings -- --package ./ffi-modules -f dependencies.txt
+          args: --bin rodbus-bindings -- --package ./ffi-modules
       - name: Upload .NET bindings
         uses: actions/upload-artifact@v2
         with:
