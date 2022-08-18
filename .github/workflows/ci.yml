@@ -250,12 +250,10 @@ jobs:
           toolchain: stable
           target: ${{ matrix.target }}
           override: true
-      - name: Build
-        uses: actions-rs/cargo@v1
-        with:
-          use-cross: true
-          command: build
-          args: --release --target ${{ matrix.target }}
+      - name: Build FFI
+        run: cross build -p rodbus-ffi --release --target ${{ matrix.target }} > build.ffi.log
+      - name: Build JNI
+        run: cross build -p rodbus-ffi-java --release --target ${{ matrix.target }} > build.jni.log
       - name: C bindings
         uses: actions-rs/cargo@v1
         with:
