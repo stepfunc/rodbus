@@ -144,15 +144,9 @@ jobs:
       - name: Set Powershell UTF8
         run: $PSDefaultParameterValues['Out-File:Encoding'] = 'utf8'
       - name: Build FFI
-        uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: -p rodbus-ffi --release --target ${{ matrix.target }} --message-format json > build.ffi.log
+        run: cargo build -p rodbus-ffi --release --target ${{ matrix.target }} --message-format json | Out-File -encoding "UTF8" build.ffi.log
       - name: Build JNI
-        uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: -p rodbus-ffi-java --release --target ${{ matrix.target }} --message-format json > build.jni.log
+        run: cargo build -p rodbus-ffi-java --release --target ${{ matrix.target }} --message-format json | Out-File -encoding "UTF8" build.jni.log
       - name: C bindings
         uses: actions-rs/cargo@v1
         with:
