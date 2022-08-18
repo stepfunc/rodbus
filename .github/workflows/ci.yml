@@ -249,8 +249,9 @@ jobs:
           profile: minimal
           toolchain: stable
           target: ${{ matrix.target }}
-          components: cross
           override: true
+      - name: Install Rust Cross
+        run: cargo install cross
       - name: Build FFI
         run: cross build -p rodbus-ffi --release --target ${{ matrix.target }} > build.ffi.log
       - name: Build JNI
