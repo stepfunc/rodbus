@@ -140,9 +140,7 @@ jobs:
         shell: pwsh
         run: Copy-Item -Path .cargo/config-windows.toml -Destination .cargo/config.toml
       - name: Caching
-        uses: Swatinem/rust-cache@v1
-      - name: Set Powershell UTF8
-        run: $PSDefaultParameterValues['Out-File:Encoding'] = 'utf8'
+        uses: Swatinem/rust-cache@v2
       - name: Build FFI
         run: cargo build -p rodbus-ffi --release --target ${{ matrix.target }} --message-format json | Out-File -encoding "UTF8" build.ffi.log
       - name: Build JNI
