@@ -244,11 +244,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v2
       - name: Install Rust
-        uses: actions-rs/toolchain@v1
+        uses: actions-rs/toolchain@v2
         with:
           profile: minimal
           toolchain: stable
           target: ${{ matrix.target }}
+          components: cross
           override: true
       - name: Build FFI
         run: cross build -p rodbus-ffi --release --target ${{ matrix.target }} > build.ffi.log
