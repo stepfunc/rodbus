@@ -141,21 +141,25 @@ jobs:
         run: Copy-Item -Path .cargo/config-windows.toml -Destination .cargo/config.toml
       - name: Caching
         uses: Swatinem/rust-cache@v1
+      - name: Set Powershell UTF8
+        run: $PSDefaultParameterValues['Out-File:Encoding'] = 'utf8'
       - name: Build FFI
         uses: actions-rs/cargo@v1
         with:
           command: build
-          args: -p rodbus-ffi --release --target ${{ matrix.target }} --message-format json
+          args: -p rodbus-ffi --release --target ${{ matrix.target }} --message-format json > build.ffi.log
       - name: Build JNI
         uses: actions-rs/cargo@v1
         with:
           command: build
-          args: -p rodbus-ffi-java --release --target ${{ matrix.target }} --message-format json
+          args: -p rodbus-ffi-java --release --target ${{ matrix.target }} --message-format json > build.jni.log
       - name: C bindings
         uses: actions-rs/cargo@v1
         with:
           command: run
           args: --release --target ${{ matrix.target }} --bin rodbus-bindings -- --c ${{ matrix.extra-params }}
+      - name: Copy FFI build log
+        run: cp build.ffi.log ffi/bindings/c/generated/${{ matrix.target }}/lib/${{ matrix.target }}/
       - name: .NET bindings
         uses: actions-rs/cargo@v1
         with:
@@ -166,6 +170,8 @@ jobs:
         with:
           command: run
           args: --release --target ${{ matrix.target }} --bin rodbus-bindings -- --java ${{ matrix.extra-params }}
+      - name: Copy JNI build log
+        run: cp build.jni.log ffi/bindings/java/rodbus/src/main/resources/${{ matrix.target }}
       - name: Upload compiled FFI modules
         uses: actions/upload-artifact@v2
         with:
