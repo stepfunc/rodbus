@@ -205,6 +205,17 @@ jobs:
         with:
           command: build
           args: --release
+      - name: Create Log Dir
+        run: mkdir -p logs/${{ matrix.target }}
+      - name: Build FFI
+        run: cargo build -p rodbus-ffi --release --message-format json > logs/x86_64-apple-darwin/build.ffi.log
+      - name: Build JNI
+        run: cargo build -p rodbus-ffi-java --release --message-format json > logs/x86_64-apple-darwin/build.jni.log
+      - name: Upload Build Logs
+        uses: actions/upload-artifact@v3
+        with:
+          name: build-logs
+          path: logs
       - name: C bindings
         uses: actions-rs/cargo@v1
         with:
@@ -262,9 +273,9 @@ jobs:
       - name: Create Log Dir
         run: mkdir -p logs/${{ matrix.target }}
       - name: Build FFI
-        run: cross build -p rodbus-ffi --release --target ${{ matrix.target }} > logs/${{ matrix.target }}/build.ffi.log
+        run: cross build -p rodbus-ffi --release --target ${{ matrix.target }} --message-format json > logs/${{ matrix.target }}/build.ffi.log
       - name: Build JNI
-        run: cross build -p rodbus-ffi-java --release --target ${{ matrix.target }} > logs/${{ matrix.target }}/build.jni.log
+        run: cross build -p rodbus-ffi-java --release --target ${{ matrix.target }} --message-format json > logs/${{ matrix.target }}/build.jni.log
       - name: Upload Build Logs
         uses: actions/upload-artifact@v3
         with:
