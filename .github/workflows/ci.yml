@@ -123,8 +123,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - target: x86_64-pc-windows-msvc # 64-bit MSVC (Windows 7+)
-            extra-param: # nothing
+          #- target: x86_64-pc-windows-msvc # 64-bit MSVC (Windows 7+)
+          #  extra-param: # nothing
           - target: i686-pc-windows-msvc # 32-bit MSVC (Windows 7+)
             extra-params: --no-tests
     steps:
