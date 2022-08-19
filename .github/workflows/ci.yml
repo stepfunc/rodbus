@@ -141,10 +141,17 @@ jobs:
         run: Copy-Item -Path .cargo/config-windows.toml -Destination .cargo/config.toml
       - name: Caching
         uses: Swatinem/rust-cache@v2
+      - name: Create log dir
+        run: mkdir logs\${{ matrix.target }}
       - name: Build FFI
-        run: cargo build -p rodbus-ffi --release --target ${{ matrix.target }} --message-format json | Out-File -encoding "UTF8" build.ffi.log
+        run: cargo build -p rodbus-ffi --release --target ${{ matrix.target }} --message-format json | Out-File -encoding "UTF8" .\logs\${{ matrix.target }}\build.ffi.log
       - name: Build JNI
-        run: cargo build -p rodbus-ffi-java --release --target ${{ matrix.target }} --message-format json | Out-File -encoding "UTF8" build.jni.log
+        run: cargo build -p rodbus-ffi-java --release --target ${{ matrix.target }} --message-format json | Out-File -encoding "UTF8" .\logs\${{ matrix.target }}\build.jni.log
+      - name: Upload Build Logs
+        uses: actions/upload-artifact@v3
+        with:
+          name: build-logs
+          path: logs
       - name: C bindings
         uses: actions-rs/cargo@v1
         with:
