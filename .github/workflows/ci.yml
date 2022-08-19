@@ -175,7 +175,7 @@ jobs:
           name: c-bindings
           path: ffi/bindings/c/generated
       - name: Upload compiled Java bindings
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: ffi-modules
           path: ffi/bindings/java/rodbus/src/main/resources
