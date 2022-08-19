@@ -206,7 +206,7 @@ jobs:
           command: build
           args: --release
       - name: Create Log Dir
-        run: mkdir -p logs/${{ matrix.target }}
+        run: mkdir -p logs/x86_64-apple-darwin
       - name: Build FFI
         run: cargo build -p rodbus-ffi --release --message-format json > logs/x86_64-apple-darwin/build.ffi.log
       - name: Build JNI
