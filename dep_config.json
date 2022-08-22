@@ -1622,6 +1622,21 @@
         }
       ]
     },
+    "windows_i686_msvc": {
+      "id": "windows_i686_msvc",
+      "source": "crates.io",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) Microsoft Corporation"
+              ]
+            }
+          }
+        }
+      ]
+    },
     "zeroize": {
       "id": "zeroize",
       "source": "crates.io",
