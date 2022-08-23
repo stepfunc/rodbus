@@ -356,7 +356,7 @@ jobs:
           name: ffi-modules
           path: ffi-modules
       - name: Create FFI licenses.txt
-        run: bom-tools gen-licenses-dir .\ffi-modules\ build.ffi.log .\dep_config.json > licenses.txt
+        run: bom-tools gen-licenses-dir ./ffi-modules build.ffi.log ./dep_config.json > licenses.txt
       - name: Package all bindings
         uses: actions-rs/cargo@v1
         with:
