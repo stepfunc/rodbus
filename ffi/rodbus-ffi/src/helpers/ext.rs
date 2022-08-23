@@ -14,16 +14,14 @@ impl ffi::RequestParam {
 impl ffi::BitReadCallback {
     pub(crate) fn convert_to_fn_once(
         self,
-    ) -> impl FnOnce(std::result::Result<rodbus::BitIterator, rodbus::error::RequestError>) {
-        move |result: std::result::Result<rodbus::BitIterator, rodbus::error::RequestError>| {
-            match result {
-                Err(err) => {
-                    self.on_failure(err.into());
-                }
-                Ok(values) => {
-                    let mut iter = crate::BitValueIterator::new(values);
-                    self.on_complete(&mut iter as *mut _);
-                }
+    ) -> impl FnOnce(std::result::Result<rodbus::BitIterator, rodbus::RequestError>) {
+        move |result: std::result::Result<rodbus::BitIterator, rodbus::RequestError>| match result {
+            Err(err) => {
+                self.on_failure(err.into());
+            }
+            Ok(values) => {
+                let mut iter = crate::BitValueIterator::new(values);
+                self.on_complete(&mut iter as *mut _);
             }
         }
     }
@@ -32,9 +30,8 @@ impl ffi::BitReadCallback {
 impl ffi::RegisterReadCallback {
     pub(crate) fn convert_to_fn_once(
         self,
-    ) -> impl FnOnce(std::result::Result<rodbus::RegisterIterator, rodbus::error::RequestError>)
-    {
-        move |result: std::result::Result<rodbus::RegisterIterator, rodbus::error::RequestError>| {
+    ) -> impl FnOnce(std::result::Result<rodbus::RegisterIterator, rodbus::RequestError>) {
+        move |result: std::result::Result<rodbus::RegisterIterator, rodbus::RequestError>| {
             match result {
                 Err(err) => {
                     self.on_failure(err.into());
@@ -53,8 +50,8 @@ impl ffi::WriteCallback {
     /// ^ you ok mate? (É.G.)
     pub(crate) fn convert_to_fn_once<T>(
         self,
-    ) -> impl FnOnce(std::result::Result<T, rodbus::error::RequestError>) {
-        move |result: std::result::Result<T, rodbus::error::RequestError>| match result {
+    ) -> impl FnOnce(std::result::Result<T, rodbus::RequestError>) {
+        move |result: std::result::Result<T, rodbus::RequestError>| match result {
             Err(err) => {
                 self.on_failure(err.into());
             }

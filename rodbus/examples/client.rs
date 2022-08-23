@@ -77,10 +77,10 @@ async fn run_tcp() -> Result<(), Box<dyn std::error::Error>> {
 async fn run_rtu() -> Result<(), Box<dyn std::error::Error>> {
     // ANCHOR: create_rtu_channel
     let channel = spawn_rtu_client_task(
-        "/dev/ttySIM0",                            // path
-        rodbus::serial::SerialSettings::default(), // serial settings
-        1,                                         // max queued requests
-        Duration::from_secs(1),                    // retry delay
+        "/dev/ttySIM0",                    // path
+        rodbus::SerialSettings::default(), // serial settings
+        1,                                 // max queued requests
+        Duration::from_secs(1),            // retry delay
         DecodeLevel::new(
             AppDecodeLevel::DataValues,
             FrameDecodeLevel::Payload,
@@ -159,7 +159,7 @@ where
                 println!("index: {} value: {}", bit.index, bit.value);
             }
         }
-        Err(rodbus::error::RequestError::Exception(exception)) => {
+        Err(rodbus::RequestError::Exception(exception)) => {
             println!("Modbus exception: {}", exception);
         }
         Err(err) => println!("read error: {}", err),
@@ -171,7 +171,7 @@ fn print_write_result<T>(result: Result<T, RequestError>) {
         Ok(_) => {
             println!("write successful");
         }
-        Err(rodbus::error::RequestError::Exception(exception)) => {
+        Err(rodbus::RequestError::Exception(exception)) => {
             println!("Modbus exception: {}", exception);
         }
         Err(err) => println!("writer error: {}", err),

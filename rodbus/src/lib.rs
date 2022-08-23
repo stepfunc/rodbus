@@ -4,11 +4,11 @@
 //! # Features
 //!
 //! * Panic-free parsing
-//! * Focus on maximal correctness and compliance to the specification
+//! * Correctness and compliance to the specification
 //! * Automatic connection management with configurable reconnect strategy
 //! * Scalable performance using Tokio's multi-threaded executor
 //! * async (futures) and callback based API modes
-//! * Automatically generated bindings for C, Java, and .NET
+//! * Automatically generated bindings for C, C++, Java, and .NET
 //!
 //! # Supported modes
 //!
@@ -28,7 +28,7 @@
 //!
 //! # Future support
 //!
-//! * Additional function code support
+//! * Additional function code support as requested by customers
 //!
 //! # Example Client
 //!
@@ -53,6 +53,8 @@
 //!        DecodeLevel::default(),
 //!        None
 //!    );
+//!
+//!    channel.enable().await?;
 //!
 //!    let param = RequestParam::new(
 //!        UnitId::new(0x02),
@@ -194,26 +196,26 @@ pub mod client;
 /// Public constant values related to the Modbus specification
 pub mod constants;
 
-/// Error types associated with making requests
-pub mod error;
-/// Serial (RTU) API
-#[cfg(feature = "serial")]
-pub mod serial;
 /// Server API
 pub mod server;
 
 // modules that are re-exported
 pub(crate) mod decode;
+pub(crate) mod error;
 pub(crate) mod exception;
 pub(crate) mod maybe_async;
+#[cfg(feature = "serial")]
+mod serial;
 pub(crate) mod types;
 
 // re-exports
 pub use crate::decode::*;
+pub use crate::error::*;
 pub use crate::exception::*;
 pub use crate::maybe_async::*;
+#[cfg(feature = "serial")]
+pub use crate::serial::*;
 pub use crate::types::*;
-pub use error::RequestError;
 
 // internal modules
 mod common;

@@ -1,22 +1,22 @@
 use rodbus::client::ReconnectStrategy;
-use rodbus::error::Shutdown;
 use rodbus::server::Authorization;
 use rodbus::AddressRange;
+use rodbus::Shutdown;
 
 use crate::ffi;
 
-impl From<rodbus::error::RequestError> for ffi::RequestError {
-    fn from(err: rodbus::error::RequestError) -> Self {
+impl From<rodbus::RequestError> for ffi::RequestError {
+    fn from(err: rodbus::RequestError) -> Self {
         match err {
-            rodbus::error::RequestError::Internal(_) => ffi::RequestError::InternalError,
-            rodbus::error::RequestError::NoConnection => ffi::RequestError::NoConnection,
-            rodbus::error::RequestError::BadFrame(_) => ffi::RequestError::BadFraming,
-            rodbus::error::RequestError::Shutdown => ffi::RequestError::Shutdown,
-            rodbus::error::RequestError::ResponseTimeout => ffi::RequestError::ResponseTimeout,
-            rodbus::error::RequestError::BadRequest(_) => ffi::RequestError::BadRequest,
-            rodbus::error::RequestError::Exception(ex) => ex.into(),
-            rodbus::error::RequestError::Io(_) => ffi::RequestError::IoError,
-            rodbus::error::RequestError::BadResponse(_) => ffi::RequestError::BadResponse,
+            rodbus::RequestError::Internal(_) => ffi::RequestError::InternalError,
+            rodbus::RequestError::NoConnection => ffi::RequestError::NoConnection,
+            rodbus::RequestError::BadFrame(_) => ffi::RequestError::BadFraming,
+            rodbus::RequestError::Shutdown => ffi::RequestError::Shutdown,
+            rodbus::RequestError::ResponseTimeout => ffi::RequestError::ResponseTimeout,
+            rodbus::RequestError::BadRequest(_) => ffi::RequestError::BadRequest,
+            rodbus::RequestError::Exception(ex) => ex.into(),
+            rodbus::RequestError::Io(_) => ffi::RequestError::IoError,
+            rodbus::RequestError::BadResponse(_) => ffi::RequestError::BadResponse,
         }
     }
 }
@@ -76,29 +76,29 @@ impl From<AddressRange> for ffi::AddressRange {
 }
 
 #[cfg(feature = "serial")]
-impl From<ffi::SerialPortSettings> for rodbus::serial::SerialSettings {
+impl From<ffi::SerialPortSettings> for rodbus::SerialSettings {
     fn from(from: ffi::SerialPortSettings) -> Self {
         Self {
             baud_rate: from.baud_rate(),
             data_bits: match from.data_bits() {
-                ffi::DataBits::Five => rodbus::serial::DataBits::Five,
-                ffi::DataBits::Six => rodbus::serial::DataBits::Six,
-                ffi::DataBits::Seven => rodbus::serial::DataBits::Seven,
-                ffi::DataBits::Eight => rodbus::serial::DataBits::Eight,
+                ffi::DataBits::Five => rodbus::DataBits::Five,
+                ffi::DataBits::Six => rodbus::DataBits::Six,
+                ffi::DataBits::Seven => rodbus::DataBits::Seven,
+                ffi::DataBits::Eight => rodbus::DataBits::Eight,
             },
             flow_control: match from.flow_control() {
-                ffi::FlowControl::None => rodbus::serial::FlowControl::None,
-                ffi::FlowControl::Software => rodbus::serial::FlowControl::Software,
-                ffi::FlowControl::Hardware => rodbus::serial::FlowControl::Hardware,
+                ffi::FlowControl::None => rodbus::FlowControl::None,
+                ffi::FlowControl::Software => rodbus::FlowControl::Software,
+                ffi::FlowControl::Hardware => rodbus::FlowControl::Hardware,
             },
             parity: match from.parity() {
-                ffi::Parity::None => rodbus::serial::Parity::None,
-                ffi::Parity::Odd => rodbus::serial::Parity::Odd,
-                ffi::Parity::Even => rodbus::serial::Parity::Even,
+                ffi::Parity::None => rodbus::Parity::None,
+                ffi::Parity::Odd => rodbus::Parity::Odd,
+                ffi::Parity::Even => rodbus::Parity::Even,
             },
             stop_bits: match from.stop_bits() {
-                ffi::StopBits::One => rodbus::serial::StopBits::One,
-                ffi::StopBits::Two => rodbus::serial::StopBits::Two,
+                ffi::StopBits::One => rodbus::StopBits::One,
+                ffi::StopBits::Two => rodbus::StopBits::Two,
             },
         }
     }
@@ -156,7 +156,7 @@ impl From<ffi::RetryStrategy> for Box<dyn ReconnectStrategy + Send> {
     }
 }
 
-impl From<rodbus::error::Shutdown> for ffi::ParamError {
+impl From<rodbus::Shutdown> for ffi::ParamError {
     fn from(_: Shutdown) -> Self {
         ffi::ParamError::Shutdown
     }
