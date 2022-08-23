@@ -78,6 +78,7 @@ jobs:
         with:
           profile: minimal
           toolchain: stable
+          components: doc
           override: true
       - name: Install doxygen 1.9.3
         run: wget -q https://www.doxygen.nl/files/doxygen-1.9.3.linux.bin.tar.gz -O- | sudo tar --strip-components=1 -C /usr -xz doxygen-1.9.3
@@ -88,6 +89,8 @@ jobs:
         with:
           command: build
           args: --release
+      - name: Build Rustdoc
+        run: cargo doc -p rodbus --no-deps
       - name: C bindings
         uses: actions-rs/cargo@v1
         with:
@@ -106,6 +109,8 @@ jobs:
       - name: Extract documentation
         run: |
           mkdir -p ~/doc
+          cp -a
+          cp -a target/doc/rodbus ~/doc/rust
           cp -a ffi/bindings/c/generated/doc/c ~/doc/c
           cp -a ffi/bindings/c/generated/doc/cpp ~/doc/cpp
           cp -a ffi/bindings/dotnet/rodbus/doc ~/doc/dotnet
