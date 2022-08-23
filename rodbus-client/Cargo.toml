@@ -14,7 +14,7 @@ name = "rodbus-client"
 path = "src/main.rs"
 
 [dependencies]
-rodbus = { path = "../rodbus", version = "1.0.0-alpha9" }
+rodbus = { path = "../rodbus", version = "1.0.0-alpha9", default-features = false }
 clap = "2.33"
 tokio = { version = "1", features = ["macros", "time"] }
 tracing = "0.1"

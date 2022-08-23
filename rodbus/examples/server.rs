@@ -186,7 +186,7 @@ async fn run_rtu() -> Result<(), Box<dyn std::error::Error>> {
     // ANCHOR: rtu_server_create
     let server = rodbus::server::spawn_rtu_server_task(
         "/dev/ttySIM1",
-        rodbus::serial::SerialSettings::default(),
+        rodbus::SerialSettings::default(),
         map,
         DecodeLevel::new(
             AppDecodeLevel::DataValues,

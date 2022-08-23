@@ -75,7 +75,7 @@ impl From<AddressRange> for ffi::AddressRange {
     }
 }
 
-#[cfg(feature = "tls")]
+#[cfg(feature = "serial")]
 impl From<ffi::SerialPortSettings> for rodbus::SerialSettings {
     fn from(from: ffi::SerialPortSettings) -> Self {
         Self {

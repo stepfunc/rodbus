@@ -242,7 +242,7 @@ pub(crate) unsafe fn device_map_create() -> *mut DeviceMap {
 
 pub(crate) unsafe fn device_map_destroy(map: *mut DeviceMap) {
     if !map.is_null() {
-        Box::from_raw(map);
+        drop(Box::from_raw(map));
     }
 }
 
@@ -506,7 +506,7 @@ pub(crate) unsafe fn server_create_tls_impl(
 
 pub(crate) unsafe fn server_destroy(server: *mut crate::Server) {
     if !server.is_null() {
-        Box::from_raw(server);
+        drop(Box::from_raw(server));
     }
 }
 
@@ -604,7 +604,7 @@ pub unsafe fn address_filter_add(
 
 pub unsafe fn address_filter_destroy(address_filter: *mut AddressFilter) {
     if !address_filter.is_null() {
-        Box::from_raw(address_filter);
+        drop(Box::from_raw(address_filter));
     }
 }
 

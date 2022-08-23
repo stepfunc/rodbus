@@ -6,6 +6,7 @@ pub fn main() {
 
     let builder_settings = ci_script::BindingBuilderSettings {
         ffi_target_name: "rodbus-ffi",
+        jni_target_name: "rodbus-ffi-java",
         ffi_name: "rodbus_ffi",
         ffi_path: PathBuf::from("ffi/rodbus-ffi"),
         java_group_id: "io.stepfunc",
