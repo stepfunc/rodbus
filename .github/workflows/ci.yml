@@ -78,7 +78,6 @@ jobs:
         with:
           profile: minimal
           toolchain: stable
-          components: doc
           override: true
       - name: Install doxygen 1.9.3
         run: wget -q https://www.doxygen.nl/files/doxygen-1.9.3.linux.bin.tar.gz -O- | sudo tar --strip-components=1 -C /usr -xz doxygen-1.9.3
