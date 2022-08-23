@@ -1,5 +1,5 @@
 [package]
-name = "rodbus_ffi_java"
+name = "rodbus-ffi-java"
 version = "1.0.0-alpha9"
 authors = ["Step Function I/O LLC <info@stepfunc.io>"]
 edition = "2021"
@@ -19,4 +19,4 @@ tls = ["rodbus-ffi/tls"]
 
 [build-dependencies]
 rodbus-schema = { path = "../rodbus-schema" }
-java-oo-bindgen = { git = "https://github.com/stepfunc/oo_bindgen.git", tag = "0.2.1" }
+java-oo-bindgen = { git = "https://github.com/stepfunc/oo_bindgen.git", tag = "0.3.0" }

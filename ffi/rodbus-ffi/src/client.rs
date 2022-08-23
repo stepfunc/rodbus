@@ -164,7 +164,7 @@ pub(crate) unsafe fn client_channel_create_tls(
 
 pub(crate) unsafe fn client_channel_destroy(channel: *mut crate::ClientChannel) {
     if !channel.is_null() {
-        Box::from_raw(channel);
+        drop(Box::from_raw(channel));
     };
 }
 

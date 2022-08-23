@@ -18,7 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
       - name: Install Rust ${{ matrix.rust }}
         uses: actions-rs/toolchain@v1
         with:
@@ -36,45 +36,6 @@ jobs:
         with:
           command: clippy
           args: -- -D warnings
-  # Check dependencies
-  dependencies:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v2
-        with:
-          path: rodbus
-      - name: Checkout complicense
-        uses: actions/checkout@v2
-        with:
-          repository: stepfunc/complicense
-          path: complicense
-      - name: Install Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          override: true
-      - name: Caching
-        uses: Swatinem/rust-cache@v1
-      - name: Install cargo-license
-        uses: actions-rs/cargo@v1
-        with:
-          command: install
-          args: cargo-license
-      - name: Generate dependencies.json
-        working-directory: rodbus/rodbus
-        run: cargo-license --avoid-dev-deps --avoid-build-deps -j > ../dependencies.json
-      - name: Generate dependencies.txt
-        working-directory: complicense
-        run: cargo run -- --import ../rodbus/dependencies.json --config ../rodbus/deps-config.json --token ${{ github.token }} > ../rodbus/dependencies.txt
-      - name: Upload dependencies info
-        uses: actions/upload-artifact@v2
-        with:
-          name: dependencies
-          path: |
-            rodbus/dependencies.json
-            rodbus/dependencies.txt
   # Run the unit tests on Windows and Linux
   test:
     strategy:
@@ -89,7 +50,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
       - name: Install Rust ${{ matrix.rust }}
         uses: actions-rs/toolchain@v1
         with:
@@ -101,7 +62,7 @@ jobs:
         shell: pwsh
         run: Copy-Item -Path .cargo/config-windows.toml -Destination .cargo/config.toml
       - name: Caching
-        uses: Swatinem/rust-cache@v1
+        uses: Swatinem/rust-cache@v2
       - name: Run Rust unit tests
         uses: actions-rs/cargo@v1
         with:
@@ -111,7 +72,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
       - name: Install Rust
         uses: actions-rs/toolchain@v1
         with:
@@ -121,7 +82,7 @@ jobs:
       - name: Install doxygen 1.9.3
         run: wget -q https://www.doxygen.nl/files/doxygen-1.9.3.linux.bin.tar.gz -O- | sudo tar --strip-components=1 -C /usr -xz doxygen-1.9.3
       - name: Caching
-        uses: Swatinem/rust-cache@v1
+        uses: Swatinem/rust-cache@v2
       - name: Build
         uses: actions-rs/cargo@v1
         with:
@@ -168,7 +129,7 @@ jobs:
             extra-params: --no-tests
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
       - name: Install Rust
         uses: actions-rs/toolchain@v1
         with:
@@ -179,17 +140,25 @@ jobs:
         shell: pwsh
         run: Copy-Item -Path .cargo/config-windows.toml -Destination .cargo/config.toml
       - name: Caching
-        uses: Swatinem/rust-cache@v1
-      - name: Build
-        uses: actions-rs/cargo@v1
+        uses: Swatinem/rust-cache@v2
+      - name: Create log dir
+        run: mkdir logs\${{ matrix.target }}
+      - name: Build FFI
+        run: cargo build -p rodbus-ffi --release --target ${{ matrix.target }} --message-format json | Out-File -encoding "UTF8" .\logs\${{ matrix.target }}\build.ffi.log
+      - name: Build JNI
+        run: cargo build -p rodbus-ffi-java --release --target ${{ matrix.target }} --message-format json | Out-File -encoding "UTF8" .\logs\${{ matrix.target }}\build.jni.log
+      - name: Upload Build Logs
+        uses: actions/upload-artifact@v3
         with:
-          command: build
-          args: --release
+          name: ffi-modules
+          path: logs
       - name: C bindings
         uses: actions-rs/cargo@v1
         with:
           command: run
           args: --release --target ${{ matrix.target }} --bin rodbus-bindings -- --c ${{ matrix.extra-params }}
+#      - name: Copy FFI build log
+#        run: cp build.ffi.log ffi/bindings/c/generated/${{ matrix.target }}/lib/${{ matrix.target }}/
       - name: .NET bindings
         uses: actions-rs/cargo@v1
         with:
@@ -200,18 +169,20 @@ jobs:
         with:
           command: run
           args: --release --target ${{ matrix.target }} --bin rodbus-bindings -- --java ${{ matrix.extra-params }}
+#      - name: Copy JNI build log
+#        run: cp build.jni.log ffi/bindings/java/rodbus/src/main/resources/${{ matrix.target }}
       - name: Upload compiled FFI modules
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: ffi-modules
           path: ffi/bindings/c/generated/${{ matrix.target }}/lib
       - name: Upload C bindings
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: c-bindings
           path: ffi/bindings/c/generated
       - name: Upload compiled Java bindings
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: ffi-modules
           path: ffi/bindings/java/rodbus/src/main/resources
@@ -220,7 +191,7 @@ jobs:
     runs-on: macos-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
       - name: Install Rust
         uses: actions-rs/toolchain@v1
         with:
@@ -228,12 +199,23 @@ jobs:
           toolchain: stable
           override: true
       - name: Caching
-        uses: Swatinem/rust-cache@v1
+        uses: Swatinem/rust-cache@v2
       - name: Build
         uses: actions-rs/cargo@v1
         with:
           command: build
           args: --release
+      - name: Create Log Dir
+        run: mkdir -p logs/x86_64-apple-darwin
+      - name: Build FFI
+        run: cargo build -p rodbus-ffi --release --message-format json > logs/x86_64-apple-darwin/build.ffi.log
+      - name: Build JNI
+        run: cargo build -p rodbus-ffi-java --release --message-format json > logs/x86_64-apple-darwin/build.jni.log
+      - name: Upload Build Logs
+        uses: actions/upload-artifact@v3
+        with:
+          name: ffi-modules
+          path: logs
       - name: C bindings
         uses: actions-rs/cargo@v1
         with:
@@ -278,7 +260,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
       - name: Install Rust
         uses: actions-rs/toolchain@v1
         with:
@@ -286,12 +268,19 @@ jobs:
           toolchain: stable
           target: ${{ matrix.target }}
           override: true
-      - name: Build
-        uses: actions-rs/cargo@v1
+      - name: Install Rust Cross
+        run: cargo install cross
+      - name: Create Log Dir
+        run: mkdir -p logs/${{ matrix.target }}
+      - name: Build FFI
+        run: cross build -p rodbus-ffi --release --target ${{ matrix.target }} --message-format json > logs/${{ matrix.target }}/build.ffi.log
+      - name: Build JNI
+        run: cross build -p rodbus-ffi-java --release --target ${{ matrix.target }} --message-format json > logs/${{ matrix.target }}/build.jni.log
+      - name: Upload Build Logs
+        uses: actions/upload-artifact@v3
         with:
-          use-cross: true
-          command: build
-          args: --release --target ${{ matrix.target }}
+          name: ffi-modules
+          path: logs
       - name: C bindings
         uses: actions-rs/cargo@v1
         with:
@@ -305,17 +294,17 @@ jobs:
           command: run
           args: --release --target ${{ matrix.target }} --bin rodbus-bindings -- --java --no-tests
       - name: Upload compiled Java bindings
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: ffi-modules
           path: ffi/bindings/java/rodbus/src/main/resources
       - name: Upload compiled FFI modules
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: ffi-modules
           path: ffi/bindings/c/generated/${{ matrix.target }}/lib
       - name: Upload C bindings
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: c-bindings
           path: ffi/bindings/c/generated
@@ -323,7 +312,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
       - name: Install dependencies
         working-directory: guide
         run: yarn install
@@ -340,11 +329,9 @@ jobs:
           path: ~/doc
   # Package all the generated bindings
   packaging:
-    needs: [dependencies, documentation, bindings-windows, bindings-macos, cross]
+    needs: [documentation, bindings-windows, bindings-macos, cross]
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v2
       - name: Install Rust
         uses: actions-rs/toolchain@v1
         with:
@@ -352,21 +339,37 @@ jobs:
           toolchain: stable
           override: true
       - name: Caching
-        uses: Swatinem/rust-cache@v1
-      - name: Download dependencies
-        uses: actions/download-artifact@v2
+        uses: Swatinem/rust-cache@v2
+      - name: Checkout BOM tools repo
+        uses: actions/checkout@v3
         with:
-          name: dependencies
+          repository: stepfunc/bom-tools
+          ref: 0.1.0
+          path: bom-tools
+      - name: Install BOM tools
+        working-directory: bom-tools
+        run: cargo install --path bom-tools
+      - name: Checkout
+        uses: actions/checkout@v3
       - name: Download compiled FFI
         uses: actions/download-artifact@v2
         with:
           name: ffi-modules
           path: ffi-modules
-      - name: Package all bindings
+      - name: Create FFI third-party-licenses.txt
+        run: bom-tools gen-licenses-dir ./ffi-modules build.ffi.log ./dep_config.json > third-party-licenses.txt
+      - name: Package .NET bindings
         uses: actions-rs/cargo@v1
         with:
           command: run
-          args: --bin rodbus-bindings -- --package ./ffi-modules -f dependencies.txt
+          args: --bin rodbus-bindings -- --dotnet --package ./ffi-modules -f third-party-licenses.txt
+      - name: Create JNI third-party-licenses.txt
+        run: bom-tools gen-licenses-dir ./ffi-modules build.jni.log ./dep_config.json > third-party-licenses.txt
+      - name: Package Java bindings
+        uses: actions-rs/cargo@v1
+        with:
+          command: run
+          args: --bin rodbus-bindings -- --java --package ./ffi-modules -f third-party-licenses.txt
       - name: Upload .NET bindings
         uses: actions/upload-artifact@v2
         with:
@@ -392,7 +395,7 @@ jobs:
         with:
           path: artifacts
       - name: Checkout stepfunc/docs
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           repository: stepfunc/docs
           ssh-key: ${{ secrets.SFIO_DOCS_SSH_KEY }}
@@ -440,7 +443,5 @@ jobs:
             release/*.zip
             artifacts/dotnet-bindings/rodbus*
             artifacts/java-bindings/*.jar
-            artifacts/dependencies/dependencies.txt
-            artifacts/dependencies/dependencies.json
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
