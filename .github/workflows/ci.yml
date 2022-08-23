@@ -108,7 +108,6 @@ jobs:
       - name: Extract documentation
         run: |
           mkdir -p ~/doc
-          cp -a
           cp -a target/doc/rodbus ~/doc/rust
           cp -a ffi/bindings/c/generated/doc/c ~/doc/c
           cp -a ffi/bindings/c/generated/doc/cpp ~/doc/cpp
