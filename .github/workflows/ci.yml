@@ -332,8 +332,6 @@ jobs:
     needs: [documentation, bindings-windows, bindings-macos, cross]
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v3
       - name: Install Rust
         uses: actions-rs/toolchain@v1
         with:
@@ -342,16 +340,28 @@ jobs:
           override: true
       - name: Caching
         uses: Swatinem/rust-cache@v2
+      - name: Checkout BOM tools repo
+        uses: actions/checkout@v3
+        with:
+          repository: https://github.com/stepfunc/bom-tools.git
+          path: bom-tools
+      - name: Install BOM tools
+        working-directory: bom-tools
+        run: cargo install --path bom-tools
+      - name: Checkout
+        uses: actions/checkout@v3
       - name: Download compiled FFI
         uses: actions/download-artifact@v2
         with:
           name: ffi-modules
           path: ffi-modules
+      - name: Create FFI licenses.txt
+        run: bom-tools gen-licenses-dir .\ffi-modules\ build.ffi.log .\dep_config.json > licenses.txt
       - name: Package all bindings
         uses: actions-rs/cargo@v1
         with:
           command: run
-          args: --bin rodbus-bindings -- --package ./ffi-modules
+          args: --bin rodbus-bindings -- --package ./ffi-modules -f licenses.txt
       - name: Upload .NET bindings
         uses: actions/upload-artifact@v2
         with:
