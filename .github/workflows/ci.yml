@@ -343,7 +343,7 @@ jobs:
       - name: Checkout BOM tools repo
         uses: actions/checkout@v3
         with:
-          repository: https://github.com/stepfunc/bom-tools.git
+          repository: stepfunc/bom-tools
           path: bom-tools
       - name: Install BOM tools
         working-directory: bom-tools
