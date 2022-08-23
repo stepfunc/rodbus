@@ -344,6 +344,7 @@ jobs:
         uses: actions/checkout@v3
         with:
           repository: stepfunc/bom-tools
+          ref: 0.1.0
           path: bom-tools
       - name: Install BOM tools
         working-directory: bom-tools
