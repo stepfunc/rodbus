@@ -85,6 +85,11 @@ pub(crate) fn build_server(
             "Serial port settings",
         )?
         .param(
+            "port_retry_delay",
+            DurationType::Milliseconds,
+            "How long to wait before re-opening the serial port",
+        )?
+        .param(
             "endpoints",
             handler_map.declaration.clone(),
             "map of endpoints which is emptied upon passing to this function",

@@ -1,6 +1,6 @@
 [package]
 name = "rodbus-ffi"
-version = "1.0.0-alpha9"
+version = "1.0.0-alpha10"
 authors = ["Step Function I/O LLC <info@stepfunc.io>"]
 edition = "2021"
 description = "FFI for Rodbus"

@@ -169,7 +169,7 @@ public class ServerExample {
 
     private static Server createRtuServer(Runtime runtime, DeviceMap map) {
         // ANCHOR: rtu_server_create
-        Server server = Server.createRtu(runtime, "/dev/ttySIM1", new SerialPortSettings(), map, DecodeLevel.nothing());
+        Server server = Server.createRtu(runtime, "/dev/ttySIM1", new SerialPortSettings(), Duration.ofSeconds(3), map, DecodeLevel.nothing());
         // ANCHOR_END: rtu_server_create
 
         return server;

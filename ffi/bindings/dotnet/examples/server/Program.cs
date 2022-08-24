@@ -196,7 +196,7 @@ namespace example
         private static Server CreateRtuServer(Runtime runtime, DeviceMap map)
         {
             // ANCHOR: rtu_server_create            
-            var server = Server.CreateRtu(runtime, "/dev/ttySIM1", new SerialPortSettings(), map, DecodeLevel.Nothing());
+            var server = Server.CreateRtu(runtime, "/dev/ttySIM1", new SerialPortSettings(), TimeSpan.FromSeconds(3), map, DecodeLevel.Nothing());
             // ANCHOR_END: rtu_server_create
 
             return server;

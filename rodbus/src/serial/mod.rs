@@ -3,6 +3,7 @@ pub use tokio_serial::{DataBits, FlowControl, Parity, StopBits};
 
 pub(crate) mod client;
 pub(crate) mod frame;
+pub(crate) mod server;
 
 /// serial port settings
 #[derive(Copy, Clone, Debug)]
