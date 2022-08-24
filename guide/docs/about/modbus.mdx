@@ -12,11 +12,9 @@ it very popular in numerous applications. The standard itself is freely availabl
 and serial communication, and more recently, has been defined for secure operation over TLS. Modbus is sometimes referred to as "Modicon Modbus" or just
 "Modicon" for historical reasons.
 
-Modbus is a simple request-response protocol, and the server component is completely stateless. This simplicity however frequently means that the application
-has more responsibilities than stateful protocols such as DNP3 (IEEE-1815).
-
-A client issues a request to the server, then the server performs the action and returns the matching response or an exception code. Clients and servers are
-sometimes known as "masters" and "slaves" in older documents.
+Modbus is a simple request-response protocol, and the server component is completely stateless. A client issues a request to the server, then the server
+performs the action and returns the matching response or an exception code. Clients and servers are referred to as "masters" and "slaves" in the specification
+and older documents, however, we avoid this terminology in our documentation.
 
 ```mermaid
 sequenceDiagram
