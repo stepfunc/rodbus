@@ -103,6 +103,7 @@ pub async fn spawn_tcp_server_task<T: RequestHandler>(
 pub fn spawn_rtu_server_task<T: RequestHandler>(
     path: &str,
     settings: crate::serial::SerialSettings,
+    port_retry_delay: Duration,
     handlers: ServerHandlerMap<T>,
     decode: DecodeLevel,
 ) -> Result<ServerHandle, std::io::Error> {
@@ -118,7 +119,7 @@ pub fn spawn_rtu_server_task<T: RequestHandler>(
 
     let mut rtu = crate::serial::server::RtuServerTask {
         port: path.to_string(),
-        port_retry_delay: Duration::from_secs(3), // TODO
+        port_retry_delay,
         settings,
         session,
     };

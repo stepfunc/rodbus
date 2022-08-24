@@ -28,6 +28,11 @@ where
                     if let RequestError::Shutdown = self.session.run(&mut phys).await {
                         return Shutdown;
                     }
+                    // we wait here to prevent any kind of rapid retry scenario if the port opens and immediately fails
+                    tracing::warn!("waiting {:?} to reopen port", self.port_retry_delay);
+                    if let Err(Shutdown) = self.session.sleep_for(self.port_retry_delay).await {
+                        return Shutdown;
+                    }
                 }
                 Err(err) => {
                     tracing::warn!(

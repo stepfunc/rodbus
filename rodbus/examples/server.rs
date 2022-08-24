@@ -1,4 +1,5 @@
 use std::process::exit;
+use std::time::Duration;
 
 use tokio_stream::StreamExt;
 use tokio_util::codec::{FramedRead, LinesCodec};
@@ -187,6 +188,7 @@ async fn run_rtu() -> Result<(), Box<dyn std::error::Error>> {
     let server = rodbus::server::spawn_rtu_server_task(
         "/dev/ttySIM1",
         rodbus::SerialSettings::default(),
+        Duration::from_secs(3),
         map,
         DecodeLevel::new(
             AppDecodeLevel::DataValues,

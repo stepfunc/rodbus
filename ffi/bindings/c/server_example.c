@@ -219,7 +219,7 @@ int run_rtu_channel(rodbus_runtime_t* runtime)
     rodbus_server_t* server = NULL;
     rodbus_device_map_t* map = build_device_map();
     rodbus_decode_level_t decode_level = rodbus_decode_level_nothing();
-    rodbus_param_error_t err = rodbus_server_create_rtu(runtime, "/dev/ttySIM1", rodbus_serial_port_settings_init(), map, decode_level, &server);
+    rodbus_param_error_t err = rodbus_server_create_rtu(runtime, "/dev/ttySIM1", rodbus_serial_port_settings_init(), 3000, map, decode_level, &server);
     rodbus_device_map_destroy(map);
 
     if (err) {

@@ -329,6 +329,7 @@ pub(crate) unsafe fn server_create_rtu(
     runtime: *mut crate::Runtime,
     path: &std::ffi::CStr,
     serial_params: ffi::SerialPortSettings,
+    port_retry_delay: std::time::Duration,
     endpoints: *mut crate::DeviceMap,
     decode_level: ffi::DecodeLevel,
 ) -> Result<*mut crate::Server, ffi::ParamError> {
@@ -342,6 +343,7 @@ pub(crate) unsafe fn server_create_rtu(
     let handle = rodbus::server::spawn_rtu_server_task(
         &path.to_string_lossy(),
         serial_params.into(),
+        port_retry_delay,
         handler_map.clone(),
         decode_level.into(),
     )
