@@ -1,4 +1,5 @@
 use std::net::SocketAddr;
+use std::time::Duration;
 
 use tracing::Instrument;
 
@@ -105,24 +106,29 @@ pub fn spawn_rtu_server_task<T: RequestHandler>(
     handlers: ServerHandlerMap<T>,
     decode: DecodeLevel,
 ) -> Result<ServerHandle, std::io::Error> {
-    let serial = crate::serial::open(path, settings)?;
-
     let (tx, rx) = tokio::sync::mpsc::channel(SERVER_SETTING_CHANNEL_CAPACITY);
+    let session = crate::server::task::SessionTask::new(
+        handlers,
+        crate::server::task::AuthorizationType::None,
+        crate::common::frame::FrameWriter::rtu(),
+        crate::common::frame::FramedReader::rtu_request(),
+        rx,
+        decode,
+    );
 
-    let mut phys = crate::common::phys::PhysLayer::new_serial(serial);
+    let mut rtu = crate::serial::server::RtuServerTask {
+        port: path.to_string(),
+        port_retry_delay: Duration::from_secs(3), // TODO
+        settings,
+        session,
+    };
+
     let path = path.to_string();
+
     let task = async move {
-        crate::server::task::SessionTask::new(
-            handlers,
-            crate::server::task::AuthorizationType::None,
-            crate::common::frame::FrameWriter::rtu(),
-            crate::common::frame::FramedReader::rtu_request(),
-            rx,
-            decode,
-        )
-        .run(&mut phys)
-        .instrument(tracing::info_span!("Modbus-Server-RTU", "port" = ?path))
-        .await
+        rtu.run()
+            .instrument(tracing::info_span!("Modbus-Server-RTU", "port" = ?path))
+            .await
     };
 
     tokio::spawn(task);

@@ -12,6 +12,7 @@ use crate::exception::ExceptionCode;
 use crate::server::handler::{RequestHandler, ServerHandlerMap};
 use crate::server::request::{Request, RequestDisplay};
 use std::sync::Arc;
+use std::time::Duration;
 
 /// Messages that can be sent to change server settings dynamically
 #[derive(Copy, Clone)]
@@ -84,6 +85,26 @@ where
             if let Err(err) = self.run_one(io).await {
                 tracing::warn!("session error: {}", err);
                 return err;
+            }
+        }
+    }
+
+    pub(crate) async fn sleep_for(&mut self, duration: Duration) -> Result<(), Shutdown> {
+        match tokio::time::timeout(duration, self.process_settings()).await {
+            // mpsc closed
+            Ok(_) => Err(Shutdown),
+            // timeout elapsed
+            Err(_) => Ok(()),
+        }
+    }
+
+    async fn process_settings(&mut self) -> Shutdown {
+        loop {
+            match self.commands.recv().await {
+                None => return Shutdown,
+                Some(setting) => {
+                    self.apply_setting(setting);
+                }
             }
         }
     }
