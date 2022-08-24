@@ -59,21 +59,17 @@ module.exports = {
             },
             {
               label: 'Homepage',
-              href: 'https://stepfunc.io/products/libraries/dnp3/',
+              href: 'https://stepfunc.io/products/libraries/modbus/',
             },
           ],
         },
         {
-          title: 'DNP3',
+          title: 'Modbus',
           items: [
             {
-              label: 'User Group',
-              to: 'https://dnp.org',
-            },
-            {
-              label: 'IEEE 1815-2012',
-              to: 'https://standards.ieee.org/standard/1815-2012.html',
-            },
+              label: 'Modbus.org',
+              to: 'https://modbus.org/',
+            }
           ],
         },
       ],

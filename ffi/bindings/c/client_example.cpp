@@ -12,7 +12,7 @@ class Logger : public rodbus::Logger {
         std::cout << message;
     }
 };
-/// ANCHOR_END: client_state_callback
+/// ANCHOR_END: logging_callback
 
 /// ANCHOR: client_state_callback
 class PrintingClientStateListener : public rodbus::ClientStateListener {
