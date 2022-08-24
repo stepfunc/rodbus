@@ -23,7 +23,6 @@ pub(crate) struct SessionTask<T>
 where
     T: RequestHandler,
 {
-    io: PhysLayer,
     handlers: ServerHandlerMap<T>,
     auth: AuthorizationType,
     commands: tokio::sync::mpsc::Receiver<ServerSetting>,
@@ -37,7 +36,6 @@ where
     T: RequestHandler,
 {
     pub(crate) fn new(
-        io: PhysLayer,
         handlers: ServerHandlerMap<T>,
         auth: AuthorizationType,
         writer: FrameWriter,
@@ -46,7 +44,6 @@ where
         decode: DecodeLevel,
     ) -> Self {
         Self {
-            io,
             handlers,
             auth,
             commands,
@@ -58,16 +55,18 @@ where
 
     async fn reply_with_error(
         &mut self,
+        io: &mut PhysLayer,
         header: FrameHeader,
         func: FunctionCode,
         ex: ExceptionCode,
     ) -> Result<(), RequestError> {
-        self.reply_with_error_generic(header, FunctionField::Exception(func), ex)
+        self.reply_with_error_generic(io, header, FunctionField::Exception(func), ex)
             .await
     }
 
     async fn reply_with_error_generic(
         &mut self,
+        io: &mut PhysLayer,
         header: FrameHeader,
         func: FunctionField,
         ex: ExceptionCode,
@@ -75,25 +74,25 @@ where
         // do not answer on broadcast
         if header.destination != FrameDestination::Broadcast {
             let bytes = self.writer.format_ex(header, func, ex, self.decode)?;
-            self.io.write(bytes, self.decode.physical).await?;
+            io.write(bytes, self.decode.physical).await?;
         }
         Ok(())
     }
 
-    pub(crate) async fn run(&mut self) -> RequestError {
+    pub(crate) async fn run(&mut self, io: &mut PhysLayer) -> RequestError {
         loop {
-            if let Err(err) = self.run_one().await {
+            if let Err(err) = self.run_one(io).await {
                 tracing::warn!("session error: {}", err);
                 return err;
             }
         }
     }
 
-    async fn run_one(&mut self) -> Result<(), RequestError> {
+    async fn run_one(&mut self, io: &mut PhysLayer) -> Result<(), RequestError> {
         tokio::select! {
-            frame = self.reader.next_frame(&mut self.io, self.decode) => {
+            frame = self.reader.next_frame(io, self.decode) => {
                 let frame = frame?;
-                self.handle_frame(frame).await
+                self.handle_frame(io, frame).await
             }
             cmd = self.commands.recv() => {
                match cmd {
@@ -115,7 +114,7 @@ where
         }
     }
 
-    async fn handle_frame(&mut self, frame: Frame) -> Result<(), RequestError> {
+    async fn handle_frame(&mut self, io: &mut PhysLayer, frame: Frame) -> Result<(), RequestError> {
         let mut cursor = ReadCursor::new(frame.payload());
 
         let function = match cursor.read_u8() {
@@ -129,6 +128,7 @@ where
                     tracing::warn!("received unknown function code: {}", value);
                     return self
                         .reply_with_error_generic(
+                            io,
                             frame.header,
                             FunctionField::unknown(value),
                             ExceptionCode::IllegalFunction,
@@ -143,7 +143,7 @@ where
             Err(err) => {
                 tracing::warn!("error parsing {:?} request: {}", function, err);
                 return self
-                    .reply_with_error(frame.header, function, ExceptionCode::IllegalDataValue)
+                    .reply_with_error(io, frame.header, function, ExceptionCode::IllegalDataValue)
                     .await;
             }
         };
@@ -162,6 +162,7 @@ where
         {
             if !frame.header.destination.is_broadcast() {
                 self.reply_with_error(
+                    io,
                     frame.header,
                     request.get_function(),
                     ExceptionCode::IllegalFunction,
@@ -188,7 +189,7 @@ where
                     &mut self.writer,
                     self.decode,
                 )?;
-                self.io.write(reply, self.decode.physical).await?;
+                io.write(reply, self.decode.physical).await?;
             }
             FrameDestination::Broadcast => match request.into_broadcast_request() {
                 None => {

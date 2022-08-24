@@ -239,9 +239,8 @@ async fn run_session<T: RequestHandler>(
         Err(err) => {
             tracing::warn!("error from {}: {}", addr, err);
         }
-        Ok((phys, auth)) => {
+        Ok((mut phys, auth)) => {
             let _ = crate::server::task::SessionTask::new(
-                phys,
                 handlers,
                 auth,
                 FrameWriter::tcp(),
@@ -249,7 +248,7 @@ async fn run_session<T: RequestHandler>(
                 commands,
                 decode,
             )
-            .run()
+            .run(&mut phys)
             .await;
         }
     }

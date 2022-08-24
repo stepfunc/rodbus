@@ -109,11 +109,10 @@ pub fn spawn_rtu_server_task<T: RequestHandler>(
 
     let (tx, rx) = tokio::sync::mpsc::channel(SERVER_SETTING_CHANNEL_CAPACITY);
 
-    let phys = crate::common::phys::PhysLayer::new_serial(serial);
+    let mut phys = crate::common::phys::PhysLayer::new_serial(serial);
     let path = path.to_string();
     let task = async move {
         crate::server::task::SessionTask::new(
-            phys,
             handlers,
             crate::server::task::AuthorizationType::None,
             crate::common::frame::FrameWriter::rtu(),
@@ -121,7 +120,7 @@ pub fn spawn_rtu_server_task<T: RequestHandler>(
             rx,
             decode,
         )
-        .run()
+        .run(&mut phys)
         .instrument(tracing::info_span!("Modbus-Server-RTU", "port" = ?path))
         .await
     };
