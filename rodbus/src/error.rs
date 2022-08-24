@@ -27,11 +27,11 @@ pub enum RequestError {
     ///
     /// These errors should never happen, but are trapped here for reporting purposes in case they ever do occur
     Internal(InternalError),
-    /// timeout occurred before receiving a response from the server
+    /// Timeout occurred before receiving a response from the server
     ResponseTimeout,
-    /// no connection could be made to the Modbus server
+    /// No connection could be made to the Modbus server
     NoConnection,
-    /// the task processing requests has been shutdown
+    /// Task processing requests has been shutdown
     Shutdown,
 }
 
@@ -119,18 +119,18 @@ impl From<InvalidRange> for RequestError {
     }
 }
 
-/// errors that can be produced when validating start/count
+/// Errors that can be produced when validating start/count
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum InvalidRange {
-    /// count of zero not allowed
+    /// Count of zero not allowed
     CountOfZero,
-    /// address in range overflows u16
+    /// Address in range overflows u16
     AddressOverflow(u16, u16),
-    /// count too large for type
+    /// Count too large for type
     CountTooLargeForType(u16, u16), // actual and limit
 }
 
-/// errors that indicate faulty logic in the library itself if they occur
+/// Errors that indicate faulty logic in the library itself if they occur
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum InternalError {
     /// Insufficient space for write operation
@@ -177,7 +177,7 @@ impl std::fmt::Display for InternalError {
     }
 }
 
-/// errors that occur while parsing a frame off a stream (TCP or serial)
+/// Errors that occur while parsing a frame off a stream (TCP or serial)
 #[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Ord, Eq)]
 pub enum FrameParseError {
     /// Received TCP frame with the length field set to zero
@@ -222,18 +222,18 @@ impl std::fmt::Display for FrameParseError {
     }
 }
 
-/// errors that occur while parsing requests and responses
+/// Errors that occur while parsing requests and responses
 #[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Ord, Eq)]
 pub enum AduParseError {
-    /// response is too short to be valid
+    /// Response is too short to be valid
     InsufficientBytes,
-    /// byte count doesn't match the actual number of bytes present
+    /// Byte count doesn't match the actual number of bytes present
     InsufficientBytesForByteCount(usize, usize), // count / remaining
-    /// response contains extra trailing bytes
+    /// Response contains extra trailing bytes
     TrailingBytes(usize),
-    /// a parameter expected to be echoed in the reply did not match
+    /// Parameter expected to be echoed in the reply did not match
     ReplyEchoMismatch,
-    /// an unknown response function code was received
+    /// Unknown response function code was received
     UnknownResponseFunction(u8, u8, u8), // actual, expected, expected error
     /// Bad value for the coil state
     UnknownCoilState(u16),
@@ -270,7 +270,7 @@ impl std::fmt::Display for AduParseError {
     }
 }
 
-/// errors that result because of bad request parameter
+/// Errors that result because of bad request parameter
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum InvalidRequest {
     /// Request contained an invalid range

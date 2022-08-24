@@ -7,13 +7,19 @@
 //! * Correctness and compliance to the specification
 //! * Automatic connection management with configurable reconnect strategy
 //! * Scalable performance using Tokio's multi-threaded executor
-//! * async (futures) and callback based API modes
 //! * Automatically generated bindings for C, C++, Java, and .NET
 //!
-//! # Supported modes
+//! # Supported Modes
 //!
 //! * TCP, RTU (serial), and Modbus security (TLS)
 //! * Client and server
+//!
+//! # Cargo Features
+//!
+//! Default features can be disabled at compile time:
+//!
+//! * `tls` - Build the library with support for TLS (secure Modbus)
+//! * `serial` - Build the library with support for Modbus RTU and serial ports
 //!
 //! # Supported Functions
 //!
@@ -26,9 +32,10 @@
 //! * Write Multiple Coils
 //! * Write Multiple Registers
 //!
-//! # Future support
+//! # Future Support
 //!
 //! * Additional function code support as requested by customers
+//!
 //!
 //! # Example Client
 //!

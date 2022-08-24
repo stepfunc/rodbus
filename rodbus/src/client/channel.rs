@@ -41,12 +41,12 @@ pub(crate) mod strategy {
 
     use super::ReconnectStrategy;
 
-    /// return the default [`ReconnectStrategy`]
+    /// Return the default [`ReconnectStrategy`]
     pub fn default_reconnect_strategy() -> Box<dyn ReconnectStrategy + Send> {
         doubling_reconnect_strategy(Duration::from_millis(100), Duration::from_secs(5))
     }
 
-    /// return a [`ReconnectStrategy`] that doubles on failure up to a maximum value
+    /// Return a [`ReconnectStrategy`] that doubles on failure up to a maximum value
     pub fn doubling_reconnect_strategy(
         min: Duration,
         max: Duration,
@@ -88,7 +88,7 @@ pub(crate) mod strategy {
 }
 
 impl RequestParam {
-    /// create a new `RequestParam` from both of its fields
+    /// Create a new `RequestParam` from a `UnitId` and timeout `Duration`
     pub fn new(id: UnitId, response_timeout: Duration) -> Self {
         Self {
             id,

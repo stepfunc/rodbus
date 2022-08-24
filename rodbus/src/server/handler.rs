@@ -82,23 +82,10 @@ where
     }
 }
 
-/// Helper function to convert an Option<T> to Result<T, ExceptionCode::IllegalDataAddress>
-///
-/// This is useful when looking up requested values in a map where the value may not be present
-pub fn convert<T>(x: Option<&T>) -> Result<T, ExceptionCode>
-where
-    T: Copy,
-{
-    match x {
-        Some(x) => Ok(*x),
-        None => Err(ExceptionCode::IllegalDataAddress),
-    }
-}
-
 /// Server handler boxed inside a `Arc<Mutex>`.
 pub type ServerHandlerType<T> = Arc<Mutex<Box<T>>>;
 
-/// A type that hides the underlying map implementation
+/// Type that hides the underlying map implementation
 /// and allows lookups of a [`RequestHandler`] from a [`UnitId`]
 #[derive(Debug, Default)]
 pub struct ServerHandlerMap<T: RequestHandler> {

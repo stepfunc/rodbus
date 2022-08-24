@@ -56,7 +56,7 @@ impl HostAddr {
         }
     }
 
-    /// Construct a `HostAddr` from an DNS name and port
+    /// Construct a `HostAddr` from a DNS name and port
     pub fn dns(name: String, port: u16) -> Self {
         Self {
             addr: HostType::Dns(name),
@@ -82,6 +82,8 @@ impl HostAddr {
 /// * `retry` - A boxed trait object that controls when the connection is retried on failure
 /// * `decode` - Decode log level
 /// * `listener` - Callback for the TCP connection state
+///
+/// `WARNING`: This function must be called from with the context of the Tokio runtime or it will panic.
 pub fn spawn_tcp_client_task(
     host: HostAddr,
     max_queued_requests: usize,
@@ -107,6 +109,8 @@ pub fn spawn_tcp_client_task(
 /// * `max_queued_requests` - The maximum size of the request queue
 /// * `retry` - Delay between attempts to open the serial port
 /// * `decode` - Decode log level
+///
+/// `WARNING`: This function must be called from with the context of the Tokio runtime or it will panic.
 #[cfg(feature = "serial")]
 pub fn spawn_rtu_client_task(
     path: &str,
@@ -138,6 +142,8 @@ pub fn spawn_rtu_client_task(
 /// * `tls_config` - TLS configuration
 /// * `decode` - Decode log level
 /// * `listener` - Callback for the TCP connection state
+///
+/// `WARNING`: This function must be called from with the context of the Tokio runtime or it will panic.
 #[cfg(feature = "tls")]
 pub fn spawn_tls_client_task(
     host: HostAddr,
