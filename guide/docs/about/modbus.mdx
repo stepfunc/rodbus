@@ -72,7 +72,7 @@ The endianness of how compound values are laid out in registers may also vary fr
 
 ## Function codes
 
-The following table illustrates the Modbus public function code and their support status in our library:
+The following table lists the functions currently supported by our library:
 
 | Code | Description                   | Support |
 | ---- | ----------------------------- | ------- |
@@ -82,26 +82,14 @@ The following table illustrates the Modbus public function code and their suppor
 | 0x04 | Read input registers          | ✔️    |
 | 0x05 | Write single coil             | ✔️    |
 | 0x06 | Write single register         | ✔️    |
-| 0x07 | Read exception status         | ❌       |
-| 0x08 | Diagnostic                    | ❌       |
-| 0x11 | Get com event counter         | ❌       |
-| 0x12 | Get com event log             | ❌       |
 | 0x15 | Write multiple coils          | ✔️    |
 | 0x16 | Write multiple registers      | ✔️    |
-| 0x17 | Report server ID              | ❌       |
-| 0x20 | Read file record              | ❌       |
-| 0x21 | Write file record             | ❌       |
-| 0x22 | Mask write register           | ❌       |
-| 0x23 | Read/write multiple registers | ❌       |
-| 0x24 | Read FIFO queue               | ❌       |
-| 0x43 | Read device ID                | ❌       |
 
-The supported function codes are all that is required by the vast majority of applications using Modbus. We would consider adding support for additional
+These functions are all that is required for the vast majority of applications using Modbus. We would consider adding support for additional
 functions codes if requested by a potential customer.
 
-
 Modbus also allows user-defined function codes in the range 65 to 72 and 100 to 110. This library does not support adding user defined functions at this time,
-but this could also be added if desired.
+but could be added if desired.
 
 ## Exceptions
 
