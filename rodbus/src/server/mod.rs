@@ -30,7 +30,7 @@ pub use crate::tcp::tls::server::TlsServerConfig;
 #[cfg(feature = "tls")]
 pub use crate::tcp::tls::*;
 
-/// A handle to the server async task. The task is shutdown when the handle is dropped.
+/// Handle to the server async task. The task is shutdown when the handle is dropped.
 #[derive(Debug)]
 pub struct ServerHandle {
     tx: tokio::sync::mpsc::Sender<ServerSetting>,
@@ -61,6 +61,8 @@ impl ServerHandle {
 /// * `addr` - A socket address to bound to
 /// * `handlers` - A map of handlers keyed by a unit id
 /// * `decode` - Decode log level
+///
+/// `WARNING`: This function must be called from with the context of the Tokio runtime or it will panic.
 pub async fn spawn_tcp_server_task<T: RequestHandler>(
     max_sessions: usize,
     addr: SocketAddr,
@@ -91,14 +93,15 @@ pub async fn spawn_tcp_server_task<T: RequestHandler>(
     Ok(ServerHandle::new(tx))
 }
 
-/// Spawns a RTU server task onto the runtime. This method can only
-/// be called from within the runtime context. Use `Runtime::enter()`
-/// to create a context on the current thread if necessary.
+/// Spawns a RTU server task onto the runtime.
 ///
 /// * `path` - Path to the serial device. Generally `/dev/tty0` on Linux and `COM1` on Windows.
-/// * `serial_settings` = Serial port settings
+/// * `settings` - Serial port settings
+/// * `port_retry_delay` - How often the task will attempt to open the serial port if it fails.
 /// * `handlers` - A map of handlers keyed by a unit id
 /// * `decode` - Decode log level
+///
+/// `WARNING`: This function must be called from with the context of the Tokio runtime or it will panic.
 #[cfg(feature = "serial")]
 pub fn spawn_rtu_server_task<T: RequestHandler>(
     path: &str,
@@ -141,17 +144,16 @@ pub fn spawn_rtu_server_task<T: RequestHandler>(
 /// the client certificate contain the Role extension and allows all operations for any authenticated
 /// client.
 ///
-/// This method can only be called from within the runtime context. Use `Runtime::enter()`
-/// to create a context on the current thread if necessary.
-///
 /// Each incoming connection will spawn a new task to handle it.
 ///
 /// * `max_sessions` - Maximum number of concurrent sessions
 /// * `addr` - A socket address to bound to
 /// * `handlers` - A map of handlers keyed by a unit id
-/// * `auth_handler` - Optional Authorization handler
+/// * `filter` - Address filter which may be used to restrict the connecting IP address
 /// * `tls_config` - TLS configuration
 /// * `decode` - Decode log level
+///
+/// `WARNING`: This function must be called from with the context of the Tokio runtime or it will panic.
 #[cfg(feature = "tls")]
 pub async fn spawn_tls_server_task<T: RequestHandler>(
     max_sessions: usize,
@@ -177,8 +179,6 @@ pub async fn spawn_tls_server_task<T: RequestHandler>(
 /// the client certificate contain the Role extension and checks the authorization of requests against
 /// the supplied handler.
 ///
-/// This method can only be called from within the runtime context. Use `Runtime::enter()`
-/// to create a context on the current thread if necessary.
 ///
 /// Each incoming connection will spawn a new task to handle it.
 ///
@@ -187,7 +187,10 @@ pub async fn spawn_tls_server_task<T: RequestHandler>(
 /// * `handlers` - A map of handlers keyed by a unit id
 /// * `auth_handler` - Handler used to authorize requests
 /// * `tls_config` - TLS configuration
+/// * `filter` - Address filter which may be used to restrict the connecting IP address
 /// * `decode` - Decode log level
+///
+/// `WARNING`: This function must be called from with the context of the Tokio runtime or it will panic.
 #[cfg(feature = "tls")]
 pub async fn spawn_tls_server_task_with_authz<T: RequestHandler>(
     max_sessions: usize,

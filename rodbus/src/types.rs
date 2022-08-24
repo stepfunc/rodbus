@@ -6,7 +6,7 @@ use crate::error::RequestError;
 #[cfg(feature = "no-panic")]
 use no_panic::no_panic;
 
-/// Modbus unit identifier, just a type-safe wrapper around u8
+/// Modbus unit identifier, just a type-safe wrapper around `u8`
 #[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Ord, Eq)]
 pub struct UnitId {
     /// underlying raw value
@@ -17,9 +17,9 @@ pub struct UnitId {
 /// Cannot be constructed with invalid start/count
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct AddressRange {
-    /// starting address of the range
+    /// Starting address of the range
     pub start: u16,
-    /// count of elements in the range
+    /// Count of elements in the range
     pub count: u16,
 }
 
@@ -45,7 +45,7 @@ pub(crate) struct ReadRegistersRange {
 }
 
 impl ReadRegistersRange {
-    /// retrieve the underlying [AddressRange]
+    /// Retrieve the underlying [AddressRange]
     pub(crate) fn get(self) -> AddressRange {
         self.inner
     }
@@ -54,9 +54,9 @@ impl ReadRegistersRange {
 /// Value and its address
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Indexed<T> {
-    /// address of the value
+    /// Address of the value
     pub index: u16,
-    /// associated value
+    /// Associated value
     pub value: T,
 }
 

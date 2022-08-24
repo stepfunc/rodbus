@@ -5,18 +5,18 @@ pub(crate) mod client;
 pub(crate) mod frame;
 pub(crate) mod server;
 
-/// serial port settings
+/// Serial port settings
 #[derive(Copy, Clone, Debug)]
 pub struct SerialSettings {
-    /// baud rate of the port
+    /// Baud rate of the port
     pub baud_rate: u32,
-    /// number of data bits
+    /// Number of data bits
     pub data_bits: DataBits,
-    /// types of flow control
+    /// Types of flow control
     pub flow_control: FlowControl,
-    /// number of stop bits
+    /// Number of stop bits
     pub stop_bits: StopBits,
-    /// parity setting
+    /// Parity setting
     pub parity: Parity,
 }
 

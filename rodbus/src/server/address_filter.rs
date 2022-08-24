@@ -66,13 +66,13 @@ impl WildcardIPv4 {
 #[non_exhaustive]
 #[derive(Clone, Debug)]
 pub enum AddressFilter {
-    /// allow any address
+    /// Allow any address
     Any,
-    /// allow a specific address
+    /// Allow a specific address
     Exact(std::net::IpAddr),
-    /// allow any of set of addresses
+    /// Allow any of set of addresses
     AnyOf(std::collections::HashSet<std::net::IpAddr>),
-    /// matches against an IPv4 address with wildcards
+    /// Matches against an IPv4 address with wildcards
     WildcardIpv4(WildcardIPv4),
 }
 
