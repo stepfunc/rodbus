@@ -22,6 +22,7 @@ where
         loop {
             match crate::serial::open(&self.port, self.settings) {
                 Ok(serial) => {
+                    tracing::info!("opened port");
                     // run an open port until shutdown or failure
                     let mut phys = PhysLayer::new_serial(serial);
                     if let RequestError::Shutdown = self.session.run(&mut phys).await {
