@@ -31,7 +31,7 @@ where
                 }
                 Err(err) => {
                     tracing::warn!(
-                        "Unable to open serial port, retrying in {:?} - error: {}",
+                        "unable to open serial port, retrying in {:?} - error: {}",
                         self.port_retry_delay,
                         err
                     );
