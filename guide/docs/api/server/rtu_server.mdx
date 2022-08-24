@@ -29,9 +29,9 @@ enforce this requirement, but a warning message is generated as a reminder that 
 ## Creating a server
 
 To create a RTU server, first build a `DeviceMap` for each unit ID to which the server will respond. The is similar to how it's done in the [TCP server](./tcp_server).
-Then use the `create_rtu_server` factory method of the `Server` class. The created server will start listening on the serial port immediately.
+Then use the `Server.CreateRtu` factory method to create the background task.
 
-The `create_rtu_server` function takes the following arguments:
+The `Server.CreateRtu` method takes the following arguments:
 
 - `runtime`: tokio runtime used to drive the async process. See [Runtime](../runtime.mdx) for more details.
 - `path`: path of the serial device.
@@ -44,6 +44,13 @@ The `create_rtu_server` function takes the following arguments:
   - Stop bits
   - Parity
   - Flow control
+- `port_retry_delay`: how long to wait before reopening after a failed open or port error.
+- `map`: Map of unit ids and their corresponding callback handlers.
+- `level`: Initial decoding level for the port which can be adjusted later via the returned Channel.
+
+:::tip
+The task handling the port is tolerant to the hardware device being added and removed from the system as might occur with USB to serial adapters.
+:::
 
 <Tabs
 groupId="language"
