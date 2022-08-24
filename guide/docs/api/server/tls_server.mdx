@@ -12,6 +12,13 @@ Creating a TLS server for outstation instances is exactly the same process as a 
 except that an extra `TlsServerConfig` and an `AuthorizationHandler` is required. For more details about TLS
 support and the configuration options, check the [TLS general information](../tls.mdx) page.
 
+:::tip
+A server mode of operation is also supported which does not require the client certificate to contain the role extension.
+
+The example only demonstrate the `Server.CreateTlsWithAuthz` method, but there is a `Server.CreateTls` which does NOT take an `AuthorizationHandler` parameter
+and allows an authenticated client to perform any Modbus operation.
+:::
+
 ## Examples
 
 ### Certificate chain configuration
