@@ -936,7 +936,7 @@ dependencies = [
 
 [[package]]
 name = "rodbus"
-version = "1.0.0-alpha9"
+version = "1.0.0-alpha10"
 dependencies = [
  "crc",
  "pem",
@@ -955,7 +955,7 @@ dependencies = [
 
 [[package]]
 name = "rodbus-bindings"
-version = "1.0.0-alpha9"
+version = "1.0.0-alpha10"
 dependencies = [
  "ci-script",
  "rodbus-schema",
@@ -963,7 +963,7 @@ dependencies = [
 
 [[package]]
 name = "rodbus-client"
-version = "1.0.0-alpha9"
+version = "1.0.0-alpha10"
 dependencies = [
  "clap",
  "rodbus",
@@ -974,7 +974,7 @@ dependencies = [
 
 [[package]]
 name = "rodbus-ffi"
-version = "1.0.0-alpha9"
+version = "1.0.0-alpha10"
 dependencies = [
  "lazy_static",
  "num_cpus",
@@ -989,7 +989,7 @@ dependencies = [
 
 [[package]]
 name = "rodbus-ffi-java"
-version = "1.0.0-alpha9"
+version = "1.0.0-alpha10"
 dependencies = [
  "java-oo-bindgen",
  "jni",
@@ -999,7 +999,7 @@ dependencies = [
 
 [[package]]
 name = "rodbus-schema"
-version = "1.0.0-alpha9"
+version = "1.0.0-alpha10"
 dependencies = [
  "oo-bindgen",
 ]
