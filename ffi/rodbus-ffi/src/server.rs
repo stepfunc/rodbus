@@ -318,6 +318,7 @@ pub(crate) unsafe fn server_create_rtu(
     _runtime: *mut crate::Runtime,
     _path: &std::ffi::CStr,
     _serial_params: ffi::SerialPortSettings,
+    _port_retry_delay: std::time::Duration,
     _endpoints: *mut crate::DeviceMap,
     _decode_level: ffi::DecodeLevel,
 ) -> Result<*mut crate::Server, ffi::ParamError> {

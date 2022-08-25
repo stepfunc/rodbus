@@ -1,5 +1,4 @@
 use std::net::SocketAddr;
-use std::time::Duration;
 
 use tracing::Instrument;
 
@@ -106,7 +105,7 @@ pub async fn spawn_tcp_server_task<T: RequestHandler>(
 pub fn spawn_rtu_server_task<T: RequestHandler>(
     path: &str,
     settings: crate::serial::SerialSettings,
-    port_retry_delay: Duration,
+    port_retry_delay: std::time::Duration,
     handlers: ServerHandlerMap<T>,
     decode: DecodeLevel,
 ) -> Result<ServerHandle, std::io::Error> {
