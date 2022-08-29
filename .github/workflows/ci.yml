@@ -36,6 +36,32 @@ jobs:
         with:
           command: clippy
           args: -- -D warnings
+  # Build the workspace with the feature permutations not built by default
+  features:
+    strategy:
+      fail-fast: false
+      matrix:
+        feature-args:
+          - "--no-default-features"
+          - "--no-default-features --features serial"
+          - "--no-default-features --features tls"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Install Rust ${{ matrix.rust }}
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+      - name: Caching
+        uses: Swatinem/rust-cache@v1
+      - name: Build the workspace with the features
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args:  --release ${{ matrix.feature-args }}
   # Run the unit tests on Windows and Linux
   test:
     strategy:
