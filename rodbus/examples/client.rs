@@ -64,7 +64,7 @@ async fn run_tcp() -> Result<(), Box<dyn std::error::Error>> {
     let channel = spawn_tcp_client_task(
         HostAddr::ip(IpAddr::V4(Ipv4Addr::LOCALHOST), 502),
         1,
-        default_reconnect_strategy(),
+        default_retry_strategy(),
         DecodeLevel::default(),
         Some(Box::new(LoggingListener)),
     );
@@ -80,7 +80,7 @@ async fn run_rtu() -> Result<(), Box<dyn std::error::Error>> {
         "/dev/ttySIM0",                    // path
         rodbus::SerialSettings::default(), // serial settings
         1,                                 // max queued requests
-        Duration::from_secs(1),            // retry delay
+        default_retry_strategy(),          // retry delays
         DecodeLevel::new(
             AppDecodeLevel::DataValues,
             FrameDecodeLevel::Payload,
@@ -99,7 +99,7 @@ async fn run_tls(tls_config: TlsClientConfig) -> Result<(), Box<dyn std::error::
     let channel = spawn_tls_client_task(
         HostAddr::ip(IpAddr::V4(Ipv4Addr::LOCALHOST), 802),
         1,
-        default_reconnect_strategy(),
+        default_retry_strategy(),
         tls_config,
         DecodeLevel::new(
             AppDecodeLevel::DataValues,

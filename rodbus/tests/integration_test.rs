@@ -113,7 +113,7 @@ async fn test_requests_and_responses() {
     let mut channel = spawn_tcp_client_task(
         HostAddr::ip(addr.ip(), addr.port()),
         10,
-        default_reconnect_strategy(),
+        default_retry_strategy(),
         DecodeLevel::default(),
         None,
     );

@@ -96,7 +96,7 @@ pub async fn spawn_tcp_server_task<T: RequestHandler>(
 ///
 /// * `path` - Path to the serial device. Generally `/dev/tty0` on Linux and `COM1` on Windows.
 /// * `settings` - Serial port settings
-/// * `port_retry_delay` - How often the task will attempt to open the serial port if it fails.
+/// * `retry` - A boxed trait object that controls when opening the serial port is retried after a failure
 /// * `handlers` - A map of handlers keyed by a unit id
 /// * `decode` - Decode log level
 ///
@@ -105,7 +105,7 @@ pub async fn spawn_tcp_server_task<T: RequestHandler>(
 pub fn spawn_rtu_server_task<T: RequestHandler>(
     path: &str,
     settings: crate::serial::SerialSettings,
-    port_retry_delay: std::time::Duration,
+    retry: Box<dyn crate::retry::RetryStrategy>,
     handlers: ServerHandlerMap<T>,
     decode: DecodeLevel,
 ) -> Result<ServerHandle, std::io::Error> {
@@ -121,7 +121,7 @@ pub fn spawn_rtu_server_task<T: RequestHandler>(
 
     let mut rtu = crate::serial::server::RtuServerTask {
         port: path.to_string(),
-        port_retry_delay,
+        retry,
         settings,
         session,
     };

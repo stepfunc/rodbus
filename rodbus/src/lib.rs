@@ -56,7 +56,7 @@
 //!    let mut channel = spawn_tcp_client_task(
 //!        HostAddr::ip("127.0.0.1".parse()?, 502),
 //!        10,
-//!        default_reconnect_strategy(),
+//!        default_retry_strategy(),
 //!        DecodeLevel::default(),
 //!        None
 //!    );
@@ -211,6 +211,7 @@ pub(crate) mod decode;
 pub(crate) mod error;
 pub(crate) mod exception;
 pub(crate) mod maybe_async;
+pub(crate) mod retry;
 #[cfg(feature = "serial")]
 mod serial;
 pub(crate) mod types;
@@ -220,6 +221,7 @@ pub use crate::decode::*;
 pub use crate::error::*;
 pub use crate::exception::*;
 pub use crate::maybe_async::*;
+pub use crate::retry::*;
 #[cfg(feature = "serial")]
 pub use crate::serial::*;
 pub use crate::types::*;

@@ -5,7 +5,6 @@ use crate::common::CommonDefinitions;
 pub(crate) fn build(lib: &mut LibraryBuilder, common: &CommonDefinitions) -> BackTraced<()> {
     let channel = lib.declare_class("client_channel")?;
 
-    let retry_strategy = build_retry_strategy(lib)?;
     let tls_client_config = build_tls_client_config(lib, common)?;
     let client_state_listener = define_tcp_client_state_listener(lib)?;
     let port_state_listener = define_port_state_listener(lib)?;
@@ -30,7 +29,7 @@ pub(crate) fn build(lib: &mut LibraryBuilder, common: &CommonDefinitions) -> Bac
         )?
         .param(
             "retry_strategy",
-            retry_strategy.clone(),
+            common.retry_strategy.clone(),
             "Reconnection timing strategy",
         )?
         .param(
@@ -71,9 +70,9 @@ pub(crate) fn build(lib: &mut LibraryBuilder, common: &CommonDefinitions) -> Bac
             "Maximum number of requests to queue before failing the next request",
         )?
         .param(
-            "open_retry_delay",
-            DurationType::Milliseconds,
-            "Delay between attempts to open the serial port",
+            "retry_strategy",
+            common.retry_strategy.clone(),
+            "Strategy which controls how long to wait between attempts to open the serial port after failures",
         )?
         .param(
             "decode_level",
@@ -110,7 +109,7 @@ pub(crate) fn build(lib: &mut LibraryBuilder, common: &CommonDefinitions) -> Bac
         )?
         .param(
             "retry_strategy",
-            retry_strategy,
+            common.retry_strategy.clone(),
             "Reconnection timing strategy",
         )?
         .param("tls_config", tls_client_config, "TLS client configuration")?
@@ -458,40 +457,6 @@ fn build_write_callback(
     )?;
 
     Ok(future)
-}
-
-fn build_retry_strategy(lib: &mut LibraryBuilder) -> BackTraced<UniversalStructHandle> {
-    let min_delay_field = Name::create("min_delay")?;
-    let max_delay_field = Name::create("max_delay")?;
-
-    let retry_strategy = lib.declare_universal_struct("retry_strategy")?;
-    let retry_strategy = lib
-        .define_universal_struct(retry_strategy)?
-        .add(
-            &min_delay_field,
-            DurationType::Milliseconds,
-            "Minimum delay between two retries",
-        )?
-        .add(
-            &max_delay_field,
-            DurationType::Milliseconds,
-            "Maximum delay between two retries",
-        )?
-        .doc(doc("Retry strategy configuration.").details(
-            "The strategy uses an exponential back-off with a minimum and maximum value.",
-        ))?
-        .end_fields()?
-        .begin_initializer(
-            "init",
-            InitializerType::Normal,
-            "Initialize a retry strategy to defaults",
-        )?
-        .default(&min_delay_field, std::time::Duration::from_secs(1))?
-        .default(&max_delay_field, std::time::Duration::from_secs(10))?
-        .end_initializer()?
-        .build()?;
-
-    Ok(retry_strategy)
 }
 
 fn build_tls_client_config(

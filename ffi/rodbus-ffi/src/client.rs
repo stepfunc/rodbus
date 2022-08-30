@@ -2,7 +2,6 @@ use crate::ffi;
 use rodbus::client::{ClientState, HostAddr, Listener, WriteMultiple};
 use rodbus::{AddressRange, MaybeAsync};
 use std::net::IpAddr;
-use std::time::Duration;
 
 pub struct ClientChannel {
     pub(crate) inner: rodbus::client::Channel,
@@ -56,7 +55,7 @@ pub(crate) unsafe fn client_channel_create_rtu(
     _path: &std::ffi::CStr,
     _serial_params: ffi::SerialPortSettings,
     _max_queued_requests: u16,
-    _open_retry_delay: Duration,
+    _retry_strategy: ffi::RetryStrategy,
     _decode_level: ffi::DecodeLevel,
     _listener: ffi::PortStateListener,
 ) -> Result<*mut crate::ClientChannel, ffi::ParamError> {
@@ -69,7 +68,7 @@ pub(crate) unsafe fn client_channel_create_rtu(
     path: &std::ffi::CStr,
     serial_params: ffi::SerialPortSettings,
     max_queued_requests: u16,
-    open_retry_delay: Duration,
+    retry_strategy: ffi::RetryStrategy,
     decode_level: ffi::DecodeLevel,
     listener: ffi::PortStateListener,
 ) -> Result<*mut crate::ClientChannel, ffi::ParamError> {
@@ -82,7 +81,7 @@ pub(crate) unsafe fn client_channel_create_rtu(
         &path.to_string_lossy(),
         serial_params.into(),
         max_queued_requests as usize,
-        open_retry_delay,
+        retry_strategy.into(),
         decode_level.into(),
         Some(listener.into()),
     );

@@ -212,7 +212,7 @@ int run_rtu_channel(rodbus_runtime_t* runtime)
         "/dev/ttySIM0", // path
         rodbus_serial_port_settings_init(), // serial settings
         1, // max queued requests
-        1000, // retry delay (in ms)
+        rodbus_retry_strategy_init(),
         decode_level, // decode level
         get_port_listener(),
         &channel

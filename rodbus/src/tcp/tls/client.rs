@@ -7,7 +7,7 @@ use tokio::net::TcpStream;
 use tokio_rustls::{rustls, webpki};
 use tracing::Instrument;
 
-use crate::client::{Channel, ClientState, HostAddr, Listener, ReconnectStrategy};
+use crate::client::{Channel, ClientState, HostAddr, Listener, RetryStrategy};
 use crate::common::phys::PhysLayer;
 use crate::tcp::client::{TcpChannelTask, TcpTaskConnectionHandler};
 use crate::tcp::tls::{load_certs, load_private_key, CertificateMode, MinTlsVersion, TlsError};
@@ -23,7 +23,7 @@ pub struct TlsClientConfig {
 pub(crate) fn spawn_tls_channel(
     host: HostAddr,
     max_queued_requests: usize,
-    connect_retry: Box<dyn ReconnectStrategy + Send>,
+    connect_retry: Box<dyn RetryStrategy>,
     tls_config: TlsClientConfig,
     decode: DecodeLevel,
     listener: Box<dyn Listener<ClientState>>,
@@ -43,7 +43,7 @@ pub(crate) fn spawn_tls_channel(
 pub(crate) fn create_tls_channel(
     host: HostAddr,
     max_queued_requests: usize,
-    connect_retry: Box<dyn ReconnectStrategy + Send>,
+    connect_retry: Box<dyn RetryStrategy>,
     tls_config: TlsClientConfig,
     decode: DecodeLevel,
     listener: Box<dyn Listener<ClientState>>,

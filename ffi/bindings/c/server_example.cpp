@@ -223,7 +223,7 @@ int run_rtu_server(rodbus::Runtime& runtime)
     auto device_map = create_device_map();
 
     // ANCHOR: rtu_server_create
-    auto server = rodbus::Server::create_rtu(runtime, "/dev/ttySIM1", rodbus::SerialPortSettings(), std::chrono::seconds(3), device_map, rodbus::DecodeLevel::nothing());
+    auto server = rodbus::Server::create_rtu(runtime, "/dev/ttySIM1", rodbus::SerialPortSettings(), rodbus::RetryStrategy(), device_map, rodbus::DecodeLevel::nothing());
     // ANCHOR_END: rtu_server_create
 
     return run_server(server);

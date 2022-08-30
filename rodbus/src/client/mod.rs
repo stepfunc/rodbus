@@ -9,10 +9,10 @@ pub(crate) mod message;
 pub(crate) mod requests;
 pub(crate) mod task;
 
-pub use crate::client::channel::strategy::*;
 pub use crate::client::channel::*;
 pub use crate::client::listener::*;
 pub use crate::client::requests::write_multiple::WriteMultiple;
+pub use crate::retry::*;
 
 #[cfg(feature = "tls")]
 pub use crate::tcp::tls::client::TlsClientConfig;
@@ -75,19 +75,19 @@ impl HostAddr {
 /// Spawns a channel task onto the runtime that maintains a TCP connection and processes
 /// requests. The task completes when the returned channel handle is dropped.
 ///
-/// The channel uses the provided [`ReconnectStrategy`] to pause between failed connection attempts
+/// The channel uses the provided [`RetryStrategy`] to pause between failed connection attempts
 ///
 /// * `host` - Address/port of the remote server. Can be a IP address or name on which to perform DNS resolution.
 /// * `max_queued_requests` - The maximum size of the request queue
 /// * `retry` - A boxed trait object that controls when the connection is retried on failure
 /// * `decode` - Decode log level
-/// * `listener` - Callback for the TCP connection state
+/// * `listener` - Optional callback to monitor the TCP connection state
 ///
 /// `WARNING`: This function must be called from with the context of the Tokio runtime or it will panic.
 pub fn spawn_tcp_client_task(
     host: HostAddr,
     max_queued_requests: usize,
-    retry: Box<dyn ReconnectStrategy + Send>,
+    retry: Box<dyn RetryStrategy>,
     decode: DecodeLevel,
     listener: Option<Box<dyn Listener<ClientState>>>,
 ) -> Channel {
@@ -104,11 +104,15 @@ pub fn spawn_tcp_client_task(
 /// requests. The task completes when the returned channel handle
 /// is dropped.
 ///
+/// The channel uses the provided [`RetryStrategy`] to pause between failed attempts to open the
+/// serial port or after the serial port fails.
+///
 /// * `path` - Path to the serial device. Generally `/dev/tty0` on Linux and `COM1` on Windows.
 /// * `serial_settings` = Serial port settings
 /// * `max_queued_requests` - The maximum size of the request queue
-/// * `retry` - Delay between attempts to open the serial port
+/// * `retry` - A boxed trait object that controls when opening the serial port is retried on failure
 /// * `decode` - Decode log level
+/// * `listener` - Optional callback to monitor the state of the serial port
 ///
 /// `WARNING`: This function must be called from with the context of the Tokio runtime or it will panic.
 #[cfg(feature = "serial")]
@@ -116,7 +120,7 @@ pub fn spawn_rtu_client_task(
     path: &str,
     serial_settings: crate::serial::SerialSettings,
     max_queued_requests: usize,
-    retry_delay: std::time::Duration,
+    retry: Box<dyn RetryStrategy>,
     decode: DecodeLevel,
     listener: Option<Box<dyn Listener<PortState>>>,
 ) -> Channel {
@@ -124,7 +128,7 @@ pub fn spawn_rtu_client_task(
         path,
         serial_settings,
         max_queued_requests,
-        retry_delay,
+        retry,
         decode,
         listener,
     )
@@ -134,21 +138,21 @@ pub fn spawn_rtu_client_task(
 /// requests. The task completes when the returned channel handle
 /// is dropped.
 ///
-/// The channel uses the provided [`ReconnectStrategy`] to pause between failed connection attempts
+/// The channel uses the provided [`RetryStrategy`] to pause between failed connection attempts
 ///
 /// * `host` - Address/port of the remote server. Can be a IP address or name on which to perform DNS resolution.
 /// * `max_queued_requests` - The maximum size of the request queue
 /// * `retry` - A boxed trait object that controls when the connection is retried on failure
 /// * `tls_config` - TLS configuration
 /// * `decode` - Decode log level
-/// * `listener` - Callback for the TCP connection state
+/// * `listener` - Optional callback to monitor the TLS connection state
 ///
 /// `WARNING`: This function must be called from with the context of the Tokio runtime or it will panic.
 #[cfg(feature = "tls")]
 pub fn spawn_tls_client_task(
     host: HostAddr,
     max_queued_requests: usize,
-    retry: Box<dyn ReconnectStrategy + Send>,
+    retry: Box<dyn RetryStrategy>,
     tls_config: TlsClientConfig,
     decode: DecodeLevel,
     listener: Option<Box<dyn Listener<ClientState>>>,
