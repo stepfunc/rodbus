@@ -200,7 +200,7 @@ int run_rtu_channel(rodbus::Runtime& runtime)
         "/dev/ttySIM0",
         rodbus::SerialPortSettings(),
         1,
-        std::chrono::seconds(1),
+        rodbus::RetryStrategy(),
         rodbus::DecodeLevel::nothing(),
         std::make_unique<PrintingPortStateListener>()
     );

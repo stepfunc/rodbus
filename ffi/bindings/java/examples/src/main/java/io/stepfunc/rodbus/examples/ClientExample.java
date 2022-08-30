@@ -99,7 +99,7 @@ public class ClientExample {
                 "/dev/ttySIM0", // path
                 new SerialPortSettings(), // serial settings
                 ushort(1), // max queued requests
-                Duration.ofSeconds(1), // retry delay
+                new RetryStrategy(),
                 DecodeLevel.nothing(), // decode level
                 new PrintingPortStateListener()
         );

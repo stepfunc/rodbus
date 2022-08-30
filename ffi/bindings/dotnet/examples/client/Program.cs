@@ -111,7 +111,7 @@ namespace example
                 "/dev/ttySIM0", // path
                 new SerialPortSettings(), // serial settings
                 1, // max queued requests
-                TimeSpan.FromSeconds(1), // retry delay
+                new RetryStrategy(),
                 DecodeLevel.Nothing(),
                 new PortStateListener()
             );
