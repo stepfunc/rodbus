@@ -38,7 +38,7 @@ the benchmark achieved around 200k requests per second spread across 100 concurr
 
 ## Bindings
 
-Bindings in C, .NET Core and Java are available for this library. See the
+Bindings in C, C++, .NET Core, and Java are available for this library. See the
 [documentation](https://stepfunc.io/products/libraries/modbus/) for more details.
 
 ## Modbus client CLI
