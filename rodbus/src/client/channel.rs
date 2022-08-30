@@ -7,7 +7,7 @@ use crate::client::requests::write_multiple::{MultipleWriteRequest, WriteMultipl
 use crate::client::requests::write_single::SingleWrite;
 use crate::error::*;
 use crate::types::{AddressRange, BitIterator, Indexed, RegisterIterator, UnitId};
-use crate::{DecodeLevel, RetryStrategy};
+use crate::DecodeLevel;
 
 /// Async channel used to make requests
 #[derive(Debug, Clone)]
@@ -40,7 +40,7 @@ impl Channel {
         path: &str,
         serial_settings: crate::serial::SerialSettings,
         max_queued_requests: usize,
-        retry: Box<dyn RetryStrategy>,
+        retry: Box<dyn crate::retry::RetryStrategy>,
         decode: DecodeLevel,
         listener: Option<Box<dyn crate::client::Listener<crate::client::PortState>>>,
     ) -> Self {
@@ -61,7 +61,7 @@ impl Channel {
         path: &str,
         serial_settings: crate::serial::SerialSettings,
         max_queued_requests: usize,
-        retry: Box<dyn RetryStrategy>,
+        retry: Box<dyn crate::retry::RetryStrategy>,
         decode: DecodeLevel,
         listener: Option<Box<dyn crate::client::Listener<crate::client::PortState>>>,
     ) -> (Self, impl std::future::Future<Output = ()>) {
