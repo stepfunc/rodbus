@@ -138,7 +138,7 @@ fn build_address_range(lib: &mut LibraryBuilder) -> BackTraced<UniversalStructHa
         .define_universal_struct(info)?
         .add("start", Primitive::U16, "Starting address of the range")?
         .add("count", Primitive::U16, "Number of addresses in the range")?
-        .doc("Range of 16-bit addresses")?
+        .doc("Range of 16-bit addresses sent in a request from the client to the server")?
         .end_fields()?
         .add_full_initializer("init")?
         .build()?;

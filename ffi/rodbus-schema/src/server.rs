@@ -388,7 +388,7 @@ fn build_database_class(
         .method(delete_holding_register_method)?
         .method(delete_input_register_method)?
         // docs
-        .doc("Class used to add, remove, and update values")?
+        .doc("Class used to add, remove, update, and retrieve values")?
         .build()?;
 
     Ok(class)
@@ -459,9 +459,9 @@ fn build_authorization_handler(
     let definition = lib
         .define_interface(
             "authorization_handler",
-            "Modbus Security authorization handler",
+            "User implemented interface defines which request and roles are allowed for different functions when implementing Modbus security.",
         )?
-        .begin_callback("read_coils", "Authorize a Read Discrete Inputs request")?
+        .begin_callback("read_coils", "Authorize a Read Coils request")?
         .param("unit_id", Primitive::U8, "Target unit ID")?
         .param("range", common.address_range.clone(), "Range to read")?
         .param("role", StringType, "Authenticated Modbus role")?
@@ -737,7 +737,7 @@ fn define_address_filter(
         .param("address", StringType, "IP address to accept")?
         .fails_with(common.error_type.clone())?
         .doc(
-            doc("Create an address filter that matches a specific address or wildcards")
+            doc("Create an address filter that matches one or more IP addresses. Ipv4 or IPv6 addresses are allowed.")
                 .details("Examples: 192.168.1.26, 192.168.0.*, *.*.*.*")
                 .details("Wildcards are only supported for IPv4 addresses"),
         )?
@@ -747,7 +747,10 @@ fn define_address_filter(
         .define_method("add", address_filter.clone())?
         .param("address", StringType, "IP address to add")?
         .fails_with(common.error_type.clone())?
-        .doc("Add an accepted IP address to the filter")?
+        .doc(
+            doc("Add an allowed IP address to the filter")
+                .details("This function may only be called if the AddressFilter was initially constructed with a single static address")
+        )?
         .build()?;
 
     let destructor = lib.define_destructor(address_filter.clone(), "Destroy an address filter")?;
@@ -758,7 +761,7 @@ fn define_address_filter(
         .destructor(destructor)?
         .static_method(address_filter_any_fn)?
         .method(add)?
-        .doc("Server address filter")?
+        .doc("Filter used to restrict which IP addresses may communicate with a server")?
         .build()?;
 
     Ok(address_filter)
