@@ -197,7 +197,7 @@ pub(crate) fn build_server(
         .method(set_decode_level_fn)?
         .destructor(destructor)?
         .custom_destroy("shutdown")?
-        .doc("Handle to the running server. The server remains alive until this reference is destroyed")?
+        .doc("Handle to the running server. The server runs on a background task until this class is destroyed.")?
         .build()?;
 
     Ok(server)
@@ -697,7 +697,11 @@ fn build_write_result_struct(
         .add(success_field.clone(), Primitive::Bool, "true if the operation was successful, false otherwise. Error details found in the exception field.")?
         .add(exception_field.clone(), common.exception.clone(), "Exception enumeration. If {enum:modbus_exception.unknown}, look at the raw value")?
         .add(raw_exception_field.clone(), Primitive::U8, "Raw exception value when {struct:write_result.exception} field is {enum:modbus_exception.unknown}")?
-        .doc("Result struct describing if an operation was successful or not. Exception codes are returned to the client")?
+        .doc(
+            doc("Describes to the server if a write operation was successful or not.")
+                .details("May either be 'success' or an exception code returned to the client.")
+                .details("Used in implementations of the {interface:write_handler}.")
+        )?
         .end_fields()?
         // success initializer
         .begin_initializer("success_init", InitializerType::Static, "Initialize a {struct:write_result} to indicate a successful write operation")?

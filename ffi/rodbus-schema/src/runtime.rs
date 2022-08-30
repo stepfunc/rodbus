@@ -12,7 +12,7 @@ fn define_runtime_config(lib: &mut LibraryBuilder) -> BackTraced<FunctionArgStru
             doc("Number of runtime threads to spawn. For a guess of the number of CPU cores, use 0.")
                 .details("Even if tons of connections are expected, it is preferred to use a value around the number of CPU cores for better performances. The library uses an efficient thread pool polling mechanism."),
         )?
-        .doc("Runtime configuration")?
+        .doc("Configuration options for the Runtime")?
         .end_fields()?
         .begin_initializer("init", InitializerType::Normal, "Initialize the configuration to default values")?
         .default(&num_core_threads, NumberValue::U16(0))?

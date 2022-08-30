@@ -62,7 +62,7 @@ fn build_error_type(lib: &mut LibraryBuilder) -> BackTraced<ErrorTypeHandle> {
             "logging_already_configured",
             "Logging can only be configured once",
         )?
-        .add_error("runtime_creation_failure", "Failed to create tokio runtime")?
+        .add_error("runtime_creation_failure", "Failed to create Tokio runtime")?
         .add_error("runtime_destroyed", "Runtime was already disposed of")?
         .add_error(
             "runtime_cannot_block_within_async",
@@ -89,7 +89,7 @@ fn build_error_type(lib: &mut LibraryBuilder) -> BackTraced<ErrorTypeHandle> {
         .add_error("invalid_dns_name", "Invalid DNS name")?
         .add_error("bad_tls_config", "Bad TLS configuration")?
         .add_error("shutdown", "The task has been shutdown")?
-        .doc("Error type used throughout the library")?
+        .doc("Error type that indicates a bad parameter or bad programmer logic")?
         .build()?;
 
     Ok(definition)
@@ -181,7 +181,10 @@ fn build_request_error(lib: &mut LibraryBuilder) -> BackTraced<ErrorTypeHandle> 
             "request_exception",
             ExceptionType::CheckedException,
         )?
-        .doc("Error information returned during asynchronous API calls")?
+        .doc(
+            doc("Error information returned from asynchronous functions calls.")
+                .details("Unlike {enum:param_error}, the values here generally represent spontaneous failures that are outside developer control, e.g. network failures, etc")
+        )?
         .add_error(
             "shutdown",
             "The channel was shutdown before the operation could complete",

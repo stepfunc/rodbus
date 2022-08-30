@@ -269,7 +269,7 @@ pub(crate) fn build(lib: &mut LibraryBuilder, common: &CommonDefinitions) -> Bac
         .custom_destroy("shutdown")? // custom name of the destructor
         .doc(
             doc("Abstract representation of a client communication channel.")
-                .details("The underlying channel may be TCP, TLS, or serial.")
+                .details("The underlying channel may be TCP, TLS, or serial."),
         )?
         .build()?;
 
@@ -451,7 +451,7 @@ fn build_write_callback(
 ) -> BackTraced<FutureInterfaceHandle> {
     let future = lib.define_future_interface(
         "write_callback",
-        "Callback for write operations",
+        "Callback methods received from asynchronous write operations",
         common.nothing.clone(),
         "response",
         Some(common.error_info.clone()),
@@ -503,7 +503,7 @@ fn build_tls_client_config(
 
     let tls_client_config = lib.declare_function_argument_struct("tls_client_config")?;
     let tls_client_config = lib.define_function_argument_struct(tls_client_config)?
-        .add("dns_name", StringType, "Expected name to validate in the presented certificate (only in {enum:certificate_mode.authority_based} mode)")?
+        .add("dns_name", StringType, "Name expected to be in the presented certificate (only in {enum:certificate_mode.authority_based})")?
         .add(
             "peer_cert_path",
             StringType,
@@ -529,7 +529,7 @@ fn build_tls_client_config(
             common.min_tls_version.clone(),
             "Minimum TLS version allowed",
         )?
-        .add(&certificate_mode_field, common.certificate_mode.clone(), "Certficate validation mode")?
+        .add(&certificate_mode_field, common.certificate_mode.clone(), "Certificate validation mode")?
         .doc("TLS client configuration")?
         .end_fields()?
         .begin_initializer("init", InitializerType::Normal, "Initialize a TLS client configuration")?
