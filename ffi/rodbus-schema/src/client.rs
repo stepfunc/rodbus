@@ -267,7 +267,10 @@ pub(crate) fn build(lib: &mut LibraryBuilder, common: &CommonDefinitions) -> Bac
         // destructor
         .destructor(destroy_channel_fn)?
         .custom_destroy("shutdown")? // custom name of the destructor
-        .doc("Abstract representation of a channel")?
+        .doc(
+            doc("Abstract representation of a client communication channel.")
+                .details("The underlying channel may be TCP, TLS, or serial."),
+        )?
         .build()?;
 
     Ok(())
@@ -280,7 +283,10 @@ fn define_port_state_listener(lib: &mut LibraryBuilder) -> BackTraced<Asynchrono
         .push("wait", "Waiting to perform an open retry")?
         .push("open", "Port is open")?
         .push("shutdown", "Task has been shut down")?
-        .doc("State of the serial port")?
+        .doc(
+            doc("State of the serial port.")
+                .details("Used by the {interface:port_state_listener}."),
+        )?
         .build()?;
 
     let port_state_listener = lib
@@ -316,14 +322,14 @@ fn define_tcp_client_state_listener(lib: &mut LibraryBuilder) -> BackTraced<Asyn
         .push("shutdown", "Client is shutting down")?
         .doc(
             doc("State of the client connection.")
-                .details("Use by the {interface:client_state_listener}."),
+                .details("Used by the {interface:client_state_listener}."),
         )?
         .build()?;
 
     let listener = lib
         .define_interface(
             "client_state_listener",
-            "Callback for monitoring the client TCP connection state",
+            "Callback for monitoring the state of a TCP/TLS connection state",
         )?
         .begin_callback("on_change", "Called when the client state changed")?
         .param("state", client_state_enum, "New state")?
@@ -415,7 +421,7 @@ fn build_bit_read_callback(
 ) -> BackTraced<FutureInterfaceHandle> {
     let future = lib.define_future_interface(
         "bit_read_callback",
-        "Callback for reading coils or discrete inputs",
+        "Callbacks received when reading coils or discrete inputs",
         common.bit_iterator.clone(),
         "response",
         Some(common.error_info.clone()),
@@ -430,7 +436,7 @@ fn build_register_read_callback(
 ) -> BackTraced<FutureInterfaceHandle> {
     let future = lib.define_future_interface(
         "register_read_callback",
-        "Callback for reading holding or input registers",
+        "Callbacks received when reading reading holding or input registers",
         common.register_iterator.clone(),
         "response",
         Some(common.error_info.clone()),
@@ -445,7 +451,7 @@ fn build_write_callback(
 ) -> BackTraced<FutureInterfaceHandle> {
     let future = lib.define_future_interface(
         "write_callback",
-        "Callback for write operations",
+        "Callback methods received from asynchronous write operations",
         common.nothing.clone(),
         "response",
         Some(common.error_info.clone()),
@@ -497,7 +503,7 @@ fn build_tls_client_config(
 
     let tls_client_config = lib.declare_function_argument_struct("tls_client_config")?;
     let tls_client_config = lib.define_function_argument_struct(tls_client_config)?
-        .add("dns_name", StringType, "Expected name to validate in the presented certificate (only in {enum:certificate_mode.authority_based} mode)")?
+        .add("dns_name", StringType, "Name expected to be in the presented certificate (only in {enum:certificate_mode.authority_based})")?
         .add(
             "peer_cert_path",
             StringType,
@@ -523,7 +529,7 @@ fn build_tls_client_config(
             common.min_tls_version.clone(),
             "Minimum TLS version allowed",
         )?
-        .add(&certificate_mode_field, common.certificate_mode.clone(), "Certficate validation mode")?
+        .add(&certificate_mode_field, common.certificate_mode.clone(), "Certificate validation mode")?
         .doc("TLS client configuration")?
         .end_fields()?
         .begin_initializer("init", InitializerType::Normal, "Initialize a TLS client configuration")?
