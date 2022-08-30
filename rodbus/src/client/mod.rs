@@ -107,7 +107,7 @@ pub fn spawn_tcp_client_task(
 /// * `path` - Path to the serial device. Generally `/dev/tty0` on Linux and `COM1` on Windows.
 /// * `serial_settings` = Serial port settings
 /// * `max_queued_requests` - The maximum size of the request queue
-/// * `retry` - Delay between attempts to open the serial port
+/// * `retry` - A boxed trait object that controls when opening the serial port is retried on failure
 /// * `decode` - Decode log level
 ///
 /// `WARNING`: This function must be called from with the context of the Tokio runtime or it will panic.
@@ -116,7 +116,7 @@ pub fn spawn_rtu_client_task(
     path: &str,
     serial_settings: crate::serial::SerialSettings,
     max_queued_requests: usize,
-    retry_delay: std::time::Duration,
+    retry: Box<dyn ReconnectStrategy + Send>,
     decode: DecodeLevel,
     listener: Option<Box<dyn Listener<PortState>>>,
 ) -> Channel {
@@ -124,7 +124,7 @@ pub fn spawn_rtu_client_task(
         path,
         serial_settings,
         max_queued_requests,
-        retry_delay,
+        retry,
         decode,
         listener,
     )

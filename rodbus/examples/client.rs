@@ -80,7 +80,7 @@ async fn run_rtu() -> Result<(), Box<dyn std::error::Error>> {
         "/dev/ttySIM0",                    // path
         rodbus::SerialSettings::default(), // serial settings
         1,                                 // max queued requests
-        Duration::from_secs(1),            // retry delay
+        default_reconnect_strategy(),      // retry delays
         DecodeLevel::new(
             AppDecodeLevel::DataValues,
             FrameDecodeLevel::Payload,

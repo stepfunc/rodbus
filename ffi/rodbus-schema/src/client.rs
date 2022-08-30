@@ -71,9 +71,9 @@ pub(crate) fn build(lib: &mut LibraryBuilder, common: &CommonDefinitions) -> Bac
             "Maximum number of requests to queue before failing the next request",
         )?
         .param(
-            "open_retry_delay",
-            DurationType::Milliseconds,
-            "Delay between attempts to open the serial port",
+            "retry_strategy",
+            retry_strategy.clone(),
+            "Strategy which controls how long to wait between attempts to open the serial port after failures",
         )?
         .param(
             "decode_level",

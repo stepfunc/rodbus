@@ -1,5 +1,3 @@
-use std::time::Duration;
-
 use crate::common::phys::PhysLayer;
 use crate::decode::DecodeLevel;
 use crate::serial::SerialSettings;
@@ -7,14 +5,14 @@ use tokio::sync::mpsc::Receiver;
 
 use crate::client::message::Command;
 use crate::client::task::{ClientLoop, SessionError, StateChange};
-use crate::client::{Listener, PortState};
+use crate::client::{Listener, PortState, ReconnectStrategy};
 use crate::common::frame::{FrameWriter, FramedReader};
 use crate::error::Shutdown;
 
 pub(crate) struct SerialChannelTask {
     path: String,
     serial_settings: SerialSettings,
-    retry_delay: Duration,
+    retry: Box<dyn ReconnectStrategy + Send>,
     client_loop: ClientLoop,
     listener: Box<dyn Listener<PortState>>,
 }
@@ -24,14 +22,14 @@ impl SerialChannelTask {
         path: &str,
         serial_settings: SerialSettings,
         rx: Receiver<Command>,
-        retry_delay: Duration,
+        retry: Box<dyn ReconnectStrategy + Send>,
         decode: DecodeLevel,
         listener: Box<dyn Listener<PortState>>,
     ) -> Self {
         Self {
             path: path.to_string(),
             serial_settings,
-            retry_delay,
+            retry,
             client_loop: ClientLoop::new(
                 rx,
                 FrameWriter::rtu(),
@@ -69,27 +67,27 @@ impl SerialChannelTask {
     pub(crate) async fn try_open_and_run(&mut self) -> Result<(), StateChange> {
         match crate::serial::open(self.path.as_str(), self.serial_settings) {
             Err(err) => {
-                self.listener
-                    .update(PortState::Wait(self.retry_delay))
-                    .get()
-                    .await;
-                tracing::warn!(
-                    "{} - waiting {} ms to re-open port",
-                    err,
-                    self.retry_delay.as_millis()
-                );
-                self.client_loop.fail_requests_for(self.retry_delay).await
+                let delay = self.retry.after_failed_connect();
+                self.listener.update(PortState::Wait(delay)).get().await;
+                tracing::warn!("{} - waiting {} ms to re-open port", err, delay.as_millis());
+                self.client_loop.fail_requests_for(delay).await
             }
             Ok(serial) => {
+                self.retry.reset();
                 self.listener.update(PortState::Open).get().await;
                 let mut phys = PhysLayer::new_serial(serial);
                 tracing::info!("serial port open");
                 match self.client_loop.run(&mut phys).await {
                     // the mpsc was closed, end the task
                     SessionError::Shutdown => Err(StateChange::Shutdown),
-                    // re-establish the connection or wait to be enabled
-                    SessionError::Disabled | SessionError::IoError(_) | SessionError::BadFrame => {
-                        Ok(())
+                    // don't wait, we're disabled
+                    SessionError::Disabled => Ok(()),
+                    // wait before retrying
+                    SessionError::IoError(_) | SessionError::BadFrame => {
+                        let delay = self.retry.after_disconnect();
+                        self.listener.update(PortState::Wait(delay)).get().await;
+                        tracing::warn!("waiting {} ms to re-open port", delay.as_millis());
+                        self.client_loop.fail_requests_for(delay).await
                     }
                 }
             }

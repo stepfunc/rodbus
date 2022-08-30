@@ -103,7 +103,7 @@ impl Channel {
         path: &str,
         serial_settings: crate::serial::SerialSettings,
         max_queued_requests: usize,
-        retry_delay: Duration,
+        retry: Box<dyn ReconnectStrategy + Send>,
         decode: DecodeLevel,
         listener: Option<Box<dyn crate::client::Listener<crate::client::PortState>>>,
     ) -> Self {
@@ -111,7 +111,7 @@ impl Channel {
             path,
             serial_settings,
             max_queued_requests,
-            retry_delay,
+            retry,
             decode,
             listener,
         );
@@ -124,7 +124,7 @@ impl Channel {
         path: &str,
         serial_settings: crate::serial::SerialSettings,
         max_queued_requests: usize,
-        retry_delay: Duration,
+        retry: Box<dyn ReconnectStrategy + Send>,
         decode: DecodeLevel,
         listener: Option<Box<dyn crate::client::Listener<crate::client::PortState>>>,
     ) -> (Self, impl std::future::Future<Output = ()>) {
@@ -137,7 +137,7 @@ impl Channel {
                 &path,
                 serial_settings,
                 rx,
-                retry_delay,
+                retry,
                 decode,
                 listener.unwrap_or_else(|| crate::client::NullListener::create()),
             )
