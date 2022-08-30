@@ -5,14 +5,14 @@ use tokio::sync::mpsc::Receiver;
 
 use crate::client::message::Command;
 use crate::client::task::{ClientLoop, SessionError, StateChange};
-use crate::client::{Listener, PortState, ReconnectStrategy};
+use crate::client::{Listener, PortState, RetryStrategy};
 use crate::common::frame::{FrameWriter, FramedReader};
 use crate::error::Shutdown;
 
 pub(crate) struct SerialChannelTask {
     path: String,
     serial_settings: SerialSettings,
-    retry: Box<dyn ReconnectStrategy + Send>,
+    retry: Box<dyn RetryStrategy>,
     client_loop: ClientLoop,
     listener: Box<dyn Listener<PortState>>,
 }
@@ -22,7 +22,7 @@ impl SerialChannelTask {
         path: &str,
         serial_settings: SerialSettings,
         rx: Receiver<Command>,
-        retry: Box<dyn ReconnectStrategy + Send>,
+        retry: Box<dyn RetryStrategy>,
         decode: DecodeLevel,
         listener: Box<dyn Listener<PortState>>,
     ) -> Self {

@@ -7,7 +7,7 @@ use crate::client::requests::write_multiple::{MultipleWriteRequest, WriteMultipl
 use crate::client::requests::write_single::SingleWrite;
 use crate::error::*;
 use crate::types::{AddressRange, BitIterator, Indexed, RegisterIterator, UnitId};
-use crate::DecodeLevel;
+use crate::{DecodeLevel, RetryStrategy};
 
 /// Async channel used to make requests
 #[derive(Debug, Clone)]
@@ -22,69 +22,6 @@ pub struct RequestParam {
     pub id: UnitId,
     /// Response timeout
     pub response_timeout: Duration,
-}
-
-/// Dynamic trait that controls how the channel
-/// retries failed connect attempts
-pub trait ReconnectStrategy {
-    /// Reset internal state. Called when a connection is successful
-    fn reset(&mut self);
-    /// Return the next delay before making another connection attempt
-    fn after_failed_connect(&mut self) -> Duration;
-    /// Return the delay to wait after a disconnect before attempting to reconnect
-    fn after_disconnect(&mut self) -> Duration;
-}
-
-/// Helper functions for returning instances of `Box<dyn ReconnectStrategy>`
-pub(crate) mod strategy {
-    use std::time::Duration;
-
-    use super::ReconnectStrategy;
-
-    /// Return the default [`ReconnectStrategy`]
-    pub fn default_reconnect_strategy() -> Box<dyn ReconnectStrategy + Send> {
-        doubling_reconnect_strategy(Duration::from_millis(100), Duration::from_secs(5))
-    }
-
-    /// Return a [`ReconnectStrategy`] that doubles on failure up to a maximum value
-    pub fn doubling_reconnect_strategy(
-        min: Duration,
-        max: Duration,
-    ) -> Box<dyn ReconnectStrategy + Send> {
-        Doubling::create(min, max)
-    }
-
-    struct Doubling {
-        min: Duration,
-        max: Duration,
-        current: Duration,
-    }
-
-    impl Doubling {
-        pub(crate) fn create(min: Duration, max: Duration) -> Box<dyn ReconnectStrategy + Send> {
-            Box::new(Doubling {
-                min,
-                max,
-                current: min,
-            })
-        }
-    }
-
-    impl ReconnectStrategy for Doubling {
-        fn reset(&mut self) {
-            self.current = self.min;
-        }
-
-        fn after_failed_connect(&mut self) -> Duration {
-            let ret = self.current;
-            self.current = std::cmp::min(2 * self.current, self.max);
-            ret
-        }
-
-        fn after_disconnect(&mut self) -> Duration {
-            self.min
-        }
-    }
 }
 
 impl RequestParam {
@@ -103,7 +40,7 @@ impl Channel {
         path: &str,
         serial_settings: crate::serial::SerialSettings,
         max_queued_requests: usize,
-        retry: Box<dyn ReconnectStrategy + Send>,
+        retry: Box<dyn RetryStrategy>,
         decode: DecodeLevel,
         listener: Option<Box<dyn crate::client::Listener<crate::client::PortState>>>,
     ) -> Self {
@@ -124,7 +61,7 @@ impl Channel {
         path: &str,
         serial_settings: crate::serial::SerialSettings,
         max_queued_requests: usize,
-        retry: Box<dyn ReconnectStrategy + Send>,
+        retry: Box<dyn RetryStrategy>,
         decode: DecodeLevel,
         listener: Option<Box<dyn crate::client::Listener<crate::client::PortState>>>,
     ) -> (Self, impl std::future::Future<Output = ()>) {

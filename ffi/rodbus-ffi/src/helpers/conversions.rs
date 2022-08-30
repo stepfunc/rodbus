@@ -1,4 +1,4 @@
-use rodbus::client::ReconnectStrategy;
+use rodbus::client::RetryStrategy;
 use rodbus::server::Authorization;
 use rodbus::AddressRange;
 use rodbus::Shutdown;
@@ -150,9 +150,9 @@ impl From<ffi::CertificateMode> for rodbus::client::CertificateMode {
     }
 }
 
-impl From<ffi::RetryStrategy> for Box<dyn ReconnectStrategy + Send> {
+impl From<ffi::RetryStrategy> for Box<dyn RetryStrategy> {
     fn from(from: ffi::RetryStrategy) -> Self {
-        rodbus::client::doubling_reconnect_strategy(from.min_delay(), from.max_delay())
+        rodbus::doubling_retry_strategy(from.min_delay(), from.max_delay())
     }
 }
 

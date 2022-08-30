@@ -62,7 +62,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let channel = spawn_tcp_client_task(
             addr.into(),
             10,
-            default_reconnect_strategy(),
+            default_retry_strategy(),
             DecodeLevel::new(
                 AppDecodeLevel::Nothing,
                 FrameDecodeLevel::Nothing,

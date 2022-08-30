@@ -71,7 +71,7 @@ async fn run() -> Result<(), Error> {
     let mut channel = spawn_tcp_client_task(
         HostAddr::ip(args.address.ip(), args.address.port()),
         1,
-        default_reconnect_strategy(),
+        default_retry_strategy(),
         AppDecodeLevel::DataValues.into(),
         None,
     );

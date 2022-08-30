@@ -4,11 +4,11 @@ use crate::client::{Channel, ClientState, HostAddr, Listener};
 use crate::common::phys::PhysLayer;
 use crate::decode::DecodeLevel;
 
-use crate::client::channel::ReconnectStrategy;
 use crate::client::message::Command;
 use crate::client::task::{ClientLoop, SessionError, StateChange};
 use crate::common::frame::{FrameWriter, FramedReader};
 use crate::error::Shutdown;
+use crate::retry::RetryStrategy;
 
 use tokio::net::TcpStream;
 use tokio::sync::mpsc::Receiver;
@@ -16,7 +16,7 @@ use tokio::sync::mpsc::Receiver;
 pub(crate) fn spawn_tcp_channel(
     host: HostAddr,
     max_queued_requests: usize,
-    connect_retry: Box<dyn ReconnectStrategy + Send>,
+    connect_retry: Box<dyn RetryStrategy>,
     decode: DecodeLevel,
     listener: Box<dyn Listener<ClientState>>,
 ) -> Channel {
@@ -29,7 +29,7 @@ pub(crate) fn spawn_tcp_channel(
 pub(crate) fn create_tcp_channel(
     host: HostAddr,
     max_queued_requests: usize,
-    connect_retry: Box<dyn ReconnectStrategy + Send>,
+    connect_retry: Box<dyn RetryStrategy>,
     decode: DecodeLevel,
     listener: Box<dyn Listener<ClientState>>,
 ) -> (Channel, impl std::future::Future<Output = ()>) {
@@ -72,7 +72,7 @@ impl TcpTaskConnectionHandler {
 
 pub(crate) struct TcpChannelTask {
     host: HostAddr,
-    connect_retry: Box<dyn ReconnectStrategy + Send>,
+    connect_retry: Box<dyn RetryStrategy>,
     connection_handler: TcpTaskConnectionHandler,
     client_loop: ClientLoop,
     listener: Box<dyn Listener<ClientState>>,
@@ -83,7 +83,7 @@ impl TcpChannelTask {
         host: HostAddr,
         rx: Receiver<Command>,
         connection_handler: TcpTaskConnectionHandler,
-        connect_retry: Box<dyn ReconnectStrategy + Send>,
+        connect_retry: Box<dyn RetryStrategy>,
         decode: DecodeLevel,
         listener: Box<dyn Listener<ClientState>>,
     ) -> Self {
