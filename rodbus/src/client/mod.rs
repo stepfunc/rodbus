@@ -81,7 +81,7 @@ impl HostAddr {
 /// * `max_queued_requests` - The maximum size of the request queue
 /// * `retry` - A boxed trait object that controls when the connection is retried on failure
 /// * `decode` - Decode log level
-/// * `listener` - Callback for the TCP connection state
+/// * `listener` - Optional callback to monitor the TCP connection state
 ///
 /// `WARNING`: This function must be called from with the context of the Tokio runtime or it will panic.
 pub fn spawn_tcp_client_task(
@@ -112,6 +112,7 @@ pub fn spawn_tcp_client_task(
 /// * `max_queued_requests` - The maximum size of the request queue
 /// * `retry` - A boxed trait object that controls when opening the serial port is retried on failure
 /// * `decode` - Decode log level
+/// * `listener` - Optional callback to monitor the state of the serial port
 ///
 /// `WARNING`: This function must be called from with the context of the Tokio runtime or it will panic.
 #[cfg(feature = "serial")]
@@ -144,7 +145,7 @@ pub fn spawn_rtu_client_task(
 /// * `retry` - A boxed trait object that controls when the connection is retried on failure
 /// * `tls_config` - TLS configuration
 /// * `decode` - Decode log level
-/// * `listener` - Callback for the TCP connection state
+/// * `listener` - Optional callback to monitor the TLS connection state
 ///
 /// `WARNING`: This function must be called from with the context of the Tokio runtime or it will panic.
 #[cfg(feature = "tls")]

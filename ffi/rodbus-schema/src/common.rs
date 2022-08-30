@@ -16,6 +16,7 @@ pub(crate) struct CommonDefinitions {
     pub(crate) serial_port_settings: FunctionArgStructHandle,
     pub(crate) min_tls_version: EnumHandle,
     pub(crate) certificate_mode: EnumHandle,
+    pub(crate) retry_strategy: UniversalStructHandle,
 }
 
 impl CommonDefinitions {
@@ -42,8 +43,43 @@ impl CommonDefinitions {
             serial_port_settings: build_serial_params(lib)?,
             min_tls_version: build_min_tls_version(lib)?,
             certificate_mode: build_certificate_mode(lib)?,
+            retry_strategy: build_retry_strategy(lib)?,
         })
     }
+}
+
+fn build_retry_strategy(lib: &mut LibraryBuilder) -> BackTraced<UniversalStructHandle> {
+    let min_delay_field = Name::create("min_delay")?;
+    let max_delay_field = Name::create("max_delay")?;
+
+    let retry_strategy = lib.declare_universal_struct("retry_strategy")?;
+    let retry_strategy = lib
+        .define_universal_struct(retry_strategy)?
+        .add(
+            &min_delay_field,
+            DurationType::Milliseconds,
+            "Minimum delay between two retries",
+        )?
+        .add(
+            &max_delay_field,
+            DurationType::Milliseconds,
+            "Maximum delay between two retries",
+        )?
+        .doc(doc("Retry strategy configuration.").details(
+            "The strategy uses an exponential back-off with a minimum and maximum value.",
+        ))?
+        .end_fields()?
+        .begin_initializer(
+            "init",
+            InitializerType::Normal,
+            "Initialize a retry strategy to defaults",
+        )?
+        .default(&min_delay_field, std::time::Duration::from_secs(1))?
+        .default(&max_delay_field, std::time::Duration::from_secs(10))?
+        .end_initializer()?
+        .build()?;
+
+    Ok(retry_strategy)
 }
 
 fn build_error_type(lib: &mut LibraryBuilder) -> BackTraced<ErrorTypeHandle> {
