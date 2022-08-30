@@ -19,7 +19,6 @@ pub(crate) const SERVER_SETTING_CHANNEL_CAPACITY: usize = 8;
 
 use crate::error::Shutdown;
 
-use crate::RetryStrategy;
 pub use address_filter::*;
 pub use handler::*;
 pub use types::*;
@@ -106,7 +105,7 @@ pub async fn spawn_tcp_server_task<T: RequestHandler>(
 pub fn spawn_rtu_server_task<T: RequestHandler>(
     path: &str,
     settings: crate::serial::SerialSettings,
-    retry: Box<dyn RetryStrategy>,
+    retry: Box<dyn crate::retry::RetryStrategy>,
     handlers: ServerHandlerMap<T>,
     decode: DecodeLevel,
 ) -> Result<ServerHandle, std::io::Error> {
