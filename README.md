@@ -7,6 +7,8 @@ Commercial library by [Step Function I/O](https://stepfunc.io/)
 [Rust](https://www.rust-lang.org/) async/await implementation of the [Modbus](http://www.modbus.org/) protocol using
 [Tokio](https://tokio.rs/) with idiomatic bindings for C/C++, Java, and .NET Core.
 
+The library supports Modbus TCP, RTU, and TLS including role-based access control using the X.509 role identifier in the Modbus security specification.
+
 ## License
 
 Refer to [`License.txt`](./LICENSE.txt) for the terms of the non-commercial license.  This software is "source available", but is not
@@ -30,11 +32,6 @@ The following function codes are supported:
 The library uses the Tokio executor under the hood. The [`perf`](./rodbus/examples/perf.rs) example is a benchmark that
 creates multiple sessions on a single server and sends multiple requests in parallel. On a decent workstation,
 the benchmark achieved around 200k requests per second spread across 100 concurrent sessions in only 800 KB of memory.
-
-## Future support
-
-* [Modbus Security](http://modbus.org/docs/MB-TCP-Security-v21_2018-07-24.pdf) using TLS
-* [Modbus RTU](http://modbus.org/docs/PI_MBUS_300.pdf) (serial)
 
 ## Bindings
 
