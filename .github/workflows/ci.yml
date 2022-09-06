@@ -426,7 +426,7 @@ jobs:
           git config user.name github-actions
           git config user.email github-actions@github.com
           rm -rf ./rodbus/${GITHUB_REF##*/}
-          mkdir -p ./dnp3/${GITHUB_REF##*/}
+          mkdir -p ./rodbus/${GITHUB_REF##*/}
           cp -a ../artifacts/doc/* ./rodbus/${GITHUB_REF##*/}
           git add -A
           git commit -m "[rodbus] Release ${GITHUB_REF##*/}"
