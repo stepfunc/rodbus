@@ -14,7 +14,7 @@
     </When>
     <Otherwise>
       <ItemGroup>
-        <PackageReference Include="rodbus" Version="1.0.0-rc1" />
+        <PackageReference Include="rodbus" Version="1.0.0" />
       </ItemGroup>
     </Otherwise>
   </Choose>

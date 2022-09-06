@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.12)
 
 project(rodbus_c LANGUAGES C CXX)
 
-set(RODBUS_VERSION "1.0.0-rc1")
+set(RODBUS_VERSION "1.0.0")
 
 # Determine the architecture
 if(WIN32 AND CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|amd64|AMD64" AND CMAKE_SIZEOF_VOID_P EQUAL 8)
