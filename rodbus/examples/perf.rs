@@ -70,6 +70,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             ),
             None,
         );
+        channel.enable().await.unwrap();
         let params = RequestParam::new(UnitId::new(1), Duration::from_secs(1));
 
         channels.push((channel, params));
