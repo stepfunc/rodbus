@@ -1,4 +1,4 @@
-use std::net::SocketAddr;
+use std::net::{IpAddr, SocketAddr};
 use std::str::FromStr;
 use std::time::Duration;
 
@@ -7,6 +7,8 @@ use rodbus::constants::limits::MAX_READ_REGISTERS_COUNT;
 use rodbus::server::*;
 use rodbus::RequestError;
 use rodbus::*;
+
+use clap::Parser;
 
 struct Handler;
 
@@ -17,34 +19,43 @@ impl RequestHandler for Handler {
     }
 }
 
+#[derive(Parser)]
+#[clap(author, version, about, long_about = None)]
+struct Cli {
+    #[clap(short, long, value_parser, default_value_t = 1)]
+    sessions: usize,
+    #[clap(short, long, value_parser, default_value_t = 100)]
+    requests: usize,
+    #[clap(short, long, value_parser, default_value_t = false)]
+    log: bool,
+    #[clap(short, long, value_parser, default_value_t = 40000)]
+    port: u16,
+}
+
 #[tokio::main(flavor = "multi_thread")]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Initialize logging
-    tracing_subscriber::fmt()
-        .with_max_level(tracing::Level::INFO)
-        .with_target(false)
-        .init();
+    let args = Cli::parse();
 
-    let args: Vec<String> = std::env::args().collect();
-
-    if args.len() != 3 {
-        panic!("You must provide only the <num sessions> and <num requests> parameters");
+    if args.log {
+        // Initialize logging
+        tracing_subscriber::fmt()
+            .with_max_level(tracing::Level::INFO)
+            .with_target(false)
+            .init();
     }
-
-    let num_sessions = usize::from_str(&args[1])?;
-    let num_requests = usize::from_str(&args[2])?;
 
     println!(
         "creating {} parallel connections and making {} requests per connection",
-        num_sessions, num_requests
+        args.sessions, args.requests
     );
 
-    let addr = SocketAddr::from_str("127.0.0.1:40000")?;
+    let ip = IpAddr::from_str("127.0.0.1")?;
+    let addr = SocketAddr::new(ip, args.port);
 
     let handler = Handler {}.wrap();
 
     let _handle = spawn_tcp_server_task(
-        num_sessions,
+        args.sessions,
         addr,
         ServerHandlerMap::single(UnitId::new(1), handler),
         AddressFilter::Any,
@@ -58,7 +69,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // now spawn a bunch of clients
     let mut channels: Vec<(Channel, RequestParam)> = Vec::new();
-    for _ in 0..num_sessions {
+    for _ in 0..args.sessions {
         let channel = spawn_tcp_client_task(
             addr.into(),
             10,
@@ -83,7 +94,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // spawn tasks that make a query 1000 times
     for (mut channel, params) in channels {
         let handle: tokio::task::JoinHandle<Result<(), RequestError>> = tokio::spawn(async move {
-            for _ in 0..num_requests {
+            for _ in 0..args.requests {
                 if let Err(err) = channel
                     .read_holding_registers(
                         params,
@@ -106,7 +117,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let elapsed = std::time::Instant::now() - start;
 
-    let num_total_requests = num_sessions * num_requests;
+    let num_total_requests = args.sessions * args.requests;
     let seconds = elapsed.as_secs_f64();
     let requests_per_sec: f64 = (num_total_requests as f64) / seconds;
     let registers_per_sec = requests_per_sec * (MAX_READ_REGISTERS_COUNT as f64);
