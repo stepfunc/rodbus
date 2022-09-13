@@ -24,12 +24,20 @@ impl RequestHandler for Handler {
 struct Cli {
     #[clap(short, long, value_parser, default_value_t = 1)]
     sessions: usize,
-    #[clap(short, long, value_parser, default_value_t = 100)]
-    requests: usize,
+    #[clap(short, long, value_parser, default_value_t = 5)]
+    seconds: usize,
     #[clap(short, long, value_parser, default_value_t = false)]
     log: bool,
     #[clap(short, long, value_parser, default_value_t = 40000)]
     port: u16,
+}
+
+async fn join_and_sum(tasks: Vec<tokio::task::JoinHandle<Result<usize, RequestError>>>) -> usize {
+    let mut total = 0;
+    for task in tasks {
+        total += task.await.unwrap().unwrap();
+    }
+    total
 }
 
 #[tokio::main(flavor = "multi_thread")]
@@ -44,9 +52,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .init();
     }
 
+    let duration = std::time::Duration::from_secs(args.seconds as u64);
+
     println!(
-        "creating {} parallel connections and making {} requests per connection",
-        args.sessions, args.requests
+        "creating {} parallel connections and making requests for {:?}",
+        args.sessions, duration
     );
 
     let ip = IpAddr::from_str("127.0.0.1")?;
@@ -87,45 +97,48 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         channels.push((channel, params));
     }
 
-    let mut query_tasks: Vec<tokio::task::JoinHandle<Result<(), RequestError>>> = Vec::new();
+    let mut query_tasks: Vec<tokio::task::JoinHandle<Result<usize, RequestError>>> = Vec::new();
 
     let start = std::time::Instant::now();
 
     // spawn tasks that make a query 1000 times
     for (mut channel, params) in channels {
-        let handle: tokio::task::JoinHandle<Result<(), RequestError>> = tokio::spawn(async move {
-            for _ in 0..args.requests {
-                if let Err(err) = channel
-                    .read_holding_registers(
-                        params,
-                        AddressRange::try_from(0, MAX_READ_REGISTERS_COUNT).unwrap(),
-                    )
-                    .await
-                {
-                    println!("failure: {}", err);
-                    return Err(err);
+        let handle: tokio::task::JoinHandle<Result<usize, RequestError>> =
+            tokio::spawn(async move {
+                let mut iterations = 0;
+                loop {
+                    if let Err(err) = channel
+                        .read_holding_registers(
+                            params,
+                            AddressRange::try_from(0, MAX_READ_REGISTERS_COUNT).unwrap(),
+                        )
+                        .await
+                    {
+                        println!("failure: {}", err);
+                        return Err(err);
+                    }
+
+                    iterations += 1;
+                    let elapsed = start.elapsed();
+                    if elapsed >= duration {
+                        return Ok(iterations);
+                    }
                 }
-            }
-            Ok(())
-        });
+            });
         query_tasks.push(handle);
     }
 
-    for handle in query_tasks {
-        handle.await.unwrap().unwrap();
-    }
+    // join the tasks and calculate the total number of iterations that were run
+    let iterations = join_and_sum(query_tasks).await;
 
     let elapsed = std::time::Instant::now() - start;
 
-    let num_total_requests = args.sessions * args.requests;
-    let seconds = elapsed.as_secs_f64();
-    let requests_per_sec: f64 = (num_total_requests as f64) / seconds;
+    let requests_per_sec: f64 = (iterations as f64) / elapsed.as_secs_f64();
     let registers_per_sec = requests_per_sec * (MAX_READ_REGISTERS_COUNT as f64);
 
-    println!(
-        "performed {} requests in {} seconds - ({:.1} requests/sec) == ({:.1} registers/sec)",
-        num_total_requests, seconds, requests_per_sec, registers_per_sec
-    );
+    println!("performed {} requests in {:?}", iterations, elapsed);
+    println!("requests/sec == {:.1}", requests_per_sec);
+    println!("registers/sec == {:.1}", registers_per_sec);
 
     Ok(())
 }
