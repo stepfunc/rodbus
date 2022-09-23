@@ -176,6 +176,9 @@ where
                         }
                         Ok((socket, addr)) => {
                             if self.filter.matches(addr.ip()) {
+                                if let Err(err) = socket.set_nodelay(true) {
+                                    tracing::warn!("unable to enable TCP_NODELAY: {}", err);
+                                }
                                 self.handle(socket, addr).await
                             } else {
                                 tracing::warn!("IP address {:?} does not match filter {:?}, closing connection", addr.ip(), self.filter);

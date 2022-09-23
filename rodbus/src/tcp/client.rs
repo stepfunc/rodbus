@@ -141,6 +141,9 @@ impl TcpChannelTask {
                 if let Ok(addr) = socket.peer_addr() {
                     tracing::info!("connected to: {}", addr);
                 }
+                if let Err(err) = socket.set_nodelay(true) {
+                    tracing::warn!("unable to enable TCP_NODELAY: {}", err);
+                }
                 match self.connection_handler.handle(socket, &self.host).await {
                     Err(err) => {
                         let delay = self.connect_retry.after_failed_connect();
