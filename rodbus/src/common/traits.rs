@@ -1,7 +1,8 @@
-use crate::common::cursor::*;
 use crate::decode::AppDecodeLevel;
 use crate::error::*;
 use crate::ExceptionCode;
+
+use scursor::{ReadCursor, WriteCursor};
 
 pub(crate) trait Serialize {
     fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError>;

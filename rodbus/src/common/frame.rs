@@ -2,13 +2,14 @@ use crate::common::phys::PhysLayer;
 use std::ops::Range;
 
 use crate::common::buffer::ReadBuffer;
-use crate::common::cursor::WriteCursor;
 use crate::common::function::FunctionCode;
 use crate::common::traits::{Loggable, LoggableDisplay, Serialize};
 use crate::error::RequestError;
 use crate::tcp::frame::{MbapDisplay, MbapHeader, MbapParser};
 use crate::types::UnitId;
 use crate::{DecodeLevel, ExceptionCode, FrameDecodeLevel};
+
+use scursor::WriteCursor;
 
 pub(crate) mod constants {
     const fn max(lhs: usize, rhs: usize) -> usize {

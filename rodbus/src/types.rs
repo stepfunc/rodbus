@@ -1,10 +1,9 @@
 use crate::decode::AppDecodeLevel;
 use crate::error::{AduParseError, InvalidRange};
 
-use crate::common::cursor::ReadCursor;
+use scursor::ReadCursor;
+
 use crate::error::RequestError;
-#[cfg(feature = "no-panic")]
-use no_panic::no_panic;
 
 /// Modbus unit identifier, just a type-safe wrapper around `u8`
 #[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Ord, Eq)]
@@ -165,7 +164,6 @@ impl std::fmt::Display for RegisterIteratorDisplay<'_> {
 impl<'a> Iterator for BitIterator<'a> {
     type Item = Indexed<bool>;
 
-    #[cfg_attr(feature = "no-panic", no_panic)]
     fn next(&mut self) -> Option<Self::Item> {
         if self.pos == self.range.count {
             return None;
@@ -184,8 +182,7 @@ impl<'a> Iterator for BitIterator<'a> {
         }
     }
 
-    // implementing this allows collect to optimize the vector capacity
-    #[cfg_attr(feature = "no-panic", no_panic)]
+    /// implementing this allows collect to optimize the vector capacity
     fn size_hint(&self) -> (usize, Option<usize>) {
         let remaining = (self.range.count - self.pos) as usize;
         (remaining, Some(remaining))
@@ -195,7 +192,6 @@ impl<'a> Iterator for BitIterator<'a> {
 impl<'a> Iterator for RegisterIterator<'a> {
     type Item = Indexed<u16>;
 
-    #[cfg_attr(feature = "no-panic", no_panic)]
     fn next(&mut self) -> Option<Self::Item> {
         if self.pos == self.range.count {
             return None;
@@ -214,7 +210,6 @@ impl<'a> Iterator for RegisterIterator<'a> {
     }
 
     // implementing this allows collect to optimize the vector capacity
-    #[cfg_attr(feature = "no-panic", no_panic)]
     fn size_hint(&self) -> (usize, Option<usize>) {
         let remaining = (self.range.count - self.pos) as usize;
         (remaining, Some(remaining))
@@ -394,8 +389,8 @@ mod tests {
     #[test]
     fn start_max_count_of_two_overflows() {
         assert_eq!(
-            AddressRange::try_from(std::u16::MAX, 2),
-            Err(InvalidRange::AddressOverflow(std::u16::MAX, 2))
+            AddressRange::try_from(u16::MAX, 2),
+            Err(InvalidRange::AddressOverflow(u16::MAX, 2))
         );
     }
 

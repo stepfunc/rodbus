@@ -11,6 +11,7 @@ readme = "../README.md"
 
 [dependencies]
 crc = "2.0"
+scursor = { git = "https://github.com/stepfunc/scursor.git", tag="0.1.0" }
 tokio = { version = "1", features = ["net", "sync", "io-util", "io-std", "time", "rt", "rt-multi-thread", "macros"] }
 tracing = "0.1"
 

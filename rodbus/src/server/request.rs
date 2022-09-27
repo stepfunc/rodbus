@@ -1,4 +1,3 @@
-use crate::common::cursor::ReadCursor;
 use crate::common::frame::{FrameHeader, FrameWriter, FunctionField};
 use crate::common::function::FunctionCode;
 use crate::common::traits::{Loggable, Parse, Serialize};
@@ -9,6 +8,8 @@ use crate::server::handler::RequestHandler;
 use crate::server::response::{BitWriter, RegisterWriter};
 use crate::server::*;
 use crate::types::*;
+
+use scursor::ReadCursor;
 
 #[derive(Debug)]
 pub(crate) enum Request<'a> {
@@ -262,7 +263,7 @@ impl std::fmt::Display for RequestDisplay<'_, '_> {
 #[cfg(test)]
 mod tests {
     mod coils {
-        use crate::common::cursor::ReadCursor;
+        use scursor::ReadCursor;
 
         use super::super::*;
         use crate::error::AduParseError;
@@ -326,7 +327,7 @@ mod tests {
     }
 
     mod registers {
-        use crate::common::cursor::ReadCursor;
+        use scursor::ReadCursor;
 
         use super::super::*;
         use crate::error::AduParseError;

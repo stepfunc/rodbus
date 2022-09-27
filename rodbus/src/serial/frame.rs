@@ -1,5 +1,4 @@
 use crate::common::buffer::ReadBuffer;
-use crate::common::cursor::WriteCursor;
 use crate::common::frame::{
     Frame, FrameDestination, FrameHeader, FrameInfo, FrameType, FunctionField,
 };
@@ -8,6 +7,8 @@ use crate::common::traits::Serialize;
 use crate::decode::FrameDecodeLevel;
 use crate::error::{FrameParseError, RequestError};
 use crate::types::UnitId;
+
+use scursor::WriteCursor;
 
 pub(crate) mod constants {
     pub(crate) const HEADER_LENGTH: usize = 1;
