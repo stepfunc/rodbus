@@ -142,7 +142,7 @@ impl From<scursor::ReadError> for RequestError {
 
 impl From<scursor::TrailingBytes> for RequestError {
     fn from(x: scursor::TrailingBytes) -> Self {
-        RequestError::BadResponse(AduParseError::TrailingBytes(x.count))
+        RequestError::BadResponse(AduParseError::TrailingBytes(x.count.get()))
     }
 }
 
