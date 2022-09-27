@@ -1,7 +1,8 @@
-use crate::common::cursor::ReadCursor;
 use crate::common::traits::Parse;
 use crate::error::*;
 use crate::types::{coil_from_u16, AddressRange, Indexed};
+
+use scursor::ReadCursor;
 
 impl Parse for AddressRange {
     fn parse(cursor: &mut ReadCursor) -> Result<Self, RequestError> {
@@ -29,10 +30,11 @@ impl Parse for Indexed<u16> {
 
 #[cfg(test)]
 mod coils {
-    use crate::common::cursor::ReadCursor;
     use crate::common::traits::Parse;
     use crate::error::AduParseError;
     use crate::types::Indexed;
+
+    use scursor::ReadCursor;
 
     #[test]
     fn parse_fails_for_unknown_coil_value() {

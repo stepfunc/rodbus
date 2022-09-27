@@ -2,7 +2,6 @@ use crate::common::phys::PhysLayer;
 use crate::server::{Authorization, AuthorizationHandler};
 use crate::{DecodeLevel, UnitId};
 
-use crate::common::cursor::ReadCursor;
 use crate::common::frame::{
     Frame, FrameDestination, FrameHeader, FrameWriter, FramedReader, FunctionField,
 };
@@ -11,6 +10,8 @@ use crate::error::*;
 use crate::exception::ExceptionCode;
 use crate::server::handler::{RequestHandler, ServerHandlerMap};
 use crate::server::request::{Request, RequestDisplay};
+
+use scursor::ReadCursor;
 use std::sync::Arc;
 
 /// Messages that can be sent to change server settings dynamically

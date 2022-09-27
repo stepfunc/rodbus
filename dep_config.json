@@ -39,6 +39,9 @@
     },
     "rodbus-ffi-java": {
       "url": "https://github.com/stepfunc/rodbus"
+    },
+    "scursor": {
+      "url": "https://github.com/stepfunc/scursor"
     }
   },
   "third_party": {

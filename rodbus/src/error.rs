@@ -119,6 +119,18 @@ impl From<InvalidRange> for RequestError {
     }
 }
 
+impl From<scursor::ReadError> for RequestError {
+    fn from(_: scursor::ReadError) -> Self {
+        RequestError::BadResponse(AduParseError::InsufficientBytes)
+    }
+}
+
+impl From<scursor::TrailingBytes> for RequestError {
+    fn from(x: scursor::TrailingBytes) -> Self {
+        RequestError::BadResponse(AduParseError::TrailingBytes(x.count))
+    }
+}
+
 /// Errors that can be produced when validating start/count
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum InvalidRange {

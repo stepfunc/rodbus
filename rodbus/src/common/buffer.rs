@@ -1,8 +1,5 @@
 use crate::common::phys::PhysLayer;
 
-#[cfg(feature = "no-panic")]
-use no_panic::no_panic;
-
 use crate::error::InternalError;
 use crate::PhysDecodeLevel;
 
@@ -21,17 +18,14 @@ impl ReadBuffer {
         }
     }
 
-    #[cfg_attr(feature = "no-panic", no_panic)]
     pub(crate) fn len(&self) -> usize {
         self.end - self.begin
     }
 
-    #[cfg_attr(feature = "no-panic", no_panic)]
     pub(crate) fn is_empty(&self) -> bool {
         self.begin == self.end
     }
 
-    #[cfg_attr(feature = "no-panic", no_panic)]
     pub(crate) fn read(&mut self, count: usize) -> Result<&[u8], InternalError> {
         if self.len() < count {
             return Err(InternalError::InsufficientBytesForRead(count, self.len()));
@@ -46,7 +40,6 @@ impl ReadBuffer {
         }
     }
 
-    #[cfg_attr(feature = "no-panic", no_panic)]
     pub(crate) fn read_u8(&mut self) -> Result<u8, InternalError> {
         if self.is_empty() {
             return Err(InternalError::InsufficientBytesForRead(1, 0));
@@ -60,7 +53,6 @@ impl ReadBuffer {
         }
     }
 
-    #[cfg_attr(feature = "no-panic", no_panic)]
     #[cfg(feature = "serial")]
     pub(crate) fn peek_at(&mut self, idx: usize) -> Result<u8, InternalError> {
         let len = self.len();
@@ -73,14 +65,12 @@ impl ReadBuffer {
             .ok_or(InternalError::InsufficientBytesForRead(idx + 1, len))
     }
 
-    #[cfg_attr(feature = "no-panic", no_panic)]
     pub(crate) fn read_u16_be(&mut self) -> Result<u16, InternalError> {
         let b1 = self.read_u8()? as u16;
         let b2 = self.read_u8()? as u16;
         Ok((b1 << 8) | b2)
     }
 
-    #[cfg_attr(feature = "no-panic", no_panic)]
     #[cfg(feature = "serial")]
     pub(crate) fn read_u16_le(&mut self) -> Result<u16, InternalError> {
         let b1 = self.read_u8()? as u16;

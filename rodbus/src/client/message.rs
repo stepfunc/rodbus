@@ -10,9 +10,11 @@ use crate::client::requests::read_bits::ReadBits;
 use crate::client::requests::read_registers::ReadRegisters;
 use crate::client::requests::write_multiple::MultipleWriteRequest;
 use crate::client::requests::write_single::SingleWrite;
-use crate::common::cursor::{ReadCursor, WriteCursor};
+use crate::common::cursor::WriteCursor;
 use crate::common::traits::Serialize;
 use crate::types::{Indexed, UnitId};
+
+use scursor::ReadCursor;
 use std::time::Duration;
 
 pub(crate) enum Setting {
@@ -97,7 +99,7 @@ impl Request {
                         RequestError::Exception(exception)
                     } else {
                         tracing::warn!("invalid modbus exception");
-                        RequestError::BadResponse(AduParseError::TrailingBytes(cursor.len()))
+                        RequestError::BadResponse(AduParseError::TrailingBytes(cursor.remaining()))
                     }
                 }
                 Err(err) => err.into(),

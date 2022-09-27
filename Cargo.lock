@@ -1035,6 +1035,7 @@ dependencies = [
  "pem",
  "pkcs8",
  "rasn",
+ "scursor",
  "tokio",
  "tokio-mock-io",
  "tokio-rustls",
@@ -1168,6 +1169,11 @@ dependencies = [
  "ring",
  "untrusted",
 ]
+
+[[package]]
+name = "scursor"
+version = "0.1.0"
+source = "git+https://github.com/stepfunc/scursor.git#ad45c724c9e6a611f4a095f0894eade1fb7e5c87"
 
 [[package]]
 name = "semver"

@@ -1,7 +1,6 @@
 use std::convert::TryFrom;
 
 use crate::client::WriteMultiple;
-use crate::common::cursor::ReadCursor;
 use crate::common::cursor::WriteCursor;
 use crate::common::traits::Loggable;
 use crate::common::traits::Parse;
@@ -12,6 +11,8 @@ use crate::types::{
     coil_from_u16, coil_to_u16, AddressRange, BitIterator, BitIteratorDisplay, Indexed,
     RegisterIterator, RegisterIteratorDisplay,
 };
+
+use scursor::ReadCursor;
 
 pub(crate) fn calc_bytes_for_bits(num_bits: usize) -> Result<u8, InternalError> {
     let div_8 = num_bits / 8;
