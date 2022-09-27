@@ -1,14 +1,13 @@
 use std::fmt::Display;
 
 use crate::client::message::Promise;
-use crate::common::cursor::WriteCursor;
 use crate::common::function::FunctionCode;
 use crate::decode::AppDecodeLevel;
 use crate::error::AduParseError;
 use crate::error::RequestError;
 use crate::types::{coil_from_u16, coil_to_u16, Indexed};
 
-use scursor::ReadCursor;
+use scursor::{ReadCursor, WriteCursor};
 
 pub(crate) trait SingleWriteOperation: Sized + PartialEq {
     fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError>;

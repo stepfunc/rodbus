@@ -1,4 +1,3 @@
-use crate::common::cursor::WriteCursor;
 use crate::common::function::FunctionCode;
 use crate::common::traits::Serialize;
 use crate::decode::AppDecodeLevel;
@@ -7,7 +6,7 @@ use crate::types::{
     AddressRange, Indexed, ReadRegistersRange, RegisterIterator, RegisterIteratorDisplay,
 };
 
-use scursor::ReadCursor;
+use scursor::{ReadCursor, WriteCursor};
 
 pub(crate) trait RegistersCallback:
     FnOnce(Result<RegisterIterator, RequestError>) + Send + Sync + 'static

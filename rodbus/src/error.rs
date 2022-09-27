@@ -1,3 +1,5 @@
+use scursor::WriteError;
+
 /// The task processing requests has terminated
 #[derive(Clone, Copy, Debug)]
 pub struct Shutdown;
@@ -49,6 +51,19 @@ impl std::fmt::Display for RequestError {
             RequestError::ResponseTimeout => f.write_str("response timeout"),
             RequestError::NoConnection => f.write_str("no connection to server"),
             RequestError::Shutdown => f.write_str("channel shutdown"),
+        }
+    }
+}
+
+impl From<WriteError> for RequestError {
+    fn from(err: WriteError) -> Self {
+        match err {
+            WriteError::WriteOverflow { remaining, written } => {
+                RequestError::Internal(InternalError::InsufficientWriteSpace(written, remaining))
+            }
+            WriteError::NumericOverflow | WriteError::BadSeek { .. } => {
+                RequestError::Internal(InternalError::BadSeekOperation)
+            }
         }
     }
 }

@@ -10,11 +10,10 @@ use crate::client::requests::read_bits::ReadBits;
 use crate::client::requests::read_registers::ReadRegisters;
 use crate::client::requests::write_multiple::MultipleWriteRequest;
 use crate::client::requests::write_single::SingleWrite;
-use crate::common::cursor::WriteCursor;
 use crate::common::traits::Serialize;
 use crate::types::{Indexed, UnitId};
 
-use scursor::ReadCursor;
+use scursor::{ReadCursor, WriteCursor};
 use std::time::Duration;
 
 pub(crate) enum Setting {

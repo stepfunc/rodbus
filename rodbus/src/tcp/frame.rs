@@ -1,10 +1,11 @@
 use crate::common::buffer::ReadBuffer;
-use crate::common::cursor::WriteCursor;
 use crate::common::frame::{Frame, FrameHeader, FrameInfo, FrameType, FunctionField, TxId};
 use crate::common::traits::Serialize;
 use crate::decode::FrameDecodeLevel;
 use crate::error::{FrameParseError, RequestError};
 use crate::types::UnitId;
+
+use scursor::WriteCursor;
 
 pub(crate) mod constants {
     pub(crate) const HEADER_LENGTH: usize = 7;
@@ -138,7 +139,7 @@ pub(crate) fn format_mbap(
     cursor.write_u16_be(tx_id.to_u16())?;
     cursor.write_u16_be(0)?; // protocol id
     let len_pos = cursor.position();
-    cursor.seek_from_current(2)?; // write the length later
+    cursor.skip(2)?; // write the length later
     cursor.write_u8(unit_id.value)?; // unit id
 
     let start_pdu = cursor.position();
@@ -151,9 +152,9 @@ pub(crate) fn format_mbap(
     let mbap_len_field = (end_pdu - start_pdu + 1) as u16;
 
     // seek back and write the length, restore to the end of the pdu
-    cursor.seek_from_start(len_pos)?;
+    cursor.seek_to(len_pos)?;
     cursor.write_u16_be(mbap_len_field)?;
-    cursor.seek_from_start(end_pdu)?;
+    cursor.seek_to(end_pdu)?;
 
     let header = MbapHeader {
         tx_id,

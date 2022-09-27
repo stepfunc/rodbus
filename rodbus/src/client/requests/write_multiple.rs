@@ -1,5 +1,4 @@
 use crate::client::message::Promise;
-use crate::common::cursor::WriteCursor;
 use crate::common::function::FunctionCode;
 use crate::common::traits::{Parse, Serialize};
 use crate::decode::AppDecodeLevel;
@@ -7,7 +6,7 @@ use crate::error::RequestError;
 use crate::error::{AduParseError, InvalidRequest};
 use crate::types::{AddressRange, Indexed};
 
-use scursor::ReadCursor;
+use scursor::{ReadCursor, WriteCursor};
 use std::convert::TryFrom;
 
 /// Collection of values and starting address
