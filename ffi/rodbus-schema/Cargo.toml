@@ -13,3 +13,4 @@ readme = "../README.md"
 
 [dependencies]
 oo-bindgen = { git = "https://github.com/stepfunc/oo_bindgen.git", tag = "0.3.0" }
+tracing-ffi-schema = { git = "https://github.com/stepfunc/tracing-ffi.git" }

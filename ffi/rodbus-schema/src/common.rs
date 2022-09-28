@@ -23,7 +23,7 @@ impl CommonDefinitions {
     pub(crate) fn build(lib: &mut LibraryBuilder) -> BackTraced<CommonDefinitions> {
         let error_type = build_error_type(lib)?;
         let nothing = build_nothing_type(lib)?;
-        let decode_level = crate::logging::define(lib, error_type.clone())?;
+        let decode_level = crate::decoding::define(lib)?;
         let bit_value = build_bit_value(lib)?;
         let register_value = build_register_value(lib)?;
 

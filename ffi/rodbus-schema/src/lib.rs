@@ -5,7 +5,7 @@ use oo_bindgen::model::*;
 
 mod client;
 mod common;
-mod logging;
+mod decoding;
 mod runtime;
 mod server;
 
@@ -63,6 +63,8 @@ pub fn build_lib() -> BackTraced<Library> {
     let mut builder = LibraryBuilder::new(Version::parse(VERSION).unwrap(), info, settings);
 
     let common = CommonDefinitions::build(&mut builder)?;
+
+    tracing_ffi_schema::define(&mut builder, common.error_type.clone())?;
 
     client::build(&mut builder, &common)?;
     server::build(&mut builder, &common)?;
