@@ -6,9 +6,9 @@ mod database;
 mod error;
 mod iterator;
 mod list;
-mod logging;
 mod runtime;
 mod server;
+mod tracing;
 
 pub(crate) mod helpers {
     // From<T> implementations for FFI types
@@ -17,15 +17,21 @@ pub(crate) mod helpers {
     mod ext;
 }
 
+pub(crate) use crate::tracing::*;
 pub use client::*;
 pub use database::*;
 pub use iterator::*;
 pub use list::*;
-pub(crate) use logging::*;
 pub use runtime::*;
 pub use server::*;
 
 pub mod ffi;
+
+impl From<crate::TracingInitError> for std::os::raw::c_int {
+    fn from(_: crate::TracingInitError) -> Self {
+        crate::ffi::ParamError::LoggingAlreadyConfigured.into()
+    }
+}
 
 lazy_static::lazy_static! {
     static ref VERSION: std::ffi::CString = std::ffi::CString::new(rodbus::VERSION).unwrap();
