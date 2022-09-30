@@ -1076,6 +1076,7 @@ dependencies = [
  "rodbus-schema",
  "rust-oo-bindgen",
  "tokio",
+ "tokio-ffi-schema",
  "tracing",
  "tracing-core",
  "tracing-ffi-schema",
