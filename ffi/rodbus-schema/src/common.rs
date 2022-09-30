@@ -31,7 +31,7 @@ impl CommonDefinitions {
             error_type: error_type.clone(),
             nothing,
             decode_level,
-            runtime_handle: crate::runtime::define(lib, error_type)?,
+            runtime_handle: tokio_ffi_schema::define(lib, error_type)?,
             error_info: build_request_error(lib)?,
             address_range: build_address_range(lib)?,
             request_param: build_request_param(lib)?,
