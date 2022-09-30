@@ -1076,6 +1076,7 @@ dependencies = [
  "rodbus-schema",
  "rust-oo-bindgen",
  "tokio",
+ "tokio-ffi-schema",
  "tracing",
  "tracing-core",
  "tracing-ffi-schema",
@@ -1097,6 +1098,7 @@ name = "rodbus-schema"
 version = "1.0.0"
 dependencies = [
  "oo-bindgen",
+ "tokio-ffi-schema",
  "tracing-ffi-schema",
 ]
 
@@ -1400,6 +1402,14 @@ dependencies = [
  "socket2",
  "tokio-macros",
  "winapi",
+]
+
+[[package]]
+name = "tokio-ffi-schema"
+version = "0.1.0"
+source = "git+https://github.com/stepfunc/tokio-ffi.git?tag=0.1.0#d25867ac956adf265d2f5f8830834ac5f78edbe5"
+dependencies = [
+ "oo-bindgen",
 ]
 
 [[package]]

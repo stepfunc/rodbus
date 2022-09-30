@@ -6,7 +6,6 @@ use oo_bindgen::model::*;
 mod client;
 mod common;
 mod decoding;
-mod runtime;
 mod server;
 
 // derived from Cargo.toml
