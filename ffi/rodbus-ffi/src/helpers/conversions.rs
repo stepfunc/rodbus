@@ -28,7 +28,6 @@ impl From<ffi::DecodeLevel> for rodbus::DecodeLevel {
     }
 }
 
-
 impl From<rodbus::RequestError> for ffi::RequestError {
     fn from(err: rodbus::RequestError) -> Self {
         match err {
