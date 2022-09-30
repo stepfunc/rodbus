@@ -5,6 +5,29 @@ use rodbus::Shutdown;
 
 use crate::ffi;
 
+impl From<ffi::DecodeLevel> for rodbus::DecodeLevel {
+    fn from(level: ffi::DecodeLevel) -> Self {
+        rodbus::DecodeLevel {
+            app: match level.app() {
+                ffi::AppDecodeLevel::Nothing => rodbus::AppDecodeLevel::Nothing,
+                ffi::AppDecodeLevel::FunctionCode => rodbus::AppDecodeLevel::FunctionCode,
+                ffi::AppDecodeLevel::DataHeaders => rodbus::AppDecodeLevel::DataHeaders,
+                ffi::AppDecodeLevel::DataValues => rodbus::AppDecodeLevel::DataValues,
+            },
+            frame: match level.frame() {
+                ffi::FrameDecodeLevel::Nothing => rodbus::FrameDecodeLevel::Nothing,
+                ffi::FrameDecodeLevel::Header => rodbus::FrameDecodeLevel::Header,
+                ffi::FrameDecodeLevel::Payload => rodbus::FrameDecodeLevel::Payload,
+            },
+            physical: match level.physical() {
+                ffi::PhysDecodeLevel::Nothing => rodbus::PhysDecodeLevel::Nothing,
+                ffi::PhysDecodeLevel::Length => rodbus::PhysDecodeLevel::Length,
+                ffi::PhysDecodeLevel::Data => rodbus::PhysDecodeLevel::Data,
+            },
+        }
+    }
+}
+
 impl From<rodbus::RequestError> for ffi::RequestError {
     fn from(err: rodbus::RequestError) -> Self {
         match err {

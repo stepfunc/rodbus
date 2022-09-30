@@ -1078,6 +1078,7 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-core",
+ "tracing-ffi-schema",
  "tracing-subscriber",
 ]
 
@@ -1096,6 +1097,7 @@ name = "rodbus-schema"
 version = "1.0.0"
 dependencies = [
  "oo-bindgen",
+ "tracing-ffi-schema",
 ]
 
 [[package]]
@@ -1512,6 +1514,14 @@ checksum = "5aeea4303076558a00714b823f9ad67d58a3bbda1df83d8827d21193156e22f7"
 dependencies = [
  "once_cell",
  "valuable",
+]
+
+[[package]]
+name = "tracing-ffi-schema"
+version = "0.1.0"
+source = "git+https://github.com/stepfunc/tracing-ffi.git?tag=0.1.0#b1bcd1c4ad82c7adcdaf7e9a6ffed21d1e45008c"
+dependencies = [
+ "oo-bindgen",
 ]
 
 [[package]]
