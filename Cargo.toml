@@ -8,3 +8,6 @@ members = [
   "ffi/rodbus-ffi-java",
   "ffi/rodbus-schema",
 ]
+
+[profile.release]
+lto=true
