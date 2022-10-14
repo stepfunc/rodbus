@@ -83,10 +83,6 @@ jobs:
           profile: minimal
           toolchain: ${{ matrix.rust }}
           override: true
-      - name: Copy Windows config
-        if: ${{ runner.os == 'Windows' }}
-        shell: pwsh
-        run: Copy-Item -Path .cargo/config-windows.toml -Destination .cargo/config.toml
       - name: Caching
         uses: Swatinem/rust-cache@v2
       - name: Run Rust unit tests
@@ -234,16 +230,24 @@ jobs:
           name: ffi-modules
           path: ffi/bindings/java/rodbus/src/main/resources
   # Cross-compilation for ARM devices and produce C bindings
-  cross:
+  ffi-cross:
+    env:
+      # By default, MUSL will not produce a cdylib with dynamic linkage to MUSL LIB C
+      CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_RUSTFLAGS: "-C target-feature=-crt-static"
+      CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_RUSTFLAGS: "-C target-feature=-crt-static"
+      CARGO_TARGET_ARM_UNKNOWN_LINUX_MUSLEABIHF_RUSTFLAGS: "-C target-feature=-crt-static"
     strategy:
       fail-fast: false
       matrix:
         target:
-          - arm-unknown-linux-gnueabi # ARMv6 Linux (kernel 3.2, glibc 2.17)
-          - arm-unknown-linux-gnueabihf # ARMv6 Linux, hardfloat (kernel 3.2, glibc 2.17)
-          - armv7-unknown-linux-gnueabihf # ARMv7 Linux, hardfloat (kernel 3.2, glibc 2.17)
-          - aarch64-unknown-linux-gnu # ARM64 Linux (kernel 4.2, glibc 2.17+)
           - x86_64-unknown-linux-gnu # 64-bit Linux (kernel 2.6.32+, glibc 2.11+)
+          - x86_64-unknown-linux-musl # 64-bit Linux with MUSL
+          - arm-unknown-linux-gnueabihf # ARMv6 Linux, hardfloat (kernel 3.2, glibc 2.17)
+          - arm-unknown-linux-musleabihf # ARMv6 Linux with MUSL, hardfloat
+          - aarch64-unknown-linux-gnu # ARM64 Linux (kernel 4.2, glibc 2.17+)
+          - aarch64-unknown-linux-musl # ARM64 Linux with MUSL
+          - armv7-unknown-linux-gnueabihf # ARMv7 Linux, hardfloat (kernel 3.2, glibc 2.17)
+          - arm-unknown-linux-gnueabi # ARMv6 Linux (kernel 3.2, glibc 2.17)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -308,7 +312,7 @@ jobs:
           path: ~/doc
   # Package all the generated bindings
   packaging:
-    needs: [documentation, bindings-windows, bindings-macos, cross]
+    needs: [documentation, bindings-windows, bindings-macos, ffi-cross]
     runs-on: ubuntu-latest
     steps:
       - name: Install Rust
