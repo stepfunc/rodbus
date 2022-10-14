@@ -24,8 +24,8 @@ num_cpus = "1"
 [build-dependencies]
 rodbus-schema = { path = "../rodbus-schema" }
 rust-oo-bindgen = { git = "https://github.com/stepfunc/oo_bindgen.git", branch = "main" }
-tracing-ffi-schema = { git = "https://github.com/stepfunc/tracing-ffi.git", tag = "0.1.0" }
-tokio-ffi-schema = { git = "https://github.com/stepfunc/tokio-ffi.git", tag = "0.1.0" }
+tracing-ffi-schema = { git = "https://github.com/stepfunc/tracing-ffi.git", branch = "main" }
+tokio-ffi-schema = { git = "https://github.com/stepfunc/tokio-ffi.git", branch = "main" }
 
 [features]
 default = ["serial", "tls"]
