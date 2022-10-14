@@ -110,27 +110,15 @@ jobs:
       - name: Caching
         uses: Swatinem/rust-cache@v2
       - name: Build
-        uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --release
+        run: cargo build --release
       - name: Build Rustdoc
         run: cargo doc -p rodbus --no-deps
       - name: C bindings
-        uses: actions-rs/cargo@v1
-        with:
-          command: run
-          args: --release --bin rodbus-bindings -- --c --doxygen
+        run: cargo run --release --bin rodbus-bindings -- --c --doxygen
       - name: .NET bindings
-        uses: actions-rs/cargo@v1
-        with:
-          command: run
-          args: --release --bin rodbus-bindings -- --dotnet --doxygen
+        run: cargo run --release --bin rodbus-bindings -- --dotnet --doxygen
       - name: Java bindings
-        uses: actions-rs/cargo@v1
-        with:
-          command: run
-          args: --release --bin rodbus-bindings -- --java
+        run: cargo run --release --bin rodbus-bindings -- --java
       - name: Extract documentation
         run: |
           mkdir -p ~/doc
@@ -182,20 +170,11 @@ jobs:
           name: ffi-modules
           path: logs
       - name: C bindings
-        uses: actions-rs/cargo@v1
-        with:
-          command: run
-          args: --release --target ${{ matrix.target }} --bin rodbus-bindings -- --c ${{ matrix.extra-params }}
+        run: cargo run --release --bin rodbus-bindings -- --c ${{ matrix.extra-params }} -r ${{ matrix.target }} -a ./target/${{ matrix.target }}/release
       - name: .NET bindings
-        uses: actions-rs/cargo@v1
-        with:
-          command: run
-          args: --release --target ${{ matrix.target }} --bin rodbus-bindings -- --dotnet ${{ matrix.extra-params }}
+        run: cargo run --release --bin rodbus-bindings -- --dotnet ${{ matrix.extra-params }} -r ${{ matrix.target }} -a ./target/${{ matrix.target }}/release
       - name: Java bindings
-        uses: actions-rs/cargo@v1
-        with:
-          command: run
-          args: --release --target ${{ matrix.target }} --bin rodbus-bindings -- --java ${{ matrix.extra-params }}
+        run: cargo run --release --bin rodbus-bindings -- --java ${{ matrix.extra-params }} -r ${{ matrix.target }} -a ./target/${{ matrix.target }}/release
       - name: Upload compiled FFI modules
         uses: actions/upload-artifact@v3
         with:
@@ -237,20 +216,11 @@ jobs:
           name: ffi-modules
           path: logs
       - name: C bindings
-        uses: actions-rs/cargo@v1
-        with:
-          command: run
-          args: --release --bin rodbus-bindings -- --c
+        run: cargo run --release --bin rodbus-bindings -- --c
       - name: .NET bindings
-        uses: actions-rs/cargo@v1
-        with:
-          command: run
-          args: --release --bin rodbus-bindings -- --dotnet
+        run: cargo run --release --bin rodbus-bindings -- --dotnet
       - name: Java bindings
-        uses: actions-rs/cargo@v1
-        with:
-          command: run
-          args: --release --bin rodbus-bindings -- --java
+        run: cargo run --release --bin rodbus-bindings -- --java
       - name: Upload compiled FFI modules
         uses: actions/upload-artifact@v2
         with:
@@ -301,18 +271,10 @@ jobs:
         with:
           name: ffi-modules
           path: logs
-      - name: C bindings
-        uses: actions-rs/cargo@v1
-        with:
-          use-cross: true
-          command: run
-          args: --release --target ${{ matrix.target }} --bin rodbus-bindings -- --c --no-tests
-      - name: Java bindings
-        uses: actions-rs/cargo@v1
-        with:
-          use-cross: true
-          command: run
-          args: --release --target ${{ matrix.target }} --bin rodbus-bindings -- --java --no-tests
+      - name: Generate C bindings
+        run: cargo run --release --bin rodbus-bindings -- --c --no-tests -r ${{ matrix.target }} -a ./target/${{ matrix.target }}/release
+      - name: Generate Java bindings
+        run: cargo run --release --bin rodbus-bindings -- --java --no-tests -r ${{ matrix.target }} -a ./target/${{ matrix.target }}/release
       - name: Upload compiled Java bindings
         uses: actions/upload-artifact@v3
         with:
@@ -379,17 +341,11 @@ jobs:
       - name: Create FFI third-party-licenses.txt
         run: bom-tools gen-licenses-dir ./ffi-modules build.ffi.log ./dep_config.json > third-party-licenses.txt
       - name: Package .NET bindings
-        uses: actions-rs/cargo@v1
-        with:
-          command: run
-          args: --bin rodbus-bindings -- --dotnet --package ./ffi-modules -f third-party-licenses.txt
+        run: cargo run --bin rodbus-bindings -- --dotnet --package ./ffi-modules -f third-party-licenses.txt
       - name: Create JNI third-party-licenses.txt
         run: bom-tools gen-licenses-dir ./ffi-modules build.jni.log ./dep_config.json > third-party-licenses.txt
       - name: Package Java bindings
-        uses: actions-rs/cargo@v1
-        with:
-          command: run
-          args: --bin rodbus-bindings -- --java --package ./ffi-modules -f third-party-licenses.txt
+        run: cargo run --bin rodbus-bindings -- --java --package ./ffi-modules -f third-party-licenses.txt
       - name: Upload .NET bindings
         uses: actions/upload-artifact@v2
         with:
