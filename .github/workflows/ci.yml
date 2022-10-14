@@ -153,9 +153,6 @@ jobs:
           profile: minimal
           toolchain: stable
           override: true
-      - name: Copy Windows config
-        shell: pwsh
-        run: Copy-Item -Path .cargo/config-windows.toml -Destination .cargo/config.toml
       - name: Caching
         uses: Swatinem/rust-cache@v2
       - name: Create log dir
