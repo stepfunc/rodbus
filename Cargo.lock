@@ -197,9 +197,10 @@ checksum = "ec8a7b6a70fde80372154c65702f00a0f56f3e1c36abbc6c440484be248856db"
 [[package]]
 name = "c-oo-bindgen"
 version = "0.3.0"
-source = "git+https://github.com/stepfunc/oo_bindgen.git?tag=0.3.0#23d39d677a7e4d2f1272e9fb979ea02726764168"
+source = "git+https://github.com/stepfunc/oo_bindgen.git?branch=main#39c1728e6cf10f8bc716fa27f318f2db562a05bc"
 dependencies = [
- "oo-bindgen",
+ "oo-bindgen 0.3.0 (git+https://github.com/stepfunc/oo_bindgen.git?branch=main)",
+ "tracing",
 ]
 
 [[package]]
@@ -235,14 +236,15 @@ dependencies = [
 [[package]]
 name = "ci-script"
 version = "0.3.0"
-source = "git+https://github.com/stepfunc/oo_bindgen.git?tag=0.3.0#23d39d677a7e4d2f1272e9fb979ea02726764168"
+source = "git+https://github.com/stepfunc/oo_bindgen.git?branch=main#39c1728e6cf10f8bc716fa27f318f2db562a05bc"
 dependencies = [
  "c-oo-bindgen",
- "clap 2.34.0",
+ "clap 4.0.15",
  "dotnet-oo-bindgen",
  "java-oo-bindgen",
- "oo-bindgen",
+ "oo-bindgen 0.3.0 (git+https://github.com/stepfunc/oo_bindgen.git?branch=main)",
  "pathdiff",
+ "tracing",
 ]
 
 [[package]]
@@ -277,13 +279,28 @@ checksum = "23b71c3ce99b7611011217b366d923f1d0a7e07a92bb2dbf1e84508c673ca3bd"
 dependencies = [
  "atty",
  "bitflags",
- "clap_derive",
- "clap_lex",
+ "clap_derive 3.2.18",
+ "clap_lex 0.2.4",
  "indexmap",
  "once_cell",
  "strsim 0.10.0",
  "termcolor",
  "textwrap 0.15.0",
+]
+
+[[package]]
+name = "clap"
+version = "4.0.15"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6bf8832993da70a4c6d13c581f4463c2bdda27b9bf1c5498dc4365543abe6d6f"
+dependencies = [
+ "atty",
+ "bitflags",
+ "clap_derive 4.0.13",
+ "clap_lex 0.3.0",
+ "once_cell",
+ "strsim 0.10.0",
+ "termcolor",
 ]
 
 [[package]]
@@ -300,10 +317,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "clap_derive"
+version = "4.0.13"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c42f169caba89a7d512b5418b09864543eeb4d497416c917d7137863bd2076ad"
+dependencies = [
+ "heck 0.4.0",
+ "proc-macro-error",
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "clap_lex"
 version = "0.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2850f2f5a82cbf437dd5af4d49848fbdfc27c157c3d010345776f952765261c5"
+dependencies = [
+ "os_str_bytes",
+]
+
+[[package]]
+name = "clap_lex"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0d4198f73e42b4936b35b5bb248d81d2b595ecb170da0bac7655c54eedfa8da8"
 dependencies = [
  "os_str_bytes",
 ]
@@ -406,10 +445,12 @@ dependencies = [
 [[package]]
 name = "dotnet-oo-bindgen"
 version = "0.3.0"
-source = "git+https://github.com/stepfunc/oo_bindgen.git?tag=0.3.0#23d39d677a7e4d2f1272e9fb979ea02726764168"
+source = "git+https://github.com/stepfunc/oo_bindgen.git?branch=main#39c1728e6cf10f8bc716fa27f318f2db562a05bc"
 dependencies = [
+ "clap 4.0.15",
  "dunce",
- "oo-bindgen",
+ "oo-bindgen 0.3.0 (git+https://github.com/stepfunc/oo_bindgen.git?branch=main)",
+ "tracing",
 ]
 
 [[package]]
@@ -605,10 +646,10 @@ checksum = "6c8af84674fe1f223a982c933a0ee1086ac4d4052aa0fb8060c12c6ad838e754"
 [[package]]
 name = "java-oo-bindgen"
 version = "0.3.0"
-source = "git+https://github.com/stepfunc/oo_bindgen.git?tag=0.3.0#23d39d677a7e4d2f1272e9fb979ea02726764168"
+source = "git+https://github.com/stepfunc/oo_bindgen.git?branch=main#39c1728e6cf10f8bc716fa27f318f2db562a05bc"
 dependencies = [
  "dunce",
- "oo-bindgen",
+ "oo-bindgen 0.3.0 (git+https://github.com/stepfunc/oo_bindgen.git?branch=main)",
  "pathdiff",
 ]
 
@@ -818,6 +859,21 @@ dependencies = [
  "regex",
  "semver",
  "thiserror",
+]
+
+[[package]]
+name = "oo-bindgen"
+version = "0.3.0"
+source = "git+https://github.com/stepfunc/oo_bindgen.git?branch=main#39c1728e6cf10f8bc716fa27f318f2db562a05bc"
+dependencies = [
+ "backtrace",
+ "heck 0.3.3",
+ "lazy_static",
+ "platforms",
+ "regex",
+ "semver",
+ "thiserror",
+ "tracing",
 ]
 
 [[package]]
@@ -1076,10 +1132,10 @@ dependencies = [
  "rodbus-schema",
  "rust-oo-bindgen",
  "tokio",
- "tokio-ffi-schema",
+ "tokio-ffi-schema 0.1.0 (git+https://github.com/stepfunc/tokio-ffi.git?tag=0.1.0)",
  "tracing",
  "tracing-core",
- "tracing-ffi-schema",
+ "tracing-ffi-schema 0.1.0 (git+https://github.com/stepfunc/tracing-ffi.git?tag=0.1.0)",
  "tracing-subscriber",
 ]
 
@@ -1097,18 +1153,18 @@ dependencies = [
 name = "rodbus-schema"
 version = "1.0.0"
 dependencies = [
- "oo-bindgen",
- "tokio-ffi-schema",
- "tracing-ffi-schema",
+ "oo-bindgen 0.3.0 (git+https://github.com/stepfunc/oo_bindgen.git?branch=main)",
+ "tokio-ffi-schema 0.1.0 (git+https://github.com/stepfunc/tokio-ffi.git?branch=main)",
+ "tracing-ffi-schema 0.1.0 (git+https://github.com/stepfunc/tracing-ffi.git?branch=main)",
 ]
 
 [[package]]
 name = "rust-oo-bindgen"
 version = "0.3.0"
-source = "git+https://github.com/stepfunc/oo_bindgen.git?tag=0.3.0#23d39d677a7e4d2f1272e9fb979ea02726764168"
+source = "git+https://github.com/stepfunc/oo_bindgen.git?branch=main#39c1728e6cf10f8bc716fa27f318f2db562a05bc"
 dependencies = [
  "heck 0.3.3",
- "oo-bindgen",
+ "oo-bindgen 0.3.0 (git+https://github.com/stepfunc/oo_bindgen.git?branch=main)",
 ]
 
 [[package]]
@@ -1409,7 +1465,15 @@ name = "tokio-ffi-schema"
 version = "0.1.0"
 source = "git+https://github.com/stepfunc/tokio-ffi.git?tag=0.1.0#d25867ac956adf265d2f5f8830834ac5f78edbe5"
 dependencies = [
- "oo-bindgen",
+ "oo-bindgen 0.3.0 (git+https://github.com/stepfunc/oo_bindgen.git?tag=0.3.0)",
+]
+
+[[package]]
+name = "tokio-ffi-schema"
+version = "0.1.0"
+source = "git+https://github.com/stepfunc/tokio-ffi.git?branch=main#22c7beccae6aa65b697669f5916e1cfc0f7c475d"
+dependencies = [
+ "oo-bindgen 0.3.0 (git+https://github.com/stepfunc/oo_bindgen.git?branch=main)",
 ]
 
 [[package]]
@@ -1531,7 +1595,15 @@ name = "tracing-ffi-schema"
 version = "0.1.0"
 source = "git+https://github.com/stepfunc/tracing-ffi.git?tag=0.1.0#b1bcd1c4ad82c7adcdaf7e9a6ffed21d1e45008c"
 dependencies = [
- "oo-bindgen",
+ "oo-bindgen 0.3.0 (git+https://github.com/stepfunc/oo_bindgen.git?tag=0.3.0)",
+]
+
+[[package]]
+name = "tracing-ffi-schema"
+version = "0.1.0"
+source = "git+https://github.com/stepfunc/tracing-ffi.git?branch=main#15cb09d49ca1d5f0094373e63eb8e411a2770f1c"
+dependencies = [
+ "oo-bindgen 0.3.0 (git+https://github.com/stepfunc/oo_bindgen.git?branch=main)",
 ]
 
 [[package]]
