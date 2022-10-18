@@ -244,8 +244,8 @@ jobs:
         run: cross build -p rodbus-ffi-java --release --target ${{ matrix.target }} --message-format json > ffi-modules/${{ matrix.target }}/build.jni.log
       - name: Copy the FFI and JNI libs
         run: |
-          cp ./target/${{ matrix.target }}/release/libfoo_ffi.so ./ffi-modules/${{ matrix.target }}
-          cp ./target/${{ matrix.target }}/release/libfoo_ffi_java.so ./ffi-modules/${{ matrix.target }}
+          cp ./target/${{ matrix.target }}/release/librodbus_ffi.so ./ffi-modules/${{ matrix.target }}
+          cp ./target/${{ matrix.target }}/release/librodbus_ffi_java.so ./ffi-modules/${{ matrix.target }}
       - name: Upload compiled FFI modules
         uses: actions/upload-artifact@v2
         with:
