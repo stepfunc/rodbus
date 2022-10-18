@@ -11,7 +11,7 @@ repository = "https://github.com/stepfunc/rodbus"
 readme = "../README.md"
 
 [dependencies]
-ci-script = { git = "https://github.com/stepfunc/oo_bindgen.git", branch = "main" }
+ci-script = { git = "https://github.com/stepfunc/oo_bindgen.git", tag = "0.4.0" }
 rodbus-schema = { path = "../rodbus-schema" }
 tracing = "^0.1"
 tracing-subscriber = "^0.3"
