@@ -103,7 +103,7 @@ jobs:
       - name: .NET bindings
         run: cargo run --bin rodbus-bindings -- --dotnet --doxygen --no-tests
       - name: Java bindings
-        run: cargo run --bin rodbus-bindings -- --java --no-tests
+        run: cargo run --bin rodbus-bindings -- --java
       - name: Extract documentation
         run: |
           mkdir -p ~/doc
