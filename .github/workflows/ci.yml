@@ -99,11 +99,11 @@ jobs:
       - name: Build Rustdoc
         run: cargo doc -p rodbus --no-deps
       - name: C bindings
-        run: cargo run --release --bin rodbus-bindings -- --c --doxygen
+        run: cargo run --bin rodbus-bindings -- --c --doxygen --no-tests
       - name: .NET bindings
-        run: cargo run --release --bin rodbus-bindings -- --dotnet --doxygen
+        run: cargo run --bin rodbus-bindings -- --dotnet --doxygen --no-tests
       - name: Java bindings
-        run: cargo run --release --bin rodbus-bindings -- --java
+        run: cargo run --bin rodbus-bindings -- --java --no-tests
       - name: Extract documentation
         run: |
           mkdir -p ~/doc
@@ -126,9 +126,9 @@ jobs:
       matrix:
         include:
           - target: x86_64-pc-windows-msvc # 64-bit MSVC (Windows 7+)
-            extra-param: # nothing
+            test: true
           - target: i686-pc-windows-msvc # 32-bit MSVC (Windows 7+)
-            extra-params: --no-tests
+            test: false
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -140,41 +140,40 @@ jobs:
           override: true
       - name: Caching
         uses: Swatinem/rust-cache@v2
-      - name: Create log dir
-        run: mkdir logs\${{ matrix.target }}
+      - name: Create the FFI modules dir
+        run: mkdir ffi-modules\${{ matrix.target }}
       - name: Build FFI
-        run: cargo build -p rodbus-ffi --release --target ${{ matrix.target }} --message-format json | Out-File -encoding "UTF8" .\logs\${{ matrix.target }}\build.ffi.log
+        run: cargo build -p rodbus-ffi --release --target ${{ matrix.target }} --message-format json | Out-File -encoding "UTF8" .\ffi-modules\${{ matrix.target }}\build.ffi.log
       - name: Build JNI
-        run: cargo build -p rodbus-ffi-java --release --target ${{ matrix.target }} --message-format json | Out-File -encoding "UTF8" .\logs\${{ matrix.target }}\build.jni.log
-      - name: Upload Build Logs
-        uses: actions/upload-artifact@v3
-        with:
-          name: ffi-modules
-          path: logs
-      - name: C bindings
-        run: cargo run --release --bin rodbus-bindings -- --c ${{ matrix.extra-params }} -r ${{ matrix.target }} -a ./target/${{ matrix.target }}/release
-      - name: .NET bindings
-        run: cargo run --release --bin rodbus-bindings -- --dotnet ${{ matrix.extra-params }} -r ${{ matrix.target }} -a ./target/${{ matrix.target }}/release
-      - name: Java bindings
-        run: cargo run --release --bin rodbus-bindings -- --java ${{ matrix.extra-params }} -r ${{ matrix.target }} -a ./target/${{ matrix.target }}/release
+        run: cargo build -p rodbus-ffi-java --release --target ${{ matrix.target }} --message-format json | Out-File -encoding "UTF8" .\ffi-modules\${{ matrix.target }}\build.jni.log
+      - name: Copy the FFI and JNI libs
+        shell: pwsh
+        run: |
+          Copy-Item -Path ./target/${{ matrix.target }}/release/rodbus_ffi.dll -Destination ffi-modules/${{ matrix.target }}
+          Copy-Item -Path ./target/${{ matrix.target }}/release/rodbus_ffi.dll.lib -Destination ffi-modules/${{ matrix.target }}
+          Copy-Item -Path ./target/${{ matrix.target }}/release/rodbus_ffi_java.dll -Destination ffi-modules/${{ matrix.target }}
       - name: Upload compiled FFI modules
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v2
         with:
           name: ffi-modules
-          path: ffi/bindings/c/generated/${{ matrix.target }}/lib
-      - name: Upload C bindings
-        uses: actions/upload-artifact@v3
-        with:
-          name: c-bindings
-          path: ffi/bindings/c/generated
-      - name: Upload compiled Java bindings
-        uses: actions/upload-artifact@v3
-        with:
-          name: ffi-modules
-          path: ffi/bindings/java/rodbus/src/main/resources
+          path: ffi-modules
+      - name: C Bindings Tests
+        if: ${{ matrix.test }}
+        run: cargo run --bin rodbus-bindings -- --c -r ${{ matrix.target }} -a ./target/${{ matrix.target }}/release
+      - name: .NET Bindings Tests
+        if: ${{ matrix.test }}
+        run: cargo run --bin rodbus-bindings -- --dotnet -r ${{ matrix.target }} -a ./target/${{ matrix.target }}/release
+      - name: Java Bindings Tests
+        if: ${{ matrix.test }}
+        run: cargo run --bin rodbus-bindings -- --java -r ${{ matrix.target }} -a ./target/${{ matrix.target }}/release
   # Build bindings on MacOS [64-bit macOS (10.7+, Lion+) (x86_64-apple-darwin)]
   bindings-macos:
     runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - x86_64-apple-darwin # 64-bit macOS (10.7+, Lion+)
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -186,39 +185,26 @@ jobs:
           override: true
       - name: Caching
         uses: Swatinem/rust-cache@v2
-      - name: Create Log Dir
-        run: mkdir -p logs/x86_64-apple-darwin
+      - name: Create FFI modules dir
+        run: mkdir -p ffi-modules/${{ matrix.target }}
       - name: Build FFI
-        run: cargo build -p rodbus-ffi --release --message-format json > logs/x86_64-apple-darwin/build.ffi.log
+        run: cargo build -p rodbus-ffi --release --message-format json > ffi-modules/${{ matrix.target }}/build.ffi.log
       - name: Build JNI
-        run: cargo build -p rodbus-ffi-java --release --message-format json > logs/x86_64-apple-darwin/build.jni.log
-      - name: Upload Build Logs
-        uses: actions/upload-artifact@v3
-        with:
-          name: ffi-modules
-          path: logs
-      - name: C bindings
-        run: cargo run --release --bin rodbus-bindings -- --c
-      - name: .NET bindings
-        run: cargo run --release --bin rodbus-bindings -- --dotnet
-      - name: Java bindings
-        run: cargo run --release --bin rodbus-bindings -- --java
+        run: cargo build -p rodbus-ffi-java --release --message-format json > ffi-modules/${{ matrix.target }}/build.jni.log
+      - name: Copy the FFI and JNI libs
+        run: |
+          cp ./target/release/librodbus_ffi.dylib ./ffi-modules/${{ matrix.target }}
+          cp ./target/release/librodbus_ffi_java.dylib ./ffi-modules/${{ matrix.target }}
       - name: Upload compiled FFI modules
         uses: actions/upload-artifact@v2
         with:
           name: ffi-modules
-          path: ffi/bindings/c/generated/x86_64-apple-darwin/lib
-      - name: Upload C bindings
-        uses: actions/upload-artifact@v2
-        with:
-          name: c-bindings
-          path: ffi/bindings/c/generated
-      - name: Upload compiled Java bindings
-        uses: actions/upload-artifact@v2
-        with:
-          name: ffi-modules
-          path: ffi/bindings/java/rodbus/src/main/resources
-  # Cross-compilation for ARM devices and produce C bindings
+          path: ffi-modules
+      - name: .NET bindings Tests
+        run: cargo run --bin rodbus-bindings -- --dotnet
+      - name: Java bindings Tests
+        run: cargo run --bin rodbus-bindings -- --java
+  # Cross-compilation for various Linux architectures
   ffi-cross:
     env:
       # By default, MUSL will not produce a cdylib with dynamic linkage to MUSL LIB C
@@ -250,36 +236,21 @@ jobs:
           override: true
       - name: Install Rust Cross
         run: cargo install cross
-      - name: Create Log Dir
-        run: mkdir -p logs/${{ matrix.target }}
+      - name: Create ffi-modules dir
+        run: mkdir -p ffi-modules/${{ matrix.target }}
       - name: Build FFI
-        run: cross build -p rodbus-ffi --release --target ${{ matrix.target }} --message-format json > logs/${{ matrix.target }}/build.ffi.log
+        run: cross build -p rodbus-ffi --release --target ${{ matrix.target }} --message-format json > ffi-modules/${{ matrix.target }}/build.ffi.log
       - name: Build JNI
-        run: cross build -p rodbus-ffi-java --release --target ${{ matrix.target }} --message-format json > logs/${{ matrix.target }}/build.jni.log
-      - name: Upload Build Logs
-        uses: actions/upload-artifact@v3
-        with:
-          name: ffi-modules
-          path: logs
-      - name: Generate C bindings
-        run: cargo run --release --bin rodbus-bindings -- --c --no-tests -r ${{ matrix.target }} -a ./target/${{ matrix.target }}/release
-      - name: Generate Java bindings
-        run: cargo run --release --bin rodbus-bindings -- --java --no-tests -r ${{ matrix.target }} -a ./target/${{ matrix.target }}/release
-      - name: Upload compiled Java bindings
-        uses: actions/upload-artifact@v3
-        with:
-          name: ffi-modules
-          path: ffi/bindings/java/rodbus/src/main/resources
+        run: cross build -p rodbus-ffi-java --release --target ${{ matrix.target }} --message-format json > ffi-modules/${{ matrix.target }}/build.jni.log
+      - name: Copy the FFI and JNI libs
+        run: |
+          cp ./target/${{ matrix.target }}/release/libfoo_ffi.so ./ffi-modules/${{ matrix.target }}
+          cp ./target/${{ matrix.target }}/release/libfoo_ffi_java.so ./ffi-modules/${{ matrix.target }}
       - name: Upload compiled FFI modules
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v2
         with:
           name: ffi-modules
-          path: ffi/bindings/c/generated/${{ matrix.target }}/lib
-      - name: Upload C bindings
-        uses: actions/upload-artifact@v3
-        with:
-          name: c-bindings
-          path: ffi/bindings/c/generated
+          path: ffi-modules
   guide:
     runs-on: ubuntu-latest
     steps:
@@ -330,12 +301,13 @@ jobs:
           path: ffi-modules
       - name: Create FFI third-party-licenses.txt
         run: bom-tools gen-licenses-dir ./ffi-modules build.ffi.log ./dep_config.json > third-party-licenses.txt
-      - name: Package .NET bindings
+      - name: Package all bindings
         run: cargo run --bin rodbus-bindings -- --dotnet --package ./ffi-modules -f third-party-licenses.txt
-      - name: Create JNI third-party-licenses.txt
-        run: bom-tools gen-licenses-dir ./ffi-modules build.jni.log ./dep_config.json > third-party-licenses.txt
-      - name: Package Java bindings
-        run: cargo run --bin rodbus-bindings -- --java --package ./ffi-modules -f third-party-licenses.txt
+      - name: Upload C/C++ bindings
+        uses: actions/upload-artifact@v2
+        with:
+          name: c-bindings
+          path: ffi/bindings/c/generated/*
       - name: Upload .NET bindings
         uses: actions/upload-artifact@v2
         with:
@@ -397,11 +369,6 @@ jobs:
       - name: Publish NuGet package
         shell: bash
         run: dotnet nuget push $(find artifacts/dotnet-bindings/rodbus*.nupkg) -s https://api.nuget.org/v3/index.json -k ${{ secrets.SFIO_NUGET_KEY }}
-      - name: Package C bindings
-        shell: bash
-        run: >
-          mkdir release &&
-          for i in artifacts/c-bindings/*; do (cd $i && zip -r ../../../release/rodbus-${GITHUB_REF##*/}-$(basename $i).zip .); done
       - name: Create GitHub release
         uses: softprops/action-gh-release@v1
         with:
