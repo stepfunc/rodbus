@@ -2,6 +2,11 @@ use std::path::PathBuf;
 use std::rc::Rc;
 
 pub fn main() {
+    tracing_subscriber::fmt()
+        .with_max_level(tracing::Level::INFO)
+        .with_target(false)
+        .init();
+
     let library = rodbus_schema::build_lib().unwrap();
 
     let builder_settings = ci_script::BindingBuilderSettings {

@@ -13,4 +13,6 @@ readme = "../README.md"
 [dependencies]
 ci-script = { git = "https://github.com/stepfunc/oo_bindgen.git", branch = "main" }
 rodbus-schema = { path = "../rodbus-schema" }
+tracing = "^0.1"
+tracing-subscriber = "^0.3"
 
