@@ -12,6 +12,6 @@ repository = "https://github.com/stepfunc/rodbus"
 readme = "../README.md"
 
 [dependencies]
-oo-bindgen = { git = "https://github.com/stepfunc/oo_bindgen.git", tag = "0.4.0" }
-tracing-ffi-schema = { git = "https://github.com/stepfunc/tracing-ffi.git", tag = "0.2.0" }
-tokio-ffi-schema = { git = "https://github.com/stepfunc/tokio-ffi.git", tag = "0.2.0" }
+oo-bindgen = { git = "https://github.com/stepfunc/oo_bindgen.git", tag = "0.5.0" }
+tracing-ffi-schema = { git = "https://github.com/stepfunc/tracing-ffi.git", tag = "0.3.0" }
+tokio-ffi-schema = { git = "https://github.com/stepfunc/tokio-ffi.git", tag = "0.3.0" }

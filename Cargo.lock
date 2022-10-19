@@ -196,8 +196,8 @@ checksum = "ec8a7b6a70fde80372154c65702f00a0f56f3e1c36abbc6c440484be248856db"
 
 [[package]]
 name = "c-oo-bindgen"
-version = "0.4.0"
-source = "git+https://github.com/stepfunc/oo_bindgen.git?tag=0.4.0#80c160fd68fcb210e4499e3f03c909e007230844"
+version = "0.5.0"
+source = "git+https://github.com/stepfunc/oo_bindgen.git?tag=0.5.0#d1190d566fc4a76fc968c054d53bd483c31b3adb"
 dependencies = [
  "oo-bindgen",
  "tracing",
@@ -235,8 +235,8 @@ dependencies = [
 
 [[package]]
 name = "ci-script"
-version = "0.4.0"
-source = "git+https://github.com/stepfunc/oo_bindgen.git?tag=0.4.0#80c160fd68fcb210e4499e3f03c909e007230844"
+version = "0.5.0"
+source = "git+https://github.com/stepfunc/oo_bindgen.git?tag=0.5.0#d1190d566fc4a76fc968c054d53bd483c31b3adb"
 dependencies = [
  "c-oo-bindgen",
  "clap 4.0.17",
@@ -244,6 +244,8 @@ dependencies = [
  "java-oo-bindgen",
  "oo-bindgen",
  "pathdiff",
+ "serde",
+ "serde_json",
  "tracing",
 ]
 
@@ -498,8 +500,8 @@ dependencies = [
 
 [[package]]
 name = "dotnet-oo-bindgen"
-version = "0.4.0"
-source = "git+https://github.com/stepfunc/oo_bindgen.git?tag=0.4.0#80c160fd68fcb210e4499e3f03c909e007230844"
+version = "0.5.0"
+source = "git+https://github.com/stepfunc/oo_bindgen.git?tag=0.5.0#d1190d566fc4a76fc968c054d53bd483c31b3adb"
 dependencies = [
  "clap 4.0.17",
  "dunce",
@@ -709,8 +711,8 @@ checksum = "4217ad341ebadf8d8e724e264f13e593e0648f5b3e94b3896a5df283be015ecc"
 
 [[package]]
 name = "java-oo-bindgen"
-version = "0.4.0"
-source = "git+https://github.com/stepfunc/oo_bindgen.git?tag=0.4.0#80c160fd68fcb210e4499e3f03c909e007230844"
+version = "0.5.0"
+source = "git+https://github.com/stepfunc/oo_bindgen.git?tag=0.5.0#d1190d566fc4a76fc968c054d53bd483c31b3adb"
 dependencies = [
  "dunce",
  "oo-bindgen",
@@ -933,8 +935,8 @@ checksum = "e82dad04139b71a90c080c8463fe0dc7902db5192d939bd0950f074d014339e1"
 
 [[package]]
 name = "oo-bindgen"
-version = "0.4.0"
-source = "git+https://github.com/stepfunc/oo_bindgen.git?tag=0.4.0#80c160fd68fcb210e4499e3f03c909e007230844"
+version = "0.5.0"
+source = "git+https://github.com/stepfunc/oo_bindgen.git?tag=0.5.0#d1190d566fc4a76fc968c054d53bd483c31b3adb"
 dependencies = [
  "backtrace",
  "heck 0.3.3",
@@ -1238,8 +1240,8 @@ dependencies = [
 
 [[package]]
 name = "rust-oo-bindgen"
-version = "0.4.0"
-source = "git+https://github.com/stepfunc/oo_bindgen.git?tag=0.4.0#80c160fd68fcb210e4499e3f03c909e007230844"
+version = "0.5.0"
+source = "git+https://github.com/stepfunc/oo_bindgen.git?tag=0.5.0#d1190d566fc4a76fc968c054d53bd483c31b3adb"
 dependencies = [
  "heck 0.3.3",
  "oo-bindgen",
@@ -1342,6 +1344,20 @@ name = "serde"
 version = "1.0.145"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "728eb6351430bccb993660dfffc5a72f91ccc1295abaa8ce19b27ebe4f75568b"
+dependencies = [
+ "serde_derive",
+]
+
+[[package]]
+name = "serde_derive"
+version = "1.0.145"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "81fa1584d3d1bcacd84c277a0dfe21f5b0f6accf4a23d04d4c6d61f1af522b4c"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
 
 [[package]]
 name = "serde_json"
@@ -1545,8 +1561,8 @@ dependencies = [
 
 [[package]]
 name = "tokio-ffi-schema"
-version = "0.2.0"
-source = "git+https://github.com/stepfunc/tokio-ffi.git?tag=0.2.0#f4c82143647d27d8ecdd195b1e33428e2dc8fa69"
+version = "0.3.0"
+source = "git+https://github.com/stepfunc/tokio-ffi.git?tag=0.3.0#92558e0c6cbd4597ad2d126d442455d5578081dd"
 dependencies = [
  "oo-bindgen",
 ]
@@ -1667,8 +1683,8 @@ dependencies = [
 
 [[package]]
 name = "tracing-ffi-schema"
-version = "0.2.0"
-source = "git+https://github.com/stepfunc/tracing-ffi.git?tag=0.2.0#80036cb7dc41b27f3b7608f40721fb01ac0e6379"
+version = "0.3.0"
+source = "git+https://github.com/stepfunc/tracing-ffi.git?tag=0.3.0#41b6a8ecd9091793852b2e117b1fc10dceb08187"
 dependencies = [
  "oo-bindgen",
 ]

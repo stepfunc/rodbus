@@ -302,7 +302,7 @@ jobs:
       - name: Create FFI third-party-licenses.txt
         run: bom-tools gen-licenses-dir ./ffi-modules build.ffi.log ./dep_config.json > third-party-licenses.txt
       - name: Package all bindings
-        run: cargo run --bin rodbus-bindings -- --package ./ffi-modules -f third-party-licenses.txt
+        run: cargo run --bin rodbus-bindings -- --package ./ffi-modules --options ./packaging.json -f third-party-licenses.txt
       - name: Upload C/C++ bindings
         uses: actions/upload-artifact@v3
         with:
