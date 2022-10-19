@@ -94,8 +94,8 @@ jobs:
         run: wget -q https://www.doxygen.nl/files/doxygen-1.9.3.linux.bin.tar.gz -O- | sudo tar --strip-components=1 -C /usr -xz doxygen-1.9.3
       - name: Caching
         uses: Swatinem/rust-cache@v2
-      - name: Build
-        run: cargo build --release
+      - name: Build FFI and JNI
+        run: cargo build --release -p rodbus-ffi -p rodbus-ffi-java
       - name: Build Rustdoc
         run: cargo doc -p rodbus --no-deps
       - name: C bindings
