@@ -7,12 +7,54 @@ slug: /c_bindings
 
 import useBaseUrl from '@docusaurus/useBaseUrl';
 
-We distribute C bindings as a Zip file with the following directory layout:
+The C bindings are a simple single header/library distribution which makes application integration extremely straightforward:
+
+```mermaid
+graph TD
+A[C Application]
+B[rodbus.h]
+C[librodbus_ffi.so]
+A -- #include --> B
+A -- links --> C
+```
+
+The distribution contains:
 
 * Single header file in `/include/rodbus.h`
-* CMake find package script in `/cmake/`
 * Platform-specific shared libraries in `/lib/<platform>`
-* 3rd party license information in `/lib/licenses.txt`
+* 3rd party license information in `third-party-licenses.txt`
+* CMake find package script in `/cmake/`
+
+:::tip
+The CMake script is just a recipe for how you might integrate the library. You don't have to use it. Our distribution contains a single header file
+and a shared library that can be easily linked. Assuming that you've installed the shared library in /usr/lib, linking a program could be as simple
+as:
+
+```
+> gcc main.c -I./c-bindings/include/ -lrodbus_ffi
+> ldd a.out
+        linux-vdso.so.1 (0x00007ffd643f1000)
+        librodbus_ffi.so => /lib/librodbus_ffi.so (0x00007fbb1ec5c000)
+        libc.so.6 => /lib/x86_64-linux-gnu/libc.so.6 (0x00007fbb1ea6a000)
+        libgcc_s.so.1 => /lib/x86_64-linux-gnu/libgcc_s.so.1 (0x00007fbb1ea4f000)
+        librt.so.1 => /lib/x86_64-linux-gnu/librt.so.1 (0x00007fbb1ea45000)
+        libpthread.so.0 => /lib/x86_64-linux-gnu/libpthread.so.0 (0x00007fbb1ea22000)
+        libm.so.6 => /lib/x86_64-linux-gnu/libm.so.6 (0x00007fbb1e8d3000)
+        libdl.so.2 => /lib/x86_64-linux-gnu/libdl.so.2 (0x00007fbb1e8cb000)
+        /lib64/ld-linux-x86-64.so.2 (0x00007fbb1f1cd000)
+```
+:::
+
+The example above shows how dependencies might look for an executable linked on a GLIBC based distribution such as Ubuntu. Libraries are also available for MUSL
+distributions such as Alpine Linux.
+
+```
+> ldd a.out
+        /lib/ld-musl-x86_64.so.1 (0x7fbb1edeb000)
+        librodbus_ffi.so => /usr/lib/librodbus_ffi.so (0x7fbb1e894000)
+        libc.musl-x86_64.so.1 => /lib/ld-musl-x86_64.so.1 (0x7fbb1edeb000)
+        libgcc_s.so.1 => /usr/lib/libgcc_s.so.1 (0x7fbb1e87b000)
+```
 
 ## CMake Usage
 
@@ -20,8 +62,19 @@ Make the find package script discoverable by adding it to the prefix path. Next,
 
 ```cmake
 set(CMAKE_PREFIX_PATH ${DISTRIBUTION_PATH}/cmake)
+set(RODBUS_RUST_TARGET x86_64-unknown-linux-gnu)
 find_package(rodbus REQUIRED)
 ```
+
+:::tip
+The RODBUS_RUST_TARGET variable can also be set via the command line when configuring cmake. It just tells the script which library to link.
+
+```
+> mkdir build; cd build
+> cmake .. -DRODBUS_RUST_TARGET=x86_64-unknown-linux-gnu
+```
+:::
+
 
 This call will expose two targets:
 
@@ -33,12 +86,6 @@ add_custom_command(TARGET my_awesome_project POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:rodbus> $<TARGET_FILE_DIR:my_awesome_project>
 )
 ```
-
-- `rodbus_static` which is a static library. The library target includes information to link all the required system dependencies.
-
-:::note
-To use the static library on Windows, you must link with the static release C runtime using the `/MT` flag.
-:::
 
 Finally, declare a dependency on the library for your executable:
 

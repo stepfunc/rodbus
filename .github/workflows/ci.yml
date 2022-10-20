@@ -139,6 +139,7 @@ jobs:
           toolchain: stable
           override: true
       - name: Caching
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
         uses: Swatinem/rust-cache@v2
       - name: Create the FFI modules dir
         run: mkdir ffi-modules\${{ matrix.target }}
@@ -184,6 +185,7 @@ jobs:
           toolchain: stable
           override: true
       - name: Caching
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
         uses: Swatinem/rust-cache@v2
       - name: Create FFI modules dir
         run: mkdir -p ffi-modules/${{ matrix.target }}
@@ -234,6 +236,9 @@ jobs:
           toolchain: stable
           target: ${{ matrix.target }}
           override: true
+      - name: Caching
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        uses: Swatinem/rust-cache@v2
       - name: Install Rust Cross
         run: cargo install cross
       - name: Create ffi-modules dir
@@ -282,6 +287,7 @@ jobs:
           toolchain: stable
           override: true
       - name: Caching
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
         uses: Swatinem/rust-cache@v2
       - name: Checkout BOM tools repo
         uses: actions/checkout@v3
@@ -332,6 +338,10 @@ jobs:
         uses: actions/download-artifact@v3
         with:
           path: artifacts
+      - name: Package C Bindings
+        run: |
+          mkdir release
+          zip -r release/rodbus-${GITHUB_REF##*/}.zip artifacts/c-bindings
       - name: Checkout stepfunc/docs
         uses: actions/checkout@v3
         with:
