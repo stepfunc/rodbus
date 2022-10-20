@@ -287,7 +287,7 @@ jobs:
           toolchain: stable
           override: true
       - name: Caching
-        if: !startsWith(github.ref, 'refs/tags/')
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
         uses: Swatinem/rust-cache@v2
       - name: Checkout BOM tools repo
         uses: actions/checkout@v3
