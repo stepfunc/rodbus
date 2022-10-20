@@ -7,7 +7,18 @@ slug: /c_bindings
 
 import useBaseUrl from '@docusaurus/useBaseUrl';
 
-We distribute C bindings as a Zip file with the following directory layout:
+The C bindings are a simple single header/library distribution which makes application integration extremely straightforward:
+
+```mermaid
+graph TD
+A[C Application]
+B[rodbus.h]
+C[librodbus_ffi.so]
+A -- #include --> B
+A -- links --> C
+```
+
+The distribution contains:
 
 * Single header file in `/include/rodbus.h`
 * Platform-specific shared libraries in `/lib/<platform>`

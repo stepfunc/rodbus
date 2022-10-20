@@ -8,8 +8,22 @@ slug: /cpp_bindings
 import useBaseUrl from '@docusaurus/useBaseUrl';
 import sitedata from '../../sitedata.json'
 
-Each [C package distribution](./c_lang.mdx) also includes C++ wrappers for easy usage. The `rodbus.hpp` file includes the public API
+Each [C package distribution](./c_lang.mdx) also includes a C++ API that fully wraps the C API. The `rodbus.hpp` file includes the public API
 and a `src/rodbus.cpp` contains the companion code which maps the C++ API to the underlying C API.
+
+```mermaid
+graph TD
+A[C++ Application]
+B[rodbus.hpp]
+C[rodbus.cpp]
+D[rodbus.h]
+E[librodbus_ffi.so]
+A -- #include --> B
+C -- #include --> B
+C -- #include --> D
+A -- links --> E
+A -- links --> C
+```
 
 ## CMake Usage
 
