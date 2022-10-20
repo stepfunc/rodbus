@@ -23,6 +23,8 @@ project(my_awesome_project LANGUAGES C CXX)
 
 # Import the rodbus package
 set(CMAKE_PREFIX_PATH ${DISTRIBUTION_PATH}/cmake)
+# Tell cmake which library we're linking
+set(RODBUS_RUST_TARGET x86_64-unknown-linux-gnu)
 find_package(rodbus REQUIRED)
 
 # Create and link the executable w/ the c++ library
@@ -34,6 +36,16 @@ target_link_libraries(my_awesome_project PRIVATE rodbus_cpp)
 The `rodbus_cpp` CMake target is made available only if the `CXX` language is enabled. Languages can be enabled in the
 [project()](https://cmake.org/cmake/help/latest/command/project.html) command or with a separate
 [enable_language()](https://cmake.org/cmake/help/latest/command/enable_language.html) command.
+:::
+
+:::tip
+Just like with the C library, it's easy compile and link a program from the command line without CMake:
+
+```
+> g++ main.cpp c-bindings/src/rodbus.cpp -I ./c-bindings/include/ -lrodbus_ffi
+```
+
+All you have to do is compile and link one additional file!
 :::
 
 ## Mapping
