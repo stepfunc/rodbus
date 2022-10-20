@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.12)
 
 project(rodbus_c LANGUAGES C CXX)
 
-set(RODBUS_VERSION "1.0.0")
+set(RODBUS_BACKUP_VERSION "1.0.0")
 
 # Determine the architecture
 if(WIN32 AND CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|amd64|AMD64" AND CMAKE_SIZEOF_VOID_P EQUAL 8)
@@ -21,13 +21,13 @@ if(EXISTS ${CMAKE_CURRENT_LIST_DIR}/generated)
     # Use the locally built library
     find_package(rodbus REQUIRED HINTS ${CMAKE_CURRENT_LIST_DIR}/generated/cmake)
 else()
-    message("No local rodbus, fetching remote library")
+    message("No local rodbus, fetching remote library version ${RODBUS_BACKUP_VERSION}")
 
     # Download the library from GitHub
     include(FetchContent)
     FetchContent_Declare(
         rodbus
-        URL https://github.com/stepfunc/rodbus/releases/download/${RODBUS_VERSION}/rodbus-${RODBUS_VERSION}.zip
+        URL https://github.com/stepfunc/rodbus/releases/download/${RODBUS_BACKUP_VERSION}/rodbus-${RODBUS_BACKUP_VERSION}.zip
     )
 
     FetchContent_GetProperties(rodbus)
