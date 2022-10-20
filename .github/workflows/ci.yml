@@ -373,9 +373,9 @@ jobs:
         working-directory: artifacts/java-bindings
         run: >
           shopt -s extglob &&
-          mvn gpg:sign-and-deploy-file -Durl=https://oss.sonatype.org/service/local/staging/deploy/maven2 -DrepositoryId=ossrh -DpomFile=pom.xml -Dfile=rodbus-${GITHUB_REF##*/}.jar &&
-          mvn gpg:sign-and-deploy-file -Durl=https://oss.sonatype.org/service/local/staging/deploy/maven2 -DrepositoryId=ossrh -DpomFile=pom.xml -Dfile=rodbus-${GITHUB_REF##*/}-sources.jar) -Dclassifier=sources &&
-          mvn gpg:sign-and-deploy-file -Durl=https://oss.sonatype.org/service/local/staging/deploy/maven2 -DrepositoryId=ossrh -DpomFile=pom.xml -Dfile=rodbus-${GITHUB_REF##*/}-javadoc.jar) -Dclassifier=javadoc
+          mvn gpg:sign-and-deploy-file -Durl=https://oss.sonatype.org/service/local/staging/deploy/maven2 -DrepositoryId=ossrh -DpomFile=pom.xml -Dfile=$(find rodbus-+([0-9]).+([0-9]).+([0-9])*(-rc+([0-9])).jar) &&
+          mvn gpg:sign-and-deploy-file -Durl=https://oss.sonatype.org/service/local/staging/deploy/maven2 -DrepositoryId=ossrh -DpomFile=pom.xml -Dfile=$(find rodbus-+([0-9]).+([0-9]).+([0-9])*(-rc+([0-9]))-sources.jar) -Dclassifier=sources &&
+          mvn gpg:sign-and-deploy-file -Durl=https://oss.sonatype.org/service/local/staging/deploy/maven2 -DrepositoryId=ossrh -DpomFile=pom.xml -Dfile=$(find rodbus-+([0-9]).+([0-9]).+([0-9])*(-rc+([0-9]))-javadoc.jar) -Dclassifier=javadoc
       - name: Publish NuGet package
         shell: bash
         run: dotnet nuget push $(find artifacts/dotnet-bindings/rodbus*.nupkg) -s https://api.nuget.org/v3/index.json -k ${{ secrets.SFIO_NUGET_KEY }}
