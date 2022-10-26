@@ -36,7 +36,7 @@
     "winapi-util"
   ],
   "vendor": {
-    "rasn": {
+    "rx509": {
       "url": "https://github.com/stepfunc/rasn"
     },
     "rodbus": {
