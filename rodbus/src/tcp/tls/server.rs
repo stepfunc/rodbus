@@ -213,7 +213,7 @@ impl rustls::server::ClientCertVerifier for SelfSignedCertificateClientCertVerif
         let now = now
             .duration_since(std::time::UNIX_EPOCH)
             .map_err(|_| rustls::Error::FailedToGetCurrentTime)?;
-        let now = rasn::types::UtcTime::from_seconds_since_epoch(now.as_secs());
+        let now = rasn::der::UtcTime::from_seconds_since_epoch(now.as_secs());
 
         if !parsed_cert.tbs_certificate.value.validity.is_valid(now) {
             return Err(rustls::Error::InvalidCertificateData(
@@ -264,7 +264,7 @@ fn extract_modbus_role(cert: &rasn::x509::Certificate) -> Result<String, rustls:
 
     // Extract the ModbusRole extensions
     let mut it = extensions.into_iter().filter_map(|ext| match ext.content {
-        rasn::extensions::SpecificExtension::ModbusRole(role) => Some(role.role),
+        rasn::x509::ext::SpecificExtension::ModbusRole(role) => Some(role.role),
         _ => None,
     });
 

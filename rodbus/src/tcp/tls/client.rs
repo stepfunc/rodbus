@@ -322,7 +322,7 @@ impl rustls::client::ServerCertVerifier for SelfSignedCertificateServerCertVerif
         let now = now
             .duration_since(std::time::UNIX_EPOCH)
             .map_err(|_| rustls::Error::FailedToGetCurrentTime)?;
-        let now = rasn::types::UtcTime::from_seconds_since_epoch(now.as_secs());
+        let now = rasn::der::UtcTime::from_seconds_since_epoch(now.as_secs());
 
         if !parsed_cert.tbs_certificate.value.validity.is_valid(now) {
             return Err(rustls::Error::InvalidCertificateData(

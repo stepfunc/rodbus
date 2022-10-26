@@ -123,7 +123,7 @@ fn verify_dns_name(cert: &rustls::Certificate, server_name: &str) -> Result<(), 
                 if extensions.iter().any(|x| {
                     matches!(
                         x.content,
-                        rasn::extensions::SpecificExtension::SubjectAlternativeName(_)
+                        rasn::x509::ext::SpecificExtension::SubjectAlternativeName(_)
                     )
                 }) {
                     return Err(rustls::Error::InvalidCertificateData(
