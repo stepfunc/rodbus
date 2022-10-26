@@ -11,7 +11,7 @@ The library supports Modbus TCP, RTU, and TLS including role-based access contro
 
 ## License
 
-Refer to [`License.txt`](./LICENSE.txt) for the terms of the non-commercial license.  This software is "source available", but is not
+Refer to [`LICENSE`](./LICENSE) for the terms of the non-commercial license.  This software is "source available", but is not
 "open source". You must purchase a commercial license to use this software for profit.
 
 ## Library

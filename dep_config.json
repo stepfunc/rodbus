@@ -8,7 +8,6 @@
     "dunce",
     "gimli",
     "heck",
-    "java-oo-bindgen",
     "miniz_oxide",
     "object",
     "oo-bindgen",
@@ -16,7 +15,6 @@
     "pest",
     "platforms",
     "rodbus-schema",
-    "rust-oo-bindgen",
     "rustc-demangle",
     "same-file",
     "semver",
@@ -43,10 +41,10 @@
     "scursor": {
       "url": "https://github.com/stepfunc/scursor"
     },
-    "tokio-ffi-schema": {
+    "sfio-tokio-ffi": {
       "url": "https://github.com/stepfunc/tokio-ffi"
     },
-    "tracing-ffi-schema": {
+    "sfio-tracing-ffi": {
       "url": "https://github.com/stepfunc/tracing-ffi"
     }
   },

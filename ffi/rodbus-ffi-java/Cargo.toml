@@ -19,4 +19,4 @@ tls = ["rodbus-ffi/tls"]
 
 [build-dependencies]
 rodbus-schema = { path = "../rodbus-schema" }
-java-oo-bindgen = { git = "https://github.com/stepfunc/oo_bindgen.git", tag = "0.5.1" }
+oo-bindgen = "0.6"

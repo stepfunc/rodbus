@@ -63,7 +63,7 @@ pub fn build_lib() -> BackTraced<Library> {
 
     let common = CommonDefinitions::build(&mut builder)?;
 
-    tracing_ffi_schema::define(&mut builder, common.error_type.clone())?;
+    sfio_tracing_ffi::define(&mut builder, common.error_type.clone())?;
 
     client::build(&mut builder, &common)?;
     server::build(&mut builder, &common)?;

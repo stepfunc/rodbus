@@ -21,7 +21,7 @@ pub(crate) fn build_server(
         .begin_callback("callback", "callback function")?
         .param(
             "database",
-            database.declaration.clone(),
+            database.declaration(),
             "Database on which to perform updates",
         )?
         .enable_functional_transform()
@@ -91,7 +91,7 @@ pub(crate) fn build_server(
         )?
         .param(
             "endpoints",
-            handler_map.declaration.clone(),
+            handler_map.declaration(),
             "map of endpoints which is emptied upon passing to this function",
         )?
         .param(
@@ -117,7 +117,7 @@ pub(crate) fn build_server(
         .param("max_sessions", Primitive::U16, "Maximum number of concurrent sessions")?
         .param(
             "endpoints",
-            handler_map.declaration.clone(),
+            handler_map.declaration(),
             "map of endpoints which is emptied upon passing to this function",
         )?
         .param(
@@ -152,7 +152,7 @@ pub(crate) fn build_server(
         .param("max_sessions", Primitive::U16, "Maximum number of concurrent sessions")?
         .param(
             "endpoints",
-            handler_map.declaration.clone(),
+            handler_map.declaration(),
             "map of endpoints which is emptied upon passing to this function",
         )?
         .param(

@@ -31,7 +31,7 @@ impl CommonDefinitions {
             error_type: error_type.clone(),
             nothing,
             decode_level,
-            runtime_handle: tokio_ffi_schema::define(lib, error_type)?,
+            runtime_handle: sfio_tokio_ffi::define(lib, error_type)?,
             error_info: build_request_error(lib)?,
             address_range: build_address_range(lib)?,
             request_param: build_request_param(lib)?,
@@ -204,7 +204,7 @@ fn build_iterator(
     lib: &mut LibraryBuilder,
     item_type: &UniversalStructHandle,
 ) -> BackTraced<AbstractIteratorHandle> {
-    let base_name = item_type.declaration.name();
+    let base_name = item_type.name();
     let iter =
         lib.define_iterator_with_lifetime(format!("{}_iterator", base_name), item_type.clone())?;
     Ok(iter)
