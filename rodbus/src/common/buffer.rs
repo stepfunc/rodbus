@@ -131,7 +131,7 @@ mod tests {
     fn preserves_data_over_multiple_reads() {
         let mut buffer = ReadBuffer::new();
 
-        let (io, mut io_handle) = tokio_mock_io::mock();
+        let (io, mut io_handle) = sfio_tokio_mock_io::mock();
         let mut phys = PhysLayer::new_mock(io);
 
         {

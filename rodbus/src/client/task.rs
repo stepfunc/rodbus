@@ -290,15 +290,15 @@ mod tests {
     use crate::types::{AddressRange, UnitId};
     use crate::{ExceptionCode, Indexed, ReadBitsRange};
 
-    use tokio_mock_io::Event;
+    use sfio_tokio_mock_io::Event;
 
     fn spawn_client_loop() -> (
         Channel,
         tokio::task::JoinHandle<SessionError>,
-        tokio_mock_io::Handle,
+        sfio_tokio_mock_io::Handle,
     ) {
         let (tx, rx) = tokio::sync::mpsc::channel(16);
-        let (mock, io_handle) = tokio_mock_io::mock();
+        let (mock, io_handle) = sfio_tokio_mock_io::mock();
         let mut client_loop = ClientLoop::new(
             rx,
             FrameWriter::tcp(),
