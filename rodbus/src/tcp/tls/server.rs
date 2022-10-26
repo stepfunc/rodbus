@@ -95,7 +95,7 @@ impl TlsServerConfig {
                             .0
                             .as_slice();
 
-                        let parsed = rasn::x509::Certificate::parse(peer_cert)
+                        let parsed = rx509::x509::Certificate::parse(peer_cert)
                             .map_err(|err| format!("ASNError: {}", err))?;
                         let role =
                             extract_modbus_role(&parsed).map_err(|err| format!("{}", err))?;
@@ -202,7 +202,7 @@ impl rustls::server::ClientCertVerifier for SelfSignedCertificateClientCertVerif
             ));
         }
 
-        let parsed_cert = rasn::x509::Certificate::parse(&end_entity.0).map_err(|err| {
+        let parsed_cert = rx509::x509::Certificate::parse(&end_entity.0).map_err(|err| {
             rustls::Error::InvalidCertificateData(format!(
                 "unable to parse cert with rasn: {:?}",
                 err
@@ -213,7 +213,7 @@ impl rustls::server::ClientCertVerifier for SelfSignedCertificateClientCertVerif
         let now = now
             .duration_since(std::time::UNIX_EPOCH)
             .map_err(|_| rustls::Error::FailedToGetCurrentTime)?;
-        let now = rasn::der::UtcTime::from_seconds_since_epoch(now.as_secs());
+        let now = rx509::der::UtcTime::from_seconds_since_epoch(now.as_secs());
 
         if !parsed_cert.tbs_certificate.value.validity.is_valid(now) {
             return Err(rustls::Error::InvalidCertificateData(
@@ -243,7 +243,7 @@ fn build_server_config(
     Ok(config)
 }
 
-fn extract_modbus_role(cert: &rasn::x509::Certificate) -> Result<String, rustls::Error> {
+fn extract_modbus_role(cert: &rx509::x509::Certificate) -> Result<String, rustls::Error> {
     // Parse the extensions
     let extensions = cert
         .tbs_certificate
@@ -264,7 +264,7 @@ fn extract_modbus_role(cert: &rasn::x509::Certificate) -> Result<String, rustls:
 
     // Extract the ModbusRole extensions
     let mut it = extensions.into_iter().filter_map(|ext| match ext.content {
-        rasn::x509::ext::SpecificExtension::ModbusRole(role) => Some(role.role),
+        rx509::x509::ext::SpecificExtension::ModbusRole(role) => Some(role.role),
         _ => None,
     });
 

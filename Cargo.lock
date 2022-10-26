@@ -1057,11 +1057,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ec0be4795e2f6a28069bec0b5ff3e2ac9bafc99e6a9a7dc3547996c5c816922c"
 
 [[package]]
-name = "rasn"
-version = "0.2.0"
-source = "git+https://github.com/stepfunc/rasn.git?branch=main#64cb98380332b0787b69bf0256eccf5c7f98d560"
-
-[[package]]
 name = "regex"
 version = "1.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1110,7 +1105,7 @@ dependencies = [
  "crc",
  "pem",
  "pkcs8",
- "rasn",
+ "rx509",
  "scursor",
  "sfio-tokio-mock-io",
  "tokio",
@@ -1196,6 +1191,12 @@ dependencies = [
  "sct",
  "webpki",
 ]
+
+[[package]]
+name = "rx509"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9c177a3ff729f263173df3a7a58442fde7c0eb93d79ee8aaa66e67503c5c42fb"
 
 [[package]]
 name = "ryu"
