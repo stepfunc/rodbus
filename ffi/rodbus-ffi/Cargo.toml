@@ -23,9 +23,10 @@ num_cpus = "1"
 
 [build-dependencies]
 rodbus-schema = { path = "../rodbus-schema" }
-rust-oo-bindgen = { git = "https://github.com/stepfunc/oo_bindgen.git", tag = "0.5.1" }
-tracing-ffi-schema = { git = "https://github.com/stepfunc/tracing-ffi.git", tag = "0.4.0" }
-tokio-ffi-schema = { git = "https://github.com/stepfunc/tokio-ffi.git", tag = "0.4.0" }
+oo-bindgen = "0.6"
+sfio-tracing-ffi = "0.5"
+sfio-tokio-ffi = "0.5"
+
 
 [features]
 default = ["serial", "tls"]

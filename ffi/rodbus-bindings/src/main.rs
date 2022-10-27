@@ -9,7 +9,7 @@ pub fn main() {
 
     let library = rodbus_schema::build_lib().unwrap();
 
-    let builder_settings = ci_script::BindingBuilderSettings {
+    let builder_settings = oo_bindgen::cli::BindingBuilderSettings {
         ffi_target_name: "rodbus-ffi",
         jni_target_name: "rodbus-ffi-java",
         ffi_name: "rodbus_ffi",
@@ -19,5 +19,5 @@ pub fn main() {
         library: Rc::new(library),
     };
 
-    ci_script::run(builder_settings);
+    oo_bindgen::cli::run(builder_settings);
 }

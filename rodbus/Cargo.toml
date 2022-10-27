@@ -4,6 +4,7 @@ version = "1.1.0-rc1"
 authors = ["Step Function I/O LLC <info@stepfunc.io>"]
 edition = "2021"
 description = "A high-performance async implementation of the Modbus protocol using tokio"
+license-file = "../LICENSE.txt"
 keywords = ["modbus", "ics", "industrial", "plc", "security"]
 categories = ["network-programming"]
 repository = "https://github.com/stepfunc/rodbus"
@@ -11,15 +12,16 @@ readme = "../README.md"
 
 [dependencies]
 crc = "2.0"
-scursor = { git = "https://github.com/stepfunc/scursor.git", tag="0.1.0" }
+scursor = "0.1"
 tokio = { version = "1", features = ["net", "sync", "io-util", "io-std", "time", "rt", "rt-multi-thread", "macros"] }
 tracing = "0.1"
 
 # TLS dependencies
 pem = { version = "1.0", optional = true }
 pkcs8 = { version = "0.7", features = ["encryption", "pem", "std"], optional = true }
-rasn = { git = "https://github.com/stepfunc/rasn.git", tag = "0.1.2", optional = true }
+rx509 = { version = "0.2", optional = true }
 tokio-rustls = { version = "0.23", features = ["dangerous_configuration", "tls12"], default-features = false, optional = true }
+# serial dependencies
 tokio-serial = { version = "5.4", default-features = false, optional = true }
 
 [dev-dependencies]
@@ -27,10 +29,10 @@ clap = { version = "3.2.20", features = ["derive"] }
 tokio-stream = "0.1"
 tokio-util = { version = "0.6", features = ["codec"] }
 tokio-test = "0.4.2"
-tokio-mock-io = { git = "https://github.com/stepfunc/tokio-mock-io.git", tag = "0.2.0" }
+sfio-tokio-mock-io = "0.2"
 tracing-subscriber = "0.2"
 
 [features]
 default = ["tls", "serial"]
-tls = ["pem", "pkcs8", "rasn", "tokio-rustls"]
+tls = ["pem", "pkcs8", "rx509", "tokio-rustls"]
 serial = ["tokio-serial"]

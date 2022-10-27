@@ -2,25 +2,33 @@
   "build_only": [
     "addr2line",
     "adler",
+    "atty",
     "autocfg",
     "backtrace",
     "cc",
+    "clap",
+    "clap_derive",
+    "clap_lex",
     "dunce",
     "gimli",
     "heck",
-    "java-oo-bindgen",
     "miniz_oxide",
     "object",
     "oo-bindgen",
+    "os_str_bytes",
     "pathdiff",
     "pest",
     "platforms",
+    "proc-macro-error",
+    "proc-macro-error-attr",
     "rodbus-schema",
-    "rust-oo-bindgen",
     "rustc-demangle",
     "same-file",
     "semver",
     "semver-parser",
+    "serde_derive",
+    "strsim",
+    "termcolor",
     "ucd-trie",
     "unicode-segmentation",
     "version_check",
@@ -28,7 +36,7 @@
     "winapi-util"
   ],
   "vendor": {
-    "rasn": {
+    "rx509": {
       "url": "https://github.com/stepfunc/rasn"
     },
     "rodbus": {
@@ -43,10 +51,10 @@
     "scursor": {
       "url": "https://github.com/stepfunc/scursor"
     },
-    "tokio-ffi-schema": {
+    "sfio-tokio-ffi": {
       "url": "https://github.com/stepfunc/tokio-ffi"
     },
-    "tracing-ffi-schema": {
+    "sfio-tracing-ffi": {
       "url": "https://github.com/stepfunc/tracing-ffi"
     }
   },
