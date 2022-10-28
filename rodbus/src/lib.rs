@@ -1,42 +1,4 @@
-//! A high-performance implementation of the [Modbus](http://modbus.org/) protocol
-//! using [Tokio](https://docs.rs/tokio) and Rust's `async/await` syntax.
-//!
-//! # Features
-//!
-//! * Panic-free parsing
-//! * Correctness and compliance to the specification
-//! * Automatic connection management with configurable reconnect strategy
-//! * Scalable performance using Tokio's multi-threaded executor
-//! * Automatically generated bindings for C, C++, Java, and .NET
-//!
-//! # Supported Modes
-//!
-//! * TCP, RTU (serial), and Modbus security (TLS)
-//! * Client and server
-//!
-//! # Cargo Features
-//!
-//! Default features can be disabled at compile time:
-//!
-//! * `tls` - Build the library with support for TLS (secure Modbus)
-//! * `serial` - Build the library with support for Modbus RTU and serial ports
-//!
-//! # Supported Functions
-//!
-//! * Read Coils
-//! * Read Discrete Inputs
-//! * Read Holding Registers
-//! * Read Input Registers
-//! * Write Single Coil
-//! * Write Single Register
-//! * Write Multiple Coils
-//! * Write Multiple Registers
-//!
-//! # Future Support
-//!
-//! * Additional function code support as requested by customers
-//!
-//!
+#![doc = include_str!("../README.md")]
 //! # Example Client
 //!
 //! A simple client application that periodically polls for some Coils
