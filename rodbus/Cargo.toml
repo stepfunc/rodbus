@@ -1,14 +1,15 @@
 [package]
 name = "rodbus"
-version = "1.1.0-rc1"
+version = "1.1.0-rc2"
 authors = ["Step Function I/O LLC <info@stepfunc.io>"]
 edition = "2021"
 description = "A high-performance async implementation of the Modbus protocol using tokio"
-license-file = "../LICENSE.txt"
-keywords = ["modbus", "ics", "industrial", "plc", "security"]
-categories = ["network-programming"]
+homepage = "https://stepfunc.io/products/libraries/modbus"
 repository = "https://github.com/stepfunc/rodbus"
-readme = "../README.md"
+license-file = "../LICENSE.txt"
+keywords = ["modbus", "ics", "industrial", "security", "sunspec"]
+categories = ["network-programming"]
+readme = "README.md"
 
 [dependencies]
 crc = "2.0"

@@ -90,8 +90,8 @@ jobs:
           profile: minimal
           toolchain: stable
           override: true
-      - name: Install doxygen 1.9.3
-        run: wget -q https://www.doxygen.nl/files/doxygen-1.9.3.linux.bin.tar.gz -O- | sudo tar --strip-components=1 -C /usr -xz doxygen-1.9.3
+      - name: Install doxygen 1.9.5
+        run: wget -q https://github.com/stepfunc/ci-files/raw/main/doxygen/doxygen-1.9.5.linux.bin.tar.gz -O- | sudo tar --strip-components=1 -C /usr -xz doxygen-1.9.5
       - name: Caching
         uses: Swatinem/rust-cache@v2
       - name: Build FFI and JNI
@@ -161,10 +161,10 @@ jobs:
       - name: C Bindings Tests
         if: ${{ matrix.test }}
         run: cargo run --bin rodbus-bindings -- --c -r ${{ matrix.target }} -a ./target/${{ matrix.target }}/release
-      - name: .NET Bindings Tests
+      - name: Test .NET Bindings
         if: ${{ matrix.test }}
         run: cargo run --bin rodbus-bindings -- --dotnet -r ${{ matrix.target }} -a ./target/${{ matrix.target }}/release
-      - name: Java Bindings Tests
+      - name: Test Java Bindings
         if: ${{ matrix.test }}
         run: cargo run --bin rodbus-bindings -- --java -r ${{ matrix.target }} -a ./target/${{ matrix.target }}/release
   # Build bindings on MacOS [64-bit macOS (10.7+, Lion+) (x86_64-apple-darwin)]
@@ -202,9 +202,9 @@ jobs:
         with:
           name: ffi-modules
           path: ffi-modules
-      - name: .NET bindings Tests
+      - name: Test .NET bindings
         run: cargo run --bin rodbus-bindings -- --dotnet
-      - name: Java bindings Tests
+      - name: Test Java bindings
         run: cargo run --bin rodbus-bindings -- --java
   # Cross-compilation for various Linux architectures
   ffi-cross:
@@ -236,9 +236,9 @@ jobs:
           toolchain: stable
           target: ${{ matrix.target }}
           override: true
-      - name: Caching
-        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
-        uses: Swatinem/rust-cache@v2
+#      - name: Caching
+#        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+#        uses: Swatinem/rust-cache@v2
       - name: Install Rust Cross
         run: cargo install cross
       - name: Create ffi-modules dir
