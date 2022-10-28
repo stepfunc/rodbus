@@ -18,11 +18,13 @@ B[rodbus.hpp]
 C[rodbus.cpp]
 D[rodbus.h]
 E[librodbus_ffi.so]
+F[rodbus.o]
 A -- #include --> B
 C -- #include --> B
 C -- #include --> D
-A -- links --> E
-A -- links --> C
+A -- link --> E
+A -- link --> F
+C -- compile --> F
 ```
 
 ## CMake Usage
