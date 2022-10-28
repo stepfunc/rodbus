@@ -341,7 +341,8 @@ jobs:
       - name: Package C Bindings
         run: |
           mkdir release
-          zip -r -j release/rodbus-${GITHUB_REF##*/}.zip artifacts/c-bindings
+          cd artifacts/c-bindings
+          zip -r ../../release/rodbus-${GITHUB_REF##*/}.zip .
       - name: Checkout stepfunc/docs
         uses: actions/checkout@v3
         with:
