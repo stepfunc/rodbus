@@ -30,7 +30,7 @@ Refer to [`LICENSE`](https://github.com/stepfunc/rodbus/blob/main/LICENSE.txt) f
 
 ## Library
 
-The [`client`](./examples/client.rs) and [`server`](./examples/server.rs) examples demonstrate simple
+The [`client`](https://github.com/stepfunc/rodbus/blob/main/rodbus/examples/client.rs) and [`server`](https://github.com/stepfunc/rodbus/blob/main/rodbus/examples/server.rs) examples demonstrate simple
 usage of the API.
 
 The following function codes are supported:
