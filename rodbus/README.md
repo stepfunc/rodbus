@@ -20,15 +20,7 @@ A high-performance implementation of the [Modbus](http://modbus.org/) protocol u
 * TCP, RTU (serial), and Modbus security (TLS) with and without X.509 extension containing the user role.
 * Client and server
 
-# Future Support
-* Additional function code support as requested by customers
-
-## License
-
-Refer to [`LICENSE`](https://github.com/stepfunc/rodbus/blob/main/LICENSE.txt) for the terms of the non-commercial license.  This software is "source available", but is not
-"open source". You must purchase a commercial license to use this software for profit.
-
-## Library
+## Function Codes
 
 The [`client`](https://github.com/stepfunc/rodbus/blob/main/rodbus/examples/client.rs) and [`server`](https://github.com/stepfunc/rodbus/blob/main/rodbus/examples/server.rs) examples demonstrate simple
 usage of the API.
@@ -42,6 +34,19 @@ The following function codes are supported:
 - Write Single Register (`0x06`)
 - Write Multiple Coils (`0x0F`)
 - Write Multiple Registers (`0x10`)
+
+## License
+
+This library is publicly available under a non-commercial / non-production license.
+Refer to [`LICENSE.txt`](https://raw.githubusercontent.com/stepfunc/rodbus/main/LICENSE.txt) for the terms
+of this non-commercial license.
+
+This software is publicly available, but is not "open source".
+__You must purchase a commercial license to use this software for profit.__
+
+Please inquire about commercial licensing on our website:
+
+[https://stepfunc.io/contact/](https://stepfunc.io/contact/)
 
 # Cargo Features
 
