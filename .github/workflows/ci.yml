@@ -236,9 +236,9 @@ jobs:
           toolchain: stable
           target: ${{ matrix.target }}
           override: true
-      - name: Caching
-        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
-        uses: Swatinem/rust-cache@v2
+#      - name: Caching
+#        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+#        uses: Swatinem/rust-cache@v2
       - name: Install Rust Cross
         run: cargo install cross
       - name: Create ffi-modules dir
