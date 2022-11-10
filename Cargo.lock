@@ -1099,7 +1099,7 @@ dependencies = [
 
 [[package]]
 name = "rodbus"
-version = "1.1.0-rc2"
+version = "1.1.0"
 dependencies = [
  "clap 3.2.23",
  "crc",
@@ -1120,7 +1120,7 @@ dependencies = [
 
 [[package]]
 name = "rodbus-bindings"
-version = "1.1.0-rc2"
+version = "1.1.0"
 dependencies = [
  "oo-bindgen",
  "rodbus-schema",
@@ -1130,7 +1130,7 @@ dependencies = [
 
 [[package]]
 name = "rodbus-client"
-version = "1.1.0-rc2"
+version = "1.1.0"
 dependencies = [
  "clap 2.34.0",
  "rodbus",
@@ -1141,7 +1141,7 @@ dependencies = [
 
 [[package]]
 name = "rodbus-ffi"
-version = "1.1.0-rc2"
+version = "1.1.0"
 dependencies = [
  "lazy_static",
  "num_cpus",
@@ -1158,7 +1158,7 @@ dependencies = [
 
 [[package]]
 name = "rodbus-ffi-java"
-version = "1.1.0-rc2"
+version = "1.1.0"
 dependencies = [
  "jni",
  "oo-bindgen",
@@ -1168,7 +1168,7 @@ dependencies = [
 
 [[package]]
 name = "rodbus-schema"
-version = "1.1.0-rc2"
+version = "1.1.0"
 dependencies = [
  "oo-bindgen",
  "sfio-tokio-ffi",
