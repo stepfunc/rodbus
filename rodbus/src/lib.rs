@@ -120,7 +120,6 @@
     patterns_in_fns_without_body,
     pub_use_of_private_extern_crate,
     unknown_crate_types,
-    const_err,
     order_dependent_trait_objects,
     illegal_floating_point_literal_pattern,
     improper_ctypes,
