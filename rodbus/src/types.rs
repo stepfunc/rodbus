@@ -347,11 +347,6 @@ impl UnitId {
         Self { value }
     }
 
-    /// Create the default UnitId of `0xFF`
-    pub fn default() -> Self {
-        Self { value: 0xFF }
-    }
-
     /// Broadcast address (only in RTU)
     pub fn broadcast() -> Self {
         Self { value: 0x00 }
@@ -362,6 +357,13 @@ impl UnitId {
     /// Users should *not* use reserved addresses in RTU mode.
     pub fn is_rtu_reserved(&self) -> bool {
         self.value >= 248
+    }
+}
+
+/// Create the default UnitId of `0xFF`
+impl Default for UnitId {
+    fn default() -> Self {
+        Self { value: 0xFF }
     }
 }
 
