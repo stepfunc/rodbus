@@ -33,7 +33,7 @@ pub(crate) unsafe fn client_channel_create_tcp(
     let runtime = runtime.as_ref().ok_or(ffi::ParamError::NullParameter)?;
 
     // enter the runtime context so we can spawn
-    let _enter = runtime.inner.enter();
+    let _enter = runtime.enter();
 
     let channel = rodbus::client::spawn_tcp_client_task(
         get_host_addr(host, port)?,
@@ -75,7 +75,7 @@ pub(crate) unsafe fn client_channel_create_rtu(
     let runtime = runtime.as_ref().ok_or(ffi::ParamError::NullParameter)?;
 
     // enter the runtime context so we can spawn
-    let _enter = runtime.inner.enter();
+    let _enter = runtime.enter();
 
     let channel = rodbus::client::spawn_rtu_client_task(
         &path.to_string_lossy(),
@@ -144,7 +144,7 @@ pub(crate) unsafe fn client_channel_create_tls(
     let host_addr = get_host_addr(host, port)?;
 
     // enter the runtime context so we can spawn
-    let _enter = runtime.inner.enter();
+    let _enter = runtime.enter();
 
     let channel = rodbus::client::spawn_tls_client_task(
         host_addr,

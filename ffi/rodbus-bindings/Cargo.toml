@@ -10,7 +10,7 @@ repository = "https://github.com/stepfunc/rodbus"
 readme = "../README.md"
 
 [dependencies]
-oo-bindgen = "0.6"
+oo-bindgen = "0.7"
 rodbus-schema = { path = "../rodbus-schema" }
 tracing = "^0.1"
 tracing-subscriber = "^0.3"
