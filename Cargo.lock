@@ -881,7 +881,7 @@ checksum = "86f0b0d4bf799edbc74508c1e8bf170ff5f41238e5f8225603ca7caaae2b7860"
 [[package]]
 name = "oo-bindgen"
 version = "0.7.1"
-source = "git+https://github.com/stepfunc/oo_bindgen.git?branch=feature/more-generic-promise#31f9e2f4c2dc535f0f0eda07835b42fa7844147b"
+source = "git+https://github.com/stepfunc/oo_bindgen.git?branch=feature/more-generic-promise#c0e8f92fa4d90d9e2105f1d2868f1bc91022215e"
 dependencies = [
  "backtrace",
  "clap 4.0.22",
@@ -1139,6 +1139,7 @@ dependencies = [
  "oo-bindgen",
  "rodbus",
  "rodbus-schema",
+ "sfio-promise",
  "sfio-tokio-ffi",
  "sfio-tracing-ffi",
  "tokio",
@@ -1299,6 +1300,12 @@ dependencies = [
  "regex",
  "winapi",
 ]
+
+[[package]]
+name = "sfio-promise"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6c7633b2c7b0c49ea920d4f49226dc90149e5eb7e93ede49bc7f482c0ff4c4f2"
 
 [[package]]
 name = "sfio-tokio-ffi"

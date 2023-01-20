@@ -11,7 +11,7 @@ impl ffi::RequestParam {
     }
 }
 
-impl<'a> crate::ffi::promise::FutureType<Result<BitIterator<'a>, rodbus::RequestError>>
+impl<'a> sfio_promise::FutureType<Result<BitIterator<'a>, rodbus::RequestError>>
     for ffi::BitReadCallback
 {
     fn on_drop() -> Result<BitIterator<'a>, rodbus::RequestError> {
@@ -31,7 +31,7 @@ impl<'a> crate::ffi::promise::FutureType<Result<BitIterator<'a>, rodbus::Request
     }
 }
 
-impl<'a> crate::ffi::promise::FutureType<Result<RegisterIterator<'a>, rodbus::RequestError>>
+impl<'a> sfio_promise::FutureType<Result<RegisterIterator<'a>, rodbus::RequestError>>
     for ffi::RegisterReadCallback
 {
     fn on_drop() -> Result<RegisterIterator<'a>, rodbus::RequestError> {
@@ -51,7 +51,7 @@ impl<'a> crate::ffi::promise::FutureType<Result<RegisterIterator<'a>, rodbus::Re
     }
 }
 
-impl<T> crate::ffi::promise::FutureType<Result<T, rodbus::RequestError>> for ffi::WriteCallback {
+impl<T> sfio_promise::FutureType<Result<T, rodbus::RequestError>> for ffi::WriteCallback {
     fn on_drop() -> Result<T, RequestError> {
         Err(rodbus::RequestError::Shutdown)
     }

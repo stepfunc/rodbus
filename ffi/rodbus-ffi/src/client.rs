@@ -175,7 +175,7 @@ pub(crate) unsafe fn client_channel_read_coils(
 ) -> Result<(), ffi::ParamError> {
     let channel = channel.as_ref().ok_or(ffi::ParamError::NullParameter)?;
     let range = AddressRange::try_from(range.start, range.count)?;
-    let callback = crate::ffi::promise::Promise::new(callback);
+    let callback = sfio_promise::Promise::new(callback);
 
     let mut session = param.build_session(channel);
     channel.runtime.spawn(async move {
@@ -195,7 +195,7 @@ pub(crate) unsafe fn client_channel_read_discrete_inputs(
 ) -> Result<(), ffi::ParamError> {
     let channel = channel.as_ref().ok_or(ffi::ParamError::NullParameter)?;
     let range = AddressRange::try_from(range.start, range.count)?;
-    let callback = crate::ffi::promise::Promise::new(callback);
+    let callback = sfio_promise::Promise::new(callback);
 
     let mut session = param.build_session(channel);
     channel.runtime.spawn(async move {
@@ -215,7 +215,7 @@ pub(crate) unsafe fn client_channel_read_holding_registers(
 ) -> Result<(), ffi::ParamError> {
     let channel = channel.as_ref().ok_or(ffi::ParamError::NullParameter)?;
     let range = AddressRange::try_from(range.start, range.count)?;
-    let callback = crate::ffi::promise::Promise::new(callback);
+    let callback = sfio_promise::Promise::new(callback);
 
     let mut session = param.build_session(channel);
     channel.runtime.spawn(async move {
@@ -235,7 +235,7 @@ pub(crate) unsafe fn client_channel_read_input_registers(
 ) -> Result<(), ffi::ParamError> {
     let channel = channel.as_ref().ok_or(ffi::ParamError::NullParameter)?;
     let range = AddressRange::try_from(range.start, range.count)?;
-    let callback = crate::ffi::promise::Promise::new(callback);
+    let callback = sfio_promise::Promise::new(callback);
 
     let mut session = param.build_session(channel);
     channel.runtime.spawn(async move {
@@ -254,7 +254,7 @@ pub(crate) unsafe fn client_channel_write_single_coil(
     callback: crate::ffi::WriteCallback,
 ) -> Result<(), ffi::ParamError> {
     let channel = channel.as_ref().ok_or(ffi::ParamError::NullParameter)?;
-    let callback = crate::ffi::promise::Promise::new(callback);
+    let callback = sfio_promise::Promise::new(callback);
 
     let mut session = param.build_session(channel);
     channel.runtime.spawn(async move {
@@ -273,7 +273,7 @@ pub(crate) unsafe fn client_channel_write_single_register(
     callback: crate::ffi::WriteCallback,
 ) -> Result<(), ffi::ParamError> {
     let channel = channel.as_ref().ok_or(ffi::ParamError::NullParameter)?;
-    let callback = crate::ffi::promise::Promise::new(callback);
+    let callback = sfio_promise::Promise::new(callback);
 
     let mut session = param.build_session(channel);
     channel.runtime.spawn(async move {
@@ -295,7 +295,7 @@ pub(crate) unsafe fn client_channel_write_multiple_coils(
     let channel = channel.as_ref().ok_or(ffi::ParamError::NullParameter)?;
     let items = items.as_ref().ok_or(ffi::ParamError::NullParameter)?;
     let args = WriteMultiple::from(start, items.inner.clone())?;
-    let callback = crate::ffi::promise::Promise::new(callback);
+    let callback = sfio_promise::Promise::new(callback);
 
     let mut session = param.build_session(channel);
     channel.runtime.spawn(async move {
@@ -317,7 +317,7 @@ pub(crate) unsafe fn client_channel_write_multiple_registers(
     let channel = channel.as_ref().ok_or(ffi::ParamError::NullParameter)?;
     let items = items.as_ref().ok_or(ffi::ParamError::NullParameter)?;
     let args = WriteMultiple::from(start, items.inner.clone())?;
-    let callback = crate::ffi::promise::Promise::new(callback);
+    let callback = sfio_promise::Promise::new(callback);
 
     let mut session = param.build_session(channel);
     channel.runtime.spawn(async move {

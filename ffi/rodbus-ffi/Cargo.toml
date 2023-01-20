@@ -20,6 +20,7 @@ tracing-subscriber = "0.2"
 rodbus = { path = "../../rodbus", default-features = false }
 tokio = { version = "1.5", features = ["rt-multi-thread"]}
 num_cpus = "1"
+sfio-promise = "0.1"
 
 [build-dependencies]
 rodbus-schema = { path = "../rodbus-schema" }
