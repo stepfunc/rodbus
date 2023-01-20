@@ -215,12 +215,14 @@ pub(crate) unsafe fn client_channel_read_holding_registers(
 ) -> Result<(), ffi::ParamError> {
     let channel = channel.as_ref().ok_or(ffi::ParamError::NullParameter)?;
     let range = AddressRange::try_from(range.start, range.count)?;
-    let callback = callback.convert_to_fn_once();
+    let callback = crate::ffi::promise::Promise::new(callback);
 
     let mut session = param.build_session(channel);
-    channel
-        .runtime
-        .spawn(async move { session.read_holding_registers(range, callback).await })?;
+    channel.runtime.spawn(async move {
+        session
+            .read_holding_registers(range, |res| callback.complete(res))
+            .await
+    })?;
 
     Ok(())
 }
@@ -233,12 +235,14 @@ pub(crate) unsafe fn client_channel_read_input_registers(
 ) -> Result<(), ffi::ParamError> {
     let channel = channel.as_ref().ok_or(ffi::ParamError::NullParameter)?;
     let range = AddressRange::try_from(range.start, range.count)?;
-    let callback = callback.convert_to_fn_once();
+    let callback = crate::ffi::promise::Promise::new(callback);
 
     let mut session = param.build_session(channel);
-    channel
-        .runtime
-        .spawn(async move { session.read_input_registers(range, callback).await })?;
+    channel.runtime.spawn(async move {
+        session
+            .read_input_registers(range, |res| callback.complete(res))
+            .await
+    })?;
 
     Ok(())
 }
