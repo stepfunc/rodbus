@@ -254,12 +254,14 @@ pub(crate) unsafe fn client_channel_write_single_coil(
     callback: crate::ffi::WriteCallback,
 ) -> Result<(), ffi::ParamError> {
     let channel = channel.as_ref().ok_or(ffi::ParamError::NullParameter)?;
-    let callback = callback.convert_to_fn_once();
+    let callback = crate::ffi::promise::Promise::new(callback);
 
     let mut session = param.build_session(channel);
-    channel
-        .runtime
-        .spawn(async move { session.write_single_coil(bit.into(), callback).await })?;
+    channel.runtime.spawn(async move {
+        session
+            .write_single_coil(bit.into(), |res| callback.complete(res))
+            .await
+    })?;
 
     Ok(())
 }
@@ -271,12 +273,12 @@ pub(crate) unsafe fn client_channel_write_single_register(
     callback: crate::ffi::WriteCallback,
 ) -> Result<(), ffi::ParamError> {
     let channel = channel.as_ref().ok_or(ffi::ParamError::NullParameter)?;
-    let callback = callback.convert_to_fn_once();
+    let callback = crate::ffi::promise::Promise::new(callback);
 
     let mut session = param.build_session(channel);
     channel.runtime.spawn(async move {
         session
-            .write_single_register(register.into(), callback)
+            .write_single_register(register.into(), |res| callback.complete(res))
             .await
     })?;
 
@@ -293,12 +295,14 @@ pub(crate) unsafe fn client_channel_write_multiple_coils(
     let channel = channel.as_ref().ok_or(ffi::ParamError::NullParameter)?;
     let items = items.as_ref().ok_or(ffi::ParamError::NullParameter)?;
     let args = WriteMultiple::from(start, items.inner.clone())?;
-    let callback = callback.convert_to_fn_once();
+    let callback = crate::ffi::promise::Promise::new(callback);
 
     let mut session = param.build_session(channel);
-    channel
-        .runtime
-        .spawn(async move { session.write_multiple_coils(args, callback).await })?;
+    channel.runtime.spawn(async move {
+        session
+            .write_multiple_coils(args, |res| callback.complete(res))
+            .await
+    })?;
 
     Ok(())
 }
@@ -313,12 +317,14 @@ pub(crate) unsafe fn client_channel_write_multiple_registers(
     let channel = channel.as_ref().ok_or(ffi::ParamError::NullParameter)?;
     let items = items.as_ref().ok_or(ffi::ParamError::NullParameter)?;
     let args = WriteMultiple::from(start, items.inner.clone())?;
-    let callback = callback.convert_to_fn_once();
+    let callback = crate::ffi::promise::Promise::new(callback);
 
     let mut session = param.build_session(channel);
-    channel
-        .runtime
-        .spawn(async move { session.write_multiple_registers(args, callback).await })?;
+    channel.runtime.spawn(async move {
+        session
+            .write_multiple_registers(args, |res| callback.complete(res))
+            .await
+    })?;
 
     Ok(())
 }

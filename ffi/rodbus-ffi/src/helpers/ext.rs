@@ -1,6 +1,6 @@
 use crate::ffi;
 use rodbus::client::{CallbackSession, RequestParam};
-use rodbus::{BitIterator, RegisterIterator, UnitId};
+use rodbus::{BitIterator, RegisterIterator, RequestError, UnitId};
 
 impl ffi::RequestParam {
     pub(crate) fn build_session(&self, channel: &crate::ClientChannel) -> CallbackSession {
@@ -51,18 +51,18 @@ impl<'a> crate::ffi::promise::FutureType<Result<RegisterIterator<'a>, rodbus::Re
     }
 }
 
-impl ffi::WriteCallback {
-    /// we do't care what type T is b/c we're going to ignore it
-    /// ^ you ok mate? (É.G.)
-    pub(crate) fn convert_to_fn_once<T>(
-        self,
-    ) -> impl FnOnce(std::result::Result<T, rodbus::RequestError>) {
-        move |result: std::result::Result<T, rodbus::RequestError>| match result {
-            Err(err) => {
-                self.on_failure(err.into());
-            }
+impl<T> crate::ffi::promise::FutureType<Result<T, rodbus::RequestError>> for ffi::WriteCallback {
+    fn on_drop() -> Result<T, RequestError> {
+        Err(rodbus::RequestError::Shutdown)
+    }
+
+    fn complete(self, result: Result<T, RequestError>) {
+        match result {
             Ok(_) => {
                 self.on_complete(ffi::Nothing::Nothing);
+            }
+            Err(err) => {
+                self.on_failure(err.into());
             }
         }
     }
