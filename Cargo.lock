@@ -881,8 +881,7 @@ checksum = "86f0b0d4bf799edbc74508c1e8bf170ff5f41238e5f8225603ca7caaae2b7860"
 [[package]]
 name = "oo-bindgen"
 version = "0.7.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2889f2e5fcf938bbac5e4a3b23e7ded1bd879cc1361017ee9ed2edaf1e61bf91"
+source = "git+https://github.com/stepfunc/oo_bindgen.git?branch=feature/more-generic-promise#31f9e2f4c2dc535f0f0eda07835b42fa7844147b"
 dependencies = [
  "backtrace",
  "clap 4.0.22",

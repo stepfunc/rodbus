@@ -65,7 +65,3 @@ impl From<crate::runtime::RuntimeError> for std::os::raw::c_int {
         err.into()
     }
 }
-
-impl ffi::promise::DropError for ffi::RequestError {
-    const ERROR_ON_DROP: Self = Self::Shutdown;
-}

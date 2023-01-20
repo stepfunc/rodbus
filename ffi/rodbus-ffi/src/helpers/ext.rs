@@ -1,6 +1,6 @@
 use crate::ffi;
 use rodbus::client::{CallbackSession, RequestParam};
-use rodbus::UnitId;
+use rodbus::{BitIterator, UnitId};
 
 impl ffi::RequestParam {
     pub(crate) fn build_session(&self, channel: &crate::ClientChannel) -> CallbackSession {
@@ -11,17 +11,21 @@ impl ffi::RequestParam {
     }
 }
 
-impl ffi::BitReadCallback {
-    pub(crate) fn convert_to_fn_once(
-        self,
-    ) -> impl FnOnce(std::result::Result<rodbus::BitIterator, rodbus::RequestError>) {
-        move |result: std::result::Result<rodbus::BitIterator, rodbus::RequestError>| match result {
+impl<'a> crate::ffi::promise::FutureType<Result<BitIterator<'a>, rodbus::RequestError>>
+    for ffi::BitReadCallback
+{
+    fn on_drop() -> Result<BitIterator<'a>, rodbus::RequestError> {
+        Err(rodbus::RequestError::Shutdown)
+    }
+
+    fn complete(self, result: Result<BitIterator, rodbus::RequestError>) {
+        match result {
+            Ok(x) => {
+                let mut iter = crate::iterator::BitValueIterator::new(x);
+                self.on_complete(&mut iter);
+            }
             Err(err) => {
                 self.on_failure(err.into());
-            }
-            Ok(values) => {
-                let mut iter = crate::BitValueIterator::new(values);
-                self.on_complete(&mut iter as *mut _);
             }
         }
     }

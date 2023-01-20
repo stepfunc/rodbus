@@ -175,12 +175,14 @@ pub(crate) unsafe fn client_channel_read_coils(
 ) -> Result<(), ffi::ParamError> {
     let channel = channel.as_ref().ok_or(ffi::ParamError::NullParameter)?;
     let range = AddressRange::try_from(range.start, range.count)?;
-    let callback = callback.convert_to_fn_once();
+    let callback = crate::ffi::promise::Promise::new(callback);
 
     let mut session = param.build_session(channel);
-    channel
-        .runtime
-        .spawn(async move { session.read_coils(range, callback).await })?;
+    channel.runtime.spawn(async move {
+        session
+            .read_coils(range, |res| callback.complete(res))
+            .await
+    })?;
 
     Ok(())
 }
@@ -193,12 +195,14 @@ pub(crate) unsafe fn client_channel_read_discrete_inputs(
 ) -> Result<(), ffi::ParamError> {
     let channel = channel.as_ref().ok_or(ffi::ParamError::NullParameter)?;
     let range = AddressRange::try_from(range.start, range.count)?;
-    let callback = callback.convert_to_fn_once();
+    let callback = crate::ffi::promise::Promise::new(callback);
 
     let mut session = param.build_session(channel);
-    channel
-        .runtime
-        .spawn(async move { session.read_discrete_inputs(range, callback).await })?;
+    channel.runtime.spawn(async move {
+        session
+            .read_discrete_inputs(range, |res| callback.complete(res))
+            .await
+    })?;
 
     Ok(())
 }
