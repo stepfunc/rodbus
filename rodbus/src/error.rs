@@ -179,26 +179,22 @@ impl std::fmt::Display for InternalError {
         match self {
             InternalError::InsufficientWriteSpace(written, remaining) => write!(
                 f,
-                "attempted to write {} bytes with {} bytes remaining",
-                written, remaining
+                "attempted to write {written} bytes with {remaining} bytes remaining"
             ),
             InternalError::FrameTooBig(size, max) => write!(
                 f,
-                "Frame length of {} exceeds the maximum allowed length of {}",
-                size, max
+                "Frame length of {size} exceeds the maximum allowed length of {max}"
             ),
             InternalError::InsufficientBytesForRead(requested, remaining) => write!(
                 f,
-                "attempted to read {} bytes with only {} remaining",
-                requested, remaining
+                "attempted to read {requested} bytes with only {remaining} remaining"
             ),
             InternalError::BadSeekOperation => {
                 f.write_str("Cursor seek operation exceeded the bounds of the underlying buffer")
             }
             InternalError::BadByteCount(size) => write!(
                 f,
-                "Byte count of in ADU {} exceeds maximum size of u8",
-                size
+                "Byte count of in ADU {size} exceeds maximum size of u8"
             ),
         }
     }
@@ -229,20 +225,18 @@ impl std::fmt::Display for FrameParseError {
             }
             FrameParseError::FrameLengthTooBig(size, max) => write!(
                 f,
-                "Received TCP frame with length ({}) that exceeds max allowed size ({})",
-                size, max
+                "Received TCP frame with length ({size}) that exceeds max allowed size ({max})"
             ),
             FrameParseError::UnknownProtocolId(id) => {
-                write!(f, "Received TCP frame with non-Modbus protocol id: {}", id)
+                write!(f, "Received TCP frame with non-Modbus protocol id: {id}")
             }
             FrameParseError::UnknownFunctionCode(code) => {
-                write!(f, "Received unknown function code ({:#04X}), cannot determine the length of the message", code)
+                write!(f, "Received unknown function code ({code:#04X}), cannot determine the length of the message")
             }
             FrameParseError::CrcValidationFailure(received, expected) => {
                 write!(
                     f,
-                    "Received incorrect CRC value {:#06X}, expected {:#06X}",
-                    received, expected
+                    "Received incorrect CRC value {received:#06X}, expected {expected:#06X}"
                 )
             }
         }
@@ -274,24 +268,21 @@ impl std::fmt::Display for AduParseError {
             AduParseError::InsufficientBytes => f.write_str("response is too short to be valid"),
             AduParseError::InsufficientBytesForByteCount(count, remaining) => write!(
                 f,
-                "byte count ({}) doesn't match the actual number of bytes remaining ({})",
-                count, remaining
+                "byte count ({count}) doesn't match the actual number of bytes remaining ({remaining})"
             ),
             AduParseError::TrailingBytes(remaining) => {
-                write!(f, "response contains {} extra trailing bytes", remaining)
+                write!(f, "response contains {remaining} extra trailing bytes")
             }
             AduParseError::ReplyEchoMismatch => {
                 f.write_str("a parameter expected to be echoed in the reply did not match")
             }
             AduParseError::UnknownResponseFunction(actual, expected, error) => write!(
                 f,
-                "received unknown response function code: {}. Expected {} or {}",
-                actual, expected, error
+                "received unknown response function code: {actual}. Expected {expected} or {error}"
             ),
             AduParseError::UnknownCoilState(value) => write!(
                 f,
-                "received coil state with unspecified value: 0x{:04X}",
-                value
+                "received coil state with unspecified value: 0x{value:04X}"
             ),
         }
     }
@@ -313,17 +304,15 @@ impl std::error::Error for InvalidRequest {}
 impl std::fmt::Display for InvalidRequest {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
         match self {
-            InvalidRequest::BadRange(err) => write!(f, "{}", err),
+            InvalidRequest::BadRange(err) => write!(f, "{err}"),
 
             InvalidRequest::CountTooBigForU16(count) => write!(
                 f,
-                "The requested count of objects exceeds the maximum value of u16: {}",
-                count
+                "The requested count of objects exceeds the maximum value of u16: {count}"
             ),
             InvalidRequest::CountTooBigForType(count, max) => write!(
                 f,
-                "the request count of {} exceeds maximum allowed count of {} for this type",
-                count, max
+                "the request count of {count} exceeds maximum allowed count of {max} for this type"
             ),
         }
     }
@@ -335,13 +324,11 @@ impl std::fmt::Display for InvalidRange {
             InvalidRange::CountOfZero => f.write_str("range contains count == 0"),
             InvalidRange::AddressOverflow(start, count) => write!(
                 f,
-                "start == {} and count = {} would overflow u16 representation",
-                start, count
+                "start == {start} and count = {count} would overflow u16 representation"
             ),
             InvalidRange::CountTooLargeForType(x, y) => write!(
                 f,
-                "count of {} is too large for the specified type (max == {})",
-                x, y
+                "count of {x} is too large for the specified type (max == {y})"
             ),
         }
     }

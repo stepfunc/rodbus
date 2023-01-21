@@ -154,8 +154,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "tls-self-signed" => run_tls(get_self_signed_config()?).await,
         _ => {
             eprintln!(
-                "unknown transport '{}', options are (tcp, rtu, tls-ca, tls-self-signed)",
-                transport
+                "unknown transport '{transport}', options are (tcp, rtu, tls-ca, tls-self-signed)"
             );
             exit(-1);
         }
@@ -240,9 +239,9 @@ fn get_self_signed_config() -> Result<TlsServerConfig, Box<dyn std::error::Error
     use std::path::Path;
     // ANCHOR: tls_self_signed_config
     let tls_config = TlsServerConfig::new(
-        &Path::new("./certs/self_signed/entity1_cert.pem"),
-        &Path::new("./certs/self_signed/entity2_cert.pem"),
-        &Path::new("./certs/self_signed/entity2_key.pem"),
+        Path::new("./certs/self_signed/entity1_cert.pem"),
+        Path::new("./certs/self_signed/entity2_cert.pem"),
+        Path::new("./certs/self_signed/entity2_key.pem"),
         None, // no password
         MinTlsVersion::V1_2,
         CertificateMode::SelfSigned,
@@ -257,9 +256,9 @@ fn get_ca_chain_config() -> Result<TlsServerConfig, Box<dyn std::error::Error>> 
     use std::path::Path;
     // ANCHOR: tls_ca_chain_config
     let tls_config = TlsServerConfig::new(
-        &Path::new("./certs/ca_chain/ca_cert.pem"),
-        &Path::new("./certs/ca_chain/server_cert.pem"),
-        &Path::new("./certs/ca_chain/server_key.pem"),
+        Path::new("./certs/ca_chain/ca_cert.pem"),
+        Path::new("./certs/ca_chain/server_cert.pem"),
+        Path::new("./certs/ca_chain/server_key.pem"),
         None, // no password
         MinTlsVersion::V1_2,
         CertificateMode::AuthorityBased,
@@ -306,13 +305,13 @@ async fn run_server(
             "uhr" => {
                 let mut handler = handler.lock().unwrap();
                 for holding_register in handler.holding_registers_as_mut() {
-                    *holding_register = *holding_register + 1;
+                    *holding_register += 1;
                 }
             }
             "uir" => {
                 let mut handler = handler.lock().unwrap();
                 for input_register in handler.input_registers_as_mut() {
-                    *input_register = *input_register + 1;
+                    *input_register += 1;
                 }
             }
             _ => println!("unknown command"),

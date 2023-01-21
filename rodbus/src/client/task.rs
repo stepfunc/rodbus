@@ -35,7 +35,7 @@ impl std::fmt::Display for SessionError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             SessionError::IoError(err) => {
-                write!(f, "i/o error: {}", err)
+                write!(f, "i/o error: {err}")
             }
             SessionError::BadFrame => {
                 write!(f, "Parser encountered a bad frame")

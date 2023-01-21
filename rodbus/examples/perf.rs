@@ -114,7 +114,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         )
                         .await
                     {
-                        println!("failure: {}", err);
+                        println!("failure: {err}");
                         return Err(err);
                     }
 
@@ -136,9 +136,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let requests_per_sec: f64 = (iterations as f64) / elapsed.as_secs_f64();
     let registers_per_sec = requests_per_sec * (MAX_READ_REGISTERS_COUNT as f64);
 
-    println!("performed {} requests in {:?}", iterations, elapsed);
-    println!("requests/sec == {:.1}", requests_per_sec);
-    println!("registers/sec == {:.1}", registers_per_sec);
+    println!("performed {iterations} requests in {elapsed:?}");
+    println!("requests/sec == {requests_per_sec:.1}");
+    println!("registers/sec == {registers_per_sec:.1}");
 
     Ok(())
 }

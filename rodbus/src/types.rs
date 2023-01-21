@@ -118,7 +118,7 @@ impl std::fmt::Display for BitIteratorDisplay<'_> {
 
         if self.level.data_values() {
             for x in self.iterator {
-                write!(f, "\n{}", x)?;
+                write!(f, "\n{x}")?;
             }
         }
 
@@ -153,7 +153,7 @@ impl std::fmt::Display for RegisterIteratorDisplay<'_> {
 
         if self.level.data_values() {
             for x in self.iterator {
-                write!(f, "\n{}", x)?;
+                write!(f, "\n{x}")?;
             }
         }
 

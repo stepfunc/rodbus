@@ -212,19 +212,19 @@ fn build_add_method(
     let spaced_name = snake_name.replace('_', " ");
 
     let method = lib
-        .define_method(format!("add_{}", snake_name), db.clone())?
+        .define_method(format!("add_{snake_name}"), db.clone())?
         .param(
             "index",
             Primitive::U16,
-            format!("Address of the {}", spaced_name),
+            format!("Address of the {spaced_name}"),
         )?
         .param(
             "value",
             value_type,
-            format!("Initial value of the {}", spaced_name),
+            format!("Initial value of the {spaced_name}"),
         )?
         .returns(Primitive::Bool, "true if the value is new, false otherwise")?
-        .doc(format!("Add a new {} to the database", spaced_name))?
+        .doc(format!("Add a new {spaced_name} to the database"))?
         .build()?;
 
     Ok(method)
@@ -240,17 +240,16 @@ fn build_get_method(
     let spaced_name = snake_name.replace('_', " ");
 
     let method = lib
-        .define_method(format!("get_{}", snake_name), db.clone())?
+        .define_method(format!("get_{snake_name}"), db.clone())?
         .param(
             "index",
             Primitive::U16,
-            format!("Address of the {}", spaced_name),
+            format!("Address of the {spaced_name}"),
         )?
         .returns(value_type, "Current value of the point")?
         .fails_with(error_type.clone())?
         .doc(format!(
-            "Get the current {} value of the database",
-            spaced_name
+            "Get the current {spaced_name} value of the database"
         ))?
         .build()?;
 
@@ -265,16 +264,15 @@ fn build_delete_method(
     let spaced_name = snake_name.replace('_', " ");
 
     let method = lib
-        .define_method(format!("delete_{}", snake_name), db.clone())?
+        .define_method(format!("delete_{snake_name}"), db.clone())?
         .param(
             "index",
             Primitive::U16,
-            format!("Address of the {}", spaced_name),
+            format!("Address of the {spaced_name}"),
         )?
         .returns(Primitive::Bool, "true if the value is new, false otherwise")?
         .doc(format!(
-            "Remove a {} address from the database",
-            spaced_name
+            "Remove a {spaced_name} address from the database"
         ))?
         .build()?;
 
@@ -290,24 +288,23 @@ fn build_update_method(
     let spaced_name = snake_name.replace('_', " ");
 
     let method = lib
-        .define_method(format!("update_{}", snake_name), db.clone())?
+        .define_method(format!("update_{snake_name}"), db.clone())?
         .param(
             "index",
             Primitive::U16,
-            format!("Address of the {}", spaced_name),
+            format!("Address of the {spaced_name}"),
         )?
         .param(
             "value",
             value_type,
-            format!("New value of the {}", spaced_name),
+            format!("New value of the {spaced_name}"),
         )?
         .returns(
             Primitive::Bool,
             "true if the address is defined, false otherwise",
         )?
         .doc(format!(
-            "Update the current value of a {} in the database",
-            spaced_name
+            "Update the current value of a {spaced_name} in the database"
         ))?
         .build()?;
 

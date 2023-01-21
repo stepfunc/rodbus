@@ -234,10 +234,10 @@ impl std::fmt::Display for RequestDisplay<'_, '_> {
                     write!(f, " {}", range.get())?;
                 }
                 Request::WriteSingleCoil(request) => {
-                    write!(f, " {}", request)?;
+                    write!(f, " {request}")?;
                 }
                 Request::WriteSingleRegister(request) => {
-                    write!(f, " {}", request)?;
+                    write!(f, " {request}")?;
                 }
                 Request::WriteMultipleCoils(items) => {
                     write!(

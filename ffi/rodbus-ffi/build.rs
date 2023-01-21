@@ -29,7 +29,7 @@ fn main() {
             oo_bindgen::backend::rust::generate_ffi(&lib).unwrap();
         }
         Err(err) => {
-            eprintln!("rodbus model error: {}", err);
+            eprintln!("rodbus model error: {err}");
             std::process::exit(-1);
         }
     };
