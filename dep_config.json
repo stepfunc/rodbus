@@ -16,6 +16,7 @@
     "io-lifetimes",
     "is-terminal",
     "miniz_oxide",
+    "linux-raw-sys",
     "object",
     "oo-bindgen",
     "os_str_bytes",
