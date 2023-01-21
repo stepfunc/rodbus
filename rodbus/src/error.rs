@@ -192,10 +192,9 @@ impl std::fmt::Display for InternalError {
             InternalError::BadSeekOperation => {
                 f.write_str("Cursor seek operation exceeded the bounds of the underlying buffer")
             }
-            InternalError::BadByteCount(size) => write!(
-                f,
-                "Byte count of in ADU {size} exceeds maximum size of u8"
-            ),
+            InternalError::BadByteCount(size) => {
+                write!(f, "Byte count of in ADU {size} exceeds maximum size of u8")
+            }
         }
     }
 }

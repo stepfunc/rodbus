@@ -271,9 +271,7 @@ fn build_delete_method(
             format!("Address of the {spaced_name}"),
         )?
         .returns(Primitive::Bool, "true if the value is new, false otherwise")?
-        .doc(format!(
-            "Remove a {spaced_name} address from the database"
-        ))?
+        .doc(format!("Remove a {spaced_name} address from the database"))?
         .build()?;
 
     Ok(method)

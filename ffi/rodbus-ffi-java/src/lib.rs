@@ -6,6 +6,7 @@
     clippy::let_unit_value,
     clippy::needless_return,
     clippy::not_unsafe_ptr_arg_deref,
+    clippy::uninlined_format_args,
     unused_variables,
     dead_code
 )]

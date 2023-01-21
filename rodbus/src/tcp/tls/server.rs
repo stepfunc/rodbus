@@ -97,8 +97,7 @@ impl TlsServerConfig {
 
                         let parsed = rx509::x509::Certificate::parse(peer_cert)
                             .map_err(|err| format!("ASNError: {err}"))?;
-                        let role =
-                            extract_modbus_role(&parsed).map_err(|err| format!("{err}"))?;
+                        let role = extract_modbus_role(&parsed).map_err(|err| format!("{err}"))?;
 
                         tracing::info!("client role: {}", role);
                         AuthorizationType::Handler(handler, role)
