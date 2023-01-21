@@ -302,7 +302,7 @@ int main(int argc, char* argv[])
 {
     // ANCHOR: logging_init
     // initialize logging with the default configuration
-    rodbus_logger_t w = {.on_message = on_log_message};
+    rodbus_logger_t logger = {.on_message = on_log_message};
     rodbus_configure_logging(rodbus_logging_config_init(), logger);
     // ANCHOR_END: logging_init
 
