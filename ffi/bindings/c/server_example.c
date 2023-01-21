@@ -154,17 +154,20 @@ int run_server(rodbus_server_t* server)
         }
         else if (strcmp(cbuf, "uc\n") == 0) {
             // ANCHOR: update_coil
-            rodbus_server_update_database(server, 1, rodbus_database_callback_init(update_coil, NULL, &state));
+            rodbus_server_update_database(server, 1, (rodbus_database_callback_t) {
+                .callback = update_coil,
+                .ctx = &state,
+            });
             // ANCHOR_END: update_coil
         }
         else if (strcmp(cbuf, "udi\n") == 0) {
-            rodbus_server_update_database(server, 1, rodbus_database_callback_init(update_discrete_input, NULL, &state));
+            rodbus_server_update_database(server, 1, (rodbus_database_callback_t){.callback = update_discrete_input, .ctx = &state});
         }
         else if (strcmp(cbuf, "uhr\n") == 0) {
-            rodbus_server_update_database(server, 1, rodbus_database_callback_init(update_holding_register, NULL, &state));
+            rodbus_server_update_database(server, 1, (rodbus_database_callback_t){.callback = update_holding_register, .ctx = &state});
         }
         else if (strcmp(cbuf, "uir\n") == 0) {
-            rodbus_server_update_database(server, 1, rodbus_database_callback_init(update_input_register, NULL, &state));
+            rodbus_server_update_database(server, 1, (rodbus_database_callback_t){.callback = update_input_register, .ctx = &state});
         }
         else {
             printf("Unknown command\n");
@@ -179,14 +182,17 @@ int run_server(rodbus_server_t* server)
 rodbus_device_map_t* build_device_map()
 {
     // ANCHOR: device_map_init
-    rodbus_write_handler_t write_handler =
-        rodbus_write_handler_init(&on_write_single_coil, &on_write_single_register, &on_write_multiple_coils, &on_write_multiple_registers, NULL, NULL);
-
+    rodbus_write_handler_t write_handler = {
+        .write_single_coil = on_write_single_coil,
+        .write_single_register = on_write_single_register,
+        .write_multiple_coils = on_write_multiple_coils,
+        .write_multiple_registers = on_write_multiple_registers,
+    };        
     rodbus_device_map_t* map = rodbus_device_map_create();
     rodbus_device_map_add_endpoint(map,
                                    1,                                                      // Unit ID
                                    write_handler,                                          // Handler for write requests
-                                   rodbus_database_callback_init(configure_db, NULL, NULL) // Callback for the initial state of the database
+                                   (rodbus_database_callback_t){.callback = configure_db } // Callback for the initial state of the database
     );
     // ANCHOR_END: device_map_init
 
@@ -234,11 +240,16 @@ int run_rtu_channel(rodbus_runtime_t* runtime)
 rodbus_authorization_handler_t get_auth_handler()
 {
     // ANCHOR: auth_handler_init
-    rodbus_authorization_handler_t auth_handler = rodbus_authorization_handler_init(
-        &auth_read, &auth_read, &auth_read, &auth_read,
-        &auth_single_write, &auth_single_write, &auth_multiple_writes, &auth_multiple_writes,
-        NULL, NULL
-    );
+    rodbus_authorization_handler_t auth_handler = {
+        .read_coils = auth_read,
+        .read_discrete_inputs = auth_read,
+        .read_holding_registers = auth_read,
+        .read_input_registers = auth_read,
+        .write_single_coil = auth_single_write,
+        .write_single_register = auth_single_write,
+        .write_multiple_coils = auth_multiple_writes,
+        .write_multiple_registers = auth_multiple_writes,
+    };
     // ANCHOR_END: auth_handler_init
 
     return auth_handler;
@@ -324,7 +335,7 @@ int create_and_run_channel(int argc, char *argv[], rodbus_runtime_t *runtime)
 int main(int argc, char* argv[])
 {
     // initialize logging with the default configuration
-    rodbus_logger_t logger = rodbus_logger_init(&on_log_message, NULL, NULL);
+    rodbus_logger_t logger = {.on_message = on_log_message};
     rodbus_configure_logging(rodbus_logging_config_init(), logger);
 
     // Create runtime

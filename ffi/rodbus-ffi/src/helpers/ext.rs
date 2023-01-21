@@ -1,6 +1,6 @@
 use crate::ffi;
 use rodbus::client::{CallbackSession, RequestParam};
-use rodbus::UnitId;
+use rodbus::{BitIterator, RegisterIterator, RequestError, UnitId};
 
 impl ffi::RequestParam {
     pub(crate) fn build_session(&self, channel: &crate::ClientChannel) -> CallbackSession {
@@ -11,52 +11,58 @@ impl ffi::RequestParam {
     }
 }
 
-impl ffi::BitReadCallback {
-    pub(crate) fn convert_to_fn_once(
-        self,
-    ) -> impl FnOnce(std::result::Result<rodbus::BitIterator, rodbus::RequestError>) {
-        move |result: std::result::Result<rodbus::BitIterator, rodbus::RequestError>| match result {
+impl<'a> sfio_promise::FutureType<Result<BitIterator<'a>, rodbus::RequestError>>
+    for ffi::BitReadCallback
+{
+    fn on_drop() -> Result<BitIterator<'a>, rodbus::RequestError> {
+        Err(rodbus::RequestError::Shutdown)
+    }
+
+    fn complete(self, result: Result<BitIterator, rodbus::RequestError>) {
+        match result {
+            Ok(x) => {
+                let mut iter = crate::iterator::BitValueIterator::new(x);
+                self.on_complete(&mut iter);
+            }
             Err(err) => {
                 self.on_failure(err.into());
-            }
-            Ok(values) => {
-                let mut iter = crate::BitValueIterator::new(values);
-                self.on_complete(&mut iter as *mut _);
             }
         }
     }
 }
 
-impl ffi::RegisterReadCallback {
-    pub(crate) fn convert_to_fn_once(
-        self,
-    ) -> impl FnOnce(std::result::Result<rodbus::RegisterIterator, rodbus::RequestError>) {
-        move |result: std::result::Result<rodbus::RegisterIterator, rodbus::RequestError>| {
-            match result {
-                Err(err) => {
-                    self.on_failure(err.into());
-                }
-                Ok(values) => {
-                    let mut iter = crate::RegisterValueIterator::new(values);
-                    self.on_complete(&mut iter as *mut _);
-                }
+impl<'a> sfio_promise::FutureType<Result<RegisterIterator<'a>, rodbus::RequestError>>
+    for ffi::RegisterReadCallback
+{
+    fn on_drop() -> Result<RegisterIterator<'a>, rodbus::RequestError> {
+        Err(rodbus::RequestError::Shutdown)
+    }
+
+    fn complete(self, result: Result<RegisterIterator, rodbus::RequestError>) {
+        match result {
+            Ok(x) => {
+                let mut iter = crate::iterator::RegisterValueIterator::new(x);
+                self.on_complete(&mut iter);
+            }
+            Err(err) => {
+                self.on_failure(err.into());
             }
         }
     }
 }
 
-impl ffi::WriteCallback {
-    /// we do't care what type T is b/c we're going to ignore it
-    /// ^ you ok mate? (É.G.)
-    pub(crate) fn convert_to_fn_once<T>(
-        self,
-    ) -> impl FnOnce(std::result::Result<T, rodbus::RequestError>) {
-        move |result: std::result::Result<T, rodbus::RequestError>| match result {
-            Err(err) => {
-                self.on_failure(err.into());
-            }
+impl<T> sfio_promise::FutureType<Result<T, rodbus::RequestError>> for ffi::WriteCallback {
+    fn on_drop() -> Result<T, RequestError> {
+        Err(rodbus::RequestError::Shutdown)
+    }
+
+    fn complete(self, result: Result<T, RequestError>) {
+        match result {
             Ok(_) => {
                 self.on_complete(ffi::Nothing::Nothing);
+            }
+            Err(err) => {
+                self.on_failure(err.into());
             }
         }
     }

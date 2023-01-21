@@ -219,7 +219,7 @@ mod tests {
     }
 
     impl Serialize for MockBody {
-        fn serialize(self: &Self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
+        fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
             for b in self.body {
                 cursor.write_u8(*b)?;
             }
@@ -264,7 +264,7 @@ mod tests {
 
         io_handle.read(input);
         if let Poll::Ready(frame) = task.poll() {
-            return frame.err().unwrap();
+            frame.err().unwrap()
         } else {
             panic!("Task not ready");
         }

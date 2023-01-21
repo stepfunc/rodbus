@@ -78,7 +78,7 @@ impl TlsServerConfig {
     ) -> Result<(PhysLayer, AuthorizationType), String> {
         let connector = tokio_rustls::TlsAcceptor::from(self.inner.clone());
         match connector.accept(socket).await {
-            Err(err) => Err(format!("failed to establish TLS session: {}", err)),
+            Err(err) => Err(format!("failed to establish TLS session: {err}")),
             Ok(stream) => {
                 let auth_type = match auth_handler {
                     // bare TLS mode without authz
@@ -96,9 +96,8 @@ impl TlsServerConfig {
                             .as_slice();
 
                         let parsed = rx509::x509::Certificate::parse(peer_cert)
-                            .map_err(|err| format!("ASNError: {}", err))?;
-                        let role =
-                            extract_modbus_role(&parsed).map_err(|err| format!("{}", err))?;
+                            .map_err(|err| format!("ASNError: {err}"))?;
+                        let role = extract_modbus_role(&parsed).map_err(|err| format!("{err}"))?;
 
                         tracing::info!("client role: {}", role);
                         AuthorizationType::Handler(handler, role)
@@ -204,8 +203,7 @@ impl rustls::server::ClientCertVerifier for SelfSignedCertificateClientCertVerif
 
         let parsed_cert = rx509::x509::Certificate::parse(&end_entity.0).map_err(|err| {
             rustls::Error::InvalidCertificateData(format!(
-                "unable to parse cert with rasn: {:?}",
-                err
+                "unable to parse cert with rasn: {err:?}"
             ))
         })?;
 
@@ -257,8 +255,7 @@ fn extract_modbus_role(cert: &rx509::x509::Certificate) -> Result<String, rustls
         })?;
     let extensions = extensions.parse().map_err(|err| {
         rustls::Error::InvalidCertificateData(format!(
-            "unable to parse cert extensions with rasn: {:?}",
-            err
+            "unable to parse cert extensions with rasn: {err:?}"
         ))
     })?;
 

@@ -98,7 +98,7 @@ impl std::fmt::Display for ExceptionCode {
             ExceptionCode::MemoryParityError=> f.write_str("server attempted to read a record file, but detected a parity error in the memory"),
             ExceptionCode::GatewayPathUnavailable=> f.write_str("gateway was unable to allocate an internal communication path from the input port to the output port for processing the request"),
             ExceptionCode::GatewayTargetDeviceFailedToRespond=> f.write_str("gateway did not receive a response from the target device"),
-            ExceptionCode::Unknown(code) => write!(f, "received unknown exception code: {}", code)
+            ExceptionCode::Unknown(code) => write!(f, "received unknown exception code: {code}")
         }
     }
 }

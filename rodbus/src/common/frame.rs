@@ -110,7 +110,7 @@ impl FrameDestination {
 impl std::fmt::Display for FrameDestination {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::UnitId(unit_id) => write!(f, "{}", unit_id),
+            Self::UnitId(unit_id) => write!(f, "{unit_id}"),
             Self::Broadcast => write!(f, "BCAST ({})", UnitId::broadcast()),
         }
     }
@@ -268,13 +268,13 @@ impl std::fmt::Display for FunctionField {
         let value = self.get_value();
         match self {
             FunctionField::Valid(x) => {
-                write!(f, "{}", x)
+                write!(f, "{x}")
             }
             FunctionField::Exception(x) => {
-                write!(f, "Exception({}) for {}", value, x)
+                write!(f, "Exception({value}) for {x}")
             }
             FunctionField::UnknownFunction(_) => {
-                write!(f, "Unknown Function Exception: {}", value)
+                write!(f, "Unknown Function Exception: {value}")
             }
         }
     }

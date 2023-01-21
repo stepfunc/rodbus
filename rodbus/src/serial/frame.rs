@@ -561,7 +561,7 @@ mod tests {
             tokio_test::task::spawn(reader.next_frame(&mut layer, DecodeLevel::nothing()));
 
         // Send bytes to parser byte per byte
-        for byte in frame.into_iter().take(frame.len() - 1) {
+        for byte in frame.iter().take(frame.len() - 1) {
             io_handle.read(&[*byte]);
             assert!(matches!(task.poll(), Poll::Pending));
         }
@@ -705,7 +705,7 @@ mod tests {
     }
 
     impl<'a> Serialize for MockMessage<'a> {
-        fn serialize(self: &Self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
+        fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
             for byte in &self.frame[2..self.frame.len() - 2] {
                 cursor.write_u8(*byte)?;
             }

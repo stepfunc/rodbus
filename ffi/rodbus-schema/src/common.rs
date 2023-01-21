@@ -206,7 +206,7 @@ fn build_iterator(
 ) -> BackTraced<AbstractIteratorHandle> {
     let base_name = item_type.name();
     let iter =
-        lib.define_iterator_with_lifetime(format!("{}_iterator", base_name), item_type.clone())?;
+        lib.define_iterator_with_lifetime(format!("{base_name}_iterator"), item_type.clone())?;
     Ok(iter)
 }
 
@@ -253,7 +253,7 @@ fn build_request_error(lib: &mut LibraryBuilder) -> BackTraced<ErrorTypeHandle> 
         )?;
 
     for (name, _value, desc) in MODBUS_EXCEPTION {
-        builder = builder.add_error(format!("modbus_exception_{}", name), desc)?;
+        builder = builder.add_error(format!("modbus_exception_{name}"), desc)?;
     }
 
     let definition = builder.build()?;

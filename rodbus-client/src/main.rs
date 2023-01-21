@@ -60,7 +60,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .init();
 
     if let Err(ref e) = run().await {
-        println!("error: {}", e);
+        println!("error: {e}");
     }
 
     Ok(())
@@ -440,11 +440,11 @@ impl std::error::Error for Error {}
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut Formatter) -> Result<(), std::fmt::Error> {
         match self {
-            Error::BadRange(err) => write!(f, "{}", err),
-            Error::BadAddr(err) => write!(f, "{}", err),
+            Error::BadRange(err) => write!(f, "{err}"),
+            Error::BadAddr(err) => write!(f, "{err}"),
             Error::BadInt(err) => err.fmt(f),
             Error::BadBool(err) => err.fmt(f),
-            Error::BadCharInBitString(char) => write!(f, "Bad character in bit string: {}", char),
+            Error::BadCharInBitString(char) => write!(f, "Bad character in bit string: {char}"),
             Error::Request(err) => err.fmt(f),
             Error::MissingSubCommand => f.write_str("No sub-command provided"),
             Error::Shutdown => f.write_str("channel was shut down"),

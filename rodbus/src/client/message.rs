@@ -229,7 +229,7 @@ impl std::fmt::Display for RequestDetailsDisplay<'_> {
                     write!(f, "{}", details.request.range)?;
                     if self.level.data_values() {
                         for x in details.request.iter() {
-                            write!(f, "\n{}", x)?;
+                            write!(f, "\n{x}")?;
                         }
                     }
                 }
@@ -237,7 +237,7 @@ impl std::fmt::Display for RequestDetailsDisplay<'_> {
                     write!(f, "{}", details.request.range)?;
                     if self.level.data_values() {
                         for x in details.request.iter() {
-                            write!(f, "\n{}", x)?;
+                            write!(f, "\n{x}")?;
                         }
                     }
                 }

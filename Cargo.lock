@@ -286,7 +286,7 @@ version = "3.2.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ea0c8bce528c4be4da13ea6fead8965e95b6073585a2f05204bd8f4119f82a65"
 dependencies = [
- "heck 0.4.0",
+ "heck",
  "proc-macro-error",
  "proc-macro2",
  "quote",
@@ -299,7 +299,7 @@ version = "4.0.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0177313f9f02afc995627906bbd8967e2be069f5261954222dac78290c2b9014"
 dependencies = [
- "heck 0.4.0",
+ "heck",
  "proc-macro-error",
  "proc-macro2",
  "quote",
@@ -592,15 +592,6 @@ checksum = "8a9ee70c43aaf417c914396645a0fa852624801b24ebb7ae78fe8272889ac888"
 
 [[package]]
 name = "heck"
-version = "0.3.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6d621efb26863f0e9924c6ac577e8275e5e6b77455db64ffa6c65c904e9e132c"
-dependencies = [
- "unicode-segmentation",
-]
-
-[[package]]
-name = "heck"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2540771e65fc8cb83cd6e8a237f70c319bd5c29f78ed1084ba5d50eeac86f7f9"
@@ -889,14 +880,14 @@ checksum = "86f0b0d4bf799edbc74508c1e8bf170ff5f41238e5f8225603ca7caaae2b7860"
 
 [[package]]
 name = "oo-bindgen"
-version = "0.6.0"
+version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1c34c9ff5b3e71d13b30394094d2423fa0d8755c1947ee6e160e6cf18a0e6d8e"
+checksum = "51dcf81e8585d49764404a4a8eece2a1aa77bc1c19644baf6371694c6c7f3dd3"
 dependencies = [
  "backtrace",
  "clap 4.0.22",
  "dunce",
- "heck 0.3.3",
+ "heck",
  "lazy_static",
  "platforms",
  "regex",
@@ -1149,6 +1140,7 @@ dependencies = [
  "oo-bindgen",
  "rodbus",
  "rodbus-schema",
+ "sfio-promise",
  "sfio-tokio-ffi",
  "sfio-tracing-ffi",
  "tokio",
@@ -1311,10 +1303,16 @@ dependencies = [
 ]
 
 [[package]]
-name = "sfio-tokio-ffi"
-version = "0.5.1"
+name = "sfio-promise"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b3011decee9900ac6162a077ba2a662a60082772a691ae50f2cc6759b8ea4d90"
+checksum = "91547be5cac1551a6401a7cfa571524bbcb4d9d818b2756cbe3012b48cc79aaf"
+
+[[package]]
+name = "sfio-tokio-ffi"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7264a1340f2fa1d79e749b85c1f9965dedbd811d1dfb32a6b354e8253cad2286"
 dependencies = [
  "oo-bindgen",
 ]
@@ -1330,9 +1328,9 @@ dependencies = [
 
 [[package]]
 name = "sfio-tracing-ffi"
-version = "0.5.0"
+version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4e582bebc03d7f2e8ebc86f0d44daa75ac6340b7a58d0da29b475aeddd6ac24f"
+checksum = "94955ac2db413b6f32297e862581db2c05f6312881939393f4b68f173a8be8b4"
 dependencies = [
  "oo-bindgen",
 ]
@@ -1684,12 +1682,6 @@ name = "unicode-ident"
 version = "1.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6ceab39d59e4c9499d4e5a8ee0e2735b891bb7308ac83dfb4e80cad195c9f6f3"
-
-[[package]]
-name = "unicode-segmentation"
-version = "1.10.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0fdbf052a0783de01e944a6ce7a8cb939e295b1e7be835a1112c3b9a7f047a5a"
 
 [[package]]
 name = "unicode-width"

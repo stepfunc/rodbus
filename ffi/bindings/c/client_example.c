@@ -64,13 +64,17 @@ void on_port_state_change(rodbus_port_state_t state, void *ctx)
 
 rodbus_client_state_listener_t get_client_listener()
 {
-    return rodbus_client_state_listener_init(on_client_state_change, NULL, NULL);
+    return (rodbus_client_state_listener_t) {
+        .on_change = &on_client_state_change,
+    };
 }
 
-rodbus_port_state_listener_t get_port_listener()
-{ 
-    return rodbus_port_state_listener_init(on_port_state_change, NULL, NULL);
+rodbus_port_state_listener_t get_port_listener(){
+    return (rodbus_port_state_listener_t) {
+        .on_change = &on_port_state_change,
+    };
 }
+
 
 run_channel(rodbus_client_channel_t* channel)
 {
@@ -93,26 +97,20 @@ run_channel(rodbus_client_channel_t* channel)
     // ANCHOR_END: address_range
 
     // ANCHOR: bit_read_callback_init
-    rodbus_bit_read_callback_t bit_callback = rodbus_bit_read_callback_init(
-        on_read_bits_complete, // Success callback
-        on_read_bits_failure, // Failure callback
-        NULL, // Destroy callback
-        NULL // Callback context
-    );
+    rodbus_bit_read_callback_t bit_callback = {
+        .on_complete = &on_read_bits_complete,
+        .on_failure = &on_read_bits_failure,
+    };
     // ANCHOR_END: bit_read_callback_init
-    rodbus_register_read_callback_t register_callback = rodbus_register_read_callback_init(
-        on_read_registers_complete, // Success callback
-        on_read_registers_failure, // Failure callback
-        NULL, // Destroy callback
-        NULL // Callback context
-    );
+    rodbus_register_read_callback_t register_callback = {
+        .on_complete = on_read_registers_complete, // Success callback
+        .on_failure = on_read_registers_failure,  // Failure callback
+    };
     // ANCHOR: write_callback_init
-    rodbus_write_callback_t write_callback = rodbus_write_callback_init(
-        on_write_complete, // Success callback
-        on_write_failure, // Failure callback
-        NULL, // Destroy callback
-        NULL // Callback context
-    );
+    rodbus_write_callback_t write_callback = {
+        .on_complete = on_write_complete,
+        .on_failure = on_write_failure,
+    };
     /// ANCHOR_END: write_callback_init
 
     char cbuf[10];
@@ -304,7 +302,7 @@ int main(int argc, char* argv[])
 {
     // ANCHOR: logging_init
     // initialize logging with the default configuration
-    rodbus_logger_t logger = rodbus_logger_init(&on_log_message, NULL, NULL);
+    rodbus_logger_t logger = {.on_message = on_log_message};
     rodbus_configure_logging(rodbus_logging_config_init(), logger);
     // ANCHOR_END: logging_init
 

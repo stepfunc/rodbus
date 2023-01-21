@@ -45,7 +45,7 @@ impl Loggable for AddressRange {
             let mut cursor = ReadCursor::new(payload);
 
             if let Ok(value) = AddressRange::parse(&mut cursor) {
-                write!(f, "{}", value)?;
+                write!(f, "{value}")?;
             }
         }
 
@@ -92,7 +92,7 @@ impl Loggable for Indexed<bool> {
             };
             let value = Indexed::new(index, coil_value);
 
-            write!(f, "{}", value)?;
+            write!(f, "{value}")?;
         }
 
         Ok(())
@@ -127,7 +127,7 @@ impl Loggable for Indexed<u16> {
             };
             let value = Indexed::new(index, raw_value);
 
-            write!(f, "{}", value)?;
+            write!(f, "{value}")?;
         }
 
         Ok(())

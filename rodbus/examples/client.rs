@@ -40,8 +40,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         "tls-self-signed" => run_tls(get_self_signed_config()?).await,
         _ => {
             eprintln!(
-                "unknown transport '{}', options are (tcp, rtu, tls-ca, tls-self-signed)",
-                transport
+                "unknown transport '{transport}', options are (tcp, rtu, tls-ca, tls-self-signed)"
             );
             exit(-1);
         }
@@ -119,9 +118,9 @@ fn get_self_signed_config() -> Result<TlsClientConfig, Box<dyn std::error::Error
     // ANCHOR: tls_self_signed_config
     let tls_config = TlsClientConfig::new(
         "test.com",
-        &Path::new("./certs/self_signed/entity2_cert.pem"),
-        &Path::new("./certs/self_signed/entity1_cert.pem"),
-        &Path::new("./certs/self_signed/entity1_key.pem"),
+        Path::new("./certs/self_signed/entity2_cert.pem"),
+        Path::new("./certs/self_signed/entity1_cert.pem"),
+        Path::new("./certs/self_signed/entity1_key.pem"),
         None, // no password
         MinTlsVersion::V1_2,
         CertificateMode::SelfSigned,
@@ -137,9 +136,9 @@ fn get_ca_chain_config() -> Result<TlsClientConfig, Box<dyn std::error::Error>> 
     // ANCHOR: tls_ca_chain_config
     let tls_config = TlsClientConfig::new(
         "test.com",
-        &Path::new("./certs/ca_chain/ca_cert.pem"),
-        &Path::new("./certs/ca_chain/client_cert.pem"),
-        &Path::new("./certs/ca_chain/client_key.pem"),
+        Path::new("./certs/ca_chain/ca_cert.pem"),
+        Path::new("./certs/ca_chain/client_cert.pem"),
+        Path::new("./certs/ca_chain/client_key.pem"),
         None, // no password
         MinTlsVersion::V1_2,
         CertificateMode::AuthorityBased,
@@ -160,9 +159,9 @@ where
             }
         }
         Err(rodbus::RequestError::Exception(exception)) => {
-            println!("Modbus exception: {}", exception);
+            println!("Modbus exception: {exception}");
         }
-        Err(err) => println!("read error: {}", err),
+        Err(err) => println!("read error: {err}"),
     }
 }
 
@@ -172,9 +171,9 @@ fn print_write_result<T>(result: Result<T, RequestError>) {
             println!("write successful");
         }
         Err(rodbus::RequestError::Exception(exception)) => {
-            println!("Modbus exception: {}", exception);
+            println!("Modbus exception: {exception}");
         }
-        Err(err) => println!("writer error: {}", err),
+        Err(err) => println!("writer error: {err}"),
     }
 }
 

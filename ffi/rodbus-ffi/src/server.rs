@@ -300,8 +300,8 @@ pub(crate) unsafe fn server_create_tcp(
     );
 
     let handle = runtime
-        .inner
-        .block_on(create_server)
+        .handle()
+        .block_on(create_server)?
         .map_err(|_| ffi::ParamError::ServerBindError)?;
 
     let server_handle = Server {
@@ -339,7 +339,7 @@ pub(crate) unsafe fn server_create_rtu(
     let handler_map = endpoints.drain_and_convert();
 
     // enter the runtime context so we can spawn
-    let _enter = runtime.inner.enter();
+    let _enter = runtime.enter();
 
     let handle = rodbus::server::spawn_rtu_server_task(
         &path.to_string_lossy(),
@@ -477,8 +477,8 @@ pub(crate) unsafe fn server_create_tls_impl(
             );
 
             runtime
-                .inner
-                .block_on(create_server)
+                .handle()
+                .block_on(create_server)?
                 .map_err(|_| ffi::ParamError::ServerBindError)?
         }
         None => {
@@ -492,8 +492,8 @@ pub(crate) unsafe fn server_create_tls_impl(
             );
 
             runtime
-                .inner
-                .block_on(create_server)
+                .handle()
+                .block_on(create_server)?
                 .map_err(|_| ffi::ParamError::ServerBindError)?
         }
     };

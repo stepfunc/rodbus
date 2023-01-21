@@ -423,7 +423,7 @@ fn build_bit_read_callback(
         "Callbacks received when reading coils or discrete inputs",
         common.bit_iterator.clone(),
         "response",
-        Some(common.error_info.clone()),
+        common.error_info.clone(),
     )?;
 
     Ok(future)
@@ -438,7 +438,7 @@ fn build_register_read_callback(
         "Callbacks received when reading reading holding or input registers",
         common.register_iterator.clone(),
         "response",
-        Some(common.error_info.clone()),
+        common.error_info.clone(),
     )?;
 
     Ok(future)
@@ -453,7 +453,7 @@ fn build_write_callback(
         "Callback methods received from asynchronous write operations",
         common.nothing.clone(),
         "response",
-        Some(common.error_info.clone()),
+        common.error_info.clone(),
     )?;
 
     Ok(future)

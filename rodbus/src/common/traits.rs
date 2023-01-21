@@ -50,6 +50,6 @@ impl Loggable for ExceptionCode {
         _level: AppDecodeLevel,
         f: &mut std::fmt::Formatter,
     ) -> std::fmt::Result {
-        write!(f, "{:?}", self)
+        write!(f, "{self:?}")
     }
 }
