@@ -10,9 +10,13 @@
     "clap_derive",
     "clap_lex",
     "dunce",
+    "errno",
     "gimli",
     "heck",
+    "io-lifetimes",
+    "is-terminal",
     "miniz_oxide",
+    "linux-raw-sys",
     "object",
     "oo-bindgen",
     "os_str_bytes",
@@ -23,6 +27,7 @@
     "proc-macro-error-attr",
     "rodbus-schema",
     "rustc-demangle",
+    "rustix",
     "same-file",
     "semver",
     "semver-parser",
@@ -1321,6 +1326,21 @@
             "copyright": {
               "Lines": [
                 "Copyright (c) 2021-2022 The RustCrypto Project Developers"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "static_assertions": {
+      "id": "static_assertions",
+      "source": "crates.io",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2017 Nikolai Vazquez"
               ]
             }
           }
