@@ -11,6 +11,6 @@ repository = "https://github.com/stepfunc/rodbus"
 readme = "../README.md"
 
 [dependencies]
-oo-bindgen = "0.7"
-sfio-tokio-ffi = "0.7"
-sfio-tracing-ffi = "0.7"
+oo-bindgen = "0.8"
+sfio-tokio-ffi = "0.8"
+sfio-tracing-ffi = "0.8"
