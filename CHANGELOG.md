@@ -1,4 +1,4 @@
-### 1.2.0-rc1 ###
+### 1.2.0 ###
 * :star: Add a mechanism to the bindings to shut down the Runtime with a timeout. See [#110](https://github.com/stepfunc/rodbus/pull/110).
 
 ### 1.1.0 ###
