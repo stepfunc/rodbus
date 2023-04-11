@@ -105,7 +105,7 @@ impl TlsServerConfig {
 
                         let parsed = rx509::x509::Certificate::parse(peer_cert)
                             .map_err(|err| format!("ASNError: {err}"))?;
-                        let role = extract_modbus_role(&parsed).map_err(|err| format!("{err}"))?;
+                        let role = extract_modbus_role(&parsed)?;
 
                         tracing::info!("client role: {}", role);
                         AuthorizationType::Handler(handler, role)
@@ -138,22 +138,18 @@ fn build_server_config(
     Ok(config)
 }
 
-fn extract_modbus_role(cert: &rx509::x509::Certificate) -> Result<String, rustls::Error> {
+fn extract_modbus_role(cert: &rx509::x509::Certificate) -> Result<String, String> {
     // Parse the extensions
     let extensions = cert
         .tbs_certificate
         .value
         .extensions
         .as_ref()
-        .ok_or_else(|| {
-            rustls::Error::General("certificate doesn't contain Modbus role extension".to_string())
-        })?;
+        .ok_or_else(|| "certificate doesn't contain Modbus role extension".to_string())?;
 
-    let extensions = extensions.parse().map_err(|err| {
-        rustls::Error::General(format!(
-            "unable to parse cert extensions with rasn: {err:?}"
-        ))
-    })?;
+    let extensions = extensions
+        .parse()
+        .map_err(|err| format!("unable to parse cert extensions with rasn: {err:?}"))?;
 
     // Extract the ModbusRole extensions
     let mut it = extensions.into_iter().filter_map(|ext| match ext.content {
@@ -162,15 +158,13 @@ fn extract_modbus_role(cert: &rx509::x509::Certificate) -> Result<String, rustls
     });
 
     // Extract the first ModbusRole extension
-    let role = it.next().ok_or_else(|| {
-        rustls::Error::General("certificate doesn't have Modbus extension".to_string())
-    })?;
+    let role = it
+        .next()
+        .ok_or_else(|| "certificate doesn't have Modbus extension".to_string())?;
 
     // Check that there is only one role extension
     if it.next().is_some() {
-        return Err(rustls::Error::General(
-            "certificate has more than one Modbus extension".to_string(),
-        ));
+        return Err("certificate has more than one Modbus extension".to_string());
     }
 
     Ok(role.to_string())
