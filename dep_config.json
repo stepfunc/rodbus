@@ -221,6 +221,22 @@
         }
       ]
     },
+    "cbc": {
+      "id": "cbc",
+      "source": "crates.io",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2018-2022 RustCrypto Developers",
+                "Copyright (c) 2018 Artyom Pavlov"
+              ]
+            }
+          }
+        }
+      ]
+    },
     "cesu8": {
       "id": "cesu8",
       "source": "crates.io",
