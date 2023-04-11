@@ -76,7 +76,7 @@ impl TlsClientConfig {
         min_tls_version: MinTlsVersion,
         certificate_mode: CertificateMode,
     ) -> Result<Self, TlsError> {
-        let mut peer_certs: Vec<rustls::Certificate> = {
+        let peer_certs: Vec<rustls::Certificate> = {
             let bytes = std::fs::read(peer_cert_path)?;
             let certs = sfio_pem_util::read_certificates(bytes)?;
             certs.into_iter().map(rustls::Certificate).collect()
@@ -103,46 +103,30 @@ impl TlsClientConfig {
             .with_protocol_versions(min_tls_version.to_rustls())
             .map_err(|err| TlsError::BadConfig(err.to_string()))?;
 
-        let config = match certificate_mode {
+        let verifier: Arc<dyn rustls::client::ServerCertVerifier> = match certificate_mode {
             CertificateMode::AuthorityBased => {
                 let verifier = sfio_rustls_util::ServerCertVerifier::new(
                     peer_certs,
                     sfio_rustls_util::NameVerifier::equal_to(name.to_string()),
                 )?;
-
-                builder
-                    .with_custom_certificate_verifier(Arc::new(verifier))
-                    .with_single_cert(local_certs, private_key)
+                Arc::new(verifier)
             }
             CertificateMode::SelfSigned => {
-                // Set the custom certificate verifier
-                if let Some(peer_cert) = peer_certs.pop() {
-                    if !peer_certs.is_empty() {
-                        return Err(TlsError::InvalidPeerCertificate(io::Error::new(
-                            ErrorKind::InvalidData,
-                            "more than one peer certificate in self-signed mode",
-                        )));
-                    }
-
-                    let verifier = sfio_rustls_util::SelfSignedVerifier::create(peer_cert)?;
-
-                    builder
-                        .with_custom_certificate_verifier(Arc::new(verifier))
-                        .with_single_cert(local_certs, private_key)
-                } else {
-                    return Err(TlsError::InvalidPeerCertificate(io::Error::new(
-                        ErrorKind::InvalidData,
-                        "no peer certificate",
-                    )));
-                }
+                let peer_cert = super::expect_single_peer_cert(peer_certs)?;
+                let verifier = sfio_rustls_util::SelfSignedVerifier::create(peer_cert)?;
+                Arc::new(verifier)
             }
-        }
-        .map_err(|err| {
-            TlsError::InvalidLocalCertificate(io::Error::new(
-                ErrorKind::InvalidData,
-                err.to_string(),
-            ))
-        })?;
+        };
+
+        let config = builder
+            .with_custom_certificate_verifier(verifier)
+            .with_single_cert(local_certs, private_key)
+            .map_err(|err| {
+                TlsError::InvalidLocalCertificate(io::Error::new(
+                    ErrorKind::InvalidData,
+                    err.to_string(),
+                ))
+            })?;
 
         let dns_name = rustls::ServerName::try_from(name).map_err(|_| TlsError::InvalidDnsName)?;
 

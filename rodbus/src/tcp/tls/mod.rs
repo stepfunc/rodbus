@@ -84,6 +84,12 @@ impl From<tokio_rustls::rustls::Error> for TlsError {
     }
 }
 
+impl From<&str> for TlsError {
+    fn from(err: &str) -> Self {
+        Self::BadConfig(err.to_string())
+    }
+}
+
 /// Minimum TLS version to allow
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MinTlsVersion {
@@ -106,5 +112,23 @@ impl MinTlsVersion {
             Self::V1_2 => MIN_TLS12_VERSIONS,
             Self::V1_3 => MIN_TLS13_VERSIONS,
         }
+    }
+}
+
+pub(crate) fn expect_single_peer_cert(
+    peer_certs: Vec<tokio_rustls::rustls::Certificate>,
+) -> Result<tokio_rustls::rustls::Certificate, &'static str> {
+    let mut iter = peer_certs.into_iter();
+    let first = match iter.next() {
+        None => {
+            return Err("no peer certificate");
+        }
+        Some(x) => x,
+    };
+
+    if iter.next().is_some() {
+        Err("more than one peer certificate")
+    } else {
+        Ok(first)
     }
 }

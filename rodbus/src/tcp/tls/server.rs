@@ -27,7 +27,7 @@ impl TlsServerConfig {
         min_tls_version: MinTlsVersion,
         certificate_mode: CertificateMode,
     ) -> Result<Self, TlsError> {
-        let mut peer_certs: Vec<rustls::Certificate> = {
+        let peer_certs: Vec<rustls::Certificate> = {
             let bytes = std::fs::read(peer_cert_path)?;
             let certs = sfio_pem_util::read_certificates(bytes)?;
             certs.into_iter().map(rustls::Certificate).collect()
@@ -66,21 +66,9 @@ impl TlsServerConfig {
                 ))
             }
             CertificateMode::SelfSigned => {
-                if let Some(peer_cert) = peer_certs.pop() {
-                    if !peer_certs.is_empty() {
-                        return Err(TlsError::InvalidPeerCertificate(io::Error::new(
-                            ErrorKind::InvalidData,
-                            "more than one peer certificate in self-signed mode",
-                        )));
-                    }
-                    let verifier = sfio_rustls_util::SelfSignedVerifier::create(peer_cert)?;
-                    Arc::new(verifier)
-                } else {
-                    return Err(TlsError::InvalidPeerCertificate(io::Error::new(
-                        ErrorKind::InvalidData,
-                        "no peer certificate",
-                    )));
-                }
+                let peer_cert = super::expect_single_peer_cert(peer_certs)?;
+                let verifier = sfio_rustls_util::SelfSignedVerifier::create(peer_cert)?;
+                Arc::new(verifier)
             }
         };
 
