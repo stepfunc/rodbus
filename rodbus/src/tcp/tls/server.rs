@@ -1,5 +1,5 @@
-use sfio_rustls_util::NameVerifier;
-use std::io::{self, ErrorKind};
+use sfio_rustls_config::NameVerifier;
+
 use std::path::Path;
 use std::sync::Arc;
 
@@ -27,52 +27,23 @@ impl TlsServerConfig {
         min_tls_version: MinTlsVersion,
         certificate_mode: CertificateMode,
     ) -> Result<Self, TlsError> {
-        let peer_certs: Vec<rustls::Certificate> = {
-            let bytes = std::fs::read(peer_cert_path)?;
-            let certs = sfio_pem_util::read_certificates(bytes)?;
-            certs.into_iter().map(rustls::Certificate).collect()
+        let config = match certificate_mode {
+            CertificateMode::SelfSigned => sfio_rustls_config::server::self_signed(
+                min_tls_version.into(),
+                peer_cert_path,
+                local_cert_path,
+                private_key_path,
+                password,
+            )?,
+            CertificateMode::AuthorityBased => sfio_rustls_config::server::authority(
+                min_tls_version.into(),
+                NameVerifier::any(),
+                peer_cert_path,
+                local_cert_path,
+                private_key_path,
+                password,
+            )?,
         };
-
-        let local_certs = {
-            let bytes = std::fs::read(local_cert_path)?;
-            let certs = sfio_pem_util::read_certificates(bytes)?;
-            certs.into_iter().map(rustls::Certificate).collect()
-        };
-
-        let private_key = {
-            let bytes = std::fs::read(private_key_path)?;
-            let key = match password {
-                Some(x) => sfio_pem_util::PrivateKey::decrypt_from_pem(bytes, x),
-                None => sfio_pem_util::PrivateKey::read_from_pem(bytes),
-            }?;
-            rustls::PrivateKey(key.bytes().to_vec())
-        };
-
-        let verifier: Arc<dyn rustls::server::ClientCertVerifier> = match certificate_mode {
-            CertificateMode::AuthorityBased => {
-                // Build root certificate store
-                let mut roots = rustls::RootCertStore::empty();
-                for cert in peer_certs.as_slice() {
-                    roots.add(cert).map_err(|err| {
-                        TlsError::InvalidPeerCertificate(io::Error::new(
-                            ErrorKind::InvalidData,
-                            err.to_string(),
-                        ))
-                    })?;
-                }
-                Arc::new(sfio_rustls_util::ClientCertVerifier::new(
-                    roots,
-                    NameVerifier::any(),
-                ))
-            }
-            CertificateMode::SelfSigned => {
-                let peer_cert = super::expect_single_peer_cert(peer_certs)?;
-                let verifier = sfio_rustls_util::SelfSignedVerifier::create(peer_cert)?;
-                Arc::new(verifier)
-            }
-        };
-
-        let config = build_server_config(verifier, min_tls_version, local_certs, private_key)?;
 
         Ok(TlsServerConfig {
             inner: Arc::new(config),
@@ -118,24 +89,6 @@ impl TlsServerConfig {
             }
         }
     }
-}
-
-fn build_server_config(
-    verifier: Arc<dyn rustls::server::ClientCertVerifier>,
-    min_tls_version: MinTlsVersion,
-    local_certs: Vec<rustls::Certificate>,
-    private_key: rustls::PrivateKey,
-) -> Result<rustls::ServerConfig, TlsError> {
-    let config = rustls::ServerConfig::builder()
-        .with_safe_default_cipher_suites()
-        .with_safe_default_kx_groups()
-        .with_protocol_versions(min_tls_version.to_rustls())
-        .map_err(|err| TlsError::BadConfig(err.to_string()))?
-        .with_client_cert_verifier(verifier)
-        .with_single_cert(local_certs, private_key)
-        .map_err(|err| TlsError::BadConfig(err.to_string()))?;
-
-    Ok(config)
 }
 
 fn extract_modbus_role(cert: &rx509::x509::Certificate) -> Result<String, String> {

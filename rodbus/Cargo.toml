@@ -19,8 +19,7 @@ tracing = "0.1"
 
 # TLS dependencies
 rx509 = { version = "^0.2", optional = true }
-sfio-pem-util = { git = "https://github.com/stepfunc/pem-util.git", optional = true }
-sfio-rustls-util = { git = "https://github.com/stepfunc/rustls-util.git", optional = true }
+sfio-rustls-config = { git = "https://github.com/stepfunc/rustls-config.git", optional = true }
 
 tokio-rustls = { version = "0.24", features = ["dangerous_configuration", "tls12"], default-features = false, optional = true }
 # serial dependencies
@@ -36,5 +35,5 @@ tracing-subscriber = "0.2"
 
 [features]
 default = ["tls", "serial"]
-tls = ["rx509", "sfio-pem-util", "sfio-rustls-util", "tokio-rustls"]
+tls = ["rx509", "sfio-rustls-config", "tokio-rustls"]
 serial = ["tokio-serial"]

@@ -60,32 +60,8 @@ impl std::fmt::Display for TlsError {
 
 impl std::error::Error for TlsError {}
 
-impl From<std::io::Error> for TlsError {
-    fn from(err: std::io::Error) -> Self {
-        Self::BadConfig(err.to_string())
-    }
-}
-
-impl From<sfio_pem_util::Error> for TlsError {
-    fn from(err: sfio_pem_util::Error) -> Self {
-        Self::BadConfig(err.to_string())
-    }
-}
-
-impl From<sfio_rustls_util::Error> for TlsError {
-    fn from(err: sfio_rustls_util::Error) -> Self {
-        Self::BadConfig(err.to_string())
-    }
-}
-
-impl From<tokio_rustls::rustls::Error> for TlsError {
-    fn from(err: tokio_rustls::rustls::Error) -> Self {
-        Self::BadConfig(err.to_string())
-    }
-}
-
-impl From<&str> for TlsError {
-    fn from(err: &str) -> Self {
+impl From<sfio_rustls_config::Error> for TlsError {
+    fn from(err: sfio_rustls_config::Error) -> Self {
         Self::BadConfig(err.to_string())
     }
 }
@@ -99,36 +75,11 @@ pub enum MinTlsVersion {
     V1_3,
 }
 
-impl MinTlsVersion {
-    fn to_rustls(self) -> &'static [&'static tokio_rustls::rustls::SupportedProtocolVersion] {
-        static MIN_TLS12_VERSIONS: &[&tokio_rustls::rustls::SupportedProtocolVersion] = &[
-            &tokio_rustls::rustls::version::TLS13,
-            &tokio_rustls::rustls::version::TLS12,
-        ];
-        static MIN_TLS13_VERSIONS: &[&tokio_rustls::rustls::SupportedProtocolVersion] =
-            &[&tokio_rustls::rustls::version::TLS13];
-
-        match self {
-            Self::V1_2 => MIN_TLS12_VERSIONS,
-            Self::V1_3 => MIN_TLS13_VERSIONS,
+impl From<MinTlsVersion> for sfio_rustls_config::MinProtocolVersion {
+    fn from(value: MinTlsVersion) -> Self {
+        match value {
+            MinTlsVersion::V1_2 => sfio_rustls_config::MinProtocolVersion::V1_2,
+            MinTlsVersion::V1_3 => sfio_rustls_config::MinProtocolVersion::V1_3,
         }
-    }
-}
-
-pub(crate) fn expect_single_peer_cert(
-    peer_certs: Vec<tokio_rustls::rustls::Certificate>,
-) -> Result<tokio_rustls::rustls::Certificate, &'static str> {
-    let mut iter = peer_certs.into_iter();
-    let first = match iter.next() {
-        None => {
-            return Err("no peer certificate");
-        }
-        Some(x) => x,
-    };
-
-    if iter.next().is_some() {
-        Err("more than one peer certificate")
-    } else {
-        Ok(first)
     }
 }
