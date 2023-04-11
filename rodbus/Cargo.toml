@@ -19,7 +19,7 @@ tracing = "0.1"
 
 # TLS dependencies
 rx509 = { version = "^0.2", optional = true }
-sfio-rustls-config = { git = "https://github.com/stepfunc/rustls-config.git", optional = true }
+sfio-rustls-config = { version = "0.1.0", optional = true }
 
 tokio-rustls = { version = "0.24", features = ["dangerous_configuration", "tls12"], default-features = false, optional = true }
 # serial dependencies
