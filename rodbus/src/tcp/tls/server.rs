@@ -1,15 +1,15 @@
+use sfio_rustls_util::NameVerifier;
 use std::io::{self, ErrorKind};
 use std::path::Path;
 use std::sync::Arc;
 
 use tokio::net::TcpStream;
 use tokio_rustls::rustls;
-use tokio_rustls::rustls::server::AllowAnyAuthenticatedClient;
 
 use crate::common::phys::PhysLayer;
 use crate::server::task::AuthorizationType;
 use crate::server::AuthorizationHandler;
-use crate::tcp::tls::{load_certs, load_private_key, CertificateMode, MinTlsVersion, TlsError};
+use crate::tcp::tls::{CertificateMode, MinTlsVersion, TlsError};
 
 /// TLS configuration
 #[derive(Clone)]
@@ -27,9 +27,26 @@ impl TlsServerConfig {
         min_tls_version: MinTlsVersion,
         certificate_mode: CertificateMode,
     ) -> Result<Self, TlsError> {
-        let mut peer_certs = load_certs(peer_cert_path, false)?;
-        let local_certs = load_certs(local_cert_path, true)?;
-        let private_key = load_private_key(private_key_path, password)?;
+        let mut peer_certs: Vec<rustls::Certificate> = {
+            let bytes = std::fs::read(peer_cert_path)?;
+            let certs = sfio_pem_util::read_certificates(bytes)?;
+            certs.into_iter().map(rustls::Certificate).collect()
+        };
+
+        let local_certs = {
+            let bytes = std::fs::read(local_cert_path)?;
+            let certs = sfio_pem_util::read_certificates(bytes)?;
+            certs.into_iter().map(rustls::Certificate).collect()
+        };
+
+        let private_key = {
+            let bytes = std::fs::read(private_key_path)?;
+            let key = match password {
+                Some(x) => sfio_pem_util::PrivateKey::decrypt_from_pem(bytes, x),
+                None => sfio_pem_util::PrivateKey::read_from_pem(bytes),
+            }?;
+            rustls::PrivateKey(key.bytes().to_vec())
+        };
 
         let verifier: Arc<dyn rustls::server::ClientCertVerifier> = match certificate_mode {
             CertificateMode::AuthorityBased => {
@@ -43,7 +60,10 @@ impl TlsServerConfig {
                         ))
                     })?;
                 }
-                CaChainClientCertVerifier::create(roots)
+                Arc::new(sfio_rustls_util::ClientCertVerifier::new(
+                    roots,
+                    NameVerifier::any(),
+                ))
             }
             CertificateMode::SelfSigned => {
                 if let Some(peer_cert) = peer_certs.pop() {
@@ -53,8 +73,8 @@ impl TlsServerConfig {
                             "more than one peer certificate in self-signed mode",
                         )));
                     }
-
-                    SelfSignedCertificateClientCertVerifier::new(peer_cert)
+                    let verifier = sfio_rustls_util::SelfSignedVerifier::create(peer_cert)?;
+                    Arc::new(verifier)
                 } else {
                     return Err(TlsError::InvalidPeerCertificate(io::Error::new(
                         ErrorKind::InvalidData,
@@ -112,117 +132,6 @@ impl TlsServerConfig {
     }
 }
 
-struct CaChainClientCertVerifier {
-    inner: Arc<dyn rustls::server::ClientCertVerifier>,
-}
-
-impl CaChainClientCertVerifier {
-    fn create(roots: rustls::RootCertStore) -> Arc<dyn rustls::server::ClientCertVerifier> {
-        let inner = AllowAnyAuthenticatedClient::new(roots);
-        Arc::new(CaChainClientCertVerifier { inner })
-    }
-}
-
-impl rustls::server::ClientCertVerifier for CaChainClientCertVerifier {
-    fn offer_client_auth(&self) -> bool {
-        // Client must authenticate itself, so we better offer the authentication!
-        true
-    }
-
-    fn client_auth_mandatory(&self) -> Option<bool> {
-        // Client must authenticate itself
-        Some(true)
-    }
-
-    fn client_auth_root_subjects(&self) -> Option<rustls::DistinguishedNames> {
-        self.inner.client_auth_root_subjects()
-    }
-
-    fn verify_client_cert(
-        &self,
-        end_entity: &rustls::Certificate,
-        intermediates: &[rustls::Certificate],
-        now: std::time::SystemTime,
-    ) -> Result<rustls::server::ClientCertVerified, rustls::Error> {
-        self.inner
-            .verify_client_cert(end_entity, intermediates, now)?;
-        Ok(rustls::server::ClientCertVerified::assertion())
-    }
-}
-
-struct SelfSignedCertificateClientCertVerifier {
-    cert: rustls::Certificate,
-}
-
-impl SelfSignedCertificateClientCertVerifier {
-    #[allow(clippy::new_ret_no_self)]
-    fn new(cert: rustls::Certificate) -> Arc<dyn rustls::server::ClientCertVerifier> {
-        Arc::new(SelfSignedCertificateClientCertVerifier { cert })
-    }
-}
-
-impl rustls::server::ClientCertVerifier for SelfSignedCertificateClientCertVerifier {
-    fn offer_client_auth(&self) -> bool {
-        // Client must authenticate itself, so we better offer the authentication!
-        true
-    }
-
-    fn client_auth_mandatory(&self) -> Option<bool> {
-        // Client must authenticate itself
-        Some(true)
-    }
-
-    #[allow(deprecated)]
-    fn client_auth_root_subjects(&self) -> Option<rustls::DistinguishedNames> {
-        // Let rustls extract the subjects
-        let mut store = rustls::RootCertStore::empty();
-        let _ = store.add(&self.cert);
-        Some(store.subjects())
-    }
-
-    fn verify_client_cert(
-        &self,
-        end_entity: &rustls::Certificate,
-        intermediates: &[rustls::Certificate],
-        now: std::time::SystemTime,
-    ) -> Result<rustls::server::ClientCertVerified, rustls::Error> {
-        // Check that no intermediate certificates are present
-        if !intermediates.is_empty() {
-            return Err(rustls::Error::General(format!(
-                "client sent {} intermediate certificates, expected none",
-                intermediates.len()
-            )));
-        }
-
-        // Check that presented certificate matches byte-for-byte the expected certificate
-        if end_entity != &self.cert {
-            return Err(rustls::Error::InvalidCertificateData(
-                "client certificate doesn't match the expected self-signed certificate".to_string(),
-            ));
-        }
-
-        let parsed_cert = rx509::x509::Certificate::parse(&end_entity.0).map_err(|err| {
-            rustls::Error::InvalidCertificateData(format!(
-                "unable to parse cert with rasn: {err:?}"
-            ))
-        })?;
-
-        // Check that the certificate is still valid
-        let now = now
-            .duration_since(std::time::UNIX_EPOCH)
-            .map_err(|_| rustls::Error::FailedToGetCurrentTime)?;
-        let now = rx509::der::UtcTime::from_seconds_since_epoch(now.as_secs());
-
-        if !parsed_cert.tbs_certificate.value.validity.is_valid(now) {
-            return Err(rustls::Error::InvalidCertificateData(
-                "self-signed certificate is currently not valid".to_string(),
-            ));
-        }
-
-        Ok(rustls::server::ClientCertVerified::assertion())
-    }
-}
-
 fn build_server_config(
     verifier: Arc<dyn rustls::server::ClientCertVerifier>,
     min_tls_version: MinTlsVersion,
@@ -249,12 +158,11 @@ fn extract_modbus_role(cert: &rx509::x509::Certificate) -> Result<String, rustls
         .extensions
         .as_ref()
         .ok_or_else(|| {
-            rustls::Error::InvalidCertificateData(
-                "certificate doesn't have Modbus extension".to_string(),
-            )
+            rustls::Error::General("certificate doesn't contain Modbus role extension".to_string())
         })?;
+
     let extensions = extensions.parse().map_err(|err| {
-        rustls::Error::InvalidCertificateData(format!(
+        rustls::Error::General(format!(
             "unable to parse cert extensions with rasn: {err:?}"
         ))
     })?;
@@ -267,14 +175,12 @@ fn extract_modbus_role(cert: &rx509::x509::Certificate) -> Result<String, rustls
 
     // Extract the first ModbusRole extension
     let role = it.next().ok_or_else(|| {
-        rustls::Error::InvalidCertificateData(
-            "certificate doesn't have Modbus extension".to_string(),
-        )
+        rustls::Error::General("certificate doesn't have Modbus extension".to_string())
     })?;
 
     // Check that there is only one role extension
     if it.next().is_some() {
-        return Err(rustls::Error::InvalidCertificateData(
+        return Err(rustls::Error::General(
             "certificate has more than one Modbus extension".to_string(),
         ));
     }

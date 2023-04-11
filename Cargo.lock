@@ -1120,6 +1120,7 @@ version = "1.2.0"
 dependencies = [
  "clap 3.2.23",
  "crc",
+ "rx509",
  "scursor",
  "sfio-pem-util",
  "sfio-rustls-util",
