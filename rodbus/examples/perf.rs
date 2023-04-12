@@ -24,7 +24,7 @@ impl RequestHandler for Handler {
 struct Cli {
     #[clap(short, long, value_parser, default_value_t = 1)]
     sessions: usize,
-    #[clap(short, long, value_parser, default_value_t = 5)]
+    #[clap(short = 'c', long, value_parser, default_value_t = 5)]
     seconds: usize,
     #[clap(short, long, value_parser, default_value_t = false)]
     log: bool,

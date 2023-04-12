@@ -1131,7 +1131,7 @@ dependencies = [
  "tokio-test",
  "tokio-util",
  "tracing",
- "tracing-subscriber 0.2.25",
+ "tracing-subscriber 0.3.16",
 ]
 
 [[package]]

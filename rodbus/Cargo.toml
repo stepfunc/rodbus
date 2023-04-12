@@ -31,7 +31,7 @@ tokio-stream = "0.1"
 tokio-util = { version = "0.7", features = ["codec"] }
 tokio-test = "0.4.2"
 sfio-tokio-mock-io = "0.2"
-tracing-subscriber = "0.2"
+tracing-subscriber = "0.3.16"
 
 [features]
 default = ["tls", "serial"]
