@@ -1179,6 +1179,21 @@
         }
       ]
     },
+    "rustls-webpki": {
+      "id": "rustls-webpki",
+      "source": "crates.io",
+      "licenses": [
+        {
+          "ISC": {
+            "copyright": {
+              "Lines": [
+                "Copyright 2015 Brian Smith."
+              ]
+            }
+          }
+        }
+      ]
+    },
     "ryu": {
       "id": "ryu",
       "source": "crates.io",
@@ -1631,21 +1646,6 @@
             "copyright": {
               "Lines": [
                 "Copyright 2015-2016 Brian Smith."
-              ]
-            }
-          }
-        }
-      ]
-    },
-    "webpki": {
-      "id": "webpki",
-      "source": "crates.io",
-      "licenses": [
-        {
-          "ISC": {
-            "copyright": {
-              "Lines": [
-                "Copyright 2015 Brian Smith."
               ]
             }
           }
