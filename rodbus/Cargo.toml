@@ -12,7 +12,7 @@ categories = ["network-programming"]
 readme = "README.md"
 
 [dependencies]
-crc = "2.0"
+crc = "3.0"
 scursor = "0.1"
 tokio = { version = "1", features = ["net", "sync", "io-util", "io-std", "time", "rt", "rt-multi-thread", "macros"] }
 tracing = "0.1"
@@ -20,8 +20,8 @@ tracing = "0.1"
 # TLS dependencies
 rx509 = { version = "^0.2", optional = true }
 sfio-rustls-config = { version = "0.1.0", optional = true }
+tokio-rustls = { version = "0.24", features = ["tls12"], default-features = false, optional = true }
 
-tokio-rustls = { version = "0.24", features = ["dangerous_configuration", "tls12"], default-features = false, optional = true }
 # serial dependencies
 tokio-serial = { version = "5.4", default-features = false, optional = true }
 
