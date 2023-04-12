@@ -59,6 +59,9 @@
     "sfio-promise": {
       "url": "https://github.com/stepfunc/promise"
     },
+    "sfio-rustls-config": {
+      "url": "https://github.com/stepfunc/rustls-config"
+    },
     "sfio-tokio-ffi": {
       "url": "https://github.com/stepfunc/tokio-ffi"
     },
@@ -212,6 +215,22 @@
             "copyright": {
               "Lines": [
                 "Copyright (c) 2018 Carl Lerche"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "cbc": {
+      "id": "cbc",
+      "source": "crates.io",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2018-2022 RustCrypto Developers",
+                "Copyright (c) 2018 Artyom Pavlov"
               ]
             }
           }
@@ -642,6 +661,22 @@
             "copyright": {
               "Lines": [
                 "Copyright (c) 2020 Andrew D. Straw"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "inout": {
+      "id": "inout",
+      "source": "crates.io",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2022 The RustCrypto Project Developers",
+                "Copyright (c) 2022 Artyom Pavlov"
               ]
             }
           }
@@ -1144,6 +1179,21 @@
         }
       ]
     },
+    "rustls-webpki": {
+      "id": "rustls-webpki",
+      "source": "crates.io",
+      "licenses": [
+        {
+          "ISC": {
+            "copyright": {
+              "Lines": [
+                "Copyright 2015 Brian Smith."
+              ]
+            }
+          }
+        }
+      ]
+    },
     "ryu": {
       "id": "ryu",
       "source": "crates.io",
@@ -1596,21 +1646,6 @@
             "copyright": {
               "Lines": [
                 "Copyright 2015-2016 Brian Smith."
-              ]
-            }
-          }
-        }
-      ]
-    },
-    "webpki": {
-      "id": "webpki",
-      "source": "crates.io",
-      "licenses": [
-        {
-          "ISC": {
-            "copyright": {
-              "Lines": [
-                "Copyright 2015 Brian Smith."
               ]
             }
           }

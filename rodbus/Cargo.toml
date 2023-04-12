@@ -18,10 +18,10 @@ tokio = { version = "1", features = ["net", "sync", "io-util", "io-std", "time",
 tracing = "0.1"
 
 # TLS dependencies
-pem = { version = "1.0", optional = true }
-pkcs8 = { version = "0.7", features = ["encryption", "pem", "std"], optional = true }
-rx509 = { version = "0.2", optional = true }
-tokio-rustls = { version = "0.23", features = ["dangerous_configuration", "tls12"], default-features = false, optional = true }
+rx509 = { version = "^0.2", optional = true }
+sfio-rustls-config = { version = "0.1.0", optional = true }
+
+tokio-rustls = { version = "0.24", features = ["dangerous_configuration", "tls12"], default-features = false, optional = true }
 # serial dependencies
 tokio-serial = { version = "5.4", default-features = false, optional = true }
 
@@ -35,5 +35,5 @@ tracing-subscriber = "0.2"
 
 [features]
 default = ["tls", "serial"]
-tls = ["pem", "pkcs8", "rx509", "tokio-rustls"]
+tls = ["rx509", "sfio-rustls-config", "tokio-rustls"]
 serial = ["tokio-serial"]
