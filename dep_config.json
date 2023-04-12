@@ -667,6 +667,22 @@
         }
       ]
     },
+    "inout": {
+      "id": "inout",
+      "source": "crates.io",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2022 The RustCrypto Project Developers",
+                "Copyright (c) 2022 Artyom Pavlov"
+              ]
+            }
+          }
+        }
+      ]
+    },
     "itoa": {
       "id": "itoa",
       "source": "crates.io",
