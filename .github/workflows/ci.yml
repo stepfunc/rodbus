@@ -43,8 +43,6 @@ jobs:
         uses: actions/checkout@v3
       - name: Install Rust ${{ matrix.rust }}
         uses: dtolnay/rust-toolchain@stable
-      - name: Caching
-        uses: Swatinem/rust-cache@v2
       - name: Build the workspace with the features
         run: cargo build --release ${{ matrix.feature-args }}
   # Run the unit tests on Windows and Linux
@@ -66,8 +64,6 @@ jobs:
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ matrix.rust }}
-      - name: Caching
-        uses: Swatinem/rust-cache@v2
       - name: Run Rust unit tests
         run: cargo test
   # Build API documentation packages
@@ -80,8 +76,6 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
       - name: Install doxygen 1.9.5
         run: wget -q https://github.com/stepfunc/ci-files/raw/main/doxygen/doxygen-1.9.5.linux.bin.tar.gz -O- | sudo tar --strip-components=1 -C /usr -xz doxygen-1.9.5
-      - name: Caching
-        uses: Swatinem/rust-cache@v2
       - name: Build FFI and JNI
         run: cargo build --release -p rodbus-ffi -p rodbus-ffi-java
       - name: Build Rustdoc
@@ -122,9 +116,6 @@ jobs:
         uses: actions/checkout@v3
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
-      - name: Caching
-        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
-        uses: Swatinem/rust-cache@v2
       - name: Create the FFI modules dir
         run: mkdir ffi-modules\${{ matrix.target }}
       - name: Build FFI
@@ -164,9 +155,6 @@ jobs:
         uses: actions/checkout@v3
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
-      - name: Caching
-        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
-        uses: Swatinem/rust-cache@v2
       - name: Create FFI modules dir
         run: mkdir -p ffi-modules/${{ matrix.target }}
       - name: Build FFI
@@ -254,9 +242,6 @@ jobs:
     steps:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
-      - name: Caching
-        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
-        uses: Swatinem/rust-cache@v2
       - name: Checkout BOM tools repo
         uses: actions/checkout@v3
         with:
