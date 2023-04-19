@@ -211,11 +211,6 @@ jobs:
         uses: actions/checkout@v3
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: ${{ matrix.rust }}
-#      - name: Caching
-#        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
-#        uses: Swatinem/rust-cache@v2
       - name: Install Rust Cross
         run: cargo install cross
       - name: Create ffi-modules dir
