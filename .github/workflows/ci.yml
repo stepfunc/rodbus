@@ -20,11 +20,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
       - name: Install Rust ${{ matrix.rust }}
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@master
         with:
-          profile: minimal
           toolchain: ${{ matrix.rust }}
-          override: true
           components: rustfmt, clippy
       - name: Format
         run: cargo fmt --all -- --check
@@ -44,11 +42,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
       - name: Install Rust ${{ matrix.rust }}
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          override: true
+        uses: dtolnay/rust-toolchain@stable
       - name: Caching
         uses: Swatinem/rust-cache@v2
       - name: Build the workspace with the features
@@ -69,11 +63,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
       - name: Install Rust ${{ matrix.rust }}
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@master
         with:
-          profile: minimal
           toolchain: ${{ matrix.rust }}
-          override: true
       - name: Caching
         uses: Swatinem/rust-cache@v2
       - name: Run Rust unit tests
@@ -85,11 +77,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
       - name: Install Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          override: true
+        uses: dtolnay/rust-toolchain@stable
       - name: Install doxygen 1.9.5
         run: wget -q https://github.com/stepfunc/ci-files/raw/main/doxygen/doxygen-1.9.5.linux.bin.tar.gz -O- | sudo tar --strip-components=1 -C /usr -xz doxygen-1.9.5
       - name: Caching
@@ -133,11 +121,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
       - name: Install Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          override: true
+        uses: dtolnay/rust-toolchain@stable
       - name: Caching
         if: ${{ !startsWith(github.ref, 'refs/tags/') }}
         uses: Swatinem/rust-cache@v2
@@ -179,11 +163,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
       - name: Install Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          override: true
+        uses: dtolnay/rust-toolchain@stable
       - name: Caching
         if: ${{ !startsWith(github.ref, 'refs/tags/') }}
         uses: Swatinem/rust-cache@v2
@@ -230,12 +210,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
       - name: Install Rust
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@stable
         with:
-          profile: minimal
-          toolchain: stable
-          target: ${{ matrix.target }}
-          override: true
+          toolchain: ${{ matrix.rust }}
 #      - name: Caching
 #        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
 #        uses: Swatinem/rust-cache@v2
@@ -281,11 +258,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Install Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          override: true
+        uses: dtolnay/rust-toolchain@stable
       - name: Caching
         if: ${{ !startsWith(github.ref, 'refs/tags/') }}
         uses: Swatinem/rust-cache@v2
