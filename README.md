@@ -1,6 +1,6 @@
 ![Step Function I/O](./sfio_logo.png)
 
-Commercial DNP3 library by [Step Function I/O](https://stepfunc.io/).
+Commercial Modbus library by [Step Function I/O](https://stepfunc.io/).
 
 Please see the [README](rodbus/README.md) for information on the core Rust library.
 

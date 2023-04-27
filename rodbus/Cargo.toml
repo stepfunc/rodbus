@@ -1,6 +1,6 @@
 [package]
 name = "rodbus"
-version = "1.2.0"
+version = "1.3.0-rc1"
 authors = ["Step Function I/O LLC <info@stepfunc.io>"]
 edition = "2021"
 description = "A high-performance async implementation of the Modbus protocol using tokio"
@@ -12,7 +12,7 @@ categories = ["network-programming"]
 readme = "README.md"
 
 [dependencies]
-crc = "2.0"
+crc = "3.0"
 scursor = "0.1"
 tokio = { version = "1", features = ["net", "sync", "io-util", "io-std", "time", "rt", "rt-multi-thread", "macros"] }
 tracing = "0.1"
@@ -20,18 +20,18 @@ tracing = "0.1"
 # TLS dependencies
 rx509 = { version = "^0.2", optional = true }
 sfio-rustls-config = { version = "0.1.0", optional = true }
+tokio-rustls = { version = "0.24", features = ["tls12"], default-features = false, optional = true }
 
-tokio-rustls = { version = "0.24", features = ["dangerous_configuration", "tls12"], default-features = false, optional = true }
 # serial dependencies
 tokio-serial = { version = "5.4", default-features = false, optional = true }
 
 [dev-dependencies]
-clap = { version = "3.2.20", features = ["derive"] }
+clap = { version = "4.1.8", features = ["derive"] }
 tokio-stream = "0.1"
-tokio-util = { version = "0.6", features = ["codec"] }
+tokio-util = { version = "0.7", features = ["codec"] }
 tokio-test = "0.4.2"
 sfio-tokio-mock-io = "0.2"
-tracing-subscriber = "0.2"
+tracing-subscriber = "0.3"
 
 [features]
 default = ["tls", "serial"]

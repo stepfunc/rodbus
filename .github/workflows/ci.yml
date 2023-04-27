@@ -20,11 +20,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
       - name: Install Rust ${{ matrix.rust }}
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@master
         with:
-          profile: minimal
           toolchain: ${{ matrix.rust }}
-          override: true
           components: rustfmt, clippy
       - name: Format
         run: cargo fmt --all -- --check
@@ -44,13 +42,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
       - name: Install Rust ${{ matrix.rust }}
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          override: true
-      - name: Caching
-        uses: Swatinem/rust-cache@v2
+        uses: dtolnay/rust-toolchain@stable
       - name: Build the workspace with the features
         run: cargo build --release ${{ matrix.feature-args }}
   # Run the unit tests on Windows and Linux
@@ -69,13 +61,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
       - name: Install Rust ${{ matrix.rust }}
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@master
         with:
-          profile: minimal
           toolchain: ${{ matrix.rust }}
-          override: true
-      - name: Caching
-        uses: Swatinem/rust-cache@v2
       - name: Run Rust unit tests
         run: cargo test
   # Build API documentation packages
@@ -85,15 +73,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
       - name: Install Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          override: true
+        uses: dtolnay/rust-toolchain@stable
       - name: Install doxygen 1.9.5
         run: wget -q https://github.com/stepfunc/ci-files/raw/main/doxygen/doxygen-1.9.5.linux.bin.tar.gz -O- | sudo tar --strip-components=1 -C /usr -xz doxygen-1.9.5
-      - name: Caching
-        uses: Swatinem/rust-cache@v2
       - name: Build FFI and JNI
         run: cargo build --release -p rodbus-ffi -p rodbus-ffi-java
       - name: Build Rustdoc
@@ -133,14 +115,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
       - name: Install Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          override: true
-      - name: Caching
-        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
-        uses: Swatinem/rust-cache@v2
+        uses: dtolnay/rust-toolchain@stable
       - name: Create the FFI modules dir
         run: mkdir ffi-modules\${{ matrix.target }}
       - name: Build FFI
@@ -179,14 +154,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
       - name: Install Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          override: true
-      - name: Caching
-        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
-        uses: Swatinem/rust-cache@v2
+        uses: dtolnay/rust-toolchain@stable
       - name: Create FFI modules dir
         run: mkdir -p ffi-modules/${{ matrix.target }}
       - name: Build FFI
@@ -230,15 +198,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
       - name: Install Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          target: ${{ matrix.target }}
-          override: true
-#      - name: Caching
-#        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
-#        uses: Swatinem/rust-cache@v2
+        uses: dtolnay/rust-toolchain@stable
       - name: Install Rust Cross
         run: cargo install cross
       - name: Create ffi-modules dir
@@ -281,14 +241,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Install Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          override: true
-      - name: Caching
-        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
-        uses: Swatinem/rust-cache@v2
+        uses: dtolnay/rust-toolchain@stable
       - name: Checkout BOM tools repo
         uses: actions/checkout@v3
         with:
