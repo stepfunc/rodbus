@@ -1,5 +1,5 @@
 use crate::ffi;
-use rodbus::client::{ClientState, HostAddr, Listener, TlsClientConfig, WriteMultiple};
+use rodbus::client::{ClientState, HostAddr, Listener, WriteMultiple};
 use rodbus::{AddressRange, MaybeAsync};
 use std::net::IpAddr;
 
@@ -119,7 +119,7 @@ pub(crate) unsafe fn client_channel_create_tls(
 ) -> Result<*mut crate::ClientChannel, ffi::ParamError> {
     let runtime = runtime.as_ref().ok_or(ffi::ParamError::NullParameter)?;
 
-    let tls_config: TlsClientConfig = tls_config.try_into()?;
+    let tls_config: rodbus::client::TlsClientConfig = tls_config.try_into()?;
 
     let host_addr = get_host_addr(host, port)?;
 
@@ -399,7 +399,7 @@ impl From<ffi::PortStateListener> for Box<dyn Listener<rodbus::client::PortState
 }
 
 #[cfg(feature = "tls")]
-impl TryFrom<ffi::TlsClientConfig> for TlsClientConfig {
+impl TryFrom<ffi::TlsClientConfig> for rodbus::client::TlsClientConfig {
     type Error = ffi::ParamError;
 
     fn try_from(value: ffi::TlsClientConfig) -> Result<Self, Self::Error> {
@@ -425,7 +425,7 @@ impl TryFrom<ffi::TlsClientConfig> for TlsClientConfig {
                         Some(expected_subject_name.to_string())
                     };
 
-                TlsClientConfig::full_pki(
+                rodbus::client::TlsClientConfig::full_pki(
                     expected_subject_name,
                     peer_cert_path,
                     local_cert_path,
@@ -434,7 +434,7 @@ impl TryFrom<ffi::TlsClientConfig> for TlsClientConfig {
                     value.min_tls_version().into(),
                 )
             }
-            ffi::CertificateMode::SelfSigned => TlsClientConfig::self_signed(
+            ffi::CertificateMode::SelfSigned => rodbus::client::TlsClientConfig::self_signed(
                 peer_cert_path,
                 local_cert_path,
                 private_key_path,
