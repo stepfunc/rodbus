@@ -1,5 +1,5 @@
 use crate::ffi;
-use rodbus::client::{ClientState, HostAddr, Listener, WriteMultiple};
+use rodbus::client::{ClientState, HostAddr, Listener, TlsClientConfig, WriteMultiple};
 use rodbus::{AddressRange, MaybeAsync};
 use std::net::IpAddr;
 
@@ -117,29 +117,9 @@ pub(crate) unsafe fn client_channel_create_tls(
     decode_level: ffi::DecodeLevel,
     listener: ffi::ClientStateListener,
 ) -> Result<*mut crate::ClientChannel, ffi::ParamError> {
-    use std::path::Path;
-
     let runtime = runtime.as_ref().ok_or(ffi::ParamError::NullParameter)?;
 
-    let password = tls_config.password().to_string_lossy();
-    let optional_password = match password.as_ref() {
-        "" => None,
-        password => Some(password),
-    };
-
-    let tls_config = rodbus::client::TlsClientConfig::new(
-        &tls_config.dns_name().to_string_lossy(),
-        Path::new(tls_config.peer_cert_path().to_string_lossy().as_ref()),
-        Path::new(tls_config.local_cert_path().to_string_lossy().as_ref()),
-        Path::new(tls_config.private_key_path().to_string_lossy().as_ref()),
-        optional_password,
-        tls_config.min_tls_version().into(),
-        tls_config.certificate_mode().into(),
-    )
-    .map_err(|err| {
-        tracing::error!("TLS error: {}", err);
-        err
-    })?;
+    let tls_config: TlsClientConfig = tls_config.try_into()?;
 
     let host_addr = get_host_addr(host, port)?;
 
@@ -415,5 +395,58 @@ impl Listener<rodbus::client::PortState> for PortStateListener {
 impl From<ffi::PortStateListener> for Box<dyn Listener<rodbus::client::PortState>> {
     fn from(x: ffi::PortStateListener) -> Self {
         Box::new(PortStateListener { inner: x })
+    }
+}
+
+#[cfg(feature = "tls")]
+impl TryFrom<ffi::TlsClientConfig> for TlsClientConfig {
+    type Error = ffi::ParamError;
+
+    fn try_from(value: ffi::TlsClientConfig) -> Result<Self, Self::Error> {
+        use std::path::Path;
+
+        let optional_password = match value.password().to_str()? {
+            "" => None,
+            password => Some(password),
+        };
+
+        let peer_cert_path = Path::new(value.peer_cert_path().to_str()?);
+        let local_cert_path = Path::new(value.local_cert_path().to_str()?);
+        let private_key_path = Path::new(value.private_key_path().to_str()?);
+
+        let config = match value.certificate_mode() {
+            ffi::CertificateMode::AuthorityBased => {
+                let expected_subject_name = value.dns_name().to_str()?;
+
+                let expected_subject_name =
+                    if value.allow_server_name_wildcard && expected_subject_name == "*" {
+                        None
+                    } else {
+                        Some(expected_subject_name.to_string())
+                    };
+
+                TlsClientConfig::full_pki(
+                    expected_subject_name,
+                    peer_cert_path,
+                    local_cert_path,
+                    private_key_path,
+                    optional_password,
+                    value.min_tls_version().into(),
+                )
+            }
+            ffi::CertificateMode::SelfSigned => TlsClientConfig::self_signed(
+                peer_cert_path,
+                local_cert_path,
+                private_key_path,
+                optional_password,
+                value.min_tls_version().into(),
+            ),
+        }
+        .map_err(|err| {
+            tracing::error!("TLS error: {}", err);
+            err
+        })?;
+
+        Ok(config)
     }
 }
