@@ -314,12 +314,12 @@ jobs:
           git commit -m "[rodbus] Release ${GITHUB_REF##*/}"
           git push
       - name: Import PGP key
-        uses: crazy-max/ghaction-import-gpg@v3
+        uses: crazy-max/ghaction-import-gpg@v5
         with:
           gpg-private-key: ${{ secrets.SFIO_PGP_PRIVATE_KEY }}
           passphrase: ${{ secrets.SFIO_PGP_PRIVATE_KEY_PASSPHRASE }}
       - name: Login to OSSRH
-        uses: whelk-io/maven-settings-xml-action@v14
+        uses: whelk-io/maven-settings-xml-action@v21
         with:
           servers: '[{ "id": "ossrh", "username": "${{ secrets.SFIO_OSSRH_USERNAME }}", "password": "${{ secrets.SFIO_OSSRH_PASSWORD }}" }]'
       - name: Deploy Java
