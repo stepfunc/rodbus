@@ -1,5 +1,5 @@
-### 1.3.0-rc1 ###
-* :wrench: Update to rustls 0.21.0 which allows peer names with IP addresses in the SAN extension.
+### 1.3.0 ###
+* :wrench: Update to rustls 0.21 which allows peer names with IP addresses in the SAN extension.
 * :wrench: Move common TLS configuration to its own crate shared with our Modbus library.
 * :star: PEM parser now supports extracting PKCS#1 private keys, i.e. PEM files with `BEGIN RSA PRIVATE KEY`.
 * :book: Documentation improvements in the bindings via [oo-bindgen 0.8.3](https://github.com/stepfunc/oo_bindgen/blob/main/CHANGELOG.md).
