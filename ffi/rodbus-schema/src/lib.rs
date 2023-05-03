@@ -15,7 +15,7 @@ pub fn build_lib() -> BackTraced<Library> {
     let info = LibraryInfo {
         description: "Safe and fast Modbus library".to_string(),
         project_url: "https://stepfunc.io/products/libraries/modbus/".to_string(),
-        repository: "stepfunc/modbus".to_string(),
+        repository: "stepfunc/rodbus".to_string(),
         license_name: "Custom license".to_string(),
         license_description: [
             "This library is provided under the terms of a non-commercial license.",
