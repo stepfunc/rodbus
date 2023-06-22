@@ -5,6 +5,7 @@ mod constants {
     pub(crate) const READ_DISCRETE_INPUTS: u8 = 2;
     pub(crate) const READ_HOLDING_REGISTERS: u8 = 3;
     pub(crate) const READ_INPUT_REGISTERS: u8 = 4;
+    pub(crate) const READ_DEVICE_IDENTIFICATION: u8 = 48;
     pub(crate) const WRITE_SINGLE_COIL: u8 = 5;
     pub(crate) const WRITE_SINGLE_REGISTER: u8 = 6;
     pub(crate) const WRITE_MULTIPLE_COILS: u8 = 15;
@@ -18,6 +19,7 @@ pub(crate) enum FunctionCode {
     ReadDiscreteInputs = constants::READ_DISCRETE_INPUTS,
     ReadHoldingRegisters = constants::READ_HOLDING_REGISTERS,
     ReadInputRegisters = constants::READ_INPUT_REGISTERS,
+    ReadDeviceIdentification = constants::READ_DEVICE_IDENTIFICATION,
     WriteSingleCoil = constants::WRITE_SINGLE_COIL,
     WriteSingleRegister = constants::WRITE_SINGLE_REGISTER,
     WriteMultipleCoils = constants::WRITE_MULTIPLE_COILS,
@@ -36,6 +38,9 @@ impl Display for FunctionCode {
             }
             FunctionCode::ReadInputRegisters => {
                 write!(f, "READ INPUT REGISTERS ({:#04X})", self.get_value())
+            }
+            FunctionCode::ReadDeviceIdentification => {
+                write!(f, "READ DEVICE IDENTIFICATION ({:#04X})", self.get_value())
             }
             FunctionCode::WriteSingleCoil => {
                 write!(f, "WRITE SINGLE COIL ({:#04X})", self.get_value())
@@ -68,6 +73,7 @@ impl FunctionCode {
             constants::READ_DISCRETE_INPUTS => Some(FunctionCode::ReadDiscreteInputs),
             constants::READ_HOLDING_REGISTERS => Some(FunctionCode::ReadHoldingRegisters),
             constants::READ_INPUT_REGISTERS => Some(FunctionCode::ReadInputRegisters),
+            constants::READ_DEVICE_IDENTIFICATION => Some(FunctionCode::ReadDeviceIdentification),
             constants::WRITE_SINGLE_COIL => Some(FunctionCode::WriteSingleCoil),
             constants::WRITE_SINGLE_REGISTER => Some(FunctionCode::WriteSingleRegister),
             constants::WRITE_MULTIPLE_COILS => Some(FunctionCode::WriteMultipleCoils),

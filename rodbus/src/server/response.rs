@@ -18,6 +18,8 @@ where
     }
 }
 
+
+
 pub(crate) struct RegisterWriter<T>
 where
     T: Fn(u16) -> Result<u16, ExceptionCode>,

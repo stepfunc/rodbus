@@ -7,6 +7,7 @@ use crate::exception::ExceptionCode;
 use crate::DecodeLevel;
 
 use crate::client::requests::read_bits::ReadBits;
+use crate::client::requests::read_device_identification::ReadDeviceIdentification;
 use crate::client::requests::read_registers::ReadRegisters;
 use crate::client::requests::write_multiple::MultipleWriteRequest;
 use crate::client::requests::write_single::SingleWrite;
@@ -45,6 +46,7 @@ pub(crate) enum RequestDetails {
     WriteSingleRegister(SingleWrite<Indexed<u16>>),
     WriteMultipleCoils(MultipleWriteRequest<bool>),
     WriteMultipleRegisters(MultipleWriteRequest<u16>),
+    ReadDeviceIdentification(ReadDeviceIdentification),
 }
 
 impl Request {
@@ -129,6 +131,7 @@ impl RequestDetails {
             RequestDetails::WriteSingleRegister(_) => FunctionCode::WriteSingleRegister,
             RequestDetails::WriteMultipleCoils(_) => FunctionCode::WriteMultipleCoils,
             RequestDetails::WriteMultipleRegisters(_) => FunctionCode::WriteMultipleRegisters,
+            RequestDetails::ReadDeviceIdentification(_) => FunctionCode::ReadDeviceIdentification,
         }
     }
 
@@ -142,6 +145,7 @@ impl RequestDetails {
             RequestDetails::WriteSingleRegister(x) => x.failure(err),
             RequestDetails::WriteMultipleCoils(x) => x.failure(err),
             RequestDetails::WriteMultipleRegisters(x) => x.failure(err),
+            RequestDetails::ReadDeviceIdentification(x) => x.failure(err),
         }
     }
 
@@ -161,7 +165,8 @@ impl RequestDetails {
             RequestDetails::WriteMultipleCoils(x) => x.handle_response(cursor, function, decode),
             RequestDetails::WriteMultipleRegisters(x) => {
                 x.handle_response(cursor, function, decode)
-            }
+            },
+            RequestDetails::ReadDeviceIdentification(x) => x.handle_response(cursor, function, decode),
         }
     }
 }
@@ -177,6 +182,7 @@ impl Serialize for RequestDetails {
             RequestDetails::WriteSingleRegister(x) => x.serialize(cursor),
             RequestDetails::WriteMultipleCoils(x) => x.serialize(cursor),
             RequestDetails::WriteMultipleRegisters(x) => x.serialize(cursor),
+            RequestDetails::ReadDeviceIdentification(x) => x.serialize(cursor),
         }
     }
 }
@@ -241,6 +247,9 @@ impl std::fmt::Display for RequestDetailsDisplay<'_> {
                         }
                     }
                 }
+                RequestDetails::ReadDeviceIdentification(details) => {
+                    write!(f, "{}", details.request)?;
+                },
             }
         }
 

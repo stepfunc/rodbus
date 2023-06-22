@@ -38,6 +38,21 @@ pub trait RequestHandler: Send + 'static {
         Err(ExceptionCode::IllegalFunction)
     }
 
+    /// Read Basic Information from the Device
+    fn read_basic_device_info(&self, _obj_id: u8) -> Result<DeviceIdentification, ExceptionCode> {
+        Err(ExceptionCode::IllegalFunction)
+    }
+
+    /// Read Regular Information from the Device
+    fn read_regular_device_info(&self, _obj_id: u8) -> Result<DeviceIdentification, ExceptionCode> {
+        Err(ExceptionCode::IllegalFunction)
+    }
+
+    /// Read Extended Information from the Device
+    fn read_extended_device_info(&self, _obj_id: u8) -> Result<DeviceIdentification, ExceptionCode> {
+        Err(ExceptionCode::IllegalFunction)
+    }
+
     /// Read single input register or return an ExceptionCode
     fn read_input_register(&self, _address: u16) -> Result<u16, ExceptionCode> {
         Err(ExceptionCode::IllegalFunction)
@@ -224,6 +239,10 @@ pub trait AuthorizationHandler: Send + Sync + 'static {
         _range: AddressRange,
         _role: &str,
     ) -> Authorization {
+        Authorization::Deny
+    }
+    /// Authorize a Read Device Identification request
+    fn read_device_information(&self, _unit_id: UnitId, _role: &str) -> Authorization {
         Authorization::Deny
     }
 }

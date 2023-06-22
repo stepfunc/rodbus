@@ -29,6 +29,143 @@ pub(crate) struct ReadBitsRange {
     pub(crate) inner: AddressRange,
 }
 
+#[derive(Debug, Copy, Clone)]
+pub(crate) enum MeiCode {
+    ReadDeviceId = 14,
+    CanOpenGeneralReference = 15,
+}
+
+impl Into<MeiCode> for u8 {
+    fn into(self) -> MeiCode {
+        match self {
+            14 => MeiCode::ReadDeviceId,
+            15 => MeiCode::CanOpenGeneralReference,
+            _ => panic!("Meicode outside of valid range"),
+        }
+    }
+}
+
+impl From<MeiCode> for u8 {
+    fn from(value: MeiCode) -> Self {
+        match value {
+            MeiCode::ReadDeviceId => 14,
+            MeiCode::CanOpenGeneralReference => 15,
+        }
+    }
+}
+
+impl std::fmt::Display for MeiCode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::ReadDeviceId => write!(f, " (MEICODE) READ DEVICE ID"),
+            Self::CanOpenGeneralReference => write!(f, "(MEICODE) CAN OPEN GENERAL REFERENCE"),
+        }
+    }
+}
+
+#[derive(Debug, Copy, Clone)]
+pub(crate) enum ReadDeviceIdCode {
+    BasicStreaming = 1,
+    RegularStreaming = 2,
+    ExtendedStreaming = 3,
+    Specific = 4,
+}
+
+impl From<ReadDeviceIdCode> for u8 {
+    fn from(value: ReadDeviceIdCode) -> Self {
+        match value {
+            ReadDeviceIdCode::BasicStreaming => 1,
+            ReadDeviceIdCode::RegularStreaming => 2,
+            ReadDeviceIdCode::ExtendedStreaming => 3,
+            ReadDeviceIdCode::Specific => 4,
+        }
+    }
+}
+
+impl Into<ReadDeviceIdCode> for u8 {
+    fn into(self) -> ReadDeviceIdCode {
+        match self {
+            1 => ReadDeviceIdCode::BasicStreaming,
+            2 => ReadDeviceIdCode::RegularStreaming,
+            3 => ReadDeviceIdCode::ExtendedStreaming,
+            4 => ReadDeviceIdCode::Specific,
+            _ => panic!("Device Id Code outside of valid range !")
+        }
+    }
+}
+
+impl std::fmt::Display for ReadDeviceIdCode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::BasicStreaming => write!(f, " (READ DEVICE ID CODE) Basic Streaming"),
+            Self::RegularStreaming => write!(f, " (READ DEVICE ID CODE) Regular Streaming"),
+            Self::ExtendedStreaming => write!(f, " (READ DEVICE ID CODE) Extended Streaming"),
+            Self::Specific => write!(f, " (READ DEVICE ID CODE) Specific")
+        }
+    }
+}
+
+#[allow(missing_docs)]
+#[derive(Debug, Copy, Clone)]
+pub struct ReadDeviceInfoBlock {
+    pub(crate) mei_type: MeiCode,
+    pub(crate) dev_id: ReadDeviceIdCode,
+    pub(crate) obj_id: u8,
+}
+
+impl std::fmt::Display for ReadDeviceInfoBlock {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}, {}, {}",self.mei_type,self.dev_id,self.obj_id)
+    }
+}
+
+#[allow(missing_docs)]
+pub struct DeviceIdentification {
+    pub continue_at: Option<u8>,
+    pub storage: Vec<String>,
+}
+
+
+impl DeviceIdentification {
+    ///Creates a new Device Identification Reply
+    pub fn new(follow_up: Option<u8>, data: Vec<String>) -> Self {
+        Self {
+            continue_at: follow_up,
+            storage: data
+        }
+    }
+    
+    /*pub(crate) fn new(more_device_info_follows: Option<u8>) -> Self {
+        Self {
+            more_device_info_follows,
+            storage: vec![],
+        }
+    }*/
+
+
+    /*pub(crate) fn insert_info(&mut self, raw_string: &[u8]) {
+        let string = String::from_utf8(raw_string.to_vec()).unwrap();
+        self.storage.push(string);
+    }*/
+
+    //TODO(Kay): Make sure it compiles without allowing dead code !
+    #[allow(dead_code)]
+    pub(crate) fn has_more_data(&self) -> Option<u8> {
+        self.continue_at
+    }
+
+    #[allow(missing_docs)]
+    pub fn device_strings(&self) -> &[String] {
+        &self.storage
+    }
+}
+
+impl std::fmt::Display for DeviceIdentification {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        todo!()
+    }
+}
+
 impl ReadBitsRange {
     /// retrieve the underlying [AddressRange]
     pub(crate) fn get(self) -> AddressRange {

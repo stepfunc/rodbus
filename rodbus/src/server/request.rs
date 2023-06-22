@@ -1,3 +1,4 @@
+use crate::client::requests::read_device_identification::ReadDeviceIdentification;
 use crate::common::frame::{FrameHeader, FrameWriter, FunctionField};
 use crate::common::function::FunctionCode;
 use crate::common::traits::{Loggable, Parse, Serialize};
@@ -17,6 +18,7 @@ pub(crate) enum Request<'a> {
     ReadDiscreteInputs(ReadBitsRange),
     ReadHoldingRegisters(ReadRegistersRange),
     ReadInputRegisters(ReadRegistersRange),
+    ReadDeviceIdentification(ReadDeviceInfoBlock),
     WriteSingleCoil(Indexed<bool>),
     WriteSingleRegister(Indexed<u16>),
     WriteMultipleCoils(WriteCoils<'a>),
@@ -60,6 +62,7 @@ impl<'a> Request<'a> {
             Request::ReadDiscreteInputs(_) => FunctionCode::ReadDiscreteInputs,
             Request::ReadHoldingRegisters(_) => FunctionCode::ReadHoldingRegisters,
             Request::ReadInputRegisters(_) => FunctionCode::ReadInputRegisters,
+            Request::ReadDeviceIdentification(_) => FunctionCode::ReadDeviceIdentification,
             Request::WriteSingleCoil(_) => FunctionCode::WriteSingleCoil,
             Request::WriteSingleRegister(_) => FunctionCode::WriteSingleRegister,
             Request::WriteMultipleCoils(_) => FunctionCode::WriteMultipleCoils,
@@ -73,6 +76,7 @@ impl<'a> Request<'a> {
             Request::ReadDiscreteInputs(_) => None,
             Request::ReadHoldingRegisters(_) => None,
             Request::ReadInputRegisters(_) => None,
+            Request::ReadDeviceIdentification(_) => None,
             Request::WriteSingleCoil(x) => Some(BroadcastRequest::WriteSingleCoil(x)),
             Request::WriteSingleRegister(x) => Some(BroadcastRequest::WriteSingleRegister(x)),
             Request::WriteMultipleCoils(x) => Some(BroadcastRequest::WriteMultipleCoils(x)),
@@ -123,6 +127,17 @@ impl<'a> Request<'a> {
                 let registers = RegisterWriter::new(*range, |i| handler.read_input_register(i));
                 writer.format_reply(header, function, &registers, level)
             }
+            Request::ReadDeviceIdentification(read) => {
+                //TODO: The server needs to answer the request depending on the values of dev_id, obj_id
+                let info = match read.dev_id {
+                    ReadDeviceIdCode::BasicStreaming => handler.read_basic_device_info(read.obj_id),
+                    ReadDeviceIdCode::RegularStreaming => handler.read_regular_device_info(read.obj_id),
+                    ReadDeviceIdCode::ExtendedStreaming => handler.read_extended_device_info(read.obj_id),
+                    _ => return Err(RequestError::Exception(ExceptionCode::IllegalDataAddress)),
+                };
+
+                writer.format_reply(header, function, &info.unwrap(), level)
+            }
             Request::WriteSingleCoil(request) => {
                 let result = handler.write_single_coil(*request).map(|_| *request);
                 write_result(function, header, writer, result, level)
@@ -169,6 +184,11 @@ impl<'a> Request<'a> {
             FunctionCode::ReadInputRegisters => {
                 let x =
                     Request::ReadInputRegisters(AddressRange::parse(cursor)?.of_read_registers()?);
+                cursor.expect_empty()?;
+                Ok(x)
+            }
+            FunctionCode::ReadDeviceIdentification => {
+                let x = Request::ReadDeviceIdentification(ReadDeviceInfoBlock::parse(cursor)?);
                 cursor.expect_empty()?;
                 Ok(x)
             }
@@ -232,6 +252,9 @@ impl std::fmt::Display for RequestDisplay<'_, '_> {
                 }
                 Request::ReadInputRegisters(range) => {
                     write!(f, " {}", range.get())?;
+                }
+                Request::ReadDeviceIdentification(read_dev) => {
+                    write!(f, " IME: {}, DEV_ID: {}, OBJ_ID: {:X}", read_dev.mei_type, read_dev.dev_id, read_dev.obj_id)?;
                 }
                 Request::WriteSingleCoil(request) => {
                     write!(f, " {request}")?;

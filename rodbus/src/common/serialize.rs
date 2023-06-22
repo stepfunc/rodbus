@@ -1,5 +1,8 @@
 use std::convert::TryFrom;
 
+use crate::DeviceIdentification;
+use crate::MeiCode;
+use crate::ReadDeviceInfoBlock;
 use crate::client::WriteMultiple;
 use crate::common::traits::Loggable;
 use crate::common::traits::Parse;
@@ -287,6 +290,79 @@ impl Serialize for WriteMultiple<u16> {
     fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
         self.range.serialize(cursor)?;
         self.values.as_slice().serialize(cursor)
+    }
+}
+
+impl Serialize for ReadDeviceInfoBlock {
+    fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
+        cursor.write_u8(self.mei_type.into())?;
+        cursor.write_u8(self.dev_id.into())?;
+        cursor.write_u8(self.obj_id)?;
+
+        Ok(())
+    }
+}
+
+impl Serialize for DeviceIdentification {
+    fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
+        //TODO(Kay): the ime value is hardcoded for now !
+        cursor.write_u8(0x0E)?;
+        //TODO(Kay): the device id is hardcoded as well for testing purposes !
+        cursor.write_u8(0x01)?;
+        //TODO(Kay): the conformity level is hardcoded as well !
+        cursor.write_u8(0x01)?;
+        self.has_more_data().serialize(cursor)?;
+        
+        cursor.write_u8(self.storage.len() as u8)?;
+        self.device_strings().serialize(cursor)?;
+
+        Ok(())
+    }
+}
+
+const LINE_INCOMPLETE: u8 = 0xFF;
+const LINE_COMPLETE: u8 = 0x00;
+impl Serialize for Option<u8> {
+    fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
+        match self {
+            Some(value) => {
+                cursor.write_u8(LINE_INCOMPLETE)?;
+                cursor.write_u8(*value)?;
+            }
+            None => {
+                cursor.write_u8(LINE_COMPLETE)?;
+                cursor.write_u8(0x00)?;
+            }
+        }
+
+        Ok(())
+    }
+}
+
+impl Loggable for DeviceIdentification {
+    fn log(
+        &self,
+        _bytes: &[u8],
+        _level: crate::AppDecodeLevel,
+        f: &mut std::fmt::Formatter,
+    ) -> std::fmt::Result {
+        write!(f, "{:?}, {:?}", self.continue_at, self.storage)
+    }
+}
+
+impl Serialize for &[String] {
+    fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
+        for (index, str) in self.iter().enumerate() {
+
+            cursor.write_u8(index as u8)?;
+            cursor.write_u8(str.len() as u8)?;
+            
+            for byte in str.as_bytes() {
+                cursor.write_u8(*byte)?;
+            }
+        }
+
+        Ok(())
     }
 }
 
