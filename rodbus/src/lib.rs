@@ -167,6 +167,7 @@ pub mod constants;
 pub mod server;
 
 // modules that are re-exported
+pub(crate) mod channel;
 pub(crate) mod decode;
 pub(crate) mod error;
 pub(crate) mod exception;
