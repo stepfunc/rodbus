@@ -241,7 +241,7 @@ impl ClientLoop {
 
     async fn fail_next_request(&mut self) -> Result<(), StateChange> {
         match self.rx.recv().await {
-            None => return Err(StateChange::Disable),
+            None => return Err(StateChange::Shutdown),
             Some(cmd) => match cmd {
                 Command::Request(mut req) => {
                     req.details.fail(RequestError::NoConnection);
