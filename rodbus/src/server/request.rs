@@ -129,14 +129,9 @@ impl<'a> Request<'a> {
             }
             Request::ReadDeviceIdentification(read) => {
                 //TODO: The server needs to answer the request depending on the values of dev_id, obj_id
-                let info = match read.dev_id {
-                    ReadDeviceIdCode::BasicStreaming => handler.read_basic_device_info(read.obj_id),
-                    ReadDeviceIdCode::RegularStreaming => handler.read_regular_device_info(read.obj_id),
-                    ReadDeviceIdCode::ExtendedStreaming => handler.read_extended_device_info(read.obj_id),
-                    _ => return Err(RequestError::Exception(ExceptionCode::IllegalDataAddress)),
-                };
+                let device_information = handler.read_device_info(read.mei_code.into(), read.dev_id.into(), read.obj_id);
 
-                writer.format_reply(header, function, &info.unwrap(), level)
+                writer.format_reply(header, function, &device_information.unwrap(), level)
             }
             Request::WriteSingleCoil(request) => {
                 let result = handler.write_single_coil(*request).map(|_| *request);
@@ -254,7 +249,7 @@ impl std::fmt::Display for RequestDisplay<'_, '_> {
                     write!(f, " {}", range.get())?;
                 }
                 Request::ReadDeviceIdentification(read_dev) => {
-                    write!(f, " IME: {}, DEV_ID: {}, OBJ_ID: {:X}", read_dev.mei_type, read_dev.dev_id, read_dev.obj_id)?;
+                    write!(f, " IME: {:?}, DEV_ID: {:?}, OBJ_ID: {:X}", read_dev.mei_code, read_dev.dev_id, if let Some(value) = read_dev.obj_id { value } else { 0x00 })?;
                 }
                 Request::WriteSingleCoil(request) => {
                     write!(f, " {request}")?;

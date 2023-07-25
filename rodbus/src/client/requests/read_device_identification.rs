@@ -97,33 +97,43 @@ impl ReadDeviceIdentification {
         request: ReadDeviceInfoBlock,
         cursor: &'a mut ReadCursor,
     ) -> Result<DeviceIdentification, RequestError> {        
-        let ime_code = cursor.read_u8()?;
-        println!("ime_code: {}", ime_code);
-        assert!(ime_code == 0x0E);
+        let mei_code = cursor.read_u8()?;
+        println!("mei_code: {}", mei_code);
 
         let device_id = cursor.read_u8()?;
         println!("device_id: {}", device_id);
-        assert!(device_id == 0x01);
 
         let conformity_level = cursor.read_u8()?;
         println!("conformity_level: {}", conformity_level);
-        assert!(conformity_level == 0x01);
 
         let more_follows = cursor.read_u8()?;
         let continue_at = cursor.read_u8()?;
         println!("more_follows {}", more_follows);
-        assert!(more_follows == 0 && continue_at == 0);
-        
+        println!("continue_at {}", continue_at);
+
+
+        //TODO(Kay): Currently this read can be off by one element we should make sure that it doesn't miss a value !
         let num_objs = cursor.read_u8()?;
+        println!("got {} objects", num_objs);
         
-        for _ in 0..num_objs {
-            let obj_id = cursor.read_u8()?;
-            let str_size = cursor.read_u8()?;
-            let data = cursor.read_bytes(str_size as usize)?;
-            let str = String::from_utf8(data.try_into().unwrap());
-            println!("RESULT: {}", str.unwrap());
+        let mut result = DeviceIdentification::new(mei_code, device_id, conformity_level);
+        if more_follows == 0xFF {
+            result.continue_at = Some(continue_at);
         }
 
-        todo!()
+        
+        for _ in 0..=num_objs {
+            //TODO(Kay): Do we need to store the obj_id ? 
+            let _obj_id = cursor.read_u8()?;
+            let str_size = cursor.read_u8()?;
+            println!("Reading a string with size {} from the input stream", str_size as usize);
+            let data = cursor.read_bytes(str_size as usize)?;
+            println!("Raw data read: {:X?}", data);
+
+            let str = String::from_utf8(data.try_into().unwrap()).unwrap();
+            result.storage.push(str);
+        }
+        
+        Ok(result)
     }
 }

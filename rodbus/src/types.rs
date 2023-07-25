@@ -30,7 +30,8 @@ pub(crate) struct ReadBitsRange {
 }
 
 #[derive(Debug, Copy, Clone)]
-pub(crate) enum MeiCode {
+#[allow(missing_docs)]
+pub enum MeiCode {
     ReadDeviceId = 14,
     CanOpenGeneralReference = 15,
 }
@@ -64,7 +65,8 @@ impl std::fmt::Display for MeiCode {
 }
 
 #[derive(Debug, Copy, Clone)]
-pub(crate) enum ReadDeviceIdCode {
+#[allow(missing_docs)]
+pub enum ReadDeviceIdCode {
     BasicStreaming = 1,
     RegularStreaming = 2,
     ExtendedStreaming = 3,
@@ -94,6 +96,44 @@ impl Into<ReadDeviceIdCode> for u8 {
     }
 }
 
+#[derive(Copy, Clone, Debug)]
+#[allow(missing_docs)]
+pub enum ReadDeviceConformityLevel {
+    BasicIdentificationStream = 0x01,
+    RegularIdentificationStream = 0x02,
+    ExtendedIdentificationStream = 0x03,
+    BasicIdentificationIndividual = 0x81,
+    RegularIdentificationIndividual = 0x82,
+    ExtendedIdentificationIndividual = 0x83,
+}
+
+impl From<u8> for ReadDeviceConformityLevel {
+    fn from(value: u8) -> Self {
+        match value {
+            0x01 => ReadDeviceConformityLevel::BasicIdentificationStream,
+            0x02 => ReadDeviceConformityLevel::RegularIdentificationStream,
+            0x03 => ReadDeviceConformityLevel::ExtendedIdentificationStream,
+            0x81 => ReadDeviceConformityLevel::BasicIdentificationIndividual,
+            0x82 => ReadDeviceConformityLevel::RegularIdentificationIndividual,
+            0x83 => ReadDeviceConformityLevel::ExtendedIdentificationIndividual,
+            _ => panic!("READ DEVICE CONFORMITY LEVEL: value out of range."),
+        }
+    }
+}
+
+impl Into<u8> for ReadDeviceConformityLevel {
+    fn into(self) -> u8 {
+        match self {
+            ReadDeviceConformityLevel::BasicIdentificationStream => 0x01,
+            ReadDeviceConformityLevel::RegularIdentificationStream => 0x02,
+            ReadDeviceConformityLevel::ExtendedIdentificationStream => 0x03,
+            ReadDeviceConformityLevel::BasicIdentificationIndividual => 0x81,
+            ReadDeviceConformityLevel::RegularIdentificationIndividual => 0x82,
+            ReadDeviceConformityLevel::ExtendedIdentificationIndividual => 0x83,
+        }
+    }
+}
+
 impl std::fmt::Display for ReadDeviceIdCode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -108,19 +148,34 @@ impl std::fmt::Display for ReadDeviceIdCode {
 #[allow(missing_docs)]
 #[derive(Debug, Copy, Clone)]
 pub struct ReadDeviceInfoBlock {
-    pub(crate) mei_type: MeiCode,
+    pub(crate) mei_code: MeiCode,
     pub(crate) dev_id: ReadDeviceIdCode,
-    pub(crate) obj_id: u8,
+    pub(crate) obj_id: Option<u8>,
+}
+
+impl ReadDeviceInfoBlock {
+    ///Create a new Read Device Info Request
+    pub fn new(mei_type: MeiCode, dev_id: ReadDeviceIdCode, obj_id: Option<u8>) -> Self {
+        Self {
+            mei_code: mei_type,
+            dev_id,
+            obj_id,
+        }
+    }
 }
 
 impl std::fmt::Display for ReadDeviceInfoBlock {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}, {}, {}",self.mei_type,self.dev_id,self.obj_id)
+        write!(f, "{}, {}, {:?}",self.mei_code,self.dev_id, if let Some(value) = self.obj_id { value } else { 0x00 })
     }
 }
 
+#[derive(Debug)]
 #[allow(missing_docs)]
 pub struct DeviceIdentification {
+    pub mei_code: MeiCode,
+    pub device_id: ReadDeviceIdCode,
+    pub conformity_level: ReadDeviceConformityLevel,
     pub continue_at: Option<u8>,
     pub storage: Vec<String>,
 }
@@ -128,36 +183,17 @@ pub struct DeviceIdentification {
 
 impl DeviceIdentification {
     ///Creates a new Device Identification Reply
-    pub fn new(follow_up: Option<u8>, data: Vec<String>) -> Self {
+    pub fn new<'a>(mei_code: u8, device_id: u8, conformity_level: u8) -> Self {
         Self {
-            continue_at: follow_up,
-            storage: data
-        }
-    }
-    
-    /*pub(crate) fn new(more_device_info_follows: Option<u8>) -> Self {
-        Self {
-            more_device_info_follows,
+            mei_code: mei_code.into(),
+            device_id: device_id.into(),
+            conformity_level: conformity_level.into(),
+            continue_at: None,
             storage: vec![],
         }
-    }*/
-
-
-    /*pub(crate) fn insert_info(&mut self, raw_string: &[u8]) {
-        let string = String::from_utf8(raw_string.to_vec()).unwrap();
-        self.storage.push(string);
-    }*/
-
-    //TODO(Kay): Make sure it compiles without allowing dead code !
-    #[allow(dead_code)]
-    pub(crate) fn has_more_data(&self) -> Option<u8> {
-        self.continue_at
     }
 
-    #[allow(missing_docs)]
-    pub fn device_strings(&self) -> &[String] {
-        &self.storage
-    }
+
 }
 
 impl std::fmt::Display for DeviceIdentification {

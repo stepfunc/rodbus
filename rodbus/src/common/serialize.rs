@@ -295,9 +295,14 @@ impl Serialize for WriteMultiple<u16> {
 
 impl Serialize for ReadDeviceInfoBlock {
     fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
-        cursor.write_u8(self.mei_type.into())?;
+        cursor.write_u8(self.mei_code.into())?;
         cursor.write_u8(self.dev_id.into())?;
-        cursor.write_u8(self.obj_id)?;
+
+        if let Some(value) = self.obj_id {
+            cursor.write_u8(value)?;
+        } else {
+            cursor.write_u8(0x00)?;
+        }
 
         Ok(())
     }
@@ -305,16 +310,58 @@ impl Serialize for ReadDeviceInfoBlock {
 
 impl Serialize for DeviceIdentification {
     fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
-        //TODO(Kay): the ime value is hardcoded for now !
-        cursor.write_u8(0x0E)?;
-        //TODO(Kay): the device id is hardcoded as well for testing purposes !
-        cursor.write_u8(0x01)?;
-        //TODO(Kay): the conformity level is hardcoded as well !
-        cursor.write_u8(0x01)?;
-        self.has_more_data().serialize(cursor)?;
-        
-        cursor.write_u8(self.storage.len() as u8)?;
-        self.device_strings().serialize(cursor)?;
+        //TODO(Kay): Space inside a message is limited so we need to figure out how much
+        //string we can write into our current message !
+        cursor.write_u8(self.mei_code.into())?;
+        cursor.write_u8(self.device_id.into())?;
+        cursor.write_u8(self.conformity_level.into())?;
+
+        //let message_length: usize = self.storage.iter().map(|s| s.len()).sum();
+
+        let mut max_length: usize = 250 - 7;
+        let min_idx = if let Some(value) = self.continue_at { value as usize } else { 0x00 };
+        let mut max_idx = self.storage.len();
+
+        for (idx, message) in self.storage.iter().enumerate() {
+            println!("Processing entity id {}", idx);
+            if max_length < message.len() {
+                cursor.write_u8(0xFF)?;
+                cursor.write_u8(idx as u8)?;
+                break;
+            }
+            println!("Max length is now: {}", max_length);
+            max_length = max_length.saturating_sub(message.len() + 2);
+            max_idx = idx;
+        }
+
+        //TODO(Kay): Can we check 
+        if max_idx == self.storage.len() - 1 {
+            println!("Everything fitted inside the current message so we write nothing");
+            cursor.write_u8(0x00)?;
+            cursor.write_u8(0x00)?;
+        }
+
+        let records_written = max_idx.saturating_sub(min_idx);
+        println!("Write {} records onto the response stream", records_written);
+        cursor.write_u8(records_written as u8)?;
+
+        for (idx, message) in self.storage[min_idx..=max_idx].iter().enumerate() {
+            println!("writing out {} with content {}", idx, message);
+            cursor.write_u8(idx as u8)?;
+            message.serialize(cursor)?;
+        }
+
+        /*if message_length > 249 {
+            println!("We did land in the wrong branch ?!");
+            //TODO: We need to split the message into multiple parts !
+        } else {
+            println!("writing out all the needed data");
+            cursor.write_u8(0x00)?;
+            cursor.write_u8(0x00)?;
+            cursor.write_u8(self.storage.len() as u8)?;
+            
+            self.storage.as_slice().serialize(cursor)?;
+        }*/
 
         Ok(())
     }
@@ -349,13 +396,24 @@ impl Loggable for DeviceIdentification {
         write!(f, "{:?}, {:?}", self.continue_at, self.storage)
     }
 }
+impl Serialize for &String {
+    fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
+        cursor.write_u8(self.len() as u8)?;
 
+        for byte in self.as_bytes() {
+            cursor.write_u8(*byte)?;
+        }
+
+        Ok(())
+    }
+}
 impl Serialize for &[String] {
     fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
         for (index, str) in self.iter().enumerate() {
 
             cursor.write_u8(index as u8)?;
             cursor.write_u8(str.len() as u8)?;
+            println!("Write a string with length {} into the output stream", str.len());
             
             for byte in str.as_bytes() {
                 cursor.write_u8(*byte)?;

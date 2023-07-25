@@ -35,9 +35,9 @@ impl Parse for ReadDeviceInfoBlock {
         let obj_id = cursor.read_u8()?;
 
         Ok(Self {
-            mei_type,
+            mei_code: mei_type,
             dev_id,
-            obj_id,
+            obj_id: if obj_id > 0 { Some(obj_id) } else  { None },
         })
     }
 }
