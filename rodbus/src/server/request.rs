@@ -129,9 +129,9 @@ impl<'a> Request<'a> {
             }
             Request::ReadDeviceIdentification(read) => {
                 //TODO: The server needs to answer the request depending on the values of dev_id, obj_id
-                let device_information = handler.read_device_info(read.mei_code.into(), read.dev_id.into(), read.obj_id);
+                let device_information = handler.read_device_info(read.mei_code.into(), read.dev_id.into(), read.obj_id)?;
 
-                writer.format_reply(header, function, &device_information.unwrap(), level)
+                writer.format_reply(header, function, &device_information, level)
             }
             Request::WriteSingleCoil(request) => {
                 let result = handler.write_single_coil(*request).map(|_| *request);
