@@ -113,27 +113,42 @@ impl ReadDeviceIdentification {
 
 
         //TODO(Kay): Currently this read can be off by one element we should make sure that it doesn't miss a value !
-        let num_objs = cursor.read_u8()?;
-        println!("got {} objects", num_objs);
+        let msglength = cursor.read_u8()?;
+        println!("got {} objects", msglength);
         
         let mut result = DeviceIdentification::new(mei_code, device_id, conformity_level);
         if more_follows == 0xFF {
             result.continue_at = Some(continue_at);
         }
 
+        ReadDeviceIdentification::parse_device_info_objects(msglength, &mut result.storage, cursor)?;
         
-        for _ in 0..=num_objs {
+        Ok(result)
+    }
+
+    fn parse_device_info_objects<'a>(length: u8, container: &'a mut Vec<String>, cursor: &'a mut ReadCursor) -> Result<(), RequestError> {
+        for _ in 0..=length {
             //TODO(Kay): Do we need to store the obj_id ? 
             let _obj_id = cursor.read_u8()?;
             let str_size = cursor.read_u8()?;
             println!("Reading a string with size {} from the input stream", str_size as usize);
-            let data = cursor.read_bytes(str_size as usize)?;
+            
+            let data = cursor.read_bytes(str_size as usize)?.to_vec();
             println!("Raw data read: {:X?}", data);
 
-            let str = String::from_utf8(data.try_into().unwrap()).unwrap();
-            result.storage.push(str);
+            let str = String::from_utf8(data);
+
+            match str {
+                Ok(str) => {
+                    container.push(str)
+                }
+                Err(e) => {
+                    //TODO(Kay): Figure out what todo if the device information does not contain valid utf-8 or ascii data ?
+                    return Err(RequestError::Io(std::io::ErrorKind::InvalidData))
+                },
+            }
         }
-        
-        Ok(result)
-    }
+
+        Ok(())
+    } 
 }
