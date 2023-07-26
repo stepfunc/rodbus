@@ -29,7 +29,7 @@ pub(crate) struct ReadBitsRange {
     pub(crate) inner: AddressRange,
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 #[allow(missing_docs)]
 pub enum MeiCode {
     ReadDeviceId = 14,
@@ -64,7 +64,7 @@ impl std::fmt::Display for MeiCode {
     }
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 #[allow(missing_docs)]
 pub enum ReadDeviceIdCode {
     BasicStreaming = 1,
@@ -96,7 +96,7 @@ impl Into<ReadDeviceIdCode> for u8 {
     }
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 #[allow(missing_docs)]
 pub enum ReadDeviceConformityLevel {
     BasicIdentificationStream = 0x01,
@@ -170,7 +170,7 @@ impl std::fmt::Display for ReadDeviceInfoBlock {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 #[allow(missing_docs)]
 pub struct DeviceIdentification {
     pub mei_code: MeiCode,
@@ -192,8 +192,6 @@ impl DeviceIdentification {
             storage: vec![],
         }
     }
-
-
 }
 
 impl std::fmt::Display for DeviceIdentification {
