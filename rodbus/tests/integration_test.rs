@@ -1,3 +1,4 @@
+use std::io::Read;
 use std::net::SocketAddr;
 use std::str::FromStr;
 use std::time::Duration;
@@ -13,16 +14,66 @@ struct Handler {
     pub discrete_inputs: [bool; 10],
     pub holding_registers: [u16; 10],
     pub input_registers: [u16; 10],
+
+    pub device_info: [Option<&'static str>; 256],
 }
+
+const VENDOR_NAME: &str = "duffs";
+const PRODUCT_CODE: &str = "com.device";
+const PRODUCT_VERSION: &str = "1.3.0";
+const VENDOR_URL: &str = "https://example.com";
+const PRODUCT_NAME: &str = "duffs device";
+const MODEL_NAME: &str = "duffs device";
+const USER_APPLICATION_NAME: &str = "loop unroller";
+const EXTENDED_EXAMPLE_DOC_LINE_A: &str = "some additional information about the device which should be longer than 243(?) bytes !";
+const EXTENDED_EXAMPLE_DOC_LINE_B: &str = "i don't know what to put here but i need to overflow the maximum message size to check the workings of the more follows field...";
+const EXTENDED_EXAMPLE_DOC_LINE_C: &str = "....................................................................................................";
 
 impl Handler {
     fn new() -> Self {
-        Self {
+        let mut device = Self {
             coils: [false; 10],
             discrete_inputs: [false; 10],
             holding_registers: [0; 10],
             input_registers: [0; 10],
-        }
+
+
+            device_info: [None; 256],
+        };
+
+        //Setting some values to read
+        device.device_info[0] = Some(VENDOR_NAME);
+        device.device_info[1] = Some(PRODUCT_CODE);
+        device.device_info[2] = Some(PRODUCT_VERSION);
+        device.device_info[3] = Some(VENDOR_URL);
+        device.device_info[4] = Some(PRODUCT_NAME);
+        device.device_info[5] = Some(MODEL_NAME);
+        device.device_info[6] = Some(USER_APPLICATION_NAME);
+        device.device_info[128] = Some(EXTENDED_EXAMPLE_DOC_LINE_A);
+        device.device_info[129] = Some(EXTENDED_EXAMPLE_DOC_LINE_B);
+        device.device_info[130] = Some(EXTENDED_EXAMPLE_DOC_LINE_C);
+
+        device
+    }
+
+    fn read_basic_device_info(&self, index: u8) -> &[Option<&'static str>] {
+        assert!(index <= 0x03);
+        &self.device_info[(index as usize)..0x03]
+    }
+
+    fn read_regular_device_info(&self, index: u8) -> &[Option<&'static str>] {
+        let index = index | 0x03;
+        assert!(index >= 0x03 && index <= 0x7F);
+        &self.device_info[(index as usize)..0x7F]
+    }
+
+    fn read_extended_device_info(&self, index: u8) -> &[Option<&'static str>] {
+        assert!(index >= 0x80);
+        &self.device_info[(index as usize)..0xFF]
+    }
+
+    fn read_specific_device_info(&self, object_id: u8) -> &[Option<&'static str>] {
+        &self.device_info[(object_id as usize)..(object_id as usize + 1)]
     }
 }
 
@@ -93,6 +144,26 @@ impl RequestHandler for Handler {
             }
         }
         Ok(())
+    }
+
+    fn read_device_info(&self, mei_code: u8, read_dev_id: u8, object_id: Option<u8>) -> Result<DeviceIdentification, ExceptionCode> {
+        let data = match (read_dev_id.into(), object_id) {
+            (ReadDeviceIdCode::BasicStreaming, None) => self.read_basic_device_info(0),
+            (ReadDeviceIdCode::BasicStreaming, Some(value)) => self.read_basic_device_info(value.saturating_add(0x80)),
+            (ReadDeviceIdCode::RegularStreaming, None) => self.read_regular_device_info(0x03),
+            (ReadDeviceIdCode::RegularStreaming, Some(value)) => self.read_regular_device_info(value.saturating_add(0x80)),
+            (ReadDeviceIdCode::ExtendedStreaming, None) => self.read_extended_device_info(0x80),
+            (ReadDeviceIdCode::ExtendedStreaming, Some(value)) => self.read_extended_device_info(value.saturating_add(0x80)),
+            (ReadDeviceIdCode::Specific, Some(value)) => self.read_specific_device_info(value),
+            (ReadDeviceIdCode::Specific, None) => return Err(ExceptionCode::IllegalDataValue),
+        };
+        
+
+        let mut device_info_response = DeviceIdentification::new(mei_code, read_dev_id, 0x83);
+        device_info_response.storage = data.iter().filter(|v| v.is_some()).map(|s| s.unwrap().to_string()).collect();
+        
+        Ok(device_info_response)
+        
     }
 }
 
@@ -222,6 +293,59 @@ async fn test_requests_and_responses() {
             Indexed::new(2, 0x0506)
         ]
     );
+
+    //TEST Basic Device Reading Information
+    assert_eq!(
+        channel.read_device_identification(params, 
+            ReadDeviceInfoBlock::new(MeiCode::ReadDeviceId, ReadDeviceIdCode::BasicStreaming, None)).await.unwrap(),
+            DeviceIdentification { 
+                mei_code: MeiCode::ReadDeviceId, 
+                device_id: ReadDeviceIdCode::BasicStreaming, 
+                conformity_level: ReadDeviceConformityLevel::ExtendedIdentificationIndividual, 
+                continue_at: None, 
+                storage: vec![VENDOR_NAME.to_string(), PRODUCT_CODE.to_string(), PRODUCT_VERSION.to_string()],
+            }
+    );
+
+    //TEST Extended Device Reading Information should overflow the maximum message length and return the next obj_id to read at.
+    assert_eq!(
+        channel.read_device_identification(params, 
+            ReadDeviceInfoBlock::new(MeiCode::ReadDeviceId, ReadDeviceIdCode::ExtendedStreaming, None)).await.unwrap(),
+            DeviceIdentification { 
+                mei_code: MeiCode::ReadDeviceId, 
+                device_id: ReadDeviceIdCode::ExtendedStreaming, 
+                conformity_level: ReadDeviceConformityLevel::ExtendedIdentificationIndividual, 
+                continue_at: Some(2),
+                storage: vec![EXTENDED_EXAMPLE_DOC_LINE_A.to_string(), EXTENDED_EXAMPLE_DOC_LINE_B.to_string()],
+            }
+    );
+
+    //TEST Continuation of the reading above should return 15 for continue_at and show the last line of the documentation.
+    assert_eq!(
+        channel.read_device_identification(params, 
+            ReadDeviceInfoBlock::new(MeiCode::ReadDeviceId, ReadDeviceIdCode::ExtendedStreaming, Some(2))).await.unwrap(),
+            DeviceIdentification { 
+                mei_code: MeiCode::ReadDeviceId, 
+                device_id: ReadDeviceIdCode::ExtendedStreaming, 
+                conformity_level: ReadDeviceConformityLevel::ExtendedIdentificationIndividual, 
+                continue_at: None,
+                storage: vec![EXTENDED_EXAMPLE_DOC_LINE_C.to_string()],
+            }
+    );
+
+    //TEST Individual Read only reads the element that is specified by the request.
+    assert_eq!(
+        channel.read_device_identification(params, 
+            ReadDeviceInfoBlock::new(MeiCode::ReadDeviceId, ReadDeviceIdCode::Specific, Some(0))).await.unwrap(),
+            DeviceIdentification { 
+                mei_code: MeiCode::ReadDeviceId, 
+                device_id: ReadDeviceIdCode::Specific, 
+                conformity_level: ReadDeviceConformityLevel::ExtendedIdentificationIndividual, 
+                continue_at: None,
+                storage: vec![VENDOR_NAME.to_string()],
+            }
+    );
+
 }
 
 #[test]
