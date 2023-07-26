@@ -308,16 +308,15 @@ impl Serialize for ReadDeviceInfoBlock {
     }
 }
 
+
 impl Serialize for DeviceIdentification {
     fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
-        //TODO(Kay): Space inside a message is limited so we need to figure out how much
-        //string we can write into our current message !
+
         cursor.write_u8(self.mei_code.into())?;
         cursor.write_u8(self.device_id.into())?;
         cursor.write_u8(self.conformity_level.into())?;
 
-        //let message_length: usize = self.storage.iter().map(|s| s.len()).sum();
-
+        //NOTE: Can we somehow query rodbus for how much space we have left in our buffer to write our custom message ? 
         let mut max_length: usize = 250 - 7;
         let min_idx = if let Some(value) = self.continue_at { value as usize } else { 0x00 };
         let mut max_idx = self.storage.len();
@@ -334,34 +333,22 @@ impl Serialize for DeviceIdentification {
             max_idx = idx;
         }
 
-        //TODO(Kay): Can we check 
-        if max_idx == self.storage.len() - 1 {
+        if max_idx == self.storage.len().saturating_sub(1) {
             println!("Everything fitted inside the current message so we write nothing");
             cursor.write_u8(0x00)?;
             cursor.write_u8(0x00)?;
         }
 
-        let records_written = max_idx.saturating_sub(min_idx);
-        println!("Write {} records onto the response stream", records_written);
-        cursor.write_u8(records_written as u8)?;
+        let records_count = max_idx.saturating_sub(min_idx);
+        println!("Write {} records onto the response stream", records_count);
+        cursor.write_u8(records_count as u8)?;
+
 
         for (idx, message) in self.storage[min_idx..=max_idx].iter().enumerate() {
             println!("writing out {} with content {}", idx, message);
             cursor.write_u8(idx as u8)?;
             message.serialize(cursor)?;
         }
-
-        /*if message_length > 249 {
-            println!("We did land in the wrong branch ?!");
-            //TODO: We need to split the message into multiple parts !
-        } else {
-            println!("writing out all the needed data");
-            cursor.write_u8(0x00)?;
-            cursor.write_u8(0x00)?;
-            cursor.write_u8(self.storage.len() as u8)?;
-            
-            self.storage.as_slice().serialize(cursor)?;
-        }*/
 
         Ok(())
     }
@@ -393,7 +380,7 @@ impl Loggable for DeviceIdentification {
         _level: crate::AppDecodeLevel,
         f: &mut std::fmt::Formatter,
     ) -> std::fmt::Result {
-        write!(f, "{:?}, {:?}", self.continue_at, self.storage)
+        write!(f, "READ DEVICE IDENTIFICATION RESPONSE: {:?} {:?} {:?} {:?}, {:?}", self.mei_code, self.device_id, self.conformity_level, self.continue_at, self.storage)
     }
 }
 impl Serialize for &String {
@@ -402,22 +389,6 @@ impl Serialize for &String {
 
         for byte in self.as_bytes() {
             cursor.write_u8(*byte)?;
-        }
-
-        Ok(())
-    }
-}
-impl Serialize for &[String] {
-    fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
-        for (index, str) in self.iter().enumerate() {
-
-            cursor.write_u8(index as u8)?;
-            cursor.write_u8(str.len() as u8)?;
-            println!("Write a string with length {} into the output stream", str.len());
-            
-            for byte in str.as_bytes() {
-                cursor.write_u8(*byte)?;
-            }
         }
 
         Ok(())
