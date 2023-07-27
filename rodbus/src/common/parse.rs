@@ -1,5 +1,5 @@
 use crate::common::traits::Parse;
-use crate::{error::*, ReadDeviceInfoBlock};
+use crate::{error::*, ReadDeviceRequest, ReadDeviceIdCode};
 use crate::types::{coil_from_u16, AddressRange, Indexed};
 
 use scursor::ReadCursor;
@@ -28,16 +28,16 @@ impl Parse for Indexed<u16> {
     }
 }
 
-impl Parse for ReadDeviceInfoBlock {
+impl Parse for ReadDeviceRequest {
     fn parse(cursor: &mut ReadCursor) -> Result<Self, RequestError> {
         let mei_type = cursor.read_u8()?.into();
-        let dev_id = cursor.read_u8()?.into();
+        let dev_id: ReadDeviceIdCode = cursor.read_u8()?.into();
         let obj_id = cursor.read_u8()?;
 
         Ok(Self {
             mei_code: mei_type,
             dev_id,
-            obj_id: if obj_id > 0 { Some(obj_id) } else  { None },
+            obj_id: Some(obj_id),
         })
     }
 }
