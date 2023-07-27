@@ -193,6 +193,23 @@ impl DeviceInfo {
             storage: vec![],
         }
     }
+
+ 
+    pub(crate) fn response_message_count(&self, max_msg_size: u8) -> Option<u8> {
+        const ADDITIONAL_INFO_PER_MESSAGE: u8 = 0x02; //Two bytes get consumed by the object id and the length of the object itself.
+        
+        let mut max_length = max_msg_size;
+        
+        for (idx, object) in self.storage.iter().enumerate() {
+            if max_length < ((object.len() as u8) + ADDITIONAL_INFO_PER_MESSAGE) {
+                return Some(idx as u8);
+            }
+
+            max_length = max_length.saturating_sub((object.len() as u8) + ADDITIONAL_INFO_PER_MESSAGE);
+        }
+        
+        None
+    }
 }
 
 impl std::fmt::Display for DeviceInfo {
