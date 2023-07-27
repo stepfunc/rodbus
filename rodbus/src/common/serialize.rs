@@ -3,6 +3,7 @@ use std::convert::TryFrom;
 use crate::DeviceInfo;
 use crate::ReadDeviceRequest;
 use crate::client::WriteMultiple;
+use crate::common::frame::constants::MAX_ADU_LENGTH;
 use crate::common::traits::Loggable;
 use crate::common::traits::Parse;
 use crate::common::traits::Serialize;
@@ -318,31 +319,17 @@ where T: Fn(u8, u8) -> Result<DeviceInfo, crate::exception::ExceptionCode>, {
 
         cursor.write_u8(response.conformity_level.into())?;
         
+        //NOTE(Kay): Seems like we cannot use the whole buffer for our messages, so we keep a bit of a safety margin
+        let max = response.response_message_count(MAX_ADU_LENGTH as u8 - 7);
+        max.serialize(cursor)?;
+        
+        let start = response.continue_at.unwrap_or_default();
+        let end = max.unwrap_or(response.storage.len() as u8);
 
-        let mut max_length: usize = 250 - 7;
-        let min_idx = if let Some(value) = response.continue_at { value as usize } else { 0x00 };
-        let mut max_idx = response.storage.len();
+        let records_count = end.saturating_sub(start);
+        cursor.write_u8(records_count)?;
 
-        for (idx, message) in response.storage.iter().enumerate() {
-            if max_length < message.len() {
-                cursor.write_u8(0xFF)?;
-                cursor.write_u8(idx as u8)?;
-                break;
-            }
-
-            max_length = max_length.saturating_sub(message.len() + 2);
-            max_idx = idx;
-        }
-
-        if max_idx == response.storage.len().saturating_sub(1) {
-            cursor.write_u8(0x00)?;
-            cursor.write_u8(0x00)?;
-        }
-
-        let records_count = max_idx.saturating_sub(min_idx);
-        cursor.write_u8(records_count as u8)?;
-
-        for (idx, message) in response.storage[min_idx..=max_idx].iter().enumerate() {
+        for (idx, message) in response.storage[start.into()..end.into()].iter().enumerate() {
             cursor.write_u8(idx as u8)?;
             message.serialize(cursor)?;
         }
@@ -355,29 +342,29 @@ impl<T> Loggable for DeviceIdentificationResponse<T>
 where T: Fn(u8, u8) -> Result<DeviceInfo, crate::exception::ExceptionCode>, {
     fn log(
         &self,
-        bytes: &[u8],
-        level: crate::AppDecodeLevel,
+        _bytes: &[u8],
+        _level: crate::AppDecodeLevel,
         f: &mut std::fmt::Formatter,
     ) -> std::fmt::Result {
         write!(f, "DEVICE IDENTIFICATION RESPONSE {} {}", self.mei_code, self.read_device_id)
     }
 }
 
-const LINE_INCOMPLETE: u8 = 0xFF;
-const LINE_COMPLETE: u8 = 0x00;
+
 impl Serialize for Option<u8> {
     fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
+        const CONTINUE_MARKER: u8 = 0xFF;
+        const END_MARKER: u8 = 0x00;
         match self {
             Some(value) => {
-                cursor.write_u8(LINE_INCOMPLETE)?;
+                cursor.write_u8(CONTINUE_MARKER)?;
                 cursor.write_u8(*value)?;
             }
             None => {
-                cursor.write_u8(LINE_COMPLETE)?;
+                cursor.write_u8(END_MARKER)?;
                 cursor.write_u8(0x00)?;
             }
         }
-
         Ok(())
     }
 }
