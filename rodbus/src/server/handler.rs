@@ -39,7 +39,7 @@ pub trait RequestHandler: Send + 'static {
     }
 
     /// Read Basic Information from the Device
-    fn read_device_info(&self, _mei_code: u8, _read_dev_id: u8, _object_id: Option<u8>) -> Result<DeviceIdentification, ExceptionCode> {
+    fn read_device_info(&self, _mei_code: u8, _read_dev_id: u8, _object_id: Option<u8>) -> Result<DeviceInfo, ExceptionCode> {
         Err(ExceptionCode::IllegalFunction)
     }
 
