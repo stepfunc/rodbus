@@ -1,4 +1,3 @@
-use std::thread::available_parallelism;
 use std::time::Duration;
 
 use crate::client::message::{Command, Promise, Request, RequestDetails, Setting};
@@ -6,11 +5,11 @@ use crate::client::requests::read_bits::ReadBits;
 use crate::client::requests::read_registers::ReadRegisters;
 use crate::client::requests::write_multiple::{MultipleWriteRequest, WriteMultiple};
 use crate::client::requests::write_single::SingleWrite;
-use crate::{error::*, ReadDeviceInfoBlock, DeviceIdentification};
+use crate::{error::*, ReadDeviceRequest, DeviceInfo};
 use crate::types::{AddressRange, BitIterator, Indexed, RegisterIterator, UnitId};
 use crate::DecodeLevel;
 
-use super::requests::read_device_identification::ReadDeviceIdentification;
+use super::requests::read_device_identification::ReadDevice;
 
 /// Async channel used to make requests
 #[derive(Debug, Clone)]
@@ -170,12 +169,12 @@ impl Channel {
     pub async fn read_device_identification(
         &mut self,
         param: RequestParam,
-        device_params: ReadDeviceInfoBlock,
-    ) -> Result<DeviceIdentification, RequestError> {
-        let (tx, rx) = tokio::sync::oneshot::channel::<Result<DeviceIdentification, RequestError>>();
+        device_params: ReadDeviceRequest,
+    ) -> Result<DeviceInfo, RequestError> {
+        let (tx, rx) = tokio::sync::oneshot::channel::<Result<DeviceInfo, RequestError>>();
         let request = wrap(
             param,
-            RequestDetails::ReadDeviceIdentification(ReadDeviceIdentification::channel(
+            RequestDetails::ReadDeviceIdentification(ReadDevice::channel(
                 device_params,
                 tx
             ))
