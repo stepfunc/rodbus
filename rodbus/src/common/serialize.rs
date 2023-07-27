@@ -1,13 +1,13 @@
 use std::convert::TryFrom;
 
-use crate::DeviceIdentification;
-use crate::MeiCode;
-use crate::ReadDeviceInfoBlock;
+use crate::DeviceInfo;
+use crate::ReadDeviceRequest;
 use crate::client::WriteMultiple;
 use crate::common::traits::Loggable;
 use crate::common::traits::Parse;
 use crate::common::traits::Serialize;
 use crate::error::{InternalError, RequestError};
+use crate::server::response::DeviceIdentificationResponse;
 use crate::server::response::{BitWriter, RegisterWriter};
 use crate::types::{
     coil_from_u16, coil_to_u16, AddressRange, BitIterator, BitIteratorDisplay, Indexed,
@@ -293,7 +293,7 @@ impl Serialize for WriteMultiple<u16> {
     }
 }
 
-impl Serialize for ReadDeviceInfoBlock {
+impl Serialize for ReadDeviceRequest {
     fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
         cursor.write_u8(self.mei_code.into())?;
         cursor.write_u8(self.dev_id.into())?;
@@ -308,49 +308,58 @@ impl Serialize for ReadDeviceInfoBlock {
     }
 }
 
-
-impl Serialize for DeviceIdentification {
+impl<T> Serialize for DeviceIdentificationResponse<T> 
+where T: Fn(u8, u8) -> Result<DeviceInfo, crate::exception::ExceptionCode>, {
     fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
-
         cursor.write_u8(self.mei_code.into())?;
-        cursor.write_u8(self.device_id.into())?;
-        cursor.write_u8(self.conformity_level.into())?;
+        cursor.write_u8(self.read_device_id.into())?;
+        
+        let response = (self.getter)(self.mei_code.into(), self.read_device_id.into())?;
 
-        //NOTE: Can we somehow query rodbus for how much space we have left in our buffer to write our custom message ? 
+        cursor.write_u8(response.conformity_level.into())?;
+        
+
         let mut max_length: usize = 250 - 7;
-        let min_idx = if let Some(value) = self.continue_at { value as usize } else { 0x00 };
-        let mut max_idx = self.storage.len();
+        let min_idx = if let Some(value) = response.continue_at { value as usize } else { 0x00 };
+        let mut max_idx = response.storage.len();
 
-        for (idx, message) in self.storage.iter().enumerate() {
-            println!("Processing entity id {}", idx);
+        for (idx, message) in response.storage.iter().enumerate() {
             if max_length < message.len() {
                 cursor.write_u8(0xFF)?;
                 cursor.write_u8(idx as u8)?;
                 break;
             }
-            println!("Max length is now: {}", max_length);
+
             max_length = max_length.saturating_sub(message.len() + 2);
             max_idx = idx;
         }
 
-        if max_idx == self.storage.len().saturating_sub(1) {
-            println!("Everything fitted inside the current message so we write nothing");
+        if max_idx == response.storage.len().saturating_sub(1) {
             cursor.write_u8(0x00)?;
             cursor.write_u8(0x00)?;
         }
 
         let records_count = max_idx.saturating_sub(min_idx);
-        println!("Write {} records onto the response stream", records_count);
         cursor.write_u8(records_count as u8)?;
 
-
-        for (idx, message) in self.storage[min_idx..=max_idx].iter().enumerate() {
-            println!("writing out {} with content {}", idx, message);
+        for (idx, message) in response.storage[min_idx..=max_idx].iter().enumerate() {
             cursor.write_u8(idx as u8)?;
             message.serialize(cursor)?;
         }
 
         Ok(())
+    }
+}
+
+impl<T> Loggable for DeviceIdentificationResponse<T> 
+where T: Fn(u8, u8) -> Result<DeviceInfo, crate::exception::ExceptionCode>, {
+    fn log(
+        &self,
+        bytes: &[u8],
+        level: crate::AppDecodeLevel,
+        f: &mut std::fmt::Formatter,
+    ) -> std::fmt::Result {
+        write!(f, "DEVICE IDENTIFICATION RESPONSE {} {}", self.mei_code, self.read_device_id)
     }
 }
 
@@ -373,14 +382,14 @@ impl Serialize for Option<u8> {
     }
 }
 
-impl Loggable for DeviceIdentification {
+impl Loggable for DeviceInfo {
     fn log(
         &self,
         _bytes: &[u8],
         _level: crate::AppDecodeLevel,
         f: &mut std::fmt::Formatter,
     ) -> std::fmt::Result {
-        write!(f, "READ DEVICE IDENTIFICATION RESPONSE: {:?} {:?} {:?} {:?}, {:?}", self.mei_code, self.device_id, self.conformity_level, self.continue_at, self.storage)
+        write!(f, "READ DEVICE IDENTIFICATION RESPONSE: {:?} {:?} {:?} {:?}, {:?}", self.mei_code, self.read_device_id, self.conformity_level, self.continue_at, self.storage)
     }
 }
 impl Serialize for &String {
