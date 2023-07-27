@@ -1,4 +1,3 @@
-use crate::client::requests::read_device_identification::ReadDeviceIdentification;
 use crate::common::frame::{FrameHeader, FrameWriter, FunctionField};
 use crate::common::function::FunctionCode;
 use crate::common::traits::{Loggable, Parse, Serialize};
@@ -6,7 +5,7 @@ use crate::decode::AppDecodeLevel;
 use crate::error::RequestError;
 use crate::exception::ExceptionCode;
 use crate::server::handler::RequestHandler;
-use crate::server::response::{BitWriter, RegisterWriter};
+use crate::server::response::{BitWriter, RegisterWriter, DeviceIdentificationResponse};
 use crate::server::*;
 use crate::types::*;
 
@@ -18,7 +17,7 @@ pub(crate) enum Request<'a> {
     ReadDiscreteInputs(ReadBitsRange),
     ReadHoldingRegisters(ReadRegistersRange),
     ReadInputRegisters(ReadRegistersRange),
-    ReadDeviceIdentification(ReadDeviceInfoBlock),
+    ReadDeviceIdentification(ReadDeviceRequest),
     WriteSingleCoil(Indexed<bool>),
     WriteSingleRegister(Indexed<u16>),
     WriteMultipleCoils(WriteCoils<'a>),
@@ -129,7 +128,8 @@ impl<'a> Request<'a> {
             }
             Request::ReadDeviceIdentification(read) => {
                 //TODO: The server needs to answer the request depending on the values of dev_id, obj_id
-                let device_information = handler.read_device_info(read.mei_code.into(), read.dev_id.into(), read.obj_id)?;
+                let device_information = 
+                    DeviceIdentificationResponse::new(read.mei_code.into(), read.dev_id.into(), | m, d| handler.read_device_info(m, d, read.obj_id));
 
                 writer.format_reply(header, function, &device_information, level)
             }
@@ -183,7 +183,7 @@ impl<'a> Request<'a> {
                 Ok(x)
             }
             FunctionCode::ReadDeviceIdentification => {
-                let x = Request::ReadDeviceIdentification(ReadDeviceInfoBlock::parse(cursor)?);
+                let x = Request::ReadDeviceIdentification(ReadDeviceRequest::parse(cursor)?);
                 cursor.expect_empty()?;
                 Ok(x)
             }
