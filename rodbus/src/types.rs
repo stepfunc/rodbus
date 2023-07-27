@@ -147,13 +147,13 @@ impl std::fmt::Display for ReadDeviceIdCode {
 
 #[allow(missing_docs)]
 #[derive(Debug, Copy, Clone)]
-pub struct ReadDeviceInfoBlock {
+pub struct ReadDeviceRequest {
     pub(crate) mei_code: MeiCode,
     pub(crate) dev_id: ReadDeviceIdCode,
     pub(crate) obj_id: Option<u8>,
 }
 
-impl ReadDeviceInfoBlock {
+impl ReadDeviceRequest {
     ///Create a new Read Device Info Request
     pub fn new(mei_type: MeiCode, dev_id: ReadDeviceIdCode, obj_id: Option<u8>) -> Self {
         Self {
@@ -164,29 +164,30 @@ impl ReadDeviceInfoBlock {
     }
 }
 
-impl std::fmt::Display for ReadDeviceInfoBlock {
+impl std::fmt::Display for ReadDeviceRequest {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}, {}, {:?}",self.mei_code,self.dev_id, if let Some(value) = self.obj_id { value } else { 0x00 })
     }
 }
 
+
 #[derive(Debug, PartialEq)]
 #[allow(missing_docs)]
-pub struct DeviceIdentification {
+pub struct DeviceInfo {
     pub mei_code: MeiCode,
-    pub device_id: ReadDeviceIdCode,
+    pub read_device_id: ReadDeviceIdCode,
     pub conformity_level: ReadDeviceConformityLevel,
     pub continue_at: Option<u8>,
     pub storage: Vec<String>,
 }
 
 
-impl DeviceIdentification {
+impl DeviceInfo {
     ///Creates a new Device Identification Reply
     pub fn new<'a>(mei_code: u8, device_id: u8, conformity_level: u8) -> Self {
         Self {
             mei_code: mei_code.into(),
-            device_id: device_id.into(),
+            read_device_id: device_id.into(),
             conformity_level: conformity_level.into(),
             continue_at: None,
             storage: vec![],
@@ -194,9 +195,11 @@ impl DeviceIdentification {
     }
 }
 
-impl std::fmt::Display for DeviceIdentification {
+impl std::fmt::Display for DeviceInfo {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        todo!()
+        let next_value = if let Some(value) = self.continue_at { value } else { 0x00 }; 
+        write!(f, "DEVICE INFO  ({:?}) ({:?}) ({:?}) (More Follows: {} Position: {}) storage: {:#?}", 
+            self.mei_code,  self.read_device_id, self.conformity_level, self.continue_at.is_some(), next_value, self.storage)
     }
 }
 
