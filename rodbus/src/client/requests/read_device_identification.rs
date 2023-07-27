@@ -108,8 +108,6 @@ impl ReadDevice {
         let more_follows = cursor.read_u8()?;
         let continue_at = cursor.read_u8()?;
 
-
-        //TODO(Kay): Currently this read can be off by one element we should make sure that it doesn't miss a value !
         let msglength = cursor.read_u8()?;
         
         let mut result = DeviceInfo::new(mei_code, device_id, conformity_level);
@@ -124,7 +122,7 @@ impl ReadDevice {
     }
 
     fn parse_device_info_objects<'a>(length: u8, container: &'a mut Vec<String>, cursor: &'a mut ReadCursor) -> Result<(), RequestError> {
-        for _ in 0..=length {
+        for _ in 0..length {
             //TODO(Kay): Do we need to store the obj_id ? 
             let _obj_id = cursor.read_u8()?;
             let str_size = cursor.read_u8()?;
