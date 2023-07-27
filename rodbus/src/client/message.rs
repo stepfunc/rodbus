@@ -7,7 +7,7 @@ use crate::exception::ExceptionCode;
 use crate::DecodeLevel;
 
 use crate::client::requests::read_bits::ReadBits;
-use crate::client::requests::read_device_identification::ReadDeviceIdentification;
+use crate::client::requests::read_device_identification::ReadDevice;
 use crate::client::requests::read_registers::ReadRegisters;
 use crate::client::requests::write_multiple::MultipleWriteRequest;
 use crate::client::requests::write_single::SingleWrite;
@@ -46,7 +46,7 @@ pub(crate) enum RequestDetails {
     WriteSingleRegister(SingleWrite<Indexed<u16>>),
     WriteMultipleCoils(MultipleWriteRequest<bool>),
     WriteMultipleRegisters(MultipleWriteRequest<u16>),
-    ReadDeviceIdentification(ReadDeviceIdentification),
+    ReadDeviceIdentification(ReadDevice),
 }
 
 impl Request {
