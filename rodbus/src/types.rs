@@ -30,9 +30,11 @@ pub(crate) struct ReadBitsRange {
 }
 
 #[derive(Debug, Copy, Clone, PartialEq)]
-#[allow(missing_docs)]
+///MODBUS Encapsulated Interface 
 pub enum MeiCode {
+    ///Request Device Identification
     ReadDeviceId = 14,
+    ///Can Open General Reference (Unused)
     CanOpenGeneralReference = 15,
 }
 
@@ -65,11 +67,15 @@ impl std::fmt::Display for MeiCode {
 }
 
 #[derive(Debug, Copy, Clone, PartialEq)]
-#[allow(missing_docs)]
+///Specifies what part of the device information to access.
 pub enum ReadDeviceIdCode {
+    ///Access the basic information about the device.
     BasicStreaming = 1,
+    ///Access regular information about the device.
     RegularStreaming = 2,
+    ///Access extended information about the device.
     ExtendedStreaming = 3,
+    ///Access a specific object inside the device information.
     Specific = 4,
 }
 
@@ -97,13 +103,19 @@ impl Into<ReadDeviceIdCode> for u8 {
 }
 
 #[derive(Copy, Clone, Debug, PartialEq)]
-#[allow(missing_docs)]
+///The conformity level is used by the server to tell the client if it can respond to the specified request.
 pub enum ReadDeviceConformityLevel {
+    ///The client can access basic information about the device.
     BasicIdentificationStream = 0x01,
+    ///The client can access regular information about the device.
     RegularIdentificationStream = 0x02,
+    ///The client can access extended information about the device.
     ExtendedIdentificationStream = 0x03,
+    ///The client can access individual elements in the basic information level.
     BasicIdentificationIndividual = 0x81,
+    ///The client can access individual elements in the basic and regular information level.
     RegularIdentificationIndividual = 0x82,
+    ///The client can access individual elements in the basic, regular and extended information level.
     ExtendedIdentificationIndividual = 0x83,
 }
 
@@ -145,11 +157,15 @@ impl std::fmt::Display for ReadDeviceIdCode {
     }
 }
 
-#[allow(missing_docs)]
+
 #[derive(Debug, Copy, Clone)]
+///MODBUS client request for retrieving information about a Device.
 pub struct ReadDeviceRequest {
+    ///The MODBUS Extended interface should be 0x14.
     pub(crate) mei_code: MeiCode,
+    ///The access level requested by the user. See MODBUS Documentation or ReadDeviceIdCode for further details.
     pub(crate) dev_id: ReadDeviceIdCode,
+    ///Start the read at the specified position, if this field is none the read will start with element 0.
     pub(crate) obj_id: Option<u8>,
 }
 
@@ -172,12 +188,17 @@ impl std::fmt::Display for ReadDeviceRequest {
 
 
 #[derive(Debug, PartialEq)]
-#[allow(missing_docs)]
+///DeviceInfo contains the request information about the device.
 pub struct DeviceInfo {
+    ///This value is always 0x14. For further details see MODBUS specification.
     pub mei_code: MeiCode,
+    ///The requested access. For further details see ReadDeviceIdCode or the MODBUS specification.
     pub read_device_id: ReadDeviceIdCode,
+    ///The Access level the server is willing to grant. For further details see ReadDeviceConformityLevel or the MODBUS specification.
     pub conformity_level: ReadDeviceConformityLevel,
+    ///If the server could not fit all the information in a single response this field will be Some and contain the index of the next read. See the MODBUS specification for more details.
     pub continue_at: Option<u8>,
+    ///The actual information will be put into this vector can be empty if there was no information to read.
     pub storage: Vec<String>,
 }
 
