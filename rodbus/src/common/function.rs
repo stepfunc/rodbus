@@ -5,7 +5,7 @@ mod constants {
     pub(crate) const READ_DISCRETE_INPUTS: u8 = 2;
     pub(crate) const READ_HOLDING_REGISTERS: u8 = 3;
     pub(crate) const READ_INPUT_REGISTERS: u8 = 4;
-    pub(crate) const READ_DEVICE_IDENTIFICATION: u8 = 48;
+    pub(crate) const READ_DEVICE_IDENTIFICATION: u8 = 43;
     pub(crate) const WRITE_SINGLE_COIL: u8 = 5;
     pub(crate) const WRITE_SINGLE_REGISTER: u8 = 6;
     pub(crate) const WRITE_MULTIPLE_COILS: u8 = 15;
