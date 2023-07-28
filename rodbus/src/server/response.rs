@@ -39,7 +39,6 @@ where
 }
 
 #[derive(Debug, PartialEq)]
-#[allow(missing_docs)]
 pub(crate) struct DeviceIdentificationResponse<T>
 where
     T: Fn(u8, u8) -> Result<DeviceInfo, ExceptionCode> {
