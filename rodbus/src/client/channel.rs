@@ -165,7 +165,7 @@ impl Channel {
         rx.await?
     }
 
-    #[allow(missing_docs)]
+    ///Read device information from the server.
     pub async fn read_device_identification(
         &mut self,
         param: RequestParam,
