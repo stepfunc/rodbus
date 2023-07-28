@@ -1,4 +1,5 @@
 use std::convert::TryFrom;
+use std::ops::Range;
 
 use crate::DeviceInfo;
 use crate::ReadDeviceRequest;
@@ -320,16 +321,21 @@ where T: Fn(u8, u8) -> Result<DeviceInfo, crate::exception::ExceptionCode>, {
         cursor.write_u8(response.conformity_level.into())?;
         
         //NOTE(Kay): Seems like we cannot use the whole buffer for our messages, so we keep a bit of a safety margin
-        let max = response.response_message_count(MAX_ADU_LENGTH as u8 - 7);
+        const SAFETY_MARGIN: u8 = 7;
+        let max = response.response_message_count(MAX_ADU_LENGTH as u8 - SAFETY_MARGIN);
+        
         max.serialize(cursor)?;
         
-        let start = response.continue_at.unwrap_or_default();
-        let end = max.unwrap_or(response.storage.len() as u8);
+        let range: Range<usize> = Range {
+            start: response.continue_at.unwrap_or_default().into(),
+            end: max.unwrap_or(response.storage.len() as u8).into(),
+        };
+        
+        let records_count = range.end.saturating_sub(range.start);
+        
+        cursor.write_u8(records_count as u8)?;
 
-        let records_count = end.saturating_sub(start);
-        cursor.write_u8(records_count)?;
-
-        for (idx, message) in response.storage[start.into()..end.into()].iter().enumerate() {
+        for (idx, message) in response.storage[range].iter().enumerate() {
             cursor.write_u8(idx as u8)?;
             message.serialize(cursor)?;
         }
