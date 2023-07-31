@@ -347,6 +347,10 @@ mod tests {
             handler.write_single_register(Indexed::new(0, 0)),
             Err(ExceptionCode::IllegalFunction)
         );
+        assert_eq!(
+            handler.read_device_info(0x14, 0x01, Some(0)),
+            Err(ExceptionCode::IllegalFunction)
+        );
     }
 
     #[test]
