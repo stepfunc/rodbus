@@ -41,7 +41,7 @@ enum LengthMode {
     Fixed(usize),
     /// You need to read X more bytes. The last byte contains the number of extra bytes to read after that
     Offset(usize),
-    /// You need to read N Elements their size is at N + X 
+    /// Read continuous elements with variable length.
     ContinuousOffset(ContinuousElements),
     /// Unknown function code, can't determine the size
     Unknown,
@@ -49,7 +49,10 @@ enum LengthMode {
 
 #[derive(Clone, Copy)]
 pub(crate) struct ContinuousElements {
+    //TODO(Kay): These types should never exceed a byte length !
+    ///The address indicating the start of the first element.
     pub(crate) start: usize,
+    /// The offset stores the position where the length of the element is stored.
     pub(crate) offset: usize,
 }
 
@@ -112,7 +115,7 @@ impl RtuParser {
                 FunctionCode::ReadDiscreteInputs => LengthMode::Offset(1),
                 FunctionCode::ReadHoldingRegisters => LengthMode::Offset(1),
                 FunctionCode::ReadInputRegisters => LengthMode::Offset(1),
-                FunctionCode::ReadDeviceIdentification => LengthMode::ContinuousOffset(ContinuousElements::new(7, 2)), //TODO(Kay): What would be the size of the response ? there can be multiple objects in one response with different sizes ? so offset would probably not work ?
+                FunctionCode::ReadDeviceIdentification => LengthMode::ContinuousOffset(ContinuousElements::new(7, 2)),
                 FunctionCode::WriteSingleCoil => LengthMode::Fixed(4),
                 FunctionCode::WriteSingleRegister => LengthMode::Fixed(4),
                 FunctionCode::WriteMultipleCoils => LengthMode::Fixed(4),
@@ -183,7 +186,7 @@ impl RtuParser {
                 let obj_count = cursor.peek_at(cont_read.start - 1)?;
                 let mut read_pos = cont_read.start + cont_read.offset;
 
-                //TODO(Kay): I don't know if this is the wanted behaviour especially for byte per byte reading
+                //TODO(Kay): I don't know if this is the wanted behavior especially for byte per byte reading
                 //ISSUE(Kay): In the byte_per_byte test this loops runs very often doing the same work over and
                 //  over again can 
                 for _ in 0..obj_count {
