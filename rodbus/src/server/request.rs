@@ -426,6 +426,14 @@ mod tests {
         }
 
         #[test]
+        fn fails_when_ime_is_not_read_device_identification() {
+            let mut cursor = ReadCursor::new(&[0x0D, 0x01, 0x00]);
+
+            let err = Request::parse(FunctionCode::ReadDeviceIdentification, &mut cursor).err().unwrap();
+            assert_eq!(err, RequestError::Exception(ExceptionCode::IllegalDataValue))
+        }
+
+        #[test]
         fn fails_when_read_device_id_code_outside_specification() {
             let mut cursor = ReadCursor::new(&[0x14, 0xFF, 0x00]);
             let err = Request::parse(FunctionCode::ReadDeviceIdentification, &mut cursor).err().unwrap();
