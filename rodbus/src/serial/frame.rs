@@ -187,7 +187,6 @@ impl RtuParser {
                 //ISSUE(Kay): In the byte_per_byte test this loops runs very often doing the same work over and
                 //  over again can 
                 for _ in 0..obj_count {
-                    println!("I ran !");
                     if cursor.len() < constants::FUNCTION_CODE_LENGTH + read_pos {
                         return Ok(None);
                     }
