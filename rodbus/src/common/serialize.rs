@@ -337,7 +337,7 @@ where T: Fn(u8, u8) -> Result<DeviceInfo, crate::exception::ExceptionCode>, {
 
         for (idx, message) in response.storage[range].iter().enumerate() {
             cursor.write_u8(idx as u8)?;
-            message.serialize(cursor)?;
+            message.as_str().serialize(cursor)?;
         }
 
         Ok(())
@@ -385,7 +385,7 @@ impl Loggable for DeviceInfo {
         write!(f, "READ DEVICE IDENTIFICATION RESPONSE: {:?} {:?} {:?} {:?}, {:?}", self.mei_code, self.read_device_id, self.conformity_level, self.continue_at, self.storage)
     }
 }
-impl Serialize for &String {
+impl Serialize for &str {
     fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
         cursor.write_u8(self.len() as u8)?;
 
@@ -408,5 +408,35 @@ mod tests {
         let mut cursor = WriteCursor::new(&mut buffer);
         range.serialize(&mut cursor).unwrap();
         assert_eq!(buffer, [0x00, 0x03, 0x02, 0x00]);
+    }
+
+    #[test]
+    fn serialize_option() {
+        let next_position = Some(0x3u8);
+        let mut buffer = [0u8; 2];
+
+        let mut cursor = WriteCursor::new(&mut buffer);
+
+        next_position.serialize(&mut cursor).unwrap();
+        assert_eq!(buffer, [0xFF, 0x03]);
+
+        let next_position = None;
+        let mut buffer = [0u8; 2];
+
+        let mut cursor = WriteCursor::new(&mut buffer);
+        next_position.serialize(&mut cursor).unwrap();
+        assert_eq!(buffer, [0x00, 0x00]);
+    }
+
+    #[test]
+    fn serialize_string() {
+        let test_str: String = "Hello, World!".to_string();
+        let mut buffer = [0u8; 14];
+
+        let mut cursor = WriteCursor::new(&mut buffer);
+        test_str.as_str().serialize(&mut cursor).unwrap();
+
+        let expected: [u8; 14] = [0x0D,0x48,0x65,0x6C,0x6C,0x6F,0x2C,0x20,0x57,0x6F,0x72,0x6C,0x64,0x21];
+        assert_eq!(buffer, expected);
     }
 }
