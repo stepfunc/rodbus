@@ -408,7 +408,6 @@ mod tests {
 
         use super::super::*;
         use crate::error::AduParseError;
-        use crate::types::Indexed;
 
         #[test]
         fn fails_when_too_few_bytes_for_read_device() {
@@ -441,5 +440,20 @@ mod tests {
 
             assert_eq!(err, AduParseError::TrailingBytes(1).into());
         }
+
+        #[test]
+        fn can_parse_read_device_info_request() {
+            let mut cursor = ReadCursor::new(&[0x0E, 0x01, 0x00]);
+            let read_device_request = Request::parse(FunctionCode::ReadDeviceIdentification, &mut cursor).unwrap();
+
+            let device_info = match read_device_request {
+                Request::ReadDeviceIdentification(device_info) => device_info,
+                _ => panic!("bad match"),
+            };
+
+            assert_eq!(device_info.mei_code, MeiCode::ReadDeviceId);
+            assert_eq!(device_info.dev_id, ReadDeviceIdCode::BasicStreaming);
+            assert_eq!(device_info.obj_id, Some(0x00));
+        }        
     }
 }
