@@ -9,11 +9,6 @@ use rodbus::*;
 use tokio::runtime::Runtime;
 
 struct Handler {
-    pub coils: [bool; 10],
-    pub discrete_inputs: [bool; 10],
-    pub holding_registers: [u16; 10],
-    pub input_registers: [u16; 10],
-
     pub device_conformity_level: ReadDeviceConformityLevel,
     pub device_info: [Option<&'static str>; 256],
 }
@@ -32,11 +27,6 @@ const EXTENDED_EXAMPLE_DOC_LINE_C: &str = ".....................................
 impl Handler {
     fn new() -> Self {
         let mut device = Self {
-            coils: [false; 10],
-            discrete_inputs: [false; 10],
-            holding_registers: [0; 10],
-            input_registers: [0; 10],
-
             device_conformity_level: ReadDeviceConformityLevel::ExtendedIdentificationIndividual,
             device_info: [None; 256],
         };
@@ -90,74 +80,6 @@ impl Handler {
 }
 
 impl RequestHandler for Handler {
-    fn read_coil(&self, address: u16) -> Result<bool, ExceptionCode> {
-        match self.coils.get(address as usize) {
-            Some(x) => Ok(*x),
-            None => Err(ExceptionCode::IllegalDataAddress),
-        }
-    }
-
-    fn read_discrete_input(&self, address: u16) -> Result<bool, ExceptionCode> {
-        match self.discrete_inputs.get(address as usize) {
-            Some(x) => Ok(*x),
-            None => Err(ExceptionCode::IllegalDataAddress),
-        }
-    }
-
-    fn read_holding_register(&self, address: u16) -> Result<u16, ExceptionCode> {
-        match self.holding_registers.get(address as usize) {
-            Some(x) => Ok(*x),
-            None => Err(ExceptionCode::IllegalDataAddress),
-        }
-    }
-
-    fn read_input_register(&self, address: u16) -> Result<u16, ExceptionCode> {
-        match self.input_registers.get(address as usize) {
-            Some(x) => Ok(*x),
-            None => Err(ExceptionCode::IllegalDataAddress),
-        }
-    }
-
-    fn write_single_coil(&mut self, value: Indexed<bool>) -> Result<(), ExceptionCode> {
-        match self.coils.get_mut(value.index as usize) {
-            Some(x) => {
-                *x = value.value;
-                Ok(())
-            }
-            None => Err(ExceptionCode::IllegalDataAddress),
-        }
-    }
-
-    fn write_single_register(&mut self, value: Indexed<u16>) -> Result<(), ExceptionCode> {
-        match self.holding_registers.get_mut(value.index as usize) {
-            Some(x) => {
-                *x = value.value;
-                Ok(())
-            }
-            None => Err(ExceptionCode::IllegalDataAddress),
-        }
-    }
-
-    fn write_multiple_coils(&mut self, values: WriteCoils) -> Result<(), ExceptionCode> {
-        for x in values.iterator {
-            match self.coils.get_mut(x.index as usize) {
-                Some(c) => *c = x.value,
-                None => return Err(ExceptionCode::IllegalDataAddress),
-            }
-        }
-        Ok(())
-    }
-
-    fn write_multiple_registers(&mut self, values: WriteRegisters) -> Result<(), ExceptionCode> {
-        for x in values.iterator {
-            match self.holding_registers.get_mut(x.index as usize) {
-                Some(c) => *c = x.value,
-                None => return Err(ExceptionCode::IllegalDataAddress),
-            }
-        }
-        Ok(())
-    }
-
     fn read_device_info(&self, mei_code: u8, read_dev_id: u8, object_id: Option<u8>) -> Result<DeviceInfo, ExceptionCode> {
         let data = match (read_dev_id.into(), object_id) {
             (ReadDeviceIdCode::BasicStreaming, None) => self.read_basic_device_info(0x00)?,
