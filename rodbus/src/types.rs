@@ -187,7 +187,7 @@ pub struct ReadDeviceRequest {
     ///The access level requested by the user. See MODBUS Documentation or ReadDeviceIdCode for further details.
     pub(crate) dev_id: ReadDeviceIdCode,
     ///Start the read at the specified position, if this field is none the read will start with element 0.
-    pub(crate) obj_id: Option<u8>,
+    pub(crate) obj_id: Option<u8>, //TODO(Kay): Figure out if we can use the option type with oo-bindgen ? if not we might need to change things a bit !
 }
 
 impl ReadDeviceRequest {
@@ -220,13 +220,13 @@ pub struct DeviceInfo {
     ///If the server could not fit all the information in a single response this field will be Some and contain the index of the next read. See the MODBUS specification for more details.
     pub continue_at: Option<u8>,
     ///The actual information will be put into this vector can be empty if there was no information to read.
-    pub storage: Vec<String>,
+    pub storage: Vec<String>, //TODO(Kay): Another type which might not work in oo-bindgen ?
 }
 
 
 impl DeviceInfo {
     ///Creates a new Device Identification Reply
-    pub fn new<'a>(mei_code: u8, device_id: u8, conformity_level: u8) -> Self {
+    pub fn new(mei_code: u8, device_id: u8, conformity_level: u8) -> Self {
         Self {
             mei_code: mei_code.into(),
             read_device_id: device_id.into(),
@@ -235,6 +235,13 @@ impl DeviceInfo {
             storage: vec![],
         }
     }
+
+    ///Checks if the response is complete and decorates the continue_at field accordingly
+    pub fn continue_at(mut self, more_follows: u8, value: u8) -> Self {
+        self.continue_at = if more_follows == 0xFF { Some(value) } else { None };
+
+        self
+    } 
 
  
     pub(crate) fn response_message_count(&self, max_msg_size: u8) -> Option<u8> {
