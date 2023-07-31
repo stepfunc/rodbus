@@ -14,16 +14,17 @@ struct Handler {
     pub holding_registers: [u16; 10],
     pub input_registers: [u16; 10],
 
+    pub device_conformity_level: ReadDeviceConformityLevel,
     pub device_info: [Option<&'static str>; 256],
 }
 
-const VENDOR_NAME: &str = "duffs";
-const PRODUCT_CODE: &str = "com.device";
+const VENDOR_NAME: &str = "vendor name";
+const PRODUCT_CODE: &str = "product code";
 const PRODUCT_VERSION: &str = "1.3.0";
-const VENDOR_URL: &str = "https://example.com";
-const PRODUCT_NAME: &str = "duffs device";
-const MODEL_NAME: &str = "duffs device";
-const USER_APPLICATION_NAME: &str = "loop unroller";
+const VENDOR_URL: &str = "https://www.example.com";
+const PRODUCT_NAME: &str = "product name";
+const MODEL_NAME: &str = "model name";
+const USER_APPLICATION_NAME: &str = "user application name";
 const EXTENDED_EXAMPLE_DOC_LINE_A: &str = "some additional information about the device which should be longer than 243(?) bytes !";
 const EXTENDED_EXAMPLE_DOC_LINE_B: &str = "i don't know what to put here but i need to overflow the maximum message size to check the workings of the more follows field...";
 const EXTENDED_EXAMPLE_DOC_LINE_C: &str = "....................................................................................................";
@@ -36,11 +37,11 @@ impl Handler {
             holding_registers: [0; 10],
             input_registers: [0; 10],
 
-
+            device_conformity_level: ReadDeviceConformityLevel::ExtendedIdentificationIndividual,
             device_info: [None; 256],
         };
 
-        //Setting some values to read
+        //Setting some example values to read
         device.device_info[0] = Some(VENDOR_NAME);
         device.device_info[1] = Some(PRODUCT_CODE);
         device.device_info[2] = Some(PRODUCT_VERSION);
@@ -162,7 +163,7 @@ impl RequestHandler for Handler {
             (ReadDeviceIdCode::BasicStreaming, None) => self.read_basic_device_info(0x00)?,
             (ReadDeviceIdCode::BasicStreaming, Some(value)) => self.read_basic_device_info(value.saturating_add(0x00))?,
             (ReadDeviceIdCode::RegularStreaming, None) => self.read_regular_device_info(0x03)?,
-            (ReadDeviceIdCode::RegularStreaming, Some(value)) => self.read_regular_device_info(value.saturating_add(0x80))?,
+            (ReadDeviceIdCode::RegularStreaming, Some(value)) => self.read_regular_device_info(value.saturating_add(0x03))?,
             (ReadDeviceIdCode::ExtendedStreaming, None) => self.read_extended_device_info(0x80)?,
             (ReadDeviceIdCode::ExtendedStreaming, Some(value)) => self.read_extended_device_info(value.saturating_add(0x80))?,
             (ReadDeviceIdCode::Specific, Some(value)) => self.read_specific_device_info(value)?,
@@ -215,6 +216,30 @@ async fn test_read_device_info_request_response() {
                 continue_at: None, 
                 storage: vec![VENDOR_NAME.to_string(), PRODUCT_CODE.to_string(), PRODUCT_VERSION.to_string()],
             }
+    );
+
+    //TEST Basic Device Reading Information with manual continue_at 0 set
+    assert_eq!(
+        channel.read_device_identification(params, ReadDeviceRequest::new(MeiCode::ReadDeviceId, ReadDeviceIdCode::BasicStreaming, Some(0))).await.unwrap(),
+        DeviceInfo {
+            mei_code: MeiCode::ReadDeviceId,
+            read_device_id: ReadDeviceIdCode::BasicStreaming,
+            conformity_level: ReadDeviceConformityLevel::ExtendedIdentificationIndividual,
+            continue_at: None,
+            storage: vec![VENDOR_NAME.to_string(), PRODUCT_CODE.to_string(), PRODUCT_VERSION.to_string()],
+        }
+    );
+
+    //TEST Read all available information in the regular space
+    assert_eq!(
+        channel.read_device_identification(params, ReadDeviceRequest::new(MeiCode::ReadDeviceId, ReadDeviceIdCode::RegularStreaming, None)).await.unwrap(),
+        DeviceInfo {
+            mei_code: MeiCode::ReadDeviceId,
+            read_device_id: ReadDeviceIdCode::RegularStreaming,
+            conformity_level: ReadDeviceConformityLevel::ExtendedIdentificationIndividual,
+            continue_at: None,
+            storage: vec![VENDOR_URL.to_string(), PRODUCT_NAME.to_string(), MODEL_NAME.to_string(), USER_APPLICATION_NAME.to_string()],
+        }
     );
 
     //TEST See if we get the right position to continue reading at when the messsage length is overflowing
@@ -298,6 +323,13 @@ async fn test_read_device_info_request_response() {
         channel.read_device_identification(params, 
             ReadDeviceRequest::new(MeiCode::ReadDeviceId, ReadDeviceIdCode::Specific, Some(28))).await,
             Err(RequestError::Exception(ExceptionCode::IllegalDataAddress))
+    );
+
+    //TEST The user made a mistake specifying the right MeiCode
+    assert_eq!(
+    channel.read_device_identification(params, 
+            ReadDeviceRequest::new(MeiCode::CanOpenGeneralReference, ReadDeviceIdCode::ExtendedStreaming, None)).await,
+    Err(RequestError::Exception(ExceptionCode::IllegalDataValue))
     );
 
 }
