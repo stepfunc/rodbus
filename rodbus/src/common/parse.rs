@@ -1,5 +1,5 @@
 use crate::common::traits::Parse;
-use crate::{error::*, ReadDeviceRequest, ReadDeviceIdCode};
+use crate::{error::*, ReadDeviceRequest, ReadDeviceIdCode, ExceptionCode, MeiCode};
 use crate::types::{coil_from_u16, AddressRange, Indexed};
 
 use scursor::ReadCursor;
@@ -31,6 +31,11 @@ impl Parse for Indexed<u16> {
 impl Parse for ReadDeviceRequest {
     fn parse(cursor: &mut ReadCursor) -> Result<Self, RequestError> {
         let mei_type = crate::mei_code_from_u8(cursor.read_u8()?)?;
+
+        if mei_type == MeiCode::CanOpenGeneralReference {
+            return Err(RequestError::Exception(ExceptionCode::IllegalDataValue))
+        }
+
         let dev_id: ReadDeviceIdCode = crate::read_device_id_from_u8(cursor.read_u8()?)?;
         let obj_id = cursor.read_u8()?;
 
