@@ -105,17 +105,11 @@ impl ReadDevice {
         let device_id = cursor.read_u8()?;
         let conformity_level = cursor.read_u8()?;
 
-        let more_follows = cursor.read_u8()?;
-        let continue_at = cursor.read_u8()?;
+        let mut result = DeviceInfo::new(mei_code, device_id, conformity_level).continue_at(cursor.read_u8()?, cursor.read_u8()?);
 
         let msglength = cursor.read_u8()?;
         
-        let mut result = DeviceInfo::new(mei_code, device_id, conformity_level);
         
-        if more_follows == 0xFF {
-            result.continue_at = Some(continue_at);
-        }
-
         ReadDevice::parse_device_info_objects(msglength, &mut result.storage, cursor)?;
         
         Ok(result)
