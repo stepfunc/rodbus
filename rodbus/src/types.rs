@@ -1,3 +1,4 @@
+use crate::ExceptionCode;
 use crate::decode::AppDecodeLevel;
 use crate::error::{AduParseError, InvalidRange};
 
@@ -43,7 +44,7 @@ impl Into<MeiCode> for u8 {
         match self {
             14 => MeiCode::ReadDeviceId,
             15 => MeiCode::CanOpenGeneralReference,
-            _ => panic!("Meicode outside of valid range"),
+            _ => panic!("modbus extended interface value out of range"),
         }
     }
 }
@@ -54,6 +55,14 @@ impl From<MeiCode> for u8 {
             MeiCode::ReadDeviceId => 14,
             MeiCode::CanOpenGeneralReference => 15,
         }
+    }
+}
+
+pub(crate) fn mei_code_from_u8(value: u8) -> Result<MeiCode, ExceptionCode> {
+    match value {
+        14 => Ok(MeiCode::ReadDeviceId),
+        15 => Ok(MeiCode::CanOpenGeneralReference),
+        _ => Err(ExceptionCode::IllegalDataValue),
     }
 }
 
@@ -88,6 +97,16 @@ impl From<ReadDeviceIdCode> for u8 {
             ReadDeviceIdCode::Specific => 4,
         }
     }
+}
+
+pub(crate) fn read_device_id_from_u8(value: u8) -> Result<ReadDeviceIdCode, ExceptionCode> {
+        match value {
+            1 => Ok(ReadDeviceIdCode::BasicStreaming),
+            2 => Ok(ReadDeviceIdCode::RegularStreaming),
+            3 => Ok(ReadDeviceIdCode::ExtendedStreaming),
+            4 => Ok(ReadDeviceIdCode::Specific),
+            _ => Err(ExceptionCode::IllegalDataValue),
+        }
 }
 
 impl Into<ReadDeviceIdCode> for u8 {
@@ -133,6 +152,18 @@ impl From<u8> for ReadDeviceConformityLevel {
     }
 }
 
+/*pub(crate) fn read_device_conformity_level_from_u8(value: u8) -> Result<ReadDeviceConformityLevel, ExceptionCode> {
+    match value {
+        0x01 => Ok(ReadDeviceConformityLevel::BasicIdentificationStream),
+        0x02 => Ok(ReadDeviceConformityLevel::RegularIdentificationStream),
+        0x03 => Ok(ReadDeviceConformityLevel::ExtendedIdentificationStream),
+        0x81 => Ok(ReadDeviceConformityLevel::BasicIdentificationIndividual),
+        0x82 => Ok(ReadDeviceConformityLevel::RegularIdentificationIndividual),
+        0x83 => Ok(ReadDeviceConformityLevel::ExtendedIdentificationIndividual),
+        _ => Err(ExceptionCode::IllegalDataValue),
+    }
+}*/
+
 impl Into<u8> for ReadDeviceConformityLevel {
     fn into(self) -> u8 {
         match self {
@@ -158,7 +189,8 @@ impl std::fmt::Display for ReadDeviceIdCode {
 }
 
 
-#[derive(Debug, Copy, Clone)]
+
+#[derive(Debug, Copy, Clone, PartialEq)]
 ///MODBUS client request for retrieving information about a Device.
 pub struct ReadDeviceRequest {
     ///The MODBUS Extended interface should be 0x14.
