@@ -290,9 +290,7 @@ mod tests {
         #[test]
         fn fails_when_too_few_bytes_for_coil_byte_count() {
             let mut cursor = ReadCursor::new(&[0x00, 0x01, 0x00, 0x08, 0x00]);
-            let err = Request::parse(FunctionCode::WriteMultipleCoils, &mut cursor)
-                .err()
-                .unwrap();
+            let err = Request::parse(FunctionCode::WriteMultipleCoils, &mut cursor).err().unwrap();
             assert_eq!(err, AduParseError::InsufficientBytes.into());
         }
 
@@ -402,6 +400,46 @@ mod tests {
                 registers.iterator.collect::<Vec<Indexed<u16>>>(),
                 vec![Indexed::new(1, 0xCAFE), Indexed::new(2, 0xBBDD)]
             )
+        }
+    }
+
+    mod read_device_info {
+        use scursor::ReadCursor;
+
+        use super::super::*;
+        use crate::error::AduParseError;
+        use crate::types::Indexed;
+
+        #[test]
+        fn fails_when_too_few_bytes_for_read_device() {
+            let mut cursor = ReadCursor::new(&[0x0E, 0x01]);
+            let err = Request::parse(FunctionCode::ReadDeviceIdentification, &mut cursor).err().unwrap();
+
+            assert_eq!(err, AduParseError::InsufficientBytes.into());
+        }
+
+        #[test]
+        fn fails_when_ime_outside_specification() {
+            let mut cursor = ReadCursor::new(&[0xFF, 0x01, 0x00]);
+            let err = Request::parse(FunctionCode::ReadDeviceIdentification, &mut cursor).err().unwrap();
+
+            assert_eq!(err, RequestError::Exception(ExceptionCode::IllegalDataValue));
+        }
+
+        #[test]
+        fn fails_when_read_device_id_code_outside_specification() {
+            let mut cursor = ReadCursor::new(&[0x14, 0xFF, 0x00]);
+            let err = Request::parse(FunctionCode::ReadDeviceIdentification, &mut cursor).err().unwrap();
+
+            assert_eq!(err, RequestError::Exception(ExceptionCode::IllegalDataValue));
+        }
+
+        #[test]
+        fn fails_when_too_many_bytes_specified_for_read_device() {
+            let mut cursor = ReadCursor::new(&[0x0E, 0x01, 0x01, 0x00]);
+            let err = Request::parse(FunctionCode::ReadDeviceIdentification, &mut cursor).err().unwrap();
+
+            assert_eq!(err, AduParseError::TrailingBytes(1).into());
         }
     }
 }
