@@ -9,7 +9,7 @@ use rodbus::*;
 use tokio::runtime::Runtime;
 
 struct Handler {
-    pub device_conformity_level: ReadDeviceConformityLevel,
+    pub device_conformity_level: DeviceConformityLevel,
     pub device_info: [Option<&'static str>; 256],
 }
 
@@ -27,7 +27,7 @@ const EXTENDED_EXAMPLE_DOC_LINE_C: &str = ".....................................
 impl Handler {
     fn new() -> Self {
         let mut device = Self {
-            device_conformity_level: ReadDeviceConformityLevel::ExtendedIdentificationIndividual,
+            device_conformity_level: DeviceConformityLevel::ExtendedIdentificationIndividual,
             device_info: [None; 256],
         };
 
@@ -81,19 +81,19 @@ impl Handler {
 
 impl RequestHandler for Handler {
     fn read_device_info(&self, mei_code: u8, read_dev_id: u8, object_id: Option<u8>) -> Result<DeviceInfo, ExceptionCode> {
-        let data = match (read_dev_id.into(), object_id) {
-            (ReadDeviceIdCode::BasicStreaming, None) => self.read_basic_device_info(0x00)?,
-            (ReadDeviceIdCode::BasicStreaming, Some(value)) => self.read_basic_device_info(value.saturating_add(0x00))?,
-            (ReadDeviceIdCode::RegularStreaming, None) => self.read_regular_device_info(0x03)?,
-            (ReadDeviceIdCode::RegularStreaming, Some(value)) => self.read_regular_device_info(value.saturating_add(0x03))?,
-            (ReadDeviceIdCode::ExtendedStreaming, None) => self.read_extended_device_info(0x80)?,
-            (ReadDeviceIdCode::ExtendedStreaming, Some(value)) => self.read_extended_device_info(value.saturating_add(0x80))?,
-            (ReadDeviceIdCode::Specific, Some(value)) => self.read_specific_device_info(value)?,
-            (ReadDeviceIdCode::Specific, None) => return Err(ExceptionCode::IllegalDataValue),
+        let data = match (read_dev_id.try_into().unwrap(), object_id) {
+            (ReadDeviceCode::BasicStreaming, None) => self.read_basic_device_info(0x00)?,
+            (ReadDeviceCode::BasicStreaming, Some(value)) => self.read_basic_device_info(value.saturating_add(0x00))?,
+            (ReadDeviceCode::RegularStreaming, None) => self.read_regular_device_info(0x03)?,
+            (ReadDeviceCode::RegularStreaming, Some(value)) => self.read_regular_device_info(value.saturating_add(0x03))?,
+            (ReadDeviceCode::ExtendedStreaming, None) => self.read_extended_device_info(0x80)?,
+            (ReadDeviceCode::ExtendedStreaming, Some(value)) => self.read_extended_device_info(value.saturating_add(0x80))?,
+            (ReadDeviceCode::Specific, Some(value)) => self.read_specific_device_info(value)?,
+            (ReadDeviceCode::Specific, None) => return Err(ExceptionCode::IllegalDataValue),
         };
         
 
-        let mut device_info_response = DeviceInfo::new(mei_code, read_dev_id, 0x83);
+        let mut device_info_response = DeviceInfo::new(mei_code.try_into().unwrap(), read_dev_id.try_into().unwrap(), self.device_conformity_level);
         device_info_response.storage = data.iter().filter(|v| v.is_some()).map(|s| s.unwrap().to_string()).collect();
         
         Ok(device_info_response)
@@ -125,16 +125,17 @@ async fn test_read_device_info_request_response() {
 
     channel.enable().await.unwrap();
 
-    let params = RequestParam::new(UnitId::new(0x01), Duration::from_secs(1));
+    //TODO(Kay): For debugging purposes the timeout is set to a huge amount remove this later !
+    let params = RequestParam::new(UnitId::new(0x01), Duration::from_secs(400_000_000_000));
 
     //TEST Basic Device Reading Information
     assert_eq!(
         channel.read_device_identification(params, 
-            ReadDeviceRequest::new(MeiCode::ReadDeviceId, ReadDeviceIdCode::BasicStreaming, None)).await.unwrap(),
+            ReadDeviceRequest::new(MeiCode::ReadDeviceId, ReadDeviceCode::BasicStreaming, None)).await.unwrap(),
             DeviceInfo { 
                 mei_code: MeiCode::ReadDeviceId, 
-                read_device_id: ReadDeviceIdCode::BasicStreaming, 
-                conformity_level: ReadDeviceConformityLevel::ExtendedIdentificationIndividual, 
+                read_device_id: ReadDeviceCode::BasicStreaming, 
+                conformity_level: DeviceConformityLevel::ExtendedIdentificationIndividual, 
                 continue_at: None, 
                 storage: vec![VENDOR_NAME.to_string(), PRODUCT_CODE.to_string(), PRODUCT_VERSION.to_string()],
             }
@@ -142,11 +143,11 @@ async fn test_read_device_info_request_response() {
 
     //TEST Basic Device Reading Information with manual continue_at 0 set
     assert_eq!(
-        channel.read_device_identification(params, ReadDeviceRequest::new(MeiCode::ReadDeviceId, ReadDeviceIdCode::BasicStreaming, Some(0))).await.unwrap(),
+        channel.read_device_identification(params, ReadDeviceRequest::new(MeiCode::ReadDeviceId, ReadDeviceCode::BasicStreaming, Some(0))).await.unwrap(),
         DeviceInfo {
             mei_code: MeiCode::ReadDeviceId,
-            read_device_id: ReadDeviceIdCode::BasicStreaming,
-            conformity_level: ReadDeviceConformityLevel::ExtendedIdentificationIndividual,
+            read_device_id: ReadDeviceCode::BasicStreaming,
+            conformity_level: DeviceConformityLevel::ExtendedIdentificationIndividual,
             continue_at: None,
             storage: vec![VENDOR_NAME.to_string(), PRODUCT_CODE.to_string(), PRODUCT_VERSION.to_string()],
         }
@@ -154,11 +155,11 @@ async fn test_read_device_info_request_response() {
 
     //TEST Read all available information in the regular space
     assert_eq!(
-        channel.read_device_identification(params, ReadDeviceRequest::new(MeiCode::ReadDeviceId, ReadDeviceIdCode::RegularStreaming, None)).await.unwrap(),
+        channel.read_device_identification(params, ReadDeviceRequest::new(MeiCode::ReadDeviceId, ReadDeviceCode::RegularStreaming, None)).await.unwrap(),
         DeviceInfo {
             mei_code: MeiCode::ReadDeviceId,
-            read_device_id: ReadDeviceIdCode::RegularStreaming,
-            conformity_level: ReadDeviceConformityLevel::ExtendedIdentificationIndividual,
+            read_device_id: ReadDeviceCode::RegularStreaming,
+            conformity_level: DeviceConformityLevel::ExtendedIdentificationIndividual,
             continue_at: None,
             storage: vec![VENDOR_URL.to_string(), PRODUCT_NAME.to_string(), MODEL_NAME.to_string(), USER_APPLICATION_NAME.to_string()],
         }
@@ -167,11 +168,11 @@ async fn test_read_device_info_request_response() {
     //TEST See if we get the right position to continue reading at when the messsage length is overflowing
     assert_eq!(
         channel.read_device_identification(params, 
-            ReadDeviceRequest::new(MeiCode::ReadDeviceId, ReadDeviceIdCode::ExtendedStreaming, None)).await.unwrap(),
+            ReadDeviceRequest::new(MeiCode::ReadDeviceId, ReadDeviceCode::ExtendedStreaming, None)).await.unwrap(),
             DeviceInfo { 
                 mei_code: MeiCode::ReadDeviceId, 
-                read_device_id: ReadDeviceIdCode::ExtendedStreaming, 
-                conformity_level: ReadDeviceConformityLevel::ExtendedIdentificationIndividual, 
+                read_device_id: ReadDeviceCode::ExtendedStreaming, 
+                conformity_level: DeviceConformityLevel::ExtendedIdentificationIndividual, 
                 continue_at: Some(2),
                 storage: vec![EXTENDED_EXAMPLE_DOC_LINE_A.to_string(), EXTENDED_EXAMPLE_DOC_LINE_B.to_string()],
             }
@@ -180,11 +181,11 @@ async fn test_read_device_info_request_response() {
     //TEST Continuation of the reading above should return the last entry in the extended info block
     assert_eq!(
         channel.read_device_identification(params, 
-            ReadDeviceRequest::new(MeiCode::ReadDeviceId, ReadDeviceIdCode::ExtendedStreaming, Some(2))).await.unwrap(),
+            ReadDeviceRequest::new(MeiCode::ReadDeviceId, ReadDeviceCode::ExtendedStreaming, Some(2))).await.unwrap(),
             DeviceInfo { 
                 mei_code: MeiCode::ReadDeviceId, 
-                read_device_id: ReadDeviceIdCode::ExtendedStreaming, 
-                conformity_level: ReadDeviceConformityLevel::ExtendedIdentificationIndividual, 
+                read_device_id: ReadDeviceCode::ExtendedStreaming, 
+                conformity_level: DeviceConformityLevel::ExtendedIdentificationIndividual, 
                 continue_at: None,
                 storage: vec![EXTENDED_EXAMPLE_DOC_LINE_C.to_string()],
             }
@@ -193,11 +194,11 @@ async fn test_read_device_info_request_response() {
     //TEST Read all basic fields with read specific
     assert_eq!(
         channel.read_device_identification(params, 
-            ReadDeviceRequest::new(MeiCode::ReadDeviceId, ReadDeviceIdCode::Specific, Some(0))).await.unwrap(),
+            ReadDeviceRequest::new(MeiCode::ReadDeviceId, ReadDeviceCode::Specific, Some(0))).await.unwrap(),
             DeviceInfo { 
                 mei_code: MeiCode::ReadDeviceId, 
-                read_device_id: ReadDeviceIdCode::Specific, 
-                conformity_level: ReadDeviceConformityLevel::ExtendedIdentificationIndividual, 
+                read_device_id: ReadDeviceCode::Specific, 
+                conformity_level: DeviceConformityLevel::ExtendedIdentificationIndividual, 
                 continue_at: None,
                 storage: vec![VENDOR_NAME.to_string()],
             }
@@ -205,11 +206,11 @@ async fn test_read_device_info_request_response() {
 
     assert_eq!(
         channel.read_device_identification(params, 
-            ReadDeviceRequest::new(MeiCode::ReadDeviceId, ReadDeviceIdCode::Specific, Some(1))).await.unwrap(),
+            ReadDeviceRequest::new(MeiCode::ReadDeviceId, ReadDeviceCode::Specific, Some(1))).await.unwrap(),
             DeviceInfo { 
                 mei_code: MeiCode::ReadDeviceId, 
-                read_device_id: ReadDeviceIdCode::Specific, 
-                conformity_level: ReadDeviceConformityLevel::ExtendedIdentificationIndividual, 
+                read_device_id: ReadDeviceCode::Specific, 
+                conformity_level: DeviceConformityLevel::ExtendedIdentificationIndividual, 
                 continue_at: None,
                 storage: vec![PRODUCT_CODE.to_string()],
             }
@@ -217,11 +218,11 @@ async fn test_read_device_info_request_response() {
 
     assert_eq!(
         channel.read_device_identification(params, 
-            ReadDeviceRequest::new(MeiCode::ReadDeviceId, ReadDeviceIdCode::Specific, Some(2))).await.unwrap(),
+            ReadDeviceRequest::new(MeiCode::ReadDeviceId, ReadDeviceCode::Specific, Some(2))).await.unwrap(),
             DeviceInfo { 
                 mei_code: MeiCode::ReadDeviceId, 
-                read_device_id: ReadDeviceIdCode::Specific, 
-                conformity_level: ReadDeviceConformityLevel::ExtendedIdentificationIndividual, 
+                read_device_id: ReadDeviceCode::Specific, 
+                conformity_level: DeviceConformityLevel::ExtendedIdentificationIndividual, 
                 continue_at: None,
                 storage: vec![PRODUCT_VERSION.to_string()],
             }
@@ -229,11 +230,11 @@ async fn test_read_device_info_request_response() {
 
     assert_eq!(
         channel.read_device_identification(params, 
-            ReadDeviceRequest::new(MeiCode::ReadDeviceId, ReadDeviceIdCode::Specific, Some(3))).await.unwrap(),
+            ReadDeviceRequest::new(MeiCode::ReadDeviceId, ReadDeviceCode::Specific, Some(3))).await.unwrap(),
             DeviceInfo { 
                 mei_code: MeiCode::ReadDeviceId, 
-                read_device_id: ReadDeviceIdCode::Specific, 
-                conformity_level: ReadDeviceConformityLevel::ExtendedIdentificationIndividual, 
+                read_device_id: ReadDeviceCode::Specific, 
+                conformity_level: DeviceConformityLevel::ExtendedIdentificationIndividual, 
                 continue_at: None,
                 storage: vec![VENDOR_URL.to_string()],
             }
@@ -243,14 +244,14 @@ async fn test_read_device_info_request_response() {
     //TEST we get Err(ExceptionCode::IllegalDataAddress) back when trying to access a specific field that is not specified !
     assert_eq!(
         channel.read_device_identification(params, 
-            ReadDeviceRequest::new(MeiCode::ReadDeviceId, ReadDeviceIdCode::Specific, Some(28))).await,
+            ReadDeviceRequest::new(MeiCode::ReadDeviceId, ReadDeviceCode::Specific, Some(28))).await,
             Err(RequestError::Exception(ExceptionCode::IllegalDataAddress))
     );
 
     //TEST The user made a mistake specifying the right MeiCode
     assert_eq!(
     channel.read_device_identification(params, 
-            ReadDeviceRequest::new(MeiCode::CanOpenGeneralReference, ReadDeviceIdCode::ExtendedStreaming, None)).await,
+            ReadDeviceRequest::new(MeiCode::CanOpenGeneralReference, ReadDeviceCode::ExtendedStreaming, None)).await,
     Err(RequestError::Exception(ExceptionCode::IllegalDataValue))
     );
 
