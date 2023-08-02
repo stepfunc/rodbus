@@ -49,7 +49,6 @@ enum LengthMode {
 
 #[derive(Clone, Copy)]
 pub(crate) struct ContinuousElements {
-    //TODO(Kay): These types should never exceed a byte length !
     ///The address indicating the start of the first element.
     pub(crate) start: usize,
     /// The offset stores the position where the length of the element is stored.
