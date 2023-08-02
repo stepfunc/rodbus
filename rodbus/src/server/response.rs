@@ -1,6 +1,6 @@
 use crate::DeviceInfo;
 use crate::exception::ExceptionCode;
-use crate::types::{ReadBitsRange, ReadRegistersRange, MeiCode, ReadDeviceIdCode};
+use crate::types::{ReadBitsRange, ReadRegistersRange, MeiCode, ReadDeviceCode};
 
 pub(crate) struct BitWriter<T>
 where
@@ -41,20 +41,16 @@ where
 #[derive(Debug, PartialEq)]
 pub(crate) struct DeviceIdentificationResponse<T>
 where
-    T: Fn(u8, u8) -> Result<DeviceInfo, ExceptionCode> {
-    pub(crate) mei_code: MeiCode,
-    pub(crate) read_device_id: ReadDeviceIdCode,
+    T: Fn() -> Result<DeviceInfo, ExceptionCode> {
     pub(crate) getter: T,
     
 }
 
 impl<T> DeviceIdentificationResponse<T>
 where
-    T: Fn(u8, u8) -> Result<DeviceInfo, ExceptionCode> {
-        pub(crate) fn new(mei_code: u8, read_device_id: u8, getter: T) -> Self {
+    T: Fn() -> Result<DeviceInfo, ExceptionCode> {
+        pub(crate) fn new(getter: T) -> Self {
             Self {
-                mei_code: mei_code.into(),
-                read_device_id: read_device_id.into(),
                 getter,
             }
         }
