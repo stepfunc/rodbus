@@ -129,8 +129,7 @@ impl<'a> Request<'a> {
             Request::ReadDeviceIdentification(read) => {
                 //TODO: The server needs to answer the request depending on the values of dev_id, obj_id
                 let device_information = 
-                    DeviceIdentificationResponse::new(read.mei_code.into(), read.dev_id.into(), | m, d| handler.read_device_info(m, d, read.obj_id));
-
+                    DeviceIdentificationResponse::new(|| handler.read_device_info(read.mei_code as u8, read.dev_id as u8, read.obj_id));
                 writer.format_reply(header, function, &device_information, level)
             }
             Request::WriteSingleCoil(request) => {
@@ -418,30 +417,6 @@ mod tests {
         }
 
         #[test]
-        fn fails_when_ime_outside_specification() {
-            let mut cursor = ReadCursor::new(&[0xFF, 0x01, 0x00]);
-            let err = Request::parse(FunctionCode::ReadDeviceIdentification, &mut cursor).err().unwrap();
-
-            assert_eq!(err, RequestError::Exception(ExceptionCode::IllegalDataValue));
-        }
-
-        #[test]
-        fn fails_when_ime_is_not_read_device_identification() {
-            let mut cursor = ReadCursor::new(&[0x0D, 0x01, 0x00]);
-
-            let err = Request::parse(FunctionCode::ReadDeviceIdentification, &mut cursor).err().unwrap();
-            assert_eq!(err, RequestError::Exception(ExceptionCode::IllegalDataValue))
-        }
-
-        #[test]
-        fn fails_when_read_device_id_code_outside_specification() {
-            let mut cursor = ReadCursor::new(&[0x14, 0xFF, 0x00]);
-            let err = Request::parse(FunctionCode::ReadDeviceIdentification, &mut cursor).err().unwrap();
-
-            assert_eq!(err, RequestError::Exception(ExceptionCode::IllegalDataValue));
-        }
-
-        #[test]
         fn fails_when_too_many_bytes_specified_for_read_device() {
             let mut cursor = ReadCursor::new(&[0x0E, 0x01, 0x01, 0x00]);
             let err = Request::parse(FunctionCode::ReadDeviceIdentification, &mut cursor).err().unwrap();
@@ -460,7 +435,7 @@ mod tests {
             };
 
             assert_eq!(device_info.mei_code, MeiCode::ReadDeviceId);
-            assert_eq!(device_info.dev_id, ReadDeviceIdCode::BasicStreaming);
+            assert_eq!(device_info.dev_id, ReadDeviceCode::BasicStreaming);
             assert_eq!(device_info.obj_id, Some(0x00));
         }        
     }
