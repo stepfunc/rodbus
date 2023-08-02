@@ -32,7 +32,6 @@ enum ParseState {
     Start,
     ReadFullBody(FrameDestination, usize), // unit_id, length of rest
     ReadToOffsetForLength(FrameDestination, usize), // unit_id, length to length
-    ReadContinousOffsetForLength(FrameDestination, ContinuousElements)
 }
 
 #[derive(Clone, Copy)]
@@ -41,27 +40,8 @@ enum LengthMode {
     Fixed(usize),
     /// You need to read X more bytes. The last byte contains the number of extra bytes to read after that
     Offset(usize),
-    /// Read continuous elements with variable length.
-    ContinuousOffset(ContinuousElements),
     /// Unknown function code, can't determine the size
     Unknown,
-}
-
-#[derive(Clone, Copy)]
-pub(crate) struct ContinuousElements {
-    ///The address indicating the start of the first element.
-    pub(crate) start: usize,
-    /// The offset stores the position where the length of the element is stored.
-    pub(crate) offset: usize,
-}
-
-impl ContinuousElements {
-    fn new(start: usize, offset: usize) -> Self {
-        Self {
-            start,
-            offset,
-        }
-    }
 }
 
 pub(crate) struct RtuParser {
@@ -114,7 +94,7 @@ impl RtuParser {
                 FunctionCode::ReadDiscreteInputs => LengthMode::Offset(1),
                 FunctionCode::ReadHoldingRegisters => LengthMode::Offset(1),
                 FunctionCode::ReadInputRegisters => LengthMode::Offset(1),
-                FunctionCode::ReadDeviceIdentification => LengthMode::ContinuousOffset(ContinuousElements::new(7, 2)),
+                FunctionCode::ReadDeviceIdentification => todo!(),
                 FunctionCode::WriteSingleCoil => LengthMode::Fixed(4),
                 FunctionCode::WriteSingleRegister => LengthMode::Fixed(4),
                 FunctionCode::WriteMultipleCoils => LengthMode::Fixed(4),
@@ -153,9 +133,6 @@ impl RtuParser {
                     LengthMode::Offset(offset) => {
                         ParseState::ReadToOffsetForLength(destination, offset)
                     }
-                    LengthMode::ContinuousOffset(cont_read) => {
-                        ParseState::ReadContinousOffsetForLength(destination, cont_read)
-                    }
                     LengthMode::Unknown => {
                         return Err(RequestError::BadFrame(
                             FrameParseError::UnknownFunctionCode(raw_function_code),
@@ -174,30 +151,6 @@ impl RtuParser {
                 let extra_bytes_to_read =
                     cursor.peek_at(constants::FUNCTION_CODE_LENGTH + offset - 1)? as usize;
                 self.state = ParseState::ReadFullBody(destination, offset + extra_bytes_to_read);
-
-                self.parse(cursor, decode_level)
-            }
-            ParseState::ReadContinousOffsetForLength(destination, cont_read) => {
-                if cursor.len() < constants::FUNCTION_CODE_LENGTH + cont_read.start + cont_read.offset {
-                    return Ok(None);
-                }
-
-                let obj_count = cursor.peek_at(cont_read.start - 1)?;
-                let mut read_pos = cont_read.start + cont_read.offset;
-
-                //TODO(Kay): I don't know if this is the wanted behavior especially for byte per byte reading
-                //ISSUE(Kay): In the byte_per_byte test this loops runs very often doing the same work over and
-                //  over again can 
-                for _ in 0..obj_count {
-                    if cursor.len() < constants::FUNCTION_CODE_LENGTH + read_pos {
-                        return Ok(None);
-                    }
-
-                    let length = cursor.peek_at(read_pos - 1)? as usize;
-                    read_pos += length + cont_read.offset;
-                }
-                
-                self.state = ParseState::ReadFullBody(destination, read_pos - 3);
 
                 self.parse(cursor, decode_level)
             }
@@ -462,7 +415,7 @@ mod tests {
         0x46, 0x16, // crc
     ];
 
-    const READ_DEVICE_INFO_REQUEST: &[u8] = &[
+    /*const READ_DEVICE_INFO_REQUEST: &[u8] = &[
         UNIT_ID,        //unit id
         0x2B,           //function code
         0x0E,           //mei type
@@ -490,7 +443,7 @@ mod tests {
         0x05,       //object length
         0x56, 0x32, 0x2E, 0x31, 0x31,
         0x58, 0x61  //CRC value calculated with (crccalc.com CRC-16/MODBUS)
-    ];
+    ];*/
 
     const ALL_REQUESTS: &[(FunctionCode, &[u8])] = &[
         (FunctionCode::ReadCoils, READ_COILS_REQUEST),
@@ -519,10 +472,10 @@ mod tests {
             FunctionCode::WriteMultipleRegisters,
             WRITE_MULTIPLE_REGISTERS_REQUEST,
         ),
-        (
+        /*(
             FunctionCode::ReadDeviceIdentification,
             READ_DEVICE_INFO_REQUEST,
-        )
+        )*/
     ];
 
     const ALL_RESPONSES: &[(FunctionCode, &[u8])] = &[
@@ -552,10 +505,10 @@ mod tests {
             FunctionCode::WriteMultipleRegisters,
             WRITE_MULTIPLE_REGISTERS_RESPONSE,
         ),
-        (
+        /*(
             FunctionCode::ReadDeviceIdentification,
             READ_DEVICE_INFO_RESPONSE,
-        )
+        )*/
     ];
 
     fn assert_can_parse_frame(mut reader: FramedReader, frame: &[u8]) {

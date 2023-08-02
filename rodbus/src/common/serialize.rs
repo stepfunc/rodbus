@@ -329,14 +329,12 @@ where T: Fn() -> Result<DeviceInfo, crate::exception::ExceptionCode>, {
             start: device_data.continue_at.unwrap_or_default().into(),
             end: max.unwrap_or(device_data.storage.len() as u8).into(),
         };
-        
-        let records_count = range.end.saturating_sub(range.start);
 
-        cursor.write_u8(records_count as u8)?;
+        cursor.write_u8(device_data.number_objects)?;
 
         for (idx, message) in device_data.storage[range].iter().enumerate() {
             cursor.write_u8(idx as u8)?;
-            message.as_str().serialize(cursor)?;
+            message.data.as_str().serialize(cursor)?;
         }
 
         Ok(())

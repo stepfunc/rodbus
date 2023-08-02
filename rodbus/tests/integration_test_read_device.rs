@@ -92,10 +92,10 @@ impl RequestHandler for Handler {
             (ReadDeviceCode::Specific, None) => return Err(ExceptionCode::IllegalDataValue),
         };
         
+        let processed_data: Vec<ModbusString> = data.iter().filter(|v| v.is_some()).enumerate().map(|(i, s)| ModbusString::new(i as u8, s.unwrap().len() as u8, s.unwrap().as_bytes()).unwrap()).collect();
+        let mut device_info_response = DeviceInfo::new(mei_code.try_into().unwrap(), read_dev_id.try_into().unwrap(), self.device_conformity_level, processed_data.len() as u8);
+        device_info_response.storage = processed_data;
 
-        let mut device_info_response = DeviceInfo::new(mei_code.try_into().unwrap(), read_dev_id.try_into().unwrap(), self.device_conformity_level);
-        device_info_response.storage = data.iter().filter(|v| v.is_some()).map(|s| s.unwrap().to_string()).collect();
-        
         Ok(device_info_response)
         
     }
@@ -133,11 +133,16 @@ async fn test_read_device_info_request_response() {
         channel.read_device_identification(params, 
             ReadDeviceRequest::new(ReadDeviceCode::BasicStreaming, None)).await.unwrap(),
             DeviceInfo { 
-                mei_code: MeiCode::ReadDeviceId, 
+                mei_code: MeiCode::ReadDeviceId,
                 read_device_id: ReadDeviceCode::BasicStreaming, 
-                conformity_level: DeviceConformityLevel::ExtendedIdentificationIndividual, 
+                conformity_level: DeviceConformityLevel::ExtendedIdentificationIndividual,
+                number_objects: 3,
                 continue_at: None, 
-                storage: vec![VENDOR_NAME.to_string(), PRODUCT_CODE.to_string(), PRODUCT_VERSION.to_string()],
+                storage: vec![
+                    ModbusString::new(0, VENDOR_NAME.len() as u8, VENDOR_NAME.as_bytes()).unwrap(), 
+                    ModbusString::new(1, PRODUCT_CODE.len() as u8, PRODUCT_CODE.as_bytes()).unwrap(), 
+                    ModbusString::new(2, PRODUCT_VERSION.len() as u8, PRODUCT_VERSION.as_bytes()).unwrap(),
+                ],
             }
     );
 
@@ -148,8 +153,13 @@ async fn test_read_device_info_request_response() {
             mei_code: MeiCode::ReadDeviceId,
             read_device_id: ReadDeviceCode::BasicStreaming,
             conformity_level: DeviceConformityLevel::ExtendedIdentificationIndividual,
+            number_objects: 3,
             continue_at: None,
-            storage: vec![VENDOR_NAME.to_string(), PRODUCT_CODE.to_string(), PRODUCT_VERSION.to_string()],
+            storage: vec![
+                ModbusString::new(0, VENDOR_NAME.len() as u8, VENDOR_NAME.as_bytes()).unwrap(), 
+                ModbusString::new(1, PRODUCT_CODE.len() as u8, PRODUCT_CODE.as_bytes()).unwrap(), 
+                ModbusString::new(2, PRODUCT_VERSION.len() as u8, PRODUCT_VERSION.as_bytes()).unwrap(),
+            ],
         }
     );
 
@@ -161,7 +171,13 @@ async fn test_read_device_info_request_response() {
             read_device_id: ReadDeviceCode::RegularStreaming,
             conformity_level: DeviceConformityLevel::ExtendedIdentificationIndividual,
             continue_at: None,
-            storage: vec![VENDOR_URL.to_string(), PRODUCT_NAME.to_string(), MODEL_NAME.to_string(), USER_APPLICATION_NAME.to_string()],
+            number_objects: 4,
+            storage: vec![
+                ModbusString::new(0, VENDOR_URL.len() as u8, VENDOR_URL.as_bytes()).unwrap(), 
+                ModbusString::new(1, PRODUCT_NAME.len() as u8, PRODUCT_NAME.as_bytes()).unwrap(), 
+                ModbusString::new(2, MODEL_NAME.len() as u8, MODEL_NAME.as_bytes()).unwrap(), 
+                ModbusString::new(3, USER_APPLICATION_NAME.len() as u8, USER_APPLICATION_NAME.as_bytes()).unwrap(),
+            ],
         }
     );
 
@@ -174,7 +190,11 @@ async fn test_read_device_info_request_response() {
                 read_device_id: ReadDeviceCode::ExtendedStreaming, 
                 conformity_level: DeviceConformityLevel::ExtendedIdentificationIndividual, 
                 continue_at: Some(2),
-                storage: vec![EXTENDED_EXAMPLE_DOC_LINE_A.to_string(), EXTENDED_EXAMPLE_DOC_LINE_B.to_string()],
+                number_objects: 3,
+                storage: vec![
+                    ModbusString::new(0, EXTENDED_EXAMPLE_DOC_LINE_A.len() as u8, EXTENDED_EXAMPLE_DOC_LINE_A.as_bytes()).unwrap(), 
+                    ModbusString::new(1, EXTENDED_EXAMPLE_DOC_LINE_B.len() as u8, EXTENDED_EXAMPLE_DOC_LINE_B.as_bytes()).unwrap(),
+                ],
             }
     );
 
@@ -187,7 +207,8 @@ async fn test_read_device_info_request_response() {
                 read_device_id: ReadDeviceCode::ExtendedStreaming, 
                 conformity_level: DeviceConformityLevel::ExtendedIdentificationIndividual, 
                 continue_at: None,
-                storage: vec![EXTENDED_EXAMPLE_DOC_LINE_C.to_string()],
+                number_objects: 3,
+                storage: vec![ModbusString::new(2, EXTENDED_EXAMPLE_DOC_LINE_C.len() as u8, EXTENDED_EXAMPLE_DOC_LINE_C.as_bytes()).unwrap()],
             }
     );
 
@@ -200,7 +221,8 @@ async fn test_read_device_info_request_response() {
                 read_device_id: ReadDeviceCode::Specific, 
                 conformity_level: DeviceConformityLevel::ExtendedIdentificationIndividual, 
                 continue_at: None,
-                storage: vec![VENDOR_NAME.to_string()],
+                number_objects: 1,
+                storage: vec![ModbusString::new(0, VENDOR_NAME.len() as u8, VENDOR_NAME.as_bytes()).unwrap()],
             }
     );
 
@@ -212,7 +234,8 @@ async fn test_read_device_info_request_response() {
                 read_device_id: ReadDeviceCode::Specific, 
                 conformity_level: DeviceConformityLevel::ExtendedIdentificationIndividual, 
                 continue_at: None,
-                storage: vec![PRODUCT_CODE.to_string()],
+                number_objects: 1,
+                storage: vec![ModbusString::new(1, PRODUCT_CODE.len() as u8, PRODUCT_CODE.as_bytes()).unwrap()],
             }
     );
 
@@ -224,7 +247,8 @@ async fn test_read_device_info_request_response() {
                 read_device_id: ReadDeviceCode::Specific, 
                 conformity_level: DeviceConformityLevel::ExtendedIdentificationIndividual, 
                 continue_at: None,
-                storage: vec![PRODUCT_VERSION.to_string()],
+                number_objects: 1,
+                storage: vec![ModbusString::new(2, PRODUCT_VERSION.len() as u8, PRODUCT_VERSION.as_bytes()).unwrap()],
             }
     );
 
@@ -236,7 +260,8 @@ async fn test_read_device_info_request_response() {
                 read_device_id: ReadDeviceCode::Specific, 
                 conformity_level: DeviceConformityLevel::ExtendedIdentificationIndividual, 
                 continue_at: None,
-                storage: vec![VENDOR_URL.to_string()],
+                number_objects: 1,
+                storage: vec![ModbusString::new(3, VENDOR_URL.len() as u8, VENDOR_URL.as_bytes()).unwrap()],
             }
     );
 

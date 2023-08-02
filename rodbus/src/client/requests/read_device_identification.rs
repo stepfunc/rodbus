@@ -1,6 +1,6 @@
 use scursor::{WriteCursor, ReadCursor};
 
-use crate::{RequestError, DeviceInfo, ReadDeviceRequest, common::{traits::Serialize, function::FunctionCode}, AppDecodeLevel};
+use crate::{RequestError, DeviceInfo, ReadDeviceRequest, common::{traits::Serialize, function::FunctionCode}, AppDecodeLevel, ModbusString};
 
 
 pub(crate) struct ReadDevice {
@@ -98,6 +98,12 @@ impl ReadDevice {
         Ok(())
     }
 
+    //TODO(Kay): Start a read with object id 0
+    //TODO(Kay): If the read could not fit everything into the response it returns 0xFF ID_NEXT_OBJECT
+    //TODO(Kay): The user then needs to request that specific id in the next request
+    //TODO(Kay): Number of Objects does not corospond to the amount of objects in the current transmission it contains the amount of objects in all transmissions
+    //TODO(Kay): we need to take that into account as we cannot use the number of objects field as a guideline in how many object we read/write onto the stream
+    
     fn parse_device_identification_response(
         cursor: &mut ReadCursor,
     ) -> Result<DeviceInfo, RequestError> {
@@ -105,28 +111,34 @@ impl ReadDevice {
         let device_id = cursor.read_u8()?.try_into()?;
         let conformity_level = cursor.read_u8()?.try_into()?;
 
-        let mut result = DeviceInfo::new(mei_code, device_id, conformity_level).continue_at(cursor.read_u8()?, cursor.read_u8()?);
-        let msglength = cursor.read_u8()?;
+        let more_follows = cursor.read_u8()?;
+        let value = cursor.read_u8()?;
+        let object_count = cursor.read_u8()?;
 
-        ReadDevice::parse_device_info_objects(msglength, &mut result.storage, cursor)?;
+        let mut result = DeviceInfo::new(mei_code, device_id, conformity_level, object_count).continue_at(more_follows, value);
+        
+        ReadDevice::parse_device_info_objects(&mut result.storage, cursor)?;
         
         Ok(result)
     }
 
-    fn parse_device_info_objects(length: u8, container: &mut Vec<String>, cursor: &mut ReadCursor) -> Result<(), RequestError> {
-        for _ in 0..length {
-            cursor.read_u8()?; //NOTE(Kay): Object id not necessary for our internal response
-            let str_size = cursor.read_u8()?;
-            
-            let data = cursor.read_bytes(str_size as usize)?.to_vec();
-            let str = String::from_utf8(data);
+    fn parse_device_info_objects(container: &mut Vec<ModbusString>, cursor: &mut ReadCursor) -> Result<(), RequestError> {
+        loop {
+            let obj_id = cursor.read_u8()?;
+            let obj_length = cursor.read_u8()?;
+            let data = cursor.read_bytes(obj_length as usize)?;
+            let object = ModbusString::new(obj_id, obj_length, data);
 
-            match str {
-                Ok(str) => container.push(str),
+            match object {
+                Ok(obj) => container.push(obj),
                 Err(_) => return Err(RequestError::Io(std::io::ErrorKind::InvalidData)),
             }
+            
+            if cursor.is_empty() {
+                break;
+            }
         }
-
+        
         Ok(())
     } 
 }
