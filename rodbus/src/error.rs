@@ -257,6 +257,12 @@ pub enum AduParseError {
     UnknownResponseFunction(u8, u8, u8), // actual, expected, expected error
     /// Bad value for the coil state
     UnknownCoilState(u16),
+    /// Meicode outside of MODBUS specification range
+    MeiCodeOutOfRange(u8),
+    /// Device Code outside of MODBUS specification range
+    DeviceCodeOutOfRange(u8),
+    /// Server Conformity Level outside of MODUBUS specification range
+    DeviceConformityLevelOutOfRange(u8), 
 }
 
 impl std::error::Error for AduParseError {}
@@ -283,6 +289,9 @@ impl std::fmt::Display for AduParseError {
                 f,
                 "received coil state with unspecified value: 0x{value:04X}"
             ),
+            AduParseError::MeiCodeOutOfRange(value) => write!(f, "received mei code was out of range {value:02X}"),
+            AduParseError::DeviceCodeOutOfRange(value) => write!(f, "received read device code out of range {value:02X}"),
+            AduParseError::DeviceConformityLevelOutOfRange(value) => write!(f, "received conformity level out of range {value:02X}"),
         }
     }
 }
