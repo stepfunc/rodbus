@@ -33,37 +33,21 @@ pub(crate) struct ReadBitsRange {
 #[derive(Debug, Copy, Clone, PartialEq)]
 ///MODBUS Encapsulated Interface 
 pub enum MeiCode {
-    ///Request Device Identification
-    ReadDeviceId = 14,
     ///Can Open General Reference (Unused)
-    CanOpenGeneralReference = 15,
+    CanOpenGeneralReference = 0x0D,
+    ///Request Device Identification
+    ReadDeviceId = 0x0E,
 }
 
-impl Into<MeiCode> for u8 {
-    fn into(self) -> MeiCode {
-        match self {
-            0x0E => MeiCode::CanOpenGeneralReference,
-            0x0D => MeiCode::ReadDeviceId,
-            _ => panic!("modbus extended interface value out of range"),
-        }
-    }
-}
+impl TryFrom<u8> for MeiCode {
+    type Error = AduParseError;
 
-impl From<MeiCode> for u8 {
-    fn from(value: MeiCode) -> Self {
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
         match value {
-            MeiCode::CanOpenGeneralReference => 0x0D,
-            MeiCode::ReadDeviceId => 0x0E,
-            
+            0x0D => Ok(MeiCode::CanOpenGeneralReference),
+            0x0E => Ok(MeiCode::ReadDeviceId),
+            value => Err(AduParseError::MeiCodeOutOfRange(value)),
         }
-    }
-}
-
-pub(crate) fn mei_code_from_u8(value: u8) -> Result<MeiCode, ExceptionCode> {
-    match value {
-        0x0D => Ok(MeiCode::CanOpenGeneralReference),
-        0x0E => Ok(MeiCode::ReadDeviceId),
-        _ => Err(ExceptionCode::IllegalDataValue),
     }
 }
 
@@ -78,53 +62,34 @@ impl std::fmt::Display for MeiCode {
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 ///Specifies what part of the device information to access.
-pub enum ReadDeviceIdCode {
+pub enum ReadDeviceCode {
     ///Access the basic information about the device.
-    BasicStreaming = 1,
+    BasicStreaming = 0x01,
     ///Access regular information about the device.
-    RegularStreaming = 2,
+    RegularStreaming = 0x02,
     ///Access extended information about the device.
-    ExtendedStreaming = 3,
+    ExtendedStreaming = 0x03,
     ///Access a specific object inside the device information.
-    Specific = 4,
+    Specific = 0x04,
 }
 
-impl From<ReadDeviceIdCode> for u8 {
-    fn from(value: ReadDeviceIdCode) -> Self {
+impl TryFrom<u8> for ReadDeviceCode {
+    type Error=AduParseError;
+
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
         match value {
-            ReadDeviceIdCode::BasicStreaming => 0x01,
-            ReadDeviceIdCode::RegularStreaming => 0x02,
-            ReadDeviceIdCode::ExtendedStreaming => 0x03,
-            ReadDeviceIdCode::Specific => 0x04,
-        }
-    }
-}
-
-pub(crate) fn read_device_id_from_u8(value: u8) -> Result<ReadDeviceIdCode, ExceptionCode> {
-        match value {
-            0x01 => Ok(ReadDeviceIdCode::BasicStreaming),
-            0x02 => Ok(ReadDeviceIdCode::RegularStreaming),
-            0x03 => Ok(ReadDeviceIdCode::ExtendedStreaming),
-            0x04 => Ok(ReadDeviceIdCode::Specific),
-            _ => Err(ExceptionCode::IllegalDataValue),
-        }
-}
-
-impl Into<ReadDeviceIdCode> for u8 {
-    fn into(self) -> ReadDeviceIdCode {
-        match self {
-            0x01 => ReadDeviceIdCode::BasicStreaming,
-            0x02 => ReadDeviceIdCode::RegularStreaming,
-            0x03 => ReadDeviceIdCode::ExtendedStreaming,
-            0x04 => ReadDeviceIdCode::Specific,
-            _ => panic!("Device Id Code outside of valid range !")
+            0x01 => Ok(ReadDeviceCode::BasicStreaming),
+            0x02 => Ok(ReadDeviceCode::RegularStreaming),
+            0x03 => Ok(ReadDeviceCode::ExtendedStreaming),
+            0x04 => Ok(ReadDeviceCode::Specific),
+            value => Err(AduParseError::DeviceCodeOutOfRange(value))
         }
     }
 }
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 ///The conformity level is used by the server to tell the client if it can respond to the specified request.
-pub enum ReadDeviceConformityLevel {
+pub enum DeviceConformityLevel {
     ///The client can access basic information about the device.
     BasicIdentificationStream = 0x01,
     ///The client can access regular information about the device.
@@ -139,34 +104,23 @@ pub enum ReadDeviceConformityLevel {
     ExtendedIdentificationIndividual = 0x83,
 }
 
-impl From<u8> for ReadDeviceConformityLevel {
-    fn from(value: u8) -> Self {
+impl TryFrom<u8> for DeviceConformityLevel {
+    type Error=AduParseError;
+
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
         match value {
-            0x01 => ReadDeviceConformityLevel::BasicIdentificationStream,
-            0x02 => ReadDeviceConformityLevel::RegularIdentificationStream,
-            0x03 => ReadDeviceConformityLevel::ExtendedIdentificationStream,
-            0x81 => ReadDeviceConformityLevel::BasicIdentificationIndividual,
-            0x82 => ReadDeviceConformityLevel::RegularIdentificationIndividual,
-            0x83 => ReadDeviceConformityLevel::ExtendedIdentificationIndividual,
-            _ => panic!("READ DEVICE CONFORMITY LEVEL: value out of range."),
+            0x01 => Ok(DeviceConformityLevel::BasicIdentificationStream),
+            0x02 => Ok(DeviceConformityLevel::RegularIdentificationStream),
+            0x03 => Ok(DeviceConformityLevel::ExtendedIdentificationStream),
+            0x81 => Ok(DeviceConformityLevel::BasicIdentificationIndividual),
+            0x82 => Ok(DeviceConformityLevel::RegularIdentificationIndividual),
+            0x83 => Ok(DeviceConformityLevel::ExtendedIdentificationIndividual),
+            value => Err(AduParseError::DeviceConformityLevelOutOfRange(value))
         }
     }
 }
 
-impl Into<u8> for ReadDeviceConformityLevel {
-    fn into(self) -> u8 {
-        match self {
-            ReadDeviceConformityLevel::BasicIdentificationStream => 0x01,
-            ReadDeviceConformityLevel::RegularIdentificationStream => 0x02,
-            ReadDeviceConformityLevel::ExtendedIdentificationStream => 0x03,
-            ReadDeviceConformityLevel::BasicIdentificationIndividual => 0x81,
-            ReadDeviceConformityLevel::RegularIdentificationIndividual => 0x82,
-            ReadDeviceConformityLevel::ExtendedIdentificationIndividual => 0x83,
-        }
-    }
-}
-
-impl std::fmt::Display for ReadDeviceIdCode {
+impl std::fmt::Display for ReadDeviceCode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::BasicStreaming => write!(f, " (READ DEVICE ID CODE) Basic Streaming"),
@@ -185,14 +139,14 @@ pub struct ReadDeviceRequest {
     ///The MODBUS Extended interface should be 0x14.
     pub(crate) mei_code: MeiCode,
     ///The access level requested by the user. See MODBUS Documentation or ReadDeviceIdCode for further details.
-    pub(crate) dev_id: ReadDeviceIdCode,
+    pub(crate) dev_id: ReadDeviceCode,
     ///Start the read at the specified position, if this field is none the read will start with element 0.
     pub(crate) obj_id: Option<u8>, //TODO(Kay): Figure out if we can use the option type with oo-bindgen ? if not we might need to change things a bit !
 }
 
 impl ReadDeviceRequest {
     ///Create a new Read Device Info Request
-    pub fn new(mei_type: MeiCode, dev_id: ReadDeviceIdCode, obj_id: Option<u8>) -> Self {
+    pub fn new(mei_type: MeiCode, dev_id: ReadDeviceCode, obj_id: Option<u8>) -> Self {
         Self {
             mei_code: mei_type,
             dev_id,
@@ -214,9 +168,9 @@ pub struct DeviceInfo {
     ///This value is always 0x14 for the read device function code. For further details see MODBUS specification.
     pub mei_code: MeiCode,
     ///The requested access. For further details see ReadDeviceIdCode or the MODBUS specification.
-    pub read_device_id: ReadDeviceIdCode,
+    pub read_device_id: ReadDeviceCode,
     ///The Access level the server is willing to grant. For further details see ReadDeviceConformityLevel and the MODBUS specification.
-    pub conformity_level: ReadDeviceConformityLevel,
+    pub conformity_level: DeviceConformityLevel,
     ///If the server could not fit all the information in a single response this field will be Some and contain the index of the next read. See the MODBUS specification for more details.
     pub continue_at: Option<u8>,
     ///The actual information will be put into this vector can be empty if there was no information to read.
@@ -226,11 +180,11 @@ pub struct DeviceInfo {
 
 impl DeviceInfo {
     ///Creates a new Device Identification Reply
-    pub fn new(mei_code: u8, device_id: u8, conformity_level: u8) -> Self {
+    pub fn new(mei_code: MeiCode, device_id: ReadDeviceCode, conformity_level: DeviceConformityLevel) -> Self {
         Self {
-            mei_code: mei_code.into(),
-            read_device_id: device_id.into(),
-            conformity_level: conformity_level.into(),
+            mei_code,
+            read_device_id: device_id,
+            conformity_level,
             continue_at: None,
             storage: vec![],
         }
