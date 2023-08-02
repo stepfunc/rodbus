@@ -297,8 +297,8 @@ impl Serialize for WriteMultiple<u16> {
 
 impl Serialize for ReadDeviceRequest {
     fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
-        cursor.write_u8(self.mei_code.into())?;
-        cursor.write_u8(self.dev_id.into())?;
+        cursor.write_u8(self.mei_code as u8)?;
+        cursor.write_u8(self.dev_id as u8)?;
 
         if let Some(value) = self.obj_id {
             cursor.write_u8(value)?;
@@ -311,31 +311,30 @@ impl Serialize for ReadDeviceRequest {
 }
 
 impl<T> Serialize for DeviceIdentificationResponse<T> 
-where T: Fn(u8, u8) -> Result<DeviceInfo, crate::exception::ExceptionCode>, {
+where T: Fn() -> Result<DeviceInfo, crate::exception::ExceptionCode>, {
     fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
-        cursor.write_u8(self.mei_code.into())?;
-        cursor.write_u8(self.read_device_id.into())?;
+        let device_data: DeviceInfo = (self.getter)()?;
         
-        let response = (self.getter)(self.mei_code.into(), self.read_device_id.into())?;
-
-        cursor.write_u8(response.conformity_level.into())?;
+        cursor.write_u8(device_data.mei_code as u8)?;
+        cursor.write_u8(device_data.read_device_id as u8)?;
+        cursor.write_u8(device_data.conformity_level as u8)?;
         
         //NOTE(Kay): Seems like we cannot use the whole buffer for our messages, so we keep a bit of a safety margin
         const SAFETY_MARGIN: u8 = 7;
-        let max = response.response_message_count(MAX_ADU_LENGTH as u8 - SAFETY_MARGIN);
+        let max = device_data.response_message_count(MAX_ADU_LENGTH as u8 - SAFETY_MARGIN);
         
         max.serialize(cursor)?;
         
         let range: Range<usize> = Range {
-            start: response.continue_at.unwrap_or_default().into(),
-            end: max.unwrap_or(response.storage.len() as u8).into(),
+            start: device_data.continue_at.unwrap_or_default().into(),
+            end: max.unwrap_or(device_data.storage.len() as u8).into(),
         };
         
         let records_count = range.end.saturating_sub(range.start);
-        
+
         cursor.write_u8(records_count as u8)?;
 
-        for (idx, message) in response.storage[range].iter().enumerate() {
+        for (idx, message) in device_data.storage[range].iter().enumerate() {
             cursor.write_u8(idx as u8)?;
             message.as_str().serialize(cursor)?;
         }
@@ -345,14 +344,14 @@ where T: Fn(u8, u8) -> Result<DeviceInfo, crate::exception::ExceptionCode>, {
 }
 
 impl<T> Loggable for DeviceIdentificationResponse<T> 
-where T: Fn(u8, u8) -> Result<DeviceInfo, crate::exception::ExceptionCode>, {
+where T: Fn() -> Result<DeviceInfo, crate::exception::ExceptionCode>, {
     fn log(
         &self,
         _bytes: &[u8],
         _level: crate::AppDecodeLevel,
         f: &mut std::fmt::Formatter,
     ) -> std::fmt::Result {
-        write!(f, "DEVICE IDENTIFICATION RESPONSE {} {}", self.mei_code, self.read_device_id)
+        write!(f, "DEVICE IDENTIFICATION RESPONSE")
     }
 }
 
@@ -388,10 +387,7 @@ impl Loggable for DeviceInfo {
 impl Serialize for &str {
     fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
         cursor.write_u8(self.len() as u8)?;
-
-        for byte in self.as_bytes() {
-            cursor.write_u8(*byte)?;
-        }
+        cursor.write_bytes(self.as_bytes())?;
 
         Ok(())
     }
