@@ -1,4 +1,3 @@
-use crate::ExceptionCode;
 use crate::decode::AppDecodeLevel;
 use crate::error::{AduParseError, InvalidRange};
 
