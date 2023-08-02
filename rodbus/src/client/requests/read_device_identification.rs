@@ -113,26 +113,17 @@ impl ReadDevice {
         Ok(result)
     }
 
-    fn parse_device_info_objects<'a>(length: u8, container: &'a mut Vec<String>, cursor: &'a mut ReadCursor) -> Result<(), RequestError> {
+    fn parse_device_info_objects(length: u8, container: &mut Vec<String>, cursor: &mut ReadCursor) -> Result<(), RequestError> {
         for _ in 0..length {
-            //TODO(Kay): Do we need to store the obj_id ? 
-            let _obj_id = cursor.read_u8()?;
+            cursor.read_u8()?; //NOTE(Kay): Object id not necessary for our internal response
             let str_size = cursor.read_u8()?;
             
             let data = cursor.read_bytes(str_size as usize)?.to_vec();
-
             let str = String::from_utf8(data);
 
             match str {
-                Ok(str) => {
-                    match str.is_ascii() {
-                        true => container.push(str),
-                        false => return Err(RequestError::Io(std::io::ErrorKind::InvalidData)),
-                    }
-                }
-                Err(_) => {
-                    return Err(RequestError::Io(std::io::ErrorKind::InvalidData))
-                },
+                Ok(str) => container.push(str),
+                Err(_) => return Err(RequestError::Io(std::io::ErrorKind::InvalidData)),
             }
         }
 
