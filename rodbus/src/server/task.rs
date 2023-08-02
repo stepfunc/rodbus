@@ -259,8 +259,8 @@ impl AuthorizationType {
             Request::ReadDeviceIdentification(x) => handler.read_device_info(
                 unit_id,
                 role,
-                x.mei_code.into(),
-                x.dev_id.into(),
+                x.mei_code as u8,
+                x.dev_id as u8,
                 x.obj_id,
             ),
             Request::WriteSingleCoil(x) => handler.write_single_coil(unit_id, x.index, role),
