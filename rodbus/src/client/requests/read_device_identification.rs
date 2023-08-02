@@ -98,18 +98,16 @@ impl ReadDevice {
         Ok(())
     }
 
-    fn parse_device_identification_response<'a>(
-        cursor: &'a mut ReadCursor,
-    ) -> Result<DeviceInfo, RequestError> {        
-        let mei_code = cursor.read_u8()?;
-        let device_id = cursor.read_u8()?;
-        let conformity_level = cursor.read_u8()?;
+    fn parse_device_identification_response(
+        cursor: &mut ReadCursor,
+    ) -> Result<DeviceInfo, RequestError> {
+        let mei_code = cursor.read_u8()?.try_into()?;
+        let device_id = cursor.read_u8()?.try_into()?;
+        let conformity_level = cursor.read_u8()?.try_into()?;
 
         let mut result = DeviceInfo::new(mei_code, device_id, conformity_level).continue_at(cursor.read_u8()?, cursor.read_u8()?);
-
         let msglength = cursor.read_u8()?;
-        
-        
+
         ReadDevice::parse_device_info_objects(msglength, &mut result.storage, cursor)?;
         
         Ok(result)
