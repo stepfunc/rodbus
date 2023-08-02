@@ -131,7 +131,7 @@ async fn test_read_device_info_request_response() {
     //TEST Basic Device Reading Information
     assert_eq!(
         channel.read_device_identification(params, 
-            ReadDeviceRequest::new(MeiCode::ReadDeviceId, ReadDeviceCode::BasicStreaming, None)).await.unwrap(),
+            ReadDeviceRequest::new(ReadDeviceCode::BasicStreaming, None)).await.unwrap(),
             DeviceInfo { 
                 mei_code: MeiCode::ReadDeviceId, 
                 read_device_id: ReadDeviceCode::BasicStreaming, 
@@ -143,7 +143,7 @@ async fn test_read_device_info_request_response() {
 
     //TEST Basic Device Reading Information with manual continue_at 0 set
     assert_eq!(
-        channel.read_device_identification(params, ReadDeviceRequest::new(MeiCode::ReadDeviceId, ReadDeviceCode::BasicStreaming, Some(0))).await.unwrap(),
+        channel.read_device_identification(params, ReadDeviceRequest::new(ReadDeviceCode::BasicStreaming, Some(0))).await.unwrap(),
         DeviceInfo {
             mei_code: MeiCode::ReadDeviceId,
             read_device_id: ReadDeviceCode::BasicStreaming,
@@ -155,7 +155,7 @@ async fn test_read_device_info_request_response() {
 
     //TEST Read all available information in the regular space
     assert_eq!(
-        channel.read_device_identification(params, ReadDeviceRequest::new(MeiCode::ReadDeviceId, ReadDeviceCode::RegularStreaming, None)).await.unwrap(),
+        channel.read_device_identification(params, ReadDeviceRequest::new(ReadDeviceCode::RegularStreaming, None)).await.unwrap(),
         DeviceInfo {
             mei_code: MeiCode::ReadDeviceId,
             read_device_id: ReadDeviceCode::RegularStreaming,
@@ -168,7 +168,7 @@ async fn test_read_device_info_request_response() {
     //TEST See if we get the right position to continue reading at when the messsage length is overflowing
     assert_eq!(
         channel.read_device_identification(params, 
-            ReadDeviceRequest::new(MeiCode::ReadDeviceId, ReadDeviceCode::ExtendedStreaming, None)).await.unwrap(),
+            ReadDeviceRequest::new(ReadDeviceCode::ExtendedStreaming, None)).await.unwrap(),
             DeviceInfo { 
                 mei_code: MeiCode::ReadDeviceId, 
                 read_device_id: ReadDeviceCode::ExtendedStreaming, 
@@ -181,7 +181,7 @@ async fn test_read_device_info_request_response() {
     //TEST Continuation of the reading above should return the last entry in the extended info block
     assert_eq!(
         channel.read_device_identification(params, 
-            ReadDeviceRequest::new(MeiCode::ReadDeviceId, ReadDeviceCode::ExtendedStreaming, Some(2))).await.unwrap(),
+            ReadDeviceRequest::new(ReadDeviceCode::ExtendedStreaming, Some(2))).await.unwrap(),
             DeviceInfo { 
                 mei_code: MeiCode::ReadDeviceId, 
                 read_device_id: ReadDeviceCode::ExtendedStreaming, 
@@ -194,7 +194,7 @@ async fn test_read_device_info_request_response() {
     //TEST Read all basic fields with read specific
     assert_eq!(
         channel.read_device_identification(params, 
-            ReadDeviceRequest::new(MeiCode::ReadDeviceId, ReadDeviceCode::Specific, Some(0))).await.unwrap(),
+            ReadDeviceRequest::new(ReadDeviceCode::Specific, Some(0))).await.unwrap(),
             DeviceInfo { 
                 mei_code: MeiCode::ReadDeviceId, 
                 read_device_id: ReadDeviceCode::Specific, 
@@ -206,7 +206,7 @@ async fn test_read_device_info_request_response() {
 
     assert_eq!(
         channel.read_device_identification(params, 
-            ReadDeviceRequest::new(MeiCode::ReadDeviceId, ReadDeviceCode::Specific, Some(1))).await.unwrap(),
+            ReadDeviceRequest::new(ReadDeviceCode::Specific, Some(1))).await.unwrap(),
             DeviceInfo { 
                 mei_code: MeiCode::ReadDeviceId, 
                 read_device_id: ReadDeviceCode::Specific, 
@@ -218,7 +218,7 @@ async fn test_read_device_info_request_response() {
 
     assert_eq!(
         channel.read_device_identification(params, 
-            ReadDeviceRequest::new(MeiCode::ReadDeviceId, ReadDeviceCode::Specific, Some(2))).await.unwrap(),
+            ReadDeviceRequest::new(ReadDeviceCode::Specific, Some(2))).await.unwrap(),
             DeviceInfo { 
                 mei_code: MeiCode::ReadDeviceId, 
                 read_device_id: ReadDeviceCode::Specific, 
@@ -230,7 +230,7 @@ async fn test_read_device_info_request_response() {
 
     assert_eq!(
         channel.read_device_identification(params, 
-            ReadDeviceRequest::new(MeiCode::ReadDeviceId, ReadDeviceCode::Specific, Some(3))).await.unwrap(),
+            ReadDeviceRequest::new(ReadDeviceCode::Specific, Some(3))).await.unwrap(),
             DeviceInfo { 
                 mei_code: MeiCode::ReadDeviceId, 
                 read_device_id: ReadDeviceCode::Specific, 
@@ -240,21 +240,13 @@ async fn test_read_device_info_request_response() {
             }
     );
 
-    //Testing this isn't really necessary as it is part of the server not of the protocol ? 
+    //Testing this isn't really necessary as it is part of the server not of the protocol ?
     //TEST we get Err(ExceptionCode::IllegalDataAddress) back when trying to access a specific field that is not specified !
     assert_eq!(
         channel.read_device_identification(params, 
-            ReadDeviceRequest::new(MeiCode::ReadDeviceId, ReadDeviceCode::Specific, Some(28))).await,
+            ReadDeviceRequest::new(ReadDeviceCode::Specific, Some(28))).await,
             Err(RequestError::Exception(ExceptionCode::IllegalDataAddress))
     );
-
-    //TEST The user made a mistake specifying the right MeiCode
-    assert_eq!(
-    channel.read_device_identification(params, 
-            ReadDeviceRequest::new(MeiCode::CanOpenGeneralReference, ReadDeviceCode::ExtendedStreaming, None)).await,
-    Err(RequestError::Exception(ExceptionCode::IllegalDataValue))
-    );
-
 }
 
 #[test]
