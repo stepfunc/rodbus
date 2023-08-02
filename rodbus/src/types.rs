@@ -135,7 +135,7 @@ impl std::fmt::Display for ReadDeviceCode {
 #[derive(Debug, Copy, Clone, PartialEq)]
 ///MODBUS client request for retrieving information about a Device.
 pub struct ReadDeviceRequest {
-    ///The MODBUS Extended interface should be 0x14.
+    ///The MODBUS Extended interface should be 0x0E.
     pub(crate) mei_code: MeiCode,
     ///The access level requested by the user. See MODBUS Documentation or ReadDeviceIdCode for further details.
     pub(crate) dev_id: ReadDeviceCode,
@@ -145,9 +145,9 @@ pub struct ReadDeviceRequest {
 
 impl ReadDeviceRequest {
     ///Create a new Read Device Info Request
-    pub fn new(mei_type: MeiCode, dev_id: ReadDeviceCode, obj_id: Option<u8>) -> Self {
+    pub fn new(dev_id: ReadDeviceCode, obj_id: Option<u8>) -> Self {
         Self {
-            mei_code: mei_type,
+            mei_code: MeiCode::ReadDeviceId, //NOTE(Kay): According to the modbus specification this value is always 0x0E(ReadDeviceId) for this particular function code.
             dev_id,
             obj_id,
         }
