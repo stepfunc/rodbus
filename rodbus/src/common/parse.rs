@@ -49,7 +49,6 @@ impl Parse for ReadDeviceRequest {
 
 #[cfg(test)]
 mod coils {
-    use crate::{ReadDeviceRequest, ExceptionCode, RequestError, MeiCode};
     use crate::common::traits::Parse;
     use crate::error::AduParseError;
     use crate::types::Indexed;
@@ -83,6 +82,16 @@ mod coils {
         let result = Indexed::<u16>::parse(&mut cursor);
         assert_eq!(result, Ok(Indexed::new(1, 0xCAFE)));
     }
+
+
+}
+#[cfg(test)]
+mod read_device_info {
+    use crate::{ReadDeviceRequest, MeiCode};
+    use crate::common::traits::Parse;
+    use crate::error::AduParseError;
+
+    use scursor::ReadCursor;
 
     #[test]
     fn parse_fails_for_invalid_device_info_values() {
