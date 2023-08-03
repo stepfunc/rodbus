@@ -332,8 +332,8 @@ where T: Fn() -> Result<DeviceInfo, crate::exception::ExceptionCode>, {
 
         cursor.write_u8(device_data.number_objects)?;
 
-        for (idx, message) in device_data.storage[range].iter().enumerate() {
-            cursor.write_u8(idx as u8)?;
+        for message in device_data.storage[range].iter() {
+            cursor.write_u8(message.index)?;
             message.data.as_str().serialize(cursor)?;
         }
 
