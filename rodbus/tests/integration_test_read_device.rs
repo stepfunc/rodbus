@@ -178,7 +178,7 @@ async fn test_read_device_info_request_response() {
             }
     );  
 
-    let resulting_objects = result.retrieve_all_objects();
+    let resulting_objects = result.finalize_and_retrieve_objects();
 
     assert_eq!(resulting_objects,
         vec![
@@ -206,7 +206,7 @@ async fn test_read_device_info_request_response() {
         }
     );
 
-    let resulting_objects = result.retrieve_all_objects();
+    let resulting_objects = result.finalize_and_retrieve_objects();
 
     assert_eq!(resulting_objects,
         vec![
@@ -234,7 +234,7 @@ async fn test_read_device_info_request_response() {
         }
     );
 
-    let resulting_objects = result.retrieve_all_objects();
+    let resulting_objects = result.finalize_and_retrieve_objects();
 
     assert_eq!(resulting_objects,
         vec![
@@ -262,12 +262,12 @@ async fn test_read_device_info_request_response() {
             }
     );
 
-    let resulting_objects = result.retrieve_all_objects();
+    let resulting_objects = result.finalize_and_retrieve_objects();
     assert_eq!(
         resulting_objects,
         vec![
-            ModbusInfoObject::ModbusData(0, EXTENDED_EXAMPLE_DOC_LINE_A.as_bytes().to_vec()),
-            ModbusInfoObject::ModbusData(1, EXTENDED_EXAMPLE_DOC_LINE_B.as_bytes().to_vec()),
+            ModbusInfoObject::ModbusRawData(0, EXTENDED_EXAMPLE_DOC_LINE_A.as_bytes().to_vec()),
+            ModbusInfoObject::ModbusRawData(1, EXTENDED_EXAMPLE_DOC_LINE_B.as_bytes().to_vec()),
         ]
     );
 
@@ -285,12 +285,12 @@ async fn test_read_device_info_request_response() {
             }
     );
 
-    let resulting_objects = result.retrieve_all_objects();
+    let resulting_objects = result.finalize_and_retrieve_objects();
 
     assert_eq!(
         resulting_objects,
         vec![
-            ModbusInfoObject::ModbusData(2, EXTENDED_EXAMPLE_DOC_LINE_C.as_bytes().to_vec())
+            ModbusInfoObject::ModbusRawData(2, EXTENDED_EXAMPLE_DOC_LINE_C.as_bytes().to_vec())
         ]
     );
 
@@ -308,12 +308,12 @@ async fn test_read_device_info_request_response() {
             }
     );
 
-    let resulting_objects: Vec<ModbusInfoObject> = result.retrieve_all_objects();
+    let resulting_objects: Vec<ModbusInfoObject> = result.finalize_and_retrieve_objects();
 
     assert_eq!(
         resulting_objects,
         vec![
-            ModbusInfoObject::ModbusData(0, VENDOR_NAME.as_bytes().to_vec()),
+            ModbusInfoObject::ModbusRawData(0, VENDOR_NAME.as_bytes().to_vec()),
         ]
     );
 
@@ -330,12 +330,12 @@ async fn test_read_device_info_request_response() {
             }
     );
 
-    let resulting_objects = result.retrieve_all_objects();
+    let resulting_objects = result.finalize_and_retrieve_objects();
 
     assert_eq!(
         resulting_objects,
         vec![
-            ModbusInfoObject::ModbusData(1, PRODUCT_CODE.as_bytes().to_vec()),
+            ModbusInfoObject::ModbusRawData(1, PRODUCT_CODE.as_bytes().to_vec()),
         ]
     );
 
@@ -352,12 +352,12 @@ async fn test_read_device_info_request_response() {
             }
     );
 
-    let resulting_objects = result.retrieve_all_objects();
+    let resulting_objects = result.finalize_and_retrieve_objects();
 
     assert_eq!(
         resulting_objects,
         vec![
-            ModbusInfoObject::ModbusData(2, PRODUCT_VERSION.as_bytes().to_vec()),
+            ModbusInfoObject::ModbusRawData(2, PRODUCT_VERSION.as_bytes().to_vec()),
         ]
     );
 
@@ -374,12 +374,12 @@ async fn test_read_device_info_request_response() {
             }
     );
 
-    let resulting_objects = result.retrieve_all_objects();
+    let resulting_objects = result.finalize_and_retrieve_objects();
 
     assert_eq!(
         resulting_objects,
         vec![
-            ModbusInfoObject::ModbusData(3, VENDOR_URL.as_bytes().to_vec()),
+            ModbusInfoObject::ModbusRawData(3, VENDOR_URL.as_bytes().to_vec()),
         ]
     );
 
