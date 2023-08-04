@@ -129,7 +129,7 @@ impl<'a> Request<'a> {
             Request::ReadDeviceIdentification(read) => {
                 //TODO: The server needs to answer the request depending on the values of dev_id, obj_id
                 let device_information = 
-                    DeviceIdentificationResponse::new(|| handler.read_device_info(read.mei_code as u8, read.dev_id as u8, read.obj_id));
+                    DeviceIdentificationResponse::new(|| handler.read_device_info(read.mei_code, read.dev_id, read.obj_id));
                 writer.format_reply(header, function, &device_information, level)
             }
             Request::WriteSingleCoil(request) => {
