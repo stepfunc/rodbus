@@ -61,7 +61,7 @@ where
 async fn run_tcp() -> Result<(), Box<dyn std::error::Error>> {
     // ANCHOR: create_tcp_channel
     let channel = spawn_tcp_client_task(
-        HostAddr::ip(IpAddr::V4(Ipv4Addr::LOCALHOST), 10502),
+        HostAddr::ip(IpAddr::V4(Ipv4Addr::LOCALHOST), 10808),
         1,
         default_retry_strategy(),
         DecodeLevel::default(),
@@ -96,7 +96,7 @@ async fn run_rtu() -> Result<(), Box<dyn std::error::Error>> {
 async fn run_tls(tls_config: TlsClientConfig) -> Result<(), Box<dyn std::error::Error>> {
     // ANCHOR: create_tls_channel
     let channel = spawn_tls_client_task(
-        HostAddr::ip(IpAddr::V4(Ipv4Addr::LOCALHOST), 10502),
+        HostAddr::ip(IpAddr::V4(Ipv4Addr::LOCALHOST), 10808),
         1,
         default_retry_strategy(),
         tls_config,
@@ -207,13 +207,36 @@ async fn run_channel(mut channel: Channel) -> Result<(), Box<dyn std::error::Err
                 // disable decoded
                 channel.set_decode_level(DecodeLevel::nothing()).await?;
             }
-            /*"dev_info" => {
-                let result = channel.read_device_identification(params, ReadDeviceInfoBlock {
-                    mei_type: 0x0E,
-                    dev_id: 0x01,
-                    obj_id: 0x00,
-                }).await?;
-            }*/
+            "dev_info" => {
+                let basic_info = channel.read_device_identification(params, ReadDeviceRequest::new(ReadDeviceCode::BasicStreaming, None)).await?;
+
+                for info in basic_info.finalize_and_retrieve_objects() {
+                    match info {
+                        ModbusInfoObject::ModbusString(idx, string) => println!("RECIVED BASIC INFO OBJECT: {} WITH A INDEX OF {}", string, idx),
+                        ModbusInfoObject::ModbusRawData(_, _) => unreachable!(),
+                    }
+                }
+                //TODO(Kay): The usage of this api feels very clunky but i don't know how to write a good one so experimenting is probably a good idea ?
+                let keys = channel.read_device_identification(params, ReadDeviceRequest::new(ReadDeviceCode::RegularStreaming, None)).await?;
+
+                for key in keys.finalize_and_retrieve_objects() {
+                    match key {
+                        ModbusInfoObject::ModbusString(_, key_name) => {
+                            println!("RECIEVED STRING DATA: {}", key_name);
+                            let parsed_key = u8::from_str_radix(&key_name[2..], 16).unwrap();
+                            let resulting_values = channel.read_device_identification(params, ReadDeviceRequest::new(ReadDeviceCode::Specific, Some(parsed_key))).await?;
+                            
+                            for value in resulting_values.finalize_and_retrieve_objects() {
+                                match value {
+                                    ModbusInfoObject::ModbusString(_, str) => println!("RECIEVED VALUE: {} FOR KEY {}", str, parsed_key),
+                                    ModbusInfoObject::ModbusRawData(_, str) => println!("RECIEVED BINARY DATA OF UNKNOWN FORMAT: {:?} FOR KEY {}", str, parsed_key),
+                                }
+                            }
+                        }
+                        ModbusInfoObject::ModbusRawData(_, _) => unreachable!(),
+                    }
+                }
+            }
             "rc" => {
                 // ANCHOR: read_coils
                 let result = channel
