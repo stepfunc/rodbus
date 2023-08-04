@@ -162,23 +162,52 @@ impl std::fmt::Display for ReadDeviceRequest {
     }
 }
 
-
 #[derive(Debug, PartialEq)]
-#[allow(missing_docs)]
-pub struct ModbusString {
-    pub index: u8,
-    pub length: u8,
-    pub data: String,
+///TODO(Kay): Documentation
+pub enum ModbusInfoObject {
+    ///TODO(Kay): Documentation
+    ModbusString(u8, String),
+    ///TODO(Kay): Documentation
+    ModbusData(u8, Vec<u8>),
 }
 
-impl ModbusString {
+impl From<ModbusInfoObjectDescriptor> for ModbusInfoObject {
+    fn from(value: ModbusInfoObjectDescriptor) -> Self {
+        match value.device_code {
+            ReadDeviceCode::BasicStreaming | ReadDeviceCode::RegularStreaming => Self::ModbusString(value.index, String::from_utf8(value.raw_data).unwrap()),
+            ReadDeviceCode::ExtendedStreaming | ReadDeviceCode::Specific => Self::ModbusData(value.index, value.raw_data.clone()),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+#[allow(missing_docs)]
+pub struct ModbusInfoObjectDescriptor {
+    device_code: ReadDeviceCode,
+    pub index: u8,
+    pub length: u8,
+    raw_data: Vec<u8>,
+}
+
+impl ModbusInfoObjectDescriptor {
     #[allow(missing_docs)]
-    pub fn new(index: u8, length: u8, data: &[u8]) -> Result<Self, FromUtf8Error> {
-        Ok(Self {
+    pub fn new(device_code: ReadDeviceCode, index: u8, length: u8, data: &[u8]) -> Self {
+        Self {
+            device_code,
             index,
             length,
-            data: String::from_utf8(data.to_vec())?,
-        })
+            raw_data: data.to_vec(), //Assume that we will never crash because of unexpected bytes ?
+        }
+    }
+
+    ///TODO(Kay): Documentation
+    pub fn get_data(&self) -> &[u8] {
+        &self.raw_data
+    }
+    
+    ///TODO(Kay): Documentation
+    pub fn convert(self) -> ModbusInfoObject {
+        self.into()
     }
 }
 
@@ -196,7 +225,7 @@ pub struct DeviceInfo {
     ///If the server could not fit all the information in a single response this field will be Some and contain the index of the next read. See the MODBUS specification for more details.
     pub continue_at: Option<u8>,
     ///The actual information will be put into this vector can be empty if there was no information to read.
-    pub storage: Vec<ModbusString>, //TODO(Kay): Another type which might not work in oo-bindgen ?
+    pub storage: Vec<ModbusInfoObjectDescriptor>, //TODO(Kay): Another type which might not work in oo-bindgen ?
 }
 
 
@@ -227,7 +256,7 @@ impl DeviceInfo {
         let mut max_length = max_msg_size;
         
         for (idx, object) in self.storage.iter().enumerate() {
-            let length = object.data.len();
+            let length = object.raw_data.len();
 
             if max_length < ((length as u8) + ADDITIONAL_BYTES) {
                 return Some(idx as u8);
@@ -237,6 +266,16 @@ impl DeviceInfo {
         }
         
         None
+    }
+
+    ///Convert all Raw Modbus objects into ModbusObjects
+    pub fn retrieve_all_objects(&self) -> Vec<ModbusInfoObject> {
+        let mut result = vec![];
+        for raw_object in &self.storage {
+            result.push(raw_object.clone().into());
+        }
+
+        result
     }
 }
 
