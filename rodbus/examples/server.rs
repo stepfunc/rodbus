@@ -11,6 +11,10 @@ struct SimpleHandler {
     discrete_inputs: Vec<bool>,
     holding_registers: Vec<u16>,
     input_registers: Vec<u16>,
+
+    basic_info: [String; 3],
+    regular_keys: [String; 4],
+    extended_values: [String; 4],
 }
 
 impl SimpleHandler {
@@ -25,6 +29,10 @@ impl SimpleHandler {
             discrete_inputs,
             holding_registers,
             input_registers,
+
+            basic_info: ["Example Vendor".to_string(), "Little Dictionary".to_string(), "0.1.0".to_string()],
+            regular_keys: ["0x8A".to_string(), "0x8B".to_string(), "0x8C".to_string(), "0x8D".to_string()],
+            extended_values: ["This is the value for key 0x8A".to_string(), "Value for 0x8B".to_string(), "Another value for 0x8C".to_string(), "Last but not least the value for 0x8D".to_string()],
         }
     }
 
@@ -43,6 +51,7 @@ impl SimpleHandler {
     fn input_registers_as_mut(&mut self) -> &mut [u16] {
         self.input_registers.as_mut_slice()
     }
+
 }
 
 // ANCHOR: request_handler
@@ -124,6 +133,53 @@ impl RequestHandler for SimpleHandler {
 
         result
     }
+
+    fn read_device_info(&self, mei_code: MeiCode, read_dev_id: ReadDeviceCode, object_id: Option<u8>) -> Result<DeviceInfo, ExceptionCode> {
+        let mut device_info = DeviceInfo::new(mei_code, read_dev_id, DeviceConformityLevel::ExtendedIdentificationIndividual, 0);
+        let response_data = match read_dev_id {
+            ReadDeviceCode::BasicStreaming => self.basic_info.as_slice(),
+            ReadDeviceCode::RegularStreaming => self.regular_keys.as_slice(),
+            ReadDeviceCode::ExtendedStreaming => self.extended_values.as_slice(),
+            ReadDeviceCode::Specific => self.extended_values.as_slice(),
+        };
+
+        if read_dev_id == ReadDeviceCode::Specific && object_id.is_some() {
+            device_info.number_objects = 1;
+            let index = object_id.unwrap() as usize;
+
+            let message = match object_id.unwrap() {
+                0x8A => &self.extended_values[0],
+                0x8B => &self.extended_values[1],
+                0x8C => &self.extended_values[2],
+                0x8D => &self.extended_values[3],
+                _ => unreachable!(),
+            };
+            device_info.storage = vec![
+                ModbusInfoObjectDescriptor::new(ReadDeviceCode::Specific, index as u8, message.len() as u8, message.as_bytes())
+            ];
+            
+            return Ok(device_info);
+        } else {
+            device_info.number_objects = response_data.len() as u8;
+            device_info.storage = vec![];
+
+            for (idx, info_string) in response_data.iter().enumerate() {
+                let obj = ModbusInfoObjectDescriptor::new(read_dev_id, idx as u8, info_string.len() as u8, info_string.as_bytes());
+                device_info.storage.push(obj);
+            }
+        }
+
+        Ok(device_info)
+    }
+
+    fn wrap(self) -> std::sync::Arc<std::sync::Mutex<Box<Self>>>
+    where
+        Self: Sized,
+    {
+        std::sync::Arc::new(std::sync::Mutex::new(Box::new(self)))
+    }
+
+    
 }
 // ANCHOR_END: request_handler
 
@@ -167,7 +223,7 @@ async fn run_tcp() -> Result<(), Box<dyn std::error::Error>> {
     // ANCHOR: tcp_server_create
     let server = rodbus::server::spawn_tcp_server_task(
         1,
-        "127.0.0.1:502".parse()?,
+        "127.0.0.1:10707".parse()?,
         map,
         AddressFilter::Any,
         DecodeLevel::default(),
@@ -206,7 +262,7 @@ async fn run_tls(tls_config: TlsServerConfig) -> Result<(), Box<dyn std::error::
     // ANCHOR: tls_server_create
     let server = rodbus::server::spawn_tls_server_task_with_authz(
         1,
-        "127.0.0.1:802".parse()?,
+        "127.0.0.1:10808".parse()?,
         map,
         ReadOnlyAuthorizationHandler::create(),
         tls_config,
