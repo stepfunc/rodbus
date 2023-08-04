@@ -314,6 +314,19 @@ impl AuthorizationHandler for ReadOnlyAuthorizationHandler {
     ) -> Authorization {
         Authorization::Deny
     }
+
+    fn read_device_info(&self, _unit_id: UnitId, _role: &str, _mei_code: MeiCode, _read_dev_id: ReadDeviceCode, _object_id: Option<u8>) -> Authorization {
+        Authorization::Deny
+    }
+
+    fn wrap(self) -> Arc<dyn AuthorizationHandler>
+    where
+        Self: Sized,
+    {
+        Arc::new(self)
+    }
+
+    
 }
 
 #[cfg(test)]
