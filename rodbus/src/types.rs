@@ -161,11 +161,11 @@ impl std::fmt::Display for ReadDeviceRequest {
 }
 
 #[derive(Debug, PartialEq)]
-///TODO(Kay): Documentation
+///TODO(Kay): Safe wrappers for returned values by the server when requesting information via read device info.
 pub enum ModbusInfoObject {
-    ///Type that represents a safe and valid ascii string.
+    ///Type that represents a ascii string. used for everything that comes from the basic and regular storage of the server (see modbus specification page 43 object table)
     ModbusString(u8, String),
-    ///Type that represent a chunk of unknown data.
+    ///Stores a unknown piece of binary data returned by the server. cast these into ascii strings at your own discretion. used for everything that comes from the extended storage (see modbus specification page 43 object table)
     ModbusRawData(u8, Vec<u8>),
 }
 
@@ -173,7 +173,15 @@ impl From<ModbusInfoObjectDescriptor> for ModbusInfoObject {
     fn from(value: ModbusInfoObjectDescriptor) -> Self {
         match value.device_code {
             //TODO(Kay): We need to make sure that we only convert values we can safely convert into ascii right now we just unwrap and don't care any longer.
-            ReadDeviceCode::BasicStreaming | ReadDeviceCode::RegularStreaming => Self::ModbusString(value.index, String::from_utf8(value.raw_data).unwrap()),
+            //TODO(Kay): Cast everything into ascii and only return raw version when it isn't valid ascii ?
+            ReadDeviceCode::BasicStreaming | ReadDeviceCode::RegularStreaming => { 
+                if value.raw_data.is_ascii() {
+                    return Self::ModbusString(value.index, String::from_utf8(value.raw_data).unwrap());
+                } else {
+                    //In the case that we could not safely determine that the raw data is indeed all ascii we return the raw data version.
+                    return Self::ModbusRawData(value.index, value.raw_data.clone());
+                }
+            },
             ReadDeviceCode::ExtendedStreaming | ReadDeviceCode::Specific => Self::ModbusRawData(value.index, value.raw_data.clone()),
         }
     }
