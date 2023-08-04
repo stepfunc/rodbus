@@ -334,7 +334,8 @@ where T: Fn() -> Result<DeviceInfo, crate::exception::ExceptionCode>, {
 
         for message in device_data.storage[range].iter() {
             cursor.write_u8(message.index)?;
-            message.data.as_str().serialize(cursor)?;
+            cursor.write_u8(message.get_data().len() as u8)?;
+            cursor.write_bytes(&message.get_data())?;
         }
 
         Ok(())
@@ -352,7 +353,6 @@ where T: Fn() -> Result<DeviceInfo, crate::exception::ExceptionCode>, {
         write!(f, "DEVICE IDENTIFICATION RESPONSE")
     }
 }
-
 
 impl Serialize for Option<u8> {
     fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
