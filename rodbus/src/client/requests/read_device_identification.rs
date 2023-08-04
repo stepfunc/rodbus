@@ -1,6 +1,6 @@
 use scursor::{WriteCursor, ReadCursor};
 
-use crate::{RequestError, DeviceInfo, ReadDeviceRequest, common::{traits::Serialize, function::FunctionCode}, AppDecodeLevel, ModbusString};
+use crate::{RequestError, DeviceInfo, ReadDeviceRequest, common::{traits::Serialize, function::FunctionCode}, AppDecodeLevel, ModbusInfoObjectDescriptor, ReadDeviceCode};
 
 
 pub(crate) struct ReadDevice {
@@ -117,22 +117,18 @@ impl ReadDevice {
 
         let mut result = DeviceInfo::new(mei_code, device_id, conformity_level, object_count).continue_at(more_follows, value);
         
-        ReadDevice::parse_device_info_objects(&mut result.storage, cursor)?;
+        ReadDevice::parse_device_info_objects(device_id, &mut result.storage, cursor)?;
         
         Ok(result)
     }
 
-    fn parse_device_info_objects(container: &mut Vec<ModbusString>, cursor: &mut ReadCursor) -> Result<(), RequestError> {
+    fn parse_device_info_objects(read_device_code: ReadDeviceCode, container: &mut Vec<ModbusInfoObjectDescriptor>, cursor: &mut ReadCursor) -> Result<(), RequestError> {
         loop {
             let obj_id = cursor.read_u8()?;
             let obj_length = cursor.read_u8()?;
             let data = cursor.read_bytes(obj_length as usize)?;
-            let object = ModbusString::new(obj_id, obj_length, data);
-
-            match object {
-                Ok(obj) => container.push(obj),
-                Err(_) => return Err(RequestError::Io(std::io::ErrorKind::InvalidData)),
-            }
+            let object = ModbusInfoObjectDescriptor::new(read_device_code, obj_id, obj_length, data);
+            container.push(object);
             
             if cursor.is_empty() {
                 break;
