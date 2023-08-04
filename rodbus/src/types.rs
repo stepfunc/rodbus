@@ -163,17 +163,18 @@ impl std::fmt::Display for ReadDeviceRequest {
 #[derive(Debug, PartialEq)]
 ///TODO(Kay): Documentation
 pub enum ModbusInfoObject {
-    ///TODO(Kay): Documentation
+    ///Type that represents a safe and valid ascii string.
     ModbusString(u8, String),
-    ///TODO(Kay): Documentation
-    ModbusData(u8, Vec<u8>),
+    ///Type that represent a chunk of unknown data.
+    ModbusRawData(u8, Vec<u8>),
 }
 
 impl From<ModbusInfoObjectDescriptor> for ModbusInfoObject {
     fn from(value: ModbusInfoObjectDescriptor) -> Self {
         match value.device_code {
+            //TODO(Kay): We need to make sure that we only convert values we can safely convert into ascii right now we just unwrap and don't care any longer.
             ReadDeviceCode::BasicStreaming | ReadDeviceCode::RegularStreaming => Self::ModbusString(value.index, String::from_utf8(value.raw_data).unwrap()),
-            ReadDeviceCode::ExtendedStreaming | ReadDeviceCode::Specific => Self::ModbusData(value.index, value.raw_data.clone()),
+            ReadDeviceCode::ExtendedStreaming | ReadDeviceCode::Specific => Self::ModbusRawData(value.index, value.raw_data.clone()),
         }
     }
 }
@@ -266,8 +267,9 @@ impl DeviceInfo {
         None
     }
 
+    //TODO(Kay): Give the user the possibility to use the data without further processing ?
     ///Convert all Raw Modbus objects into ModbusObjects
-    pub fn retrieve_all_objects(&self) -> Vec<ModbusInfoObject> {
+    pub fn finalize_and_retrieve_objects(&self) -> Vec<ModbusInfoObject> {
         let mut result = vec![];
         for raw_object in &self.storage {
             result.push(raw_object.clone().into());
