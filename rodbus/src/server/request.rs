@@ -127,7 +127,6 @@ impl<'a> Request<'a> {
                 writer.format_reply(header, function, &registers, level)
             }
             Request::ReadDeviceIdentification(read) => {
-                //TODO: The server needs to answer the request depending on the values of dev_id, obj_id
                 let device_information = 
                     DeviceIdentificationResponse::new(|| handler.read_device_info(read.mei_code, read.dev_id, read.obj_id));
                 writer.format_reply(header, function, &device_information, level)
