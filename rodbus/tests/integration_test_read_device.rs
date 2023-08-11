@@ -20,7 +20,7 @@ const VENDOR_URL: &str = "https://www.example.com";
 const PRODUCT_NAME: &str = "product name";
 const MODEL_NAME: &str = "model name";
 const USER_APPLICATION_NAME: &str = "user application name";
-const EXTENDED_EXAMPLE_DOC_LINE_A: &str = "some additional information about the device which should be longer than 243(?) bytes !";
+const EXTENDED_EXAMPLE_DOC_LINE_A: &str = "These docs lines should overflow the amount of space inside the transmission so the split of messages happens";
 const EXTENDED_EXAMPLE_DOC_LINE_B: &str = "i don't know what to put here but i need to overflow the maximum message size to check the workings of the more follows field...";
 const EXTENDED_EXAMPLE_DOC_LINE_C: &str = "....................................................................................................";
 
@@ -78,11 +78,11 @@ impl Handler {
             _ => unreachable!(),
         };
 
-        let mut modbus_response: Vec<ModbusInfoObjectDescriptor> = vec![];
+        let mut modbus_response: Vec<RawModbusInfoObject> = vec![];
         
         for (idx, info_object) in data.iter().skip(object_id as usize).enumerate() {
             let modbus_object = match info_object {
-                Some(value) => ModbusInfoObjectDescriptor::new(read_dev_id, object_id + idx as u8, value.len() as u8, value.as_bytes()),
+                Some(value) => RawModbusInfoObject::new(read_dev_id, object_id + idx as u8, value.len() as u8, value.as_bytes()),
                 None => continue,
             };
 
@@ -102,7 +102,7 @@ impl Handler {
 
     fn read_device_info_individual(&self, mei_code: MeiCode, read_dev_id: ReadDeviceCode, object_id: u8) -> Result<DeviceInfo, ExceptionCode> {
         let data = self.read_specific_device_info(object_id)?;
-        let string = ModbusInfoObjectDescriptor::new(read_dev_id, object_id, data[0].unwrap().len() as u8, data[0].unwrap().as_bytes());
+        let string = RawModbusInfoObject::new(read_dev_id, object_id, data[0].unwrap().len() as u8, data[0].unwrap().as_bytes());
 
         let mut device_info = DeviceInfo::new(mei_code, read_dev_id, self.device_conformity_level, 1);
         device_info.storage.push(string);
@@ -112,9 +112,6 @@ impl Handler {
 }
 
 impl RequestHandler for Handler {
-
-    //TODO(Kay): This whole integration test is a huge mess right now i need to clean this up asap
-
     fn read_device_info(&self, mei_code: MeiCode, read_dev_id: ReadDeviceCode, object_id: Option<u8>) -> Result<DeviceInfo, ExceptionCode> {
         match (read_dev_id, object_id) {            
             
@@ -156,9 +153,7 @@ async fn test_read_device_info_request_response() {
     );
 
     channel.enable().await.unwrap();
-
-    //TODO(Kay): For debugging purposes the timeout is set to a huge amount remove this later !
-    let params = RequestParam::new(UnitId::new(0x01), Duration::from_secs(400_000_000_000));
+    let params = RequestParam::new(UnitId::new(0x01), Duration::from_secs(5));
 
     //TEST Basic Device Reading Information
     let result = channel.read_device_identification(params, ReadDeviceRequest::new(ReadDeviceCode::BasicStreaming, None)).await.unwrap();
@@ -171,9 +166,9 @@ async fn test_read_device_info_request_response() {
                 number_objects: 3,
                 continue_at: None, 
                 storage: vec![
-                    ModbusInfoObjectDescriptor::new(ReadDeviceCode::BasicStreaming, 0, VENDOR_NAME.len() as u8, VENDOR_NAME.as_bytes()),
-                    ModbusInfoObjectDescriptor::new(ReadDeviceCode::BasicStreaming, 1, PRODUCT_CODE.len() as u8, PRODUCT_CODE.as_bytes()),
-                    ModbusInfoObjectDescriptor::new(ReadDeviceCode::BasicStreaming, 2, PRODUCT_VERSION.len() as u8, PRODUCT_VERSION.as_bytes()),
+                    RawModbusInfoObject::new(ReadDeviceCode::BasicStreaming, 0, VENDOR_NAME.len() as u8, VENDOR_NAME.as_bytes()),
+                    RawModbusInfoObject::new(ReadDeviceCode::BasicStreaming, 1, PRODUCT_CODE.len() as u8, PRODUCT_CODE.as_bytes()),
+                    RawModbusInfoObject::new(ReadDeviceCode::BasicStreaming, 2, PRODUCT_VERSION.len() as u8, PRODUCT_VERSION.as_bytes()),
                 ],
             }
     );  
@@ -199,9 +194,9 @@ async fn test_read_device_info_request_response() {
             number_objects: 3,
             continue_at: None,
             storage: vec![
-                ModbusInfoObjectDescriptor::new(ReadDeviceCode::BasicStreaming, 0, VENDOR_NAME.len() as u8, VENDOR_NAME.as_bytes()), 
-                ModbusInfoObjectDescriptor::new(ReadDeviceCode::BasicStreaming, 1, PRODUCT_CODE.len() as u8, PRODUCT_CODE.as_bytes()), 
-                ModbusInfoObjectDescriptor::new(ReadDeviceCode::BasicStreaming, 2, PRODUCT_VERSION.len() as u8, PRODUCT_VERSION.as_bytes()),
+                RawModbusInfoObject::new(ReadDeviceCode::BasicStreaming, 0, VENDOR_NAME.len() as u8, VENDOR_NAME.as_bytes()), 
+                RawModbusInfoObject::new(ReadDeviceCode::BasicStreaming, 1, PRODUCT_CODE.len() as u8, PRODUCT_CODE.as_bytes()), 
+                RawModbusInfoObject::new(ReadDeviceCode::BasicStreaming, 2, PRODUCT_VERSION.len() as u8, PRODUCT_VERSION.as_bytes()),
             ],
         }
     );
@@ -226,10 +221,10 @@ async fn test_read_device_info_request_response() {
             continue_at: None,
             number_objects: 4,
             storage: vec![
-                ModbusInfoObjectDescriptor::new(ReadDeviceCode::RegularStreaming, 0, VENDOR_URL.len() as u8, VENDOR_URL.as_bytes()), 
-                ModbusInfoObjectDescriptor::new(ReadDeviceCode::RegularStreaming, 1, PRODUCT_NAME.len() as u8, PRODUCT_NAME.as_bytes()), 
-                ModbusInfoObjectDescriptor::new(ReadDeviceCode::RegularStreaming, 2, MODEL_NAME.len() as u8, MODEL_NAME.as_bytes()), 
-                ModbusInfoObjectDescriptor::new(ReadDeviceCode::RegularStreaming, 3, USER_APPLICATION_NAME.len() as u8, USER_APPLICATION_NAME.as_bytes()),
+                RawModbusInfoObject::new(ReadDeviceCode::RegularStreaming, 0, VENDOR_URL.len() as u8, VENDOR_URL.as_bytes()), 
+                RawModbusInfoObject::new(ReadDeviceCode::RegularStreaming, 1, PRODUCT_NAME.len() as u8, PRODUCT_NAME.as_bytes()), 
+                RawModbusInfoObject::new(ReadDeviceCode::RegularStreaming, 2, MODEL_NAME.len() as u8, MODEL_NAME.as_bytes()), 
+                RawModbusInfoObject::new(ReadDeviceCode::RegularStreaming, 3, USER_APPLICATION_NAME.len() as u8, USER_APPLICATION_NAME.as_bytes()),
             ],
         }
     );
@@ -256,8 +251,8 @@ async fn test_read_device_info_request_response() {
                 continue_at: Some(2),
                 number_objects: 3,
                 storage: vec![
-                    ModbusInfoObjectDescriptor::new(ReadDeviceCode::ExtendedStreaming, 0, EXTENDED_EXAMPLE_DOC_LINE_A.len() as u8, EXTENDED_EXAMPLE_DOC_LINE_A.as_bytes()), 
-                    ModbusInfoObjectDescriptor::new(ReadDeviceCode::ExtendedStreaming, 1, EXTENDED_EXAMPLE_DOC_LINE_B.len() as u8, EXTENDED_EXAMPLE_DOC_LINE_B.as_bytes()),
+                    RawModbusInfoObject::new(ReadDeviceCode::ExtendedStreaming, 0, EXTENDED_EXAMPLE_DOC_LINE_A.len() as u8, EXTENDED_EXAMPLE_DOC_LINE_A.as_bytes()), 
+                    RawModbusInfoObject::new(ReadDeviceCode::ExtendedStreaming, 1, EXTENDED_EXAMPLE_DOC_LINE_B.len() as u8, EXTENDED_EXAMPLE_DOC_LINE_B.as_bytes()),
                 ],
             }
     );
@@ -281,7 +276,7 @@ async fn test_read_device_info_request_response() {
                 conformity_level: DeviceConformityLevel::ExtendedIdentificationIndividual, 
                 continue_at: None,
                 number_objects: 3,
-                storage: vec![ModbusInfoObjectDescriptor::new(ReadDeviceCode::ExtendedStreaming, 2, EXTENDED_EXAMPLE_DOC_LINE_C.len() as u8, EXTENDED_EXAMPLE_DOC_LINE_C.as_bytes())],
+                storage: vec![RawModbusInfoObject::new(ReadDeviceCode::ExtendedStreaming, 2, EXTENDED_EXAMPLE_DOC_LINE_C.len() as u8, EXTENDED_EXAMPLE_DOC_LINE_C.as_bytes())],
             }
     );
 
@@ -304,7 +299,7 @@ async fn test_read_device_info_request_response() {
                 conformity_level: DeviceConformityLevel::ExtendedIdentificationIndividual, 
                 continue_at: None,
                 number_objects: 1,
-                storage: vec![ModbusInfoObjectDescriptor::new(ReadDeviceCode::Specific, 0, VENDOR_NAME.len() as u8, VENDOR_NAME.as_bytes())],
+                storage: vec![RawModbusInfoObject::new(ReadDeviceCode::Specific, 0, VENDOR_NAME.len() as u8, VENDOR_NAME.as_bytes())],
             }
     );
 
@@ -326,7 +321,7 @@ async fn test_read_device_info_request_response() {
                 conformity_level: DeviceConformityLevel::ExtendedIdentificationIndividual, 
                 continue_at: None,
                 number_objects: 1,
-                storage: vec![ModbusInfoObjectDescriptor::new(ReadDeviceCode::Specific, 1, PRODUCT_CODE.len() as u8, PRODUCT_CODE.as_bytes())],
+                storage: vec![RawModbusInfoObject::new(ReadDeviceCode::Specific, 1, PRODUCT_CODE.len() as u8, PRODUCT_CODE.as_bytes())],
             }
     );
 
@@ -348,7 +343,7 @@ async fn test_read_device_info_request_response() {
                 conformity_level: DeviceConformityLevel::ExtendedIdentificationIndividual, 
                 continue_at: None,
                 number_objects: 1,
-                storage: vec![ModbusInfoObjectDescriptor::new(ReadDeviceCode::Specific, 2, PRODUCT_VERSION.len() as u8, PRODUCT_VERSION.as_bytes())],
+                storage: vec![RawModbusInfoObject::new(ReadDeviceCode::Specific, 2, PRODUCT_VERSION.len() as u8, PRODUCT_VERSION.as_bytes())],
             }
     );
 
@@ -370,7 +365,7 @@ async fn test_read_device_info_request_response() {
                 conformity_level: DeviceConformityLevel::ExtendedIdentificationIndividual, 
                 continue_at: None,
                 number_objects: 1,
-                storage: vec![ModbusInfoObjectDescriptor::new(ReadDeviceCode::Specific, 3, VENDOR_URL.len() as u8, VENDOR_URL.as_bytes())],
+                storage: vec![RawModbusInfoObject::new(ReadDeviceCode::Specific, 3, VENDOR_URL.len() as u8, VENDOR_URL.as_bytes())],
             }
     );
 
