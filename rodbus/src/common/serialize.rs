@@ -319,7 +319,6 @@ where T: Fn() -> Result<DeviceInfo, crate::exception::ExceptionCode>, {
         cursor.write_u8(device_data.read_device_id as u8)?;
         cursor.write_u8(device_data.conformity_level as u8)?;
         
-        //NOTE(Kay): Seems like we cannot use the whole buffer for our messages, so we keep a bit of a safety margin
         const SAFETY_MARGIN: u8 = 7;
         let max = device_data.response_message_count(MAX_ADU_LENGTH as u8 - SAFETY_MARGIN);
         
@@ -334,8 +333,10 @@ where T: Fn() -> Result<DeviceInfo, crate::exception::ExceptionCode>, {
 
         for message in device_data.storage[range].iter() {
             cursor.write_u8(message.index)?;
-            cursor.write_u8(message.get_data().len() as u8)?;
-            cursor.write_bytes(&message.get_data())?;
+            
+            let data = message.get_data();
+            cursor.write_u8(data.len() as u8)?;
+            cursor.write_bytes(data)?;
         }
 
         Ok(())
@@ -346,11 +347,34 @@ impl<T> Loggable for DeviceIdentificationResponse<T>
 where T: Fn() -> Result<DeviceInfo, crate::exception::ExceptionCode>, {
     fn log(
         &self,
-        _bytes: &[u8],
-        _level: crate::AppDecodeLevel,
+        bytes: &[u8],
+        level: crate::AppDecodeLevel,
         f: &mut std::fmt::Formatter,
     ) -> std::fmt::Result {
-        write!(f, "DEVICE IDENTIFICATION RESPONSE")
+        let mut cursor = ReadCursor::new(bytes);
+
+        if level.data_headers() {
+            write!(f, "DEVICE IDENTIFICATION RESPONSE\n")?;
+
+            write!(f, "\t --> MEI CODE: {:X}", cursor.read_u8().unwrap())?;
+            write!(f, "\t --> READ DEVICE CODE: {:X}", cursor.read_u8().unwrap())?;
+            write!(f, "\t --> CONFORMITY LEVEL: {:X}", cursor.read_u8().unwrap())?;
+        }
+
+        if level.data_values() {
+            write!(f, "DEVICE IDENTIFICATION RESPONSE\n")?;
+
+            write!(f, "\t --> MEI CODE: {:X}", cursor.read_u8().unwrap())?;
+            write!(f, "\t --> READ DEVICE CODE: {:X}", cursor.read_u8().unwrap())?;
+            write!(f, "\t --> CONFORMITY LEVEL: {:X}", cursor.read_u8().unwrap())?;
+            let raw_string_data = cursor.read_all();
+            write!(f, "\t --> RAW STRING DATA: ")?;
+            for str in raw_string_data {
+                write!(f, "{:X}", str)?;
+            }
+        }
+
+        Ok(())
     }
 }
 
@@ -372,16 +396,6 @@ impl Serialize for Option<u8> {
     }
 }
 
-impl Loggable for DeviceInfo {
-    fn log(
-        &self,
-        _bytes: &[u8],
-        _level: crate::AppDecodeLevel,
-        f: &mut std::fmt::Formatter,
-    ) -> std::fmt::Result {
-        write!(f, "READ DEVICE IDENTIFICATION RESPONSE: {:?} {:?} {:?} {:?}, {:?}", self.mei_code, self.read_device_id, self.conformity_level, self.continue_at, self.storage)
-    }
-}
 impl Serialize for &str {
     fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
         cursor.write_u8(self.len() as u8)?;
