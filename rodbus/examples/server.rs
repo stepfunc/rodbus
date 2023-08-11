@@ -32,7 +32,7 @@ impl SimpleHandler {
 
             basic_info: ["Example Vendor".to_string(), "Little Dictionary".to_string(), "0.1.0".to_string()],
             regular_keys: ["0x8A".to_string(), "0x8B".to_string(), "0x8C".to_string(), "0x8D".to_string()],
-            extended_values: ["This is the value for key 0x8A".to_string(), "Value for 0x8B".to_string(), "Another value for 0x8C".to_string(), "Last but not least the value for 0x8D".to_string()],
+            extended_values: ["This is the value for key 0x8A".to_string(), "Value for 0x8B which is a bit longer than your usual method to test if the behaivor of sending responses is correct and works, and will it work over a different client as well ?".to_string(), "Another value for 0x8C".to_string(), "Last but not least the value for 0x8D".to_string()],
         }
     }
 
@@ -155,7 +155,7 @@ impl RequestHandler for SimpleHandler {
                 _ => unreachable!(),
             };
             device_info.storage = vec![
-                ModbusInfoObjectDescriptor::new(ReadDeviceCode::Specific, index as u8, message.len() as u8, message.as_bytes())
+                RawModbusInfoObject::new(ReadDeviceCode::Specific, index as u8, message.len() as u8, message.as_bytes())
             ];
             
             return Ok(device_info);
@@ -164,7 +164,7 @@ impl RequestHandler for SimpleHandler {
             device_info.storage = vec![];
 
             for (idx, info_string) in response_data.iter().enumerate() {
-                let obj = ModbusInfoObjectDescriptor::new(read_dev_id, idx as u8, info_string.len() as u8, info_string.as_bytes());
+                let obj = RawModbusInfoObject::new(read_dev_id, idx as u8, info_string.len() as u8, info_string.as_bytes());
                 device_info.storage.push(obj);
             }
         }
@@ -223,10 +223,10 @@ async fn run_tcp() -> Result<(), Box<dyn std::error::Error>> {
     // ANCHOR: tcp_server_create
     let server = rodbus::server::spawn_tcp_server_task(
         1,
-        "127.0.0.1:10707".parse()?,
+        "127.0.0.1:502".parse()?,
         map,
         AddressFilter::Any,
-        DecodeLevel::default(),
+        AppDecodeLevel::DataValues.into(),
     )
     .await?;
     // ANCHOR_END: tcp_server_create
@@ -262,12 +262,12 @@ async fn run_tls(tls_config: TlsServerConfig) -> Result<(), Box<dyn std::error::
     // ANCHOR: tls_server_create
     let server = rodbus::server::spawn_tls_server_task_with_authz(
         1,
-        "127.0.0.1:10808".parse()?,
+        "127.0.0.1:802".parse()?,
         map,
         ReadOnlyAuthorizationHandler::create(),
         tls_config,
         AddressFilter::Any,
-        DecodeLevel::default(),
+        AppDecodeLevel::DataValues.into(),
     )
     .await?;
     // ANCHOR_END: tls_server_create
