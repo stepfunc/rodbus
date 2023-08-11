@@ -140,7 +140,7 @@ pub struct ReadDeviceRequest {
     ///The access level requested by the user. See MODBUS Documentation or ReadDeviceIdCode for further details.
     pub(crate) dev_id: ReadDeviceCode,
     ///Start the read at the specified position, if this field is none the read will start with element 0.
-    pub(crate) obj_id: Option<u8>, //TODO(Kay): Figure out if we can use the option type with oo-bindgen ? if not we might need to change things a bit !
+    pub(crate) obj_id: Option<u8>,
 }
 
 impl ReadDeviceRequest {
@@ -161,7 +161,8 @@ impl std::fmt::Display for ReadDeviceRequest {
 }
 
 #[derive(Debug, PartialEq)]
-///TODO(Kay): Safe wrappers for returned values by the server when requesting information via read device info.
+///Data that is returned by a modbus server can contain ascii and in some cases other types of data. This data structure converts the raw bytes into ASCII Strings
+/// if possible. In the case where the data cannot be converted into ASCII due to unknown bytes we return the raw bytes to the user.
 pub enum ModbusInfoObject {
     ///Type that represents a ascii string. used for everything that comes from the basic and regular storage of the server (see modbus specification page 43 object table)
     ModbusString(u8, String),
@@ -169,19 +170,11 @@ pub enum ModbusInfoObject {
     ModbusRawData(u8, Vec<u8>),
 }
 
-impl From<ModbusInfoObjectDescriptor> for ModbusInfoObject {
-    fn from(value: ModbusInfoObjectDescriptor) -> Self {
+impl From<RawModbusInfoObject> for ModbusInfoObject {
+    fn from(value: RawModbusInfoObject) -> Self {
         match value.device_code {
-            //TODO(Kay): We need to make sure that we only convert values we can safely convert into ascii right now we just unwrap and don't care any longer.
-            //TODO(Kay): Cast everything into ascii and only return raw version when it isn't valid ascii ?
-            ReadDeviceCode::BasicStreaming | ReadDeviceCode::RegularStreaming => { 
-                if value.raw_data.is_ascii() {
-                    return Self::ModbusString(value.index, String::from_utf8(value.raw_data).unwrap());
-                } else {
-                    //In the case that we could not safely determine that the raw data is indeed all ascii we return the raw data version.
-                    return Self::ModbusRawData(value.index, value.raw_data.clone());
-                }
-            },
+            ReadDeviceCode::BasicStreaming | ReadDeviceCode::RegularStreaming if value.raw_data.is_ascii() => Self::ModbusString(value.index, String::from_utf8(value.raw_data).unwrap()),
+            ReadDeviceCode::BasicStreaming | ReadDeviceCode::RegularStreaming => Self::ModbusRawData(value.index, value.raw_data.clone()),
             ReadDeviceCode::ExtendedStreaming | ReadDeviceCode::Specific => Self::ModbusRawData(value.index, value.raw_data.clone()),
         }
     }
@@ -189,30 +182,30 @@ impl From<ModbusInfoObjectDescriptor> for ModbusInfoObject {
 
 #[derive(Debug, Clone, PartialEq)]
 #[allow(missing_docs)]
-pub struct ModbusInfoObjectDescriptor {
+pub struct RawModbusInfoObject {
     device_code: ReadDeviceCode,
     pub index: u8,
     pub length: u8,
     raw_data: Vec<u8>,
 }
 
-impl ModbusInfoObjectDescriptor {
+impl RawModbusInfoObject {
     #[allow(missing_docs)]
     pub fn new(device_code: ReadDeviceCode, index: u8, length: u8, data: &[u8]) -> Self {
         Self {
             device_code,
             index,
             length,
-            raw_data: data.to_vec(), //Assume that we will never crash because of unexpected bytes ?
+            raw_data: data.to_vec(),
         }
     }
 
-    ///TODO(Kay): Documentation
+    ///Get the raw data for serialization
     pub fn get_data(&self) -> &[u8] {
         &self.raw_data
     }
     
-    ///TODO(Kay): Documentation
+    ///Convert the raw data value into a ModbusInfoObject
     pub fn convert(self) -> ModbusInfoObject {
         self.into()
     }
@@ -232,7 +225,7 @@ pub struct DeviceInfo {
     ///If the server could not fit all the information in a single response this field will be Some and contain the index of the next read. See the MODBUS specification for more details.
     pub continue_at: Option<u8>,
     ///The actual information will be put into this vector can be empty if there was no information to read.
-    pub storage: Vec<ModbusInfoObjectDescriptor>, //TODO(Kay): Another type which might not work in oo-bindgen ?
+    pub storage: Vec<RawModbusInfoObject>,
 }
 
 
@@ -275,7 +268,6 @@ impl DeviceInfo {
         None
     }
 
-    //TODO(Kay): Give the user the possibility to use the data without further processing ?
     ///Convert all Raw Modbus objects into ModbusObjects
     pub fn finalize_and_retrieve_objects(&self) -> Vec<ModbusInfoObject> {
         let mut result = vec![];
