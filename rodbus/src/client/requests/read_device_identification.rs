@@ -1,6 +1,6 @@
 use scursor::{WriteCursor, ReadCursor};
 
-use crate::{RequestError, DeviceInfo, ReadDeviceRequest, common::{traits::Serialize, function::FunctionCode}, AppDecodeLevel, ModbusInfoObjectDescriptor, ReadDeviceCode};
+use crate::{RequestError, DeviceInfo, ReadDeviceRequest, common::{traits::Serialize, function::FunctionCode}, AppDecodeLevel, RawModbusInfoObject, ReadDeviceCode};
 
 
 pub(crate) struct ReadDevice {
@@ -83,7 +83,6 @@ impl ReadDevice {
         function: FunctionCode,
         decode: AppDecodeLevel,
     ) -> Result<(), RequestError> {
-        println!("{}", self.request);
         let response = Self::parse_device_identification_response(&mut cursor)?;
 
         if decode.enabled() {
@@ -97,12 +96,6 @@ impl ReadDevice {
         self.promise.success(response);
         Ok(())
     }
-
-    //TODO(Kay): Start a read with object id 0
-    //TODO(Kay): If the read could not fit everything into the response it returns 0xFF ID_NEXT_OBJECT
-    //TODO(Kay): The user then needs to request that specific id in the next request
-    //TODO(Kay): Number of Objects does not corospond to the amount of objects in the current transmission it contains the amount of objects in all transmissions
-    //TODO(Kay): we need to take that into account as we cannot use the number of objects field as a guideline in how many object we read/write onto the stream
     
     fn parse_device_identification_response(
         cursor: &mut ReadCursor,
@@ -122,12 +115,12 @@ impl ReadDevice {
         Ok(result)
     }
 
-    fn parse_device_info_objects(read_device_code: ReadDeviceCode, container: &mut Vec<ModbusInfoObjectDescriptor>, cursor: &mut ReadCursor) -> Result<(), RequestError> {
+    fn parse_device_info_objects(read_device_code: ReadDeviceCode, container: &mut Vec<RawModbusInfoObject>, cursor: &mut ReadCursor) -> Result<(), RequestError> {
         loop {
             let obj_id = cursor.read_u8()?;
             let obj_length = cursor.read_u8()?;
             let data = cursor.read_bytes(obj_length as usize)?;
-            let object = ModbusInfoObjectDescriptor::new(read_device_code, obj_id, obj_length, data);
+            let object = RawModbusInfoObject::new(read_device_code, obj_id, obj_length, data);
             container.push(object);
             
             if cursor.is_empty() {
