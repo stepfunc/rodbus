@@ -142,14 +142,13 @@ jobs:
       - name: Test Java Bindings
         if: ${{ matrix.test }}
         run: cargo run --bin rodbus-bindings -- --java -r ${{ matrix.target }} -a ./target/${{ matrix.target }}/release
-  # Build bindings on MacOS [64-bit macOS (10.7+, Lion+) (x86_64-apple-darwin)]
   bindings-macos:
     strategy:
       fail-fast: false
       matrix:
         jobs: [
           { target: x86_64-apple-darwin, os: macos-latest },
-          {  target: aarch64-apple-darwin, os: macos-latest-arm64 }
+          { target: aarch64-apple-darwin, os: macos-latest-xlarge }
         ]
     runs-on: ${{ matrix.jobs.os }}
     steps:
