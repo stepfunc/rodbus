@@ -129,7 +129,6 @@
     non_snake_case,
     non_upper_case_globals,
     no_mangle_generic_items,
-    private_in_public,
     stable_features,
     type_alias_bounds,
     tyvar_behind_raw_pointer,
