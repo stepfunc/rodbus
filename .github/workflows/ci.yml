@@ -165,8 +165,8 @@ jobs:
         run: cargo build -p rodbus-ffi-java --release --message-format json > ffi-modules/${{ matrix.job.target }}/build.jni.log
       - name: Copy the FFI and JNI libs
         run: |
-          cp ./${{ matrix.target }}/release/librodbus_ffi.dylib ./ffi-modules/${{ matrix.target }}
-          cp ./${{ matrix.target }}/release/librodbus_ffi_java.dylib ./ffi-modules/${{ matrix.target }}
+          cp ./target/release/librodbus_ffi.dylib ./ffi-modules/${{ matrix.job.target }}
+          cp ./target/release/librodbus_ffi_java.dylib ./ffi-modules/${{ matrix.job.target }}
       - name: Upload compiled FFI modules
         uses: actions/upload-artifact@v3
         with:
