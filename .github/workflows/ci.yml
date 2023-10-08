@@ -150,6 +150,7 @@ jobs:
       matrix:
         target:
           - x86_64-apple-darwin # 64-bit macOS (10.7+, Lion+)
+          - aarch64-apple-darwin # ARM64 macOS (11.0+, Big Sur+)
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -158,13 +159,13 @@ jobs:
       - name: Create FFI modules dir
         run: mkdir -p ffi-modules/${{ matrix.target }}
       - name: Build FFI
-        run: cargo build -p rodbus-ffi --release --message-format json > ffi-modules/${{ matrix.target }}/build.ffi.log
+        run: cargo build --target ${{ matrix.target }} -p rodbus-ffi --release --message-format json > ffi-modules/${{ matrix.target }}/build.ffi.log
       - name: Build JNI
-        run: cargo build -p rodbus-ffi-java --release --message-format json > ffi-modules/${{ matrix.target }}/build.jni.log
+        run: cargo build --target ${{ matrix.target }} -p rodbus-ffi-java --release --message-format json > ffi-modules/${{ matrix.target }}/build.jni.log
       - name: Copy the FFI and JNI libs
         run: |
-          cp ./target/release/librodbus_ffi.dylib ./ffi-modules/${{ matrix.target }}
-          cp ./target/release/librodbus_ffi_java.dylib ./ffi-modules/${{ matrix.target }}
+          cp ./${{ matrix.target }}/release/librodbus_ffi.dylib ./ffi-modules/${{ matrix.target }}
+          cp ./${{ matrix.target }}/release/librodbus_ffi_java.dylib ./ffi-modules/${{ matrix.target }}
       - name: Upload compiled FFI modules
         uses: actions/upload-artifact@v3
         with:
