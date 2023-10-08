@@ -148,8 +148,8 @@ jobs:
       fail-fast: false
       matrix:
         jobs: [
-          { target: x86_64-apple-darwin, os: macos-latest }
-          #{  target: aarch64-apple-darwin, os: macos-latest-arm64 }
+          { target: x86_64-apple-darwin, os: macos-latest },
+          {  target: aarch64-apple-darwin, os: macos-latest-arm64 }
         ]
     runs-on: ${{ matrix.jobs.os }}
     steps:
@@ -158,7 +158,7 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
       - name: Create FFI modules dir
-        run: mkdir -p ffi-modules/${{ matrix.target }}
+        run: mkdir -p ffi-modules/${{ matrix.jobs.target }}
       - name: Build FFI
         run: cargo build -p rodbus-ffi --release --message-format json > ffi-modules/${{ matrix.jobs.target }}/build.ffi.log
       - name: Build JNI
