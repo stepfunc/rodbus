@@ -144,13 +144,14 @@ jobs:
         run: cargo run --bin rodbus-bindings -- --java -r ${{ matrix.target }} -a ./target/${{ matrix.target }}/release
   # Build bindings on MacOS [64-bit macOS (10.7+, Lion+) (x86_64-apple-darwin)]
   bindings-macos:
-    runs-on: macos-latest
+    runs-on: ${{ matrix.job.os }}
     strategy:
       fail-fast: false
       matrix:
-        target:
-          - x86_64-apple-darwin # 64-bit macOS (10.7+, Lion+)
-          - aarch64-apple-darwin # ARM64 macOS (11.0+, Big Sur+)
+        job: [
+          { target: x86_64-apple-darwin, os: macos-latest } # 64-bit macOS (10.7+, Lion+)
+          { target: aarch64-apple-darwin, os: macos-latest-arm64 }
+        ]
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -159,9 +160,9 @@ jobs:
       - name: Create FFI modules dir
         run: mkdir -p ffi-modules/${{ matrix.target }}
       - name: Build FFI
-        run: cargo build --target ${{ matrix.target }} -p rodbus-ffi --release --message-format json > ffi-modules/${{ matrix.target }}/build.ffi.log
+        run: cargo build -p rodbus-ffi --release --message-format json > ffi-modules/${{ matrix.job.target }}/build.ffi.log
       - name: Build JNI
-        run: cargo build --target ${{ matrix.target }} -p rodbus-ffi-java --release --message-format json > ffi-modules/${{ matrix.target }}/build.jni.log
+        run: cargo build -p rodbus-ffi-java --release --message-format json > ffi-modules/${{ matrix.job.target }}/build.jni.log
       - name: Copy the FFI and JNI libs
         run: |
           cp ./${{ matrix.target }}/release/librodbus_ffi.dylib ./ffi-modules/${{ matrix.target }}
