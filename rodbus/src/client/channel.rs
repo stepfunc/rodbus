@@ -75,7 +75,7 @@ impl Channel {
             let _ = crate::serial::client::SerialChannelTask::new(
                 &path,
                 serial_settings,
-                rx,
+                rx.into(),
                 retry,
                 decode,
                 listener.unwrap_or_else(|| crate::client::NullListener::create()),

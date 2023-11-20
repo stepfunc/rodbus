@@ -54,7 +54,7 @@ pub(crate) fn create_tls_channel(
     let task = async move {
         TcpChannelTask::new(
             host.clone(),
-            rx,
+            rx.into(),
             TcpTaskConnectionHandler::Tls(tls_config),
             connect_retry,
             decode,

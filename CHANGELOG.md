@@ -1,3 +1,6 @@
+### 1.3.1 ###
+* :bug: Fix issue with master channels not properly exiting and thrashing CPU. See [#120](https://github.com/stepfunc/rodbus/issues/120).
+
 ### 1.3.0 ###
 * :wrench: Update to rustls 0.21 which allows peer names with IP addresses in the SAN extension.
 * :wrench: Move common TLS configuration to its own crate shared with our Modbus library.

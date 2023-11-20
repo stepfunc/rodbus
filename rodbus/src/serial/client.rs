@@ -1,7 +1,6 @@
 use crate::common::phys::PhysLayer;
 use crate::decode::DecodeLevel;
 use crate::serial::SerialSettings;
-use tokio::sync::mpsc::Receiver;
 
 use crate::client::message::Command;
 use crate::client::task::{ClientLoop, SessionError, StateChange};
@@ -21,7 +20,7 @@ impl SerialChannelTask {
     pub(crate) fn new(
         path: &str,
         serial_settings: SerialSettings,
-        rx: Receiver<Command>,
+        rx: crate::channel::Receiver<Command>,
         retry: Box<dyn RetryStrategy>,
         decode: DecodeLevel,
         listener: Box<dyn Listener<PortState>>,
