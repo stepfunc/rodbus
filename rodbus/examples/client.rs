@@ -218,7 +218,7 @@ async fn run_channel(mut channel: Channel) -> Result<(), Box<dyn std::error::Err
                 for info in basic_info.finalize_and_retrieve_objects() {
                     match info {
                         ModbusInfoObject::ModbusString(idx, string) => println!(
-                            "RECIVED BASIC INFO OBJECT: {} WITH A INDEX OF {}",
+                            "RECEIVED BASIC INFO OBJECT: {} WITH A INDEX OF {}",
                             string, idx
                         ),
                         ModbusInfoObject::ModbusRawData(_, _) => unreachable!(),
@@ -235,7 +235,7 @@ async fn run_channel(mut channel: Channel) -> Result<(), Box<dyn std::error::Err
                 for key in keys.finalize_and_retrieve_objects() {
                     match key {
                         ModbusInfoObject::ModbusString(_, key_name) => {
-                            println!("RECIEVED STRING DATA: {}", key_name);
+                            println!("RECEIVED STRING DATA: {}", key_name);
                             let parsed_key = u8::from_str_radix(&key_name[2..], 16).unwrap();
                             let resulting_values = channel
                                 .read_device_identification(
@@ -250,10 +250,10 @@ async fn run_channel(mut channel: Channel) -> Result<(), Box<dyn std::error::Err
                             for value in resulting_values.finalize_and_retrieve_objects() {
                                 match value {
                                     ModbusInfoObject::ModbusString(_, str) => {
-                                        println!("RECIEVED VALUE: {} FOR KEY {}", str, parsed_key)
+                                        println!("RECEIVED VALUE: {} FOR KEY {}", str, parsed_key)
                                     }
                                     ModbusInfoObject::ModbusRawData(_, str) => println!(
-                                        "RECIEVED BINARY DATA OF UNKNOWN FORMAT: {:?} FOR KEY {}",
+                                        "RECEIVED BINARY DATA OF UNKNOWN FORMAT: {:?} FOR KEY {}",
                                         str, parsed_key
                                     ),
                                 }
