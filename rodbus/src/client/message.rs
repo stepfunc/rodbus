@@ -165,8 +165,10 @@ impl RequestDetails {
             RequestDetails::WriteMultipleCoils(x) => x.handle_response(cursor, function, decode),
             RequestDetails::WriteMultipleRegisters(x) => {
                 x.handle_response(cursor, function, decode)
-            },
-            RequestDetails::ReadDeviceIdentification(x) => x.handle_response(cursor, function, decode),
+            }
+            RequestDetails::ReadDeviceIdentification(x) => {
+                x.handle_response(cursor, function, decode)
+            }
         }
     }
 }
@@ -249,7 +251,7 @@ impl std::fmt::Display for RequestDetailsDisplay<'_> {
                 }
                 RequestDetails::ReadDeviceIdentification(details) => {
                     write!(f, "{}", details.request)?;
-                },
+                }
             }
         }
 

@@ -39,7 +39,12 @@ pub trait RequestHandler: Send + 'static {
     }
 
     /// Read Basic Information from the Device
-    fn read_device_info(&self, _mei_code: MeiCode, _read_dev_id: ReadDeviceCode, _object_id: Option<u8>) -> Result<DeviceInfo, ExceptionCode> {
+    fn read_device_info(
+        &self,
+        _mei_code: MeiCode,
+        _read_dev_id: ReadDeviceCode,
+        _object_id: Option<u8>,
+    ) -> Result<DeviceInfo, ExceptionCode> {
         Err(ExceptionCode::IllegalFunction)
     }
 
@@ -233,7 +238,14 @@ pub trait AuthorizationHandler: Send + Sync + 'static {
     }
 
     /// Authorize a read device request
-    fn read_device_info(&self, _unit_id: UnitId, _role: &str, _mei_code: MeiCode, _read_dev_id: ReadDeviceCode, _object_id: Option<u8>) -> Authorization {
+    fn read_device_info(
+        &self,
+        _unit_id: UnitId,
+        _role: &str,
+        _mei_code: MeiCode,
+        _read_dev_id: ReadDeviceCode,
+        _object_id: Option<u8>,
+    ) -> Authorization {
         Authorization::Allow
     }
 }
@@ -316,7 +328,14 @@ impl AuthorizationHandler for ReadOnlyAuthorizationHandler {
     }
 
     /// Authorize Read Device Info request
-    fn read_device_info(&self, _unit_id: UnitId, _role: &str, _mei_code: MeiCode, _read_dev_id: ReadDeviceCode, _object_id: Option<u8>) -> Authorization {
+    fn read_device_info(
+        &self,
+        _unit_id: UnitId,
+        _role: &str,
+        _mei_code: MeiCode,
+        _read_dev_id: ReadDeviceCode,
+        _object_id: Option<u8>,
+    ) -> Authorization {
         Authorization::Allow
     }
 
@@ -326,8 +345,6 @@ impl AuthorizationHandler for ReadOnlyAuthorizationHandler {
     {
         Arc::new(self)
     }
-
-    
 }
 
 #[cfg(test)]
@@ -362,7 +379,11 @@ mod tests {
             Err(ExceptionCode::IllegalFunction)
         );
         assert_eq!(
-            handler.read_device_info(MeiCode::ReadDeviceId, ReadDeviceCode::BasicStreaming, Some(0)),
+            handler.read_device_info(
+                MeiCode::ReadDeviceId,
+                ReadDeviceCode::BasicStreaming,
+                Some(0)
+            ),
             Err(ExceptionCode::IllegalFunction)
         );
     }

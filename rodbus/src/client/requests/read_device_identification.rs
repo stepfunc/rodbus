@@ -1,7 +1,10 @@
-use scursor::{WriteCursor, ReadCursor};
+use scursor::{ReadCursor, WriteCursor};
 
-use crate::{RequestError, DeviceInfo, ReadDeviceRequest, common::{traits::Serialize, function::FunctionCode}, AppDecodeLevel, RawModbusInfoObject, ReadDeviceCode};
-
+use crate::{
+    common::{function::FunctionCode, traits::Serialize},
+    AppDecodeLevel, DeviceInfo, RawModbusInfoObject, ReadDeviceCode, ReadDeviceRequest,
+    RequestError,
+};
 
 pub(crate) struct ReadDevice {
     pub(crate) request: ReadDeviceRequest,
@@ -9,12 +12,13 @@ pub(crate) struct ReadDevice {
 }
 
 pub(crate) trait DeviceIdentificationCallback:
-    FnOnce(Result<DeviceInfo, RequestError>) + Send + Sync + 'static  {
+    FnOnce(Result<DeviceInfo, RequestError>) + Send + Sync + 'static
+{
 }
 
-impl<T> DeviceIdentificationCallback for T where 
-    T: FnOnce(Result<DeviceInfo, RequestError>) + Send + Sync + 'static {
-
+impl<T> DeviceIdentificationCallback for T where
+    T: FnOnce(Result<DeviceInfo, RequestError>) + Send + Sync + 'static
+{
 }
 
 pub(crate) struct Promise {
@@ -28,7 +32,10 @@ impl Drop for Promise {
 }
 
 impl Promise {
-    pub(crate) fn new<T>(callback: T) -> Self where T: DeviceIdentificationCallback {
+    pub(crate) fn new<T>(callback: T) -> Self
+    where
+        T: DeviceIdentificationCallback,
+    {
         Self {
             callback: Some(Box::new(callback)),
         }
@@ -51,10 +58,7 @@ impl Promise {
 
 impl ReadDevice {
     fn new(request: ReadDeviceRequest, promise: Promise) -> Self {
-        Self {
-            request,
-            promise,
-        }
+        Self { request, promise }
     }
 
     pub(crate) fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
@@ -86,17 +90,13 @@ impl ReadDevice {
         let response = Self::parse_device_identification_response(&mut cursor)?;
 
         if decode.enabled() {
-            tracing::info!(
-                "PDU RX - {} {}",
-                function,
-                response,
-            );
+            tracing::info!("PDU RX - {} {}", function, response,);
         }
 
         self.promise.success(response);
         Ok(())
     }
-    
+
     fn parse_device_identification_response(
         cursor: &mut ReadCursor,
     ) -> Result<DeviceInfo, RequestError> {
@@ -108,26 +108,31 @@ impl ReadDevice {
         let value = cursor.read_u8()?;
         let object_count = cursor.read_u8()?;
 
-        let mut result = DeviceInfo::new(mei_code, device_id, conformity_level, object_count).continue_at(more_follows, value);
-        
+        let mut result = DeviceInfo::new(mei_code, device_id, conformity_level, object_count)
+            .continue_at(more_follows, value);
+
         ReadDevice::parse_device_info_objects(device_id, &mut result.storage, cursor)?;
-        
+
         Ok(result)
     }
 
-    fn parse_device_info_objects(read_device_code: ReadDeviceCode, container: &mut Vec<RawModbusInfoObject>, cursor: &mut ReadCursor) -> Result<(), RequestError> {
+    fn parse_device_info_objects(
+        read_device_code: ReadDeviceCode,
+        container: &mut Vec<RawModbusInfoObject>,
+        cursor: &mut ReadCursor,
+    ) -> Result<(), RequestError> {
         loop {
             let obj_id = cursor.read_u8()?;
             let obj_length = cursor.read_u8()?;
             let data = cursor.read_bytes(obj_length as usize)?;
             let object = RawModbusInfoObject::new(read_device_code, obj_id, obj_length, data);
             container.push(object);
-            
+
             if cursor.is_empty() {
                 break;
             }
         }
-        
+
         Ok(())
-    } 
+    }
 }
