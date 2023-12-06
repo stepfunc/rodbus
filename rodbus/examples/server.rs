@@ -78,6 +78,20 @@ impl RequestHandler for SimpleHandler {
         }
     }
 
+    fn receive_custom_buffer(&self, value: Indexed<u16>) -> Result<u16, ExceptionCode> {
+        tracing::info!(
+            "receive custom buffer, index: {} value: {}",
+            value.index,
+            value.value
+        );
+
+        if value.value == 0xAB {
+            Ok(0xCD)
+        } else {
+            Err(ExceptionCode::IllegalFunction)
+        }
+    }
+
     fn write_single_register(&mut self, value: Indexed<u16>) -> Result<(), ExceptionCode> {
         tracing::info!(
             "write single register, index: {} value: {}",
