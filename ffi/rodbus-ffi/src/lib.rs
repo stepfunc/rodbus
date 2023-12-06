@@ -24,6 +24,7 @@ pub use iterator::*;
 pub use list::*;
 pub use runtime::*;
 pub use server::*;
+use std::str::Utf8Error;
 
 pub mod ffi;
 
@@ -63,5 +64,11 @@ impl From<crate::runtime::RuntimeError> for std::os::raw::c_int {
     fn from(err: crate::runtime::RuntimeError) -> Self {
         let err: crate::ffi::ParamError = err.into();
         err.into()
+    }
+}
+
+impl From<Utf8Error> for crate::ffi::ParamError {
+    fn from(_: Utf8Error) -> Self {
+        Self::InvalidUtf8
     }
 }

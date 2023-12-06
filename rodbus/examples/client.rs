@@ -116,14 +116,12 @@ async fn run_tls(tls_config: TlsClientConfig) -> Result<(), Box<dyn std::error::
 fn get_self_signed_config() -> Result<TlsClientConfig, Box<dyn std::error::Error>> {
     use std::path::Path;
     // ANCHOR: tls_self_signed_config
-    let tls_config = TlsClientConfig::new(
-        "test.com",
+    let tls_config = TlsClientConfig::self_signed(
         Path::new("./certs/self_signed/entity2_cert.pem"),
         Path::new("./certs/self_signed/entity1_cert.pem"),
         Path::new("./certs/self_signed/entity1_key.pem"),
         None, // no password
         MinTlsVersion::V1_2,
-        CertificateMode::SelfSigned,
     )?;
     // ANCHOR_END: tls_self_signed_config
 
@@ -134,14 +132,13 @@ fn get_self_signed_config() -> Result<TlsClientConfig, Box<dyn std::error::Error
 fn get_ca_chain_config() -> Result<TlsClientConfig, Box<dyn std::error::Error>> {
     use std::path::Path;
     // ANCHOR: tls_ca_chain_config
-    let tls_config = TlsClientConfig::new(
-        "test.com",
+    let tls_config = TlsClientConfig::full_pki(
+        Some("test.com".to_string()),
         Path::new("./certs/ca_chain/ca_cert.pem"),
         Path::new("./certs/ca_chain/client_cert.pem"),
         Path::new("./certs/ca_chain/client_key.pem"),
         None, // no password
         MinTlsVersion::V1_2,
-        CertificateMode::AuthorityBased,
     )?;
     // ANCHOR_END: tls_ca_chain_config
 
@@ -265,6 +262,20 @@ async fn run_channel(mut channel: Channel) -> Result<(), Box<dyn std::error::Err
                     .write_multiple_registers(
                         params,
                         WriteMultiple::from(0, vec![0xCA, 0xFE]).unwrap(),
+                    )
+                    .await;
+                print_write_result(result);
+                // ANCHOR_END: write_multiple_registers
+            }
+            "scb" => {
+                // ANCHOR: send_custom_buffer
+                let result = channel
+                    .send_custom_buffer(
+                        params,
+                        Indexed {
+                            index: (0x1),
+                            value: (0xAB),
+                        },
                     )
                     .await;
                 print_write_result(result);

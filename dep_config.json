@@ -2,13 +2,20 @@
   "build_only": [
     "addr2line",
     "adler",
+    "anstream",
+    "anstyle",
+    "anstyle-parse",
+    "anstyle-query",
+    "anstyle-wincon",
     "atty",
     "autocfg",
     "backtrace",
     "cc",
     "clap",
+    "clap_builder",
     "clap_derive",
     "clap_lex",
+    "colorchoice",
     "dunce",
     "errno",
     "gimli",
@@ -35,6 +42,7 @@
     "strsim",
     "termcolor",
     "ucd-trie",
+    "utf8parse",
     "unicode-segmentation",
     "version_check",
     "walkdir",
@@ -58,6 +66,9 @@
     },
     "sfio-promise": {
       "url": "https://github.com/stepfunc/promise"
+    },
+    "sfio-rustls-config": {
+      "url": "https://github.com/stepfunc/rustls-config"
     },
     "sfio-tokio-ffi": {
       "url": "https://github.com/stepfunc/tokio-ffi"
@@ -212,6 +223,22 @@
             "copyright": {
               "Lines": [
                 "Copyright (c) 2018 Carl Lerche"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "cbc": {
+      "id": "cbc",
+      "source": "crates.io",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2018-2022 RustCrypto Developers",
+                "Copyright (c) 2018 Artyom Pavlov"
               ]
             }
           }
@@ -648,6 +675,22 @@
         }
       ]
     },
+    "inout": {
+      "id": "inout",
+      "source": "crates.io",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2022 The RustCrypto Project Developers",
+                "Copyright (c) 2022 Artyom Pavlov"
+              ]
+            }
+          }
+        }
+      ]
+    },
     "itoa": {
       "id": "itoa",
       "source": "crates.io",
@@ -744,6 +787,21 @@
             "copyright": {
               "Lines": [
                 "Copyright (c) 2019 Nick Fitzgerald"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "mach2": {
+      "id": "mach2",
+      "source": "crates.io",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2019 Nick Fitzgerald, 2021 Yuki Okushi"
               ]
             }
           }
@@ -1144,6 +1202,21 @@
         }
       ]
     },
+    "rustls-webpki": {
+      "id": "rustls-webpki",
+      "source": "crates.io",
+      "licenses": [
+        {
+          "ISC": {
+            "copyright": {
+              "Lines": [
+                "Copyright 2015 Brian Smith."
+              ]
+            }
+          }
+        }
+      ]
+    },
     "ryu": {
       "id": "ryu",
       "source": "crates.io",
@@ -1160,6 +1233,21 @@
             "copyright": {
               "Lines": [
                 "Copyright (c) 2019 Eric McCorkle"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "scopeguard": {
+      "id": "scopeguard",
+      "source": "crates.io",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2016-2019 Ulrik Sverdrup \"bluss\" and scopeguard developers"
               ]
             }
           }
@@ -1602,21 +1690,6 @@
         }
       ]
     },
-    "webpki": {
-      "id": "webpki",
-      "source": "crates.io",
-      "licenses": [
-        {
-          "ISC": {
-            "copyright": {
-              "Lines": [
-                "Copyright 2015 Brian Smith."
-              ]
-            }
-          }
-        }
-      ]
-    },
     "winapi": {
       "id": "winapi",
       "source": "crates.io",
@@ -1634,6 +1707,21 @@
     },
     "windows-sys": {
       "id": "windows-sys",
+      "source": "crates.io",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) Microsoft Corporation"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "windows-targets": {
+      "id": "windows-targets",
       "source": "crates.io",
       "licenses": [
         {

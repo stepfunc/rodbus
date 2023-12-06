@@ -149,7 +149,6 @@
 #![forbid(
     unsafe_code,
     rustdoc::broken_intra_doc_links,
-    unaligned_references,
     while_true,
     bare_trait_objects
 )]
@@ -168,6 +167,7 @@ pub mod constants;
 pub mod server;
 
 // modules that are re-exported
+pub(crate) mod channel;
 pub(crate) mod decode;
 pub(crate) mod error;
 pub(crate) mod exception;

@@ -465,6 +465,7 @@ fn build_tls_client_config(
 ) -> BackTraced<FunctionArgStructHandle> {
     let min_tls_version_field = Name::create("min_tls_version")?;
     let certificate_mode_field = Name::create("certificate_mode")?;
+    let allow_server_name_wildcard = Name::create("allow_server_name_wildcard")?;
 
     let tls_client_config = lib.declare_function_argument_struct("tls_client_config")?;
     let tls_client_config = lib.define_function_argument_struct(tls_client_config)?
@@ -495,11 +496,13 @@ fn build_tls_client_config(
             "Minimum TLS version allowed",
         )?
         .add(&certificate_mode_field, common.certificate_mode.clone(), "Certificate validation mode")?
+        .add(allow_server_name_wildcard.clone(), Primitive::Bool, "If set to true, a '*' may be used for {struct:tls_client_config.dns_name} to bypass server name validation")?
         .doc("TLS client configuration")?
         .end_fields()?
         .begin_initializer("init", InitializerType::Normal, "Initialize a TLS client configuration")?
         .default_variant(&min_tls_version_field, "v12")?
         .default_variant(&certificate_mode_field, "authority_based")?
+        .default(&allow_server_name_wildcard, false)?
         .end_initializer()?
         .build()?;
 

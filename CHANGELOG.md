@@ -1,4 +1,13 @@
-### 1.2.0-rc1 ###
+### 1.3.1 ###
+* :bug: Fix issue with master channels not properly exiting and thrashing CPU. See [#120](https://github.com/stepfunc/rodbus/issues/120).
+
+### 1.3.0 ###
+* :wrench: Update to rustls 0.21 which allows peer names with IP addresses in the SAN extension.
+* :wrench: Move common TLS configuration to its own crate shared with our Modbus library.
+* :star: PEM parser now supports extracting PKCS#1 private keys, i.e. PEM files with `BEGIN RSA PRIVATE KEY`.
+* :book: Documentation improvements in the bindings via [oo-bindgen 0.8.3](https://github.com/stepfunc/oo_bindgen/blob/main/CHANGELOG.md).
+
+### 1.2.0 ###
 * :star: Add a mechanism to the bindings to shut down the Runtime with a timeout. See [#110](https://github.com/stepfunc/rodbus/pull/110).
 
 ### 1.1.0 ###
