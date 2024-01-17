@@ -172,7 +172,7 @@ impl std::fmt::Display for ReadDeviceRequest {
 ///Data that is returned by a modbus server can contain ascii and in some cases other types of data. This data structure converts the raw bytes into ASCII Strings
 /// if possible. In the case where the data cannot be converted into ASCII due to unknown bytes we return the raw bytes to the user.
 pub enum ModbusInfoObject {
-    ///Type that represents a ascii string. used for everything that comes from the basic and regular storage of the server (see modbus specification page 43 object table)
+    ///Type that represents an ascii string. used for everything that comes from the basic and regular storage of the server (see modbus specification page 43 object table)
     ModbusString(u8, String),
     ///Stores a unknown piece of binary data returned by the server. cast these into ascii strings at your own discretion. used for everything that comes from the extended storage (see modbus specification page 43 object table)
     ModbusRawData(u8, Vec<u8>),
@@ -187,10 +187,10 @@ impl From<RawModbusInfoObject> for ModbusInfoObject {
                 Self::ModbusString(value.index, String::from_utf8(value.raw_data).unwrap())
             }
             ReadDeviceCode::BasicStreaming | ReadDeviceCode::RegularStreaming => {
-                Self::ModbusRawData(value.index, value.raw_data.clone())
+                Self::ModbusRawData(value.index, value.raw_data)
             }
             ReadDeviceCode::ExtendedStreaming | ReadDeviceCode::Specific => {
-                Self::ModbusRawData(value.index, value.raw_data.clone())
+                Self::ModbusRawData(value.index, value.raw_data)
             }
         }
     }
