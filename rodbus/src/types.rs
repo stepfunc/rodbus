@@ -168,6 +168,34 @@ impl std::fmt::Display for ReadDeviceRequest {
     }
 }
 
+/// String information objects defined by the standard
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum StringInfoObject {
+    /// Name of the vendor of the device
+    VendorName,
+    /// Product code
+    ProductCode,
+    /// Version of the software on the device
+    MajorMinorRevision,
+    /// URL of the vendor's website
+    VendorUrl,
+    /// Name of the produce
+    ProductName,
+    /// Model of the product
+    ModelName,
+    /// User application name
+    UserApplicationName,
+}
+
+/// Type that models information objects defined by the standard and private types
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum InfoObject {
+    /// The type is string defined by the standard
+    DefinedString(StringInfoObject, String),
+    /// The type is a reserved or private type
+    Other(u8, Vec<u8>),
+}
+
 #[derive(Debug, PartialEq)]
 ///Data that is returned by a modbus server can contain ascii and in some cases other types of data. This data structure converts the raw bytes into ASCII Strings
 /// if possible. In the case where the data cannot be converted into ASCII due to unknown bytes we return the raw bytes to the user.
@@ -195,7 +223,6 @@ impl From<RawModbusInfoObject> for ModbusInfoObject {
         }
     }
 }
-
 #[derive(Debug, Clone, PartialEq)]
 #[allow(missing_docs)]
 pub struct RawModbusInfoObject {

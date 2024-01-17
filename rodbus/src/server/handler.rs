@@ -38,6 +38,11 @@ pub trait RequestHandler: Send + 'static {
         Err(ExceptionCode::IllegalFunction)
     }
 
+    /// TODO - We should probably just return &[u8] here if we can for the data along with the indication of the next value. We shouldn't
+    /// TODO - have to heap allocate if the server owns the raw data.
+    /// TODO - The types that we use for the server and the client don't HAVE to be the same.
+    ///
+    ///
     /// Read Basic Information from the Device
     fn read_device_info(
         &self,
