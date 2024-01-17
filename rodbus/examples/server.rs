@@ -32,7 +32,7 @@ impl SimpleHandler {
 
             basic_info: ["Example Vendor".to_string(), "Little Dictionary".to_string(), "0.1.0".to_string()],
             regular_keys: ["0x8A".to_string(), "0x8B".to_string(), "0x8C".to_string(), "0x8D".to_string()],
-            extended_values: ["This is the value for key 0x8A".to_string(), "Value for 0x8B which is a bit longer than your usual method to test if the behaivor of sending responses is correct and works, and will it work over a different client as well ?".to_string(), "Another value for 0x8C".to_string(), "Last but not least the value for 0x8D".to_string()],
+            extended_values: ["This is the value for key 0x8A".to_string(), "Value for 0x8B which is a bit longer than your usual method to test if the behavior of sending responses is correct and works, and will it work over a different client as well ?".to_string(), "Another value for 0x8C".to_string(), "Last but not least the value for 0x8D".to_string()],
         }
     }
 

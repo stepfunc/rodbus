@@ -127,6 +127,17 @@ impl<'a> Request<'a> {
                 writer.format_reply(header, function, &registers, level)
             }
             Request::ReadDeviceIdentification(read) => {
+                // TODO - this needs to be refactored to incrementally write the response, one device object at a time
+                // in accordance with the modified API to read handler.
+                //
+                // Note: This probably requires some changes to the FrameWriter as well
+                //
+                // You'll have to save the locations to the following fields:
+                //  - More Follows
+                //  - Next Object Id
+                //  - Number of Objects
+                //
+                // And then write them AFTER writing the info objects
                 let device_information = DeviceIdentificationResponse::new(|| {
                     handler.read_device_info(read.mei_code, read.dev_id, read.obj_id)
                 });
