@@ -130,7 +130,7 @@ impl<'a> Request<'a> {
                 // TODO - this needs to be refactored to incrementally write the response, one device object at a time
                 // in accordance with the modified API to read handler.
                 //
-                // Note: This probably requires some changes to the FrameWriter as well
+                // Note: This will require some changes to the FrameWriter =(
                 //
                 // You'll have to save the locations to the following fields:
                 //  - More Follows
