@@ -5,6 +5,16 @@ use crate::exception::ExceptionCode;
 use crate::server::{WriteCoils, WriteRegisters};
 use crate::types::*;
 
+/// Type that the server will return in response to a read_device_info
+pub struct ServerDeviceInfo<'a> {
+    /// Conformity level the the server is willing to grant
+    pub conformity_level: DeviceConformityLevel,
+    /// The ID of the next object, if available This will
+    pub next_object_id: Option<u8>,
+    /// The raw data for this object
+    pub object_data: &'a [u8],
+}
+
 /// Trait implemented by the user to process requests received from the client
 ///
 /// Implementations do **NOT** need to validate that AddressRanges do not overflow u16 as this
@@ -38,12 +48,9 @@ pub trait RequestHandler: Send + 'static {
         Err(ExceptionCode::IllegalFunction)
     }
 
-    /// TODO - We should probably just return &[u8] here if we can for the data along with the indication of the next value. We shouldn't
-    /// TODO - have to heap allocate if the server owns the raw data.
-    /// TODO - The types that we use for the server and the client don't HAVE to be the same.
+    /// TODO - Rework this to return ServerDeviceInfo<'a>
     ///
-    ///
-    /// Read Basic Information from the Device
+    /// Read device information
     fn read_device_info(
         &self,
         _mei_code: MeiCode,
