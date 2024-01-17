@@ -181,7 +181,7 @@ async fn run_tcp() -> Result<(), Box<dyn std::error::Error>> {
     // ANCHOR: tcp_server_create
     let server = rodbus::server::spawn_tcp_server_task(
         1,
-        "127.0.0.1:502".parse()?,
+        "127.0.0.1:1502".parse()?,
         map,
         AddressFilter::Any,
         DecodeLevel::default(),

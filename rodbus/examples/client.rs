@@ -61,7 +61,7 @@ where
 async fn run_tcp() -> Result<(), Box<dyn std::error::Error>> {
     // ANCHOR: create_tcp_channel
     let channel = spawn_tcp_client_task(
-        HostAddr::ip(IpAddr::V4(Ipv4Addr::LOCALHOST), 502),
+        HostAddr::ip(IpAddr::V4(Ipv4Addr::LOCALHOST), 1502),
         1,
         default_retry_strategy(),
         DecodeLevel::default(),
