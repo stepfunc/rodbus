@@ -283,12 +283,20 @@ async fn run_channel(mut channel: Channel) -> Result<(), Box<dyn std::error::Err
             }
             "wcfc" => {
                 // ANCHOR: write_custom_function_code
-                println!("write success");
+                let result: Result<Indexed<u16>, RequestError> = channel
+                    .write_custom_function_code(
+                        params,
+                        Indexed {
+                            index: (0x1),
+                            value: (0x44),
+                        },
+                    )
+                    .await;
                 // ANCHOR_END: write_custom_function_code
             }
             "rcfc" => {
                 // ANCHOR: read_custom_function_code
-                println!("success");
+                println!("read success");
                 // ANCHOR_END: read_custom_function_code
             }
             _ => println!("unknown command"),
