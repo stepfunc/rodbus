@@ -22,6 +22,7 @@ pub(crate) enum Request<'a> {
     WriteSingleRegister(Indexed<u16>),
     WriteMultipleCoils(WriteCoils<'a>),
     WriteMultipleRegisters(WriteRegisters<'a>),
+    WriteCustomFunctionCode(Indexed<u16>),
 }
 
 /// All requests that support broadcast
@@ -66,6 +67,7 @@ impl<'a> Request<'a> {
             Request::WriteSingleRegister(_) => FunctionCode::WriteSingleRegister,
             Request::WriteMultipleCoils(_) => FunctionCode::WriteMultipleCoils,
             Request::WriteMultipleRegisters(_) => FunctionCode::WriteMultipleRegisters,
+            Request::WriteCustomFunctionCode(_) => FunctionCode::WriteCustomFunctionCode,
         }
     }
 
@@ -80,6 +82,7 @@ impl<'a> Request<'a> {
             Request::WriteSingleRegister(x) => Some(BroadcastRequest::WriteSingleRegister(x)),
             Request::WriteMultipleCoils(x) => Some(BroadcastRequest::WriteMultipleCoils(x)),
             Request::WriteMultipleRegisters(x) => Some(BroadcastRequest::WriteMultipleRegisters(x)),
+            Request::WriteCustomFunctionCode(_) => None,
         }
     }
 
@@ -148,6 +151,10 @@ impl<'a> Request<'a> {
                     .map(|_| items.range);
                 write_result(function, header, writer, result, level)
             }
+            Request::WriteCustomFunctionCode(request) => {
+                let result = handler.write_custom_function_code(*request).map(|_| *request);
+                write_result(function, header, writer, result, level)
+            }
         }
     }
 
@@ -213,6 +220,12 @@ impl<'a> Request<'a> {
                     RegisterIterator::parse_all(range, cursor)?,
                 )))
             }
+            FunctionCode::WriteCustomFunctionCode => {
+                let x =
+                    Request::WriteCustomFunctionCode(Indexed::<u16>::parse(cursor)?);
+                cursor.expect_empty()?;
+                Ok(x)
+            }
         }
     }
 }
@@ -268,6 +281,9 @@ impl std::fmt::Display for RequestDisplay<'_, '_> {
                         " {}",
                         RegisterIteratorDisplay::new(self.level, items.iterator)
                     )?;
+                }
+                Request::WriteCustomFunctionCode(request) => {
+                    write!(f, " {request}")?;
                 }
             }
         }

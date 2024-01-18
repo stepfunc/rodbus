@@ -67,6 +67,11 @@ pub trait RequestHandler: Send + 'static {
     fn write_multiple_registers(&mut self, _values: WriteRegisters) -> Result<(), ExceptionCode> {
         Err(ExceptionCode::IllegalFunction)
     }
+
+    /// Write a custom function code
+    fn write_custom_function_code(&mut self, _value: Indexed<u16>) -> Result<(), ExceptionCode> {
+        Err(ExceptionCode::IllegalFunction)
+    }
 }
 
 /// Trait useful for converting None into IllegalDataAddress
