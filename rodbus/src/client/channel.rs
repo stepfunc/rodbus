@@ -10,6 +10,8 @@ use crate::error::*;
 use crate::types::{AddressRange, BitIterator, Indexed, RegisterIterator, UnitId};
 use crate::DecodeLevel;
 
+use super::requests::write_custom_fc::WriteCustomFC;
+
 /// Async channel used to make requests
 #[derive(Debug, Clone)]
 pub struct Channel {
@@ -174,6 +176,21 @@ impl Channel {
         let request = wrap(
             param,
             RequestDetails::SendCustomBuffers(SendBuffer::new(request, Promise::channel(tx))),
+        );
+        self.tx.send(request).await?;
+        rx.await?
+    }
+
+    /// Write a Custom Function Code to the server
+    pub async fn write_custom_function_code(
+        &mut self,
+        param: RequestParam,
+        request: Indexed<u16>,
+    ) -> Result<Indexed<u16>, RequestError> {
+        let (tx, rx) = tokio::sync::oneshot::channel::<Result<Indexed<u16>, RequestError>>();
+        let request = wrap(
+            param,
+            RequestDetails::WriteCustomFunctionCode(WriteCustomFC::new(request, Promise::channel(tx))),
         );
         self.tx.send(request).await?;
         rx.await?
