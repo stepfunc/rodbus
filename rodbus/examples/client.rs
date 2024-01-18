@@ -281,6 +281,16 @@ async fn run_channel(mut channel: Channel) -> Result<(), Box<dyn std::error::Err
                 print_write_result(result);
                 // ANCHOR_END: write_multiple_registers
             }
+            "wcfc" => {
+                // ANCHOR: write_custom_function_code
+                println!("write success");
+                // ANCHOR_END: write_custom_function_code
+            }
+            "rcfc" => {
+                // ANCHOR: read_custom_function_code
+                println!("success");
+                // ANCHOR_END: read_custom_function_code
+            }
             _ => println!("unknown command"),
         }
     }
