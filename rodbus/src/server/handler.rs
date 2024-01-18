@@ -244,6 +244,11 @@ pub trait AuthorizationHandler: Send + Sync + 'static {
     ) -> Authorization {
         Authorization::Deny
     }
+
+    /// Authorize a Write Custom Function Code request
+    fn write_custom_function_code(&self, _value: Indexed<u16>, _role: &str) -> Authorization {
+        Authorization::Deny
+    }
 }
 
 /// Read-only authorization handler that blindly accepts
