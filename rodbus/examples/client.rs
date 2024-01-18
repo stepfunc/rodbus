@@ -292,6 +292,7 @@ async fn run_channel(mut channel: Channel) -> Result<(), Box<dyn std::error::Err
                         },
                     )
                     .await;
+                print_write_result(result);
                 // ANCHOR_END: write_custom_function_code
             }
             "rcfc" => {
