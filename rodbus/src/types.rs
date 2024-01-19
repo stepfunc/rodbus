@@ -369,6 +369,19 @@ impl CustomFunctionCode {
     }
 }
 
+impl std::fmt::Display for CustomFunctionCode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "[")?;
+        for (i, val) in self.data.iter().enumerate() {
+            if i != 0 {
+                write!(f, ", ")?;
+            }
+            write!(f, "{}", val)?;
+        }
+        write!(f, "]")
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::error::*;
