@@ -1,11 +1,11 @@
 use std::fmt::Display;
 
+use crate::CustomFunctionCode;
 use crate::client::message::Promise;
 use crate::common::function::FunctionCode;
 use crate::decode::AppDecodeLevel;
 use crate::error::AduParseError;
 use crate::error::RequestError;
-use crate::types::{coil_from_u16, coil_to_u16, Indexed};
 
 use scursor::{ReadCursor, WriteCursor};
 
@@ -66,29 +66,22 @@ where
     }
 }
 
-impl WriteCustomFCOperation for Indexed<bool> {
+impl WriteCustomFCOperation for CustomFunctionCode {
     fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
-        cursor.write_u16_be(self.index)?;
-        cursor.write_u16_be(coil_to_u16(self.value))?;
+        cursor.write_u16_be(self.len() as u16)?;
+
+        for &item in self.iter() {
+            cursor.write_u16_be(item)?;
+        }
         Ok(())
     }
 
     fn parse(cursor: &mut ReadCursor) -> Result<Self, RequestError> {
-        Ok(Indexed::new(
-            cursor.read_u16_be()?,
-            coil_from_u16(cursor.read_u16_be()?)?,
-        ))
-    }
-}
-
-impl WriteCustomFCOperation for Indexed<u16> {
-    fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
-        cursor.write_u16_be(self.index)?;
-        cursor.write_u16_be(self.value)?;
-        Ok(())
-    }
-
-    fn parse(cursor: &mut ReadCursor) -> Result<Self, RequestError> {
-        Ok(Indexed::new(cursor.read_u16_be()?, cursor.read_u16_be()?))
+        let len = cursor.read_u16_be()? as usize;
+        let mut vec = Vec::with_capacity(len);
+        for _ in 0..len {
+            vec.push(cursor.read_u16_be()?);
+        }
+        Ok(CustomFunctionCode::new(vec))
     }
 }

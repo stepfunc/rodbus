@@ -85,25 +85,10 @@ pub(crate) struct RegisterIteratorDisplay<'a> {
     level: AppDecodeLevel,
 }
 
-impl std::fmt::Display for UnitId {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:#04X}", self.value)
-    }
-}
-
-impl<'a> BitIterator<'a> {
-    pub(crate) fn parse_all(
-        range: AddressRange,
-        cursor: &'a mut ReadCursor,
-    ) -> Result<Self, RequestError> {
-        let bytes = cursor.read_bytes(crate::common::bits::num_bytes_for_bits(range.count))?;
-        cursor.expect_empty()?;
-        Ok(Self {
-            bytes,
-            range,
-            pos: 0,
-        })
-    }
+/// Custom buffer
+#[derive(Clone, Debug, PartialEq)]
+pub struct CustomFunctionCode {
+    data: Vec<u16>,
 }
 
 impl<'a> BitIteratorDisplay<'a> {
@@ -364,6 +349,23 @@ impl UnitId {
 impl Default for UnitId {
     fn default() -> Self {
         Self { value: 0xFF }
+    }
+}
+
+impl CustomFunctionCode {
+    /// Create a new custom function code
+    pub fn new(data: Vec<u16>) -> Self {
+        Self { data }
+    }
+
+    /// Get the length of the underlying vector
+    pub fn len(&self) -> usize {
+        self.data.len()
+    }
+
+    // Iterate over the underlying vector
+    pub fn iter(&self) -> std::slice::Iter<u16> {
+        self.data.iter()
     }
 }
 
