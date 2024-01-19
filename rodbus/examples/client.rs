@@ -283,7 +283,7 @@ async fn run_channel(mut channel: Channel) -> Result<(), Box<dyn std::error::Err
             }
             "wcfc" => {
                 // ANCHOR: write_custom_function_code
-                let result: Result<Indexed<u16>, RequestError> = channel
+                let result: Result<CustomFunctionCode, RequestError> = channel
                     .write_custom_function_code(
                         params,
                         Indexed {

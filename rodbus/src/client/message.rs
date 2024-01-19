@@ -13,7 +13,7 @@ use crate::client::requests::write_single::SingleWrite;
 use crate::client::requests::send_buffer::SendBuffer;
 use crate::client::requests::write_custom_fc::WriteCustomFC;
 use crate::common::traits::Serialize;
-use crate::types::{Indexed, UnitId};
+use crate::types::{Indexed, UnitId, CustomFunctionCode};
 
 use scursor::{ReadCursor, WriteCursor};
 use std::time::Duration;
@@ -48,7 +48,7 @@ pub(crate) enum RequestDetails {
     WriteSingleRegister(SingleWrite<Indexed<u16>>),
     WriteMultipleCoils(MultipleWriteRequest<bool>),
     WriteMultipleRegisters(MultipleWriteRequest<u16>),
-    WriteCustomFunctionCode(WriteCustomFC<Indexed<u16>>),
+    WriteCustomFunctionCode(WriteCustomFC<CustomFunctionCode>),
 }
 
 impl Request {
