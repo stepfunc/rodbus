@@ -16,7 +16,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     // ANCHOR: logging
     tracing_subscriber::fmt()
-        .with_max_level(tracing::Level::INFO)
+        .with_max_level(tracing::Level::DEBUG)
         .with_target(false)
         .init();
     // ANCHOR_END: logging
