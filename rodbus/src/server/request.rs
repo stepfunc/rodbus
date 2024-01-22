@@ -22,7 +22,7 @@ pub(crate) enum Request<'a> {
     WriteSingleRegister(Indexed<u16>),
     WriteMultipleCoils(WriteCoils<'a>),
     WriteMultipleRegisters(WriteRegisters<'a>),
-    WriteCustomFunctionCode(Indexed<u16>),
+    WriteCustomFunctionCode(CustomFunctionCode),
 }
 
 /// All requests that support broadcast
@@ -222,7 +222,7 @@ impl<'a> Request<'a> {
             }
             FunctionCode::WriteCustomFunctionCode => {
                 let x =
-                    Request::WriteCustomFunctionCode(Indexed::<u16>::parse(cursor)?);
+                    Request::WriteCustomFunctionCode(CustomFunctionCode::parse(cursor)?);
                 cursor.expect_empty()?;
                 Ok(x)
             }

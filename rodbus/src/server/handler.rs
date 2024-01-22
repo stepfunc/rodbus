@@ -69,7 +69,7 @@ pub trait RequestHandler: Send + 'static {
     }
 
     /// Write a custom function code
-    fn write_custom_function_code(&mut self, _value: Indexed<u16>) -> Result<(), ExceptionCode> {
+    fn write_custom_function_code(&mut self, _value: CustomFunctionCode) -> Result<(), ExceptionCode> {
         Err(ExceptionCode::IllegalFunction)
     }
 }
@@ -246,7 +246,7 @@ pub trait AuthorizationHandler: Send + Sync + 'static {
     }
 
     /// Authorize a Write Custom Function Code request
-    fn write_custom_function_code(&self, _value: Indexed<u16>, _role: &str) -> Authorization {
+    fn write_custom_function_code(&self, _value: CustomFunctionCode, _role: &str) -> Authorization {
         Authorization::Deny
     }
 }
