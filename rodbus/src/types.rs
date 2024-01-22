@@ -97,6 +97,21 @@ impl std::fmt::Display for UnitId {
     }
 }
 
+impl<'a> BitIterator<'a> {
+    pub(crate) fn parse_all(
+        range: AddressRange,
+        cursor: &'a mut ReadCursor,
+    ) -> Result<Self, RequestError> {
+        let bytes = cursor.read_bytes(crate::common::bits::num_bytes_for_bits(range.count))?;
+        cursor.expect_empty()?;
+        Ok(Self {
+            bytes,
+            range,
+            pos: 0,
+        })
+    }
+}
+
 impl<'a> BitIteratorDisplay<'a> {
     pub(crate) fn new(level: AppDecodeLevel, iterator: BitIterator<'a>) -> Self {
         Self { iterator, level }
