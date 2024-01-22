@@ -286,10 +286,7 @@ async fn run_channel(mut channel: Channel) -> Result<(), Box<dyn std::error::Err
                 let result: Result<CustomFunctionCode, RequestError> = channel
                     .write_custom_function_code(
                         params,
-                        Indexed {
-                            index: (0x1),
-                            value: (0x44),
-                        },
+                        CustomFunctionCode::new(vec![0x01, 0x02, 0x03, 0x04])
                     )
                     .await;
                 print_write_result(result);
