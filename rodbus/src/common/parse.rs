@@ -1,6 +1,6 @@
 use crate::common::traits::Parse;
 use crate::error::*;
-use crate::types::{coil_from_u16, AddressRange, Indexed};
+use crate::types::{coil_from_u16, AddressRange, Indexed, CustomFunctionCode};
 
 use scursor::ReadCursor;
 
@@ -25,6 +25,17 @@ impl Parse for Indexed<bool> {
 impl Parse for Indexed<u16> {
     fn parse(cursor: &mut ReadCursor) -> Result<Self, RequestError> {
         Ok(Indexed::new(cursor.read_u16_be()?, cursor.read_u16_be()?))
+    }
+}
+
+impl Parse for CustomFunctionCode {
+    fn parse(cursor: &mut ReadCursor) -> Result<Self, RequestError> {
+        let len = cursor.read_u16_be()? as usize;
+        let mut vec = Vec::with_capacity(len);
+        for _ in 0..len {
+            vec.push(cursor.read_u16_be()?);
+        }
+        Ok(CustomFunctionCode::new(vec))  // Construct a U16Vec from the parsed vector
     }
 }
 
