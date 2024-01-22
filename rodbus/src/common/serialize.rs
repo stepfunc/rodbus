@@ -8,7 +8,7 @@ use crate::error::{InternalError, RequestError};
 use crate::server::response::{BitWriter, RegisterWriter};
 use crate::types::{
     coil_from_u16, coil_to_u16, AddressRange, BitIterator, BitIteratorDisplay, Indexed,
-    RegisterIterator, RegisterIteratorDisplay,
+    RegisterIterator, RegisterIteratorDisplay, CustomFunctionCode,
 };
 
 use scursor::{ReadCursor, WriteCursor};
@@ -287,6 +287,49 @@ impl Serialize for WriteMultiple<u16> {
     fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
         self.range.serialize(cursor)?;
         self.values.as_slice().serialize(cursor)
+    }
+}
+
+impl Serialize for CustomFunctionCode {
+    fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
+        cursor.write_u16_be(self.len() as u16)?;
+
+        for &item in self.iter() {
+            cursor.write_u16_be(item)?;
+        }
+        Ok(())
+    }
+}
+
+impl Loggable for CustomFunctionCode {
+    fn log(
+        &self,
+        payload: &[u8],
+        level: crate::decode::AppDecodeLevel,
+        f: &mut std::fmt::Formatter,
+    ) -> std::fmt::Result {
+        if level.data_headers() {
+            let mut cursor = ReadCursor::new(payload);
+
+            let len = match cursor.read_u16_be() {
+                Ok(len) => len,
+                Err(_) => return Ok(()),
+            };
+
+            let mut vec = Vec::with_capacity(len as usize);
+            for _ in 0..len {
+                match cursor.read_u16_be() {
+                    Ok(value) => vec.push(value),
+                    Err(_) => return Ok(()),
+                }
+            }
+
+            let value = CustomFunctionCode::new(vec);
+
+            write!(f, "{value}")?;
+        }
+
+        Ok(())
     }
 }
 
