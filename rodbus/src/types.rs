@@ -384,7 +384,7 @@ impl CustomFunctionCode {
         self.data.len()
     }
 
-    // Iterate over the underlying vector
+    /// Iterate over the underlying vector
     pub fn iter(&self) -> std::slice::Iter<u16> {
         self.data.iter()
     }
