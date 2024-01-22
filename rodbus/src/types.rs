@@ -91,6 +91,12 @@ pub struct CustomFunctionCode {
     data: Vec<u16>,
 }
 
+impl std::fmt::Display for UnitId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:#04X}", self.value)
+    }
+}
+
 impl<'a> BitIteratorDisplay<'a> {
     pub(crate) fn new(level: AppDecodeLevel, iterator: BitIterator<'a>) -> Self {
         Self { iterator, level }
