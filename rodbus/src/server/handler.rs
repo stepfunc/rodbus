@@ -69,7 +69,7 @@ pub trait RequestHandler: Send + 'static {
     }
 
     /// Write a custom function code
-    fn write_custom_function_code(&mut self, _value: CustomFunctionCode) -> Result<(), ExceptionCode> {
+    fn write_custom_function_code(&self, _values: CustomFunctionCode) -> Result<(), ExceptionCode> {
         Err(ExceptionCode::IllegalFunction)
     }
 }

@@ -92,6 +92,12 @@ impl RequestHandler for SimpleHandler {
         }
     }
 
+    fn write_custom_function_code(&self, values: CustomFunctionCode) -> Result<(), ExceptionCode> {
+        tracing::info!("processing custom function code, {:?}", values);
+
+        Ok(())
+    }
+
     fn write_single_register(&mut self, value: Indexed<u16>) -> Result<(), ExceptionCode> {
         tracing::info!(
             "write single register, index: {} value: {}",
