@@ -86,9 +86,9 @@ pub(crate) struct RegisterIteratorDisplay<'a> {
 }
 
 /// Custom buffer
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Copy, PartialEq)]
 pub struct CustomFunctionCode {
-    data: Vec<u16>,
+    data: [u16; 4],
 }
 
 impl std::fmt::Display for UnitId {
@@ -375,7 +375,7 @@ impl Default for UnitId {
 
 impl CustomFunctionCode {
     /// Create a new custom function code
-    pub fn new(data: Vec<u16>) -> Self {
+    pub fn new(data: [u16; 4]) -> Self {
         Self { data }
     }
 
@@ -392,7 +392,7 @@ impl CustomFunctionCode {
 
 impl std::fmt::Display for CustomFunctionCode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "[")?;
+        write!(f, "value: [")?;
         for (i, val) in self.data.iter().enumerate() {
             if i != 0 {
                 write!(f, ", ")?;

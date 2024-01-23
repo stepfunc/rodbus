@@ -30,12 +30,21 @@ impl Parse for Indexed<u16> {
 
 impl Parse for CustomFunctionCode {
     fn parse(cursor: &mut ReadCursor) -> Result<Self, RequestError> {
-        let len = cursor.read_u16_be()? as usize;
+        /*let len = cursor.read_u16_be()? as usize;
         let mut vec = Vec::with_capacity(len);
         for _ in 0..len {
             vec.push(cursor.read_u16_be()?);
         }
-        Ok(CustomFunctionCode::new(vec))  // Construct a U16Vec from the parsed vector
+        Ok(CustomFunctionCode::new(vec))  // Construct a U16Vec from the parsed vector*/
+
+        let val1 = cursor.read_u16_be()?;
+        let val2 = cursor.read_u16_be()?;
+        let val3 = cursor.read_u16_be()?;
+        let val4 = cursor.read_u16_be()?;
+        
+        let values = [val1, val2, val3, val4];
+
+        Ok(CustomFunctionCode::new(values))
     }
 }
 
