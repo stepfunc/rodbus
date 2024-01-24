@@ -88,6 +88,7 @@ pub(crate) struct RegisterIteratorDisplay<'a> {
 /// Custom buffer
 #[derive(Clone, Debug, Copy, PartialEq)]
 pub struct CustomFunctionCode {
+    len: usize,
     data: [u16; 4],
 }
 
@@ -375,8 +376,8 @@ impl Default for UnitId {
 
 impl CustomFunctionCode {
     /// Create a new custom function code
-    pub fn new(data: [u16; 4]) -> Self {
-        Self { data }
+    pub fn new(len: usize, data: [u16; 4]) -> Self {
+        Self { len, data }
     }
 
     /// Get the length of the underlying vector

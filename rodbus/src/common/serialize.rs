@@ -333,7 +333,7 @@ impl Loggable for CustomFunctionCode {
                 };
             }
 
-            let value = CustomFunctionCode::new(data);
+            let value = CustomFunctionCode::new(0x04, data);
 
             write!(f, "{value}")?;
         }
