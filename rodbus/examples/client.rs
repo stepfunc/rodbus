@@ -199,7 +199,7 @@ async fn run_channel(mut channel: Channel) -> Result<(), Box<dyn std::error::Err
                     .set_decode_level(DecodeLevel::new(
                         AppDecodeLevel::DataValues,
                         FrameDecodeLevel::Payload,
-                        PhysDecodeLevel::Length,
+                        PhysDecodeLevel::Data,
                     ))
                     .await?;
             }
@@ -284,7 +284,8 @@ async fn run_channel(mut channel: Channel) -> Result<(), Box<dyn std::error::Err
             "wcfc" => {
                 // ANCHOR: write_custom_function_code
                 let length = 0x04 as usize;
-                let values = [0x2, 0x3, 0x4, 0x5];
+                let values = [0x2, 0x3, 0x4, 0x5]; // i.e.: Voltage Hi = 0x02 / Voltage Lo = 0x03 / Current Hi = 0x04 / Current Lo = 0x05
+
                 let result = channel
                     .write_custom_function_code(
                         params,

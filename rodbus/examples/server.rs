@@ -93,11 +93,11 @@ impl RequestHandler for SimpleHandler {
     }
 
     fn write_custom_function_code(&self, values: CustomFunctionCode) -> Result<(), ExceptionCode> {
-        let mut custom_fc_args = [0_u16; 4];
+        let mut custom_fc_args = [0_u16; 4]; // i.e.: Voltage Hi = 0x02, Voltage Lo = 0x03, Current Hi = 0x04, Current Lo = 0x05
         for (i, &value) in values.iter().enumerate() {
             custom_fc_args[i] = value;
         }
-        tracing::info!("processing custom function code values: {:?}", custom_fc_args);
+        tracing::info!("processing custom function code arguments: {:?}", custom_fc_args);
 
         Ok(())
     }
@@ -155,7 +155,7 @@ impl RequestHandler for SimpleHandler {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // initialize logging
     tracing_subscriber::fmt()
-        .with_max_level(tracing::Level::INFO)
+        .with_max_level(tracing::Level::DEBUG)
         .with_target(false)
         .init();
 
@@ -305,8 +305,8 @@ async fn run_server(
                 server
                     .set_decode_level(DecodeLevel::new(
                         AppDecodeLevel::DataValues,
-                        FrameDecodeLevel::Header,
-                        PhysDecodeLevel::Length,
+                        FrameDecodeLevel::Payload,
+                        PhysDecodeLevel::Data,
                     ))
                     .await?;
             }
