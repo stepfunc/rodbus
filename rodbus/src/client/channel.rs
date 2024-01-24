@@ -6,11 +6,11 @@ use crate::client::requests::read_registers::ReadRegisters;
 use crate::client::requests::write_multiple::{MultipleWriteRequest, WriteMultiple};
 use crate::client::requests::write_single::SingleWrite;
 use crate::client::requests::send_buffer::SendBuffer;
+use crate::client::requests::write_custom_fc::WriteCustomFunctionCode;
 use crate::error::*;
 use crate::types::{AddressRange, BitIterator, Indexed, RegisterIterator, UnitId, CustomFunctionCode};
 use crate::DecodeLevel;
 
-use super::requests::write_custom_fc::WriteCustomFC;
 
 /// Async channel used to make requests
 #[derive(Debug, Clone)]
@@ -190,7 +190,7 @@ impl Channel {
         let (tx, rx) = tokio::sync::oneshot::channel::<Result<CustomFunctionCode, RequestError>>();
         let request = wrap(
             param,
-            RequestDetails::WriteCustomFunctionCode(WriteCustomFC::new(request, Promise::channel(tx))),
+            RequestDetails::WriteCustomFunctionCode(WriteCustomFunctionCode::new(request, Promise::channel(tx))),
         );
         self.tx.send(request).await?;
         rx.await?

@@ -9,22 +9,22 @@ use crate::error::RequestError;
 
 use scursor::{ReadCursor, WriteCursor};
 
-pub(crate) trait WriteCustomFCOperation: Sized + PartialEq {
+pub(crate) trait WriteCustomFunctionCodeOperation: Sized + PartialEq {
     fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError>;
     fn parse(cursor: &mut ReadCursor) -> Result<Self, RequestError>;
 }
 
-pub(crate) struct WriteCustomFC<T>
+pub(crate) struct WriteCustomFunctionCode<T>
 where
-    T: WriteCustomFCOperation + Display + Send + 'static,
+    T: WriteCustomFunctionCodeOperation + Display + Send + 'static,
 {
     pub(crate) request: T,
     promise: Promise<T>,
 }
 
-impl<T> WriteCustomFC<T>
+impl<T> WriteCustomFunctionCode<T>
 where
-    T: WriteCustomFCOperation + Display + Send + 'static,
+    T: WriteCustomFunctionCodeOperation + Display + Send + 'static,
 {
     pub(crate) fn new(request: T, promise: Promise<T>) -> Self {
         Self { request, promise }
@@ -66,7 +66,7 @@ where
     }
 }
 
-impl WriteCustomFCOperation for CustomFunctionCode {
+impl WriteCustomFunctionCodeOperation for CustomFunctionCode {
     fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
         cursor.write_u16_be(self.len() as u16)?;
 
@@ -78,7 +78,6 @@ impl WriteCustomFCOperation for CustomFunctionCode {
 
     fn parse(cursor: &mut ReadCursor) -> Result<Self, RequestError> {
         let len = cursor.read_u16_be()? as usize;
-
         let val1 = cursor.read_u16_be()?;
         let val2 = cursor.read_u16_be()?;
         let val3 = cursor.read_u16_be()?;
