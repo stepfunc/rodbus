@@ -198,7 +198,7 @@ async fn run_channel(mut channel: Channel) -> Result<(), Box<dyn std::error::Err
                 channel
                     .set_decode_level(DecodeLevel::new(
                         AppDecodeLevel::DataValues,
-                        FrameDecodeLevel::Header,
+                        FrameDecodeLevel::Payload,
                         PhysDecodeLevel::Length,
                     ))
                     .await?;
@@ -283,10 +283,12 @@ async fn run_channel(mut channel: Channel) -> Result<(), Box<dyn std::error::Err
             }
             "wcfc" => {
                 // ANCHOR: write_custom_function_code
+                let length = 0x04 as usize;
+                let values = [0x2, 0x3, 0x4, 0x5];
                 let result = channel
                     .write_custom_function_code(
                         params,
-                        CustomFunctionCode::new([0x01, 0x02, 0x03, 0x04])
+                        CustomFunctionCode::new(length, values)
                     )
                     .await;
                 print_write_result(result);

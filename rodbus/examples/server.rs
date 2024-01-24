@@ -93,7 +93,11 @@ impl RequestHandler for SimpleHandler {
     }
 
     fn write_custom_function_code(&self, values: CustomFunctionCode) -> Result<(), ExceptionCode> {
-        tracing::info!("processing custom function code, {:?}", values);
+        let mut custom_fc_args = [0_u16; 4];
+        for (i, &value) in values.iter().enumerate() {
+            custom_fc_args[i] = value;
+        }
+        tracing::info!("processing custom function code values: {:?}", custom_fc_args);
 
         Ok(())
     }
