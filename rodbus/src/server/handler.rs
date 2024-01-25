@@ -327,6 +327,11 @@ impl AuthorizationHandler for ReadOnlyAuthorizationHandler {
     ) -> Authorization {
         Authorization::Deny
     }
+
+    /// Authorize a Write Custom Function Code request
+    fn write_custom_function_code(&self, _value: CustomFunctionCode, _role: &str) -> Authorization {
+        Authorization::Allow
+    }
 }
 
 #[cfg(test)]
