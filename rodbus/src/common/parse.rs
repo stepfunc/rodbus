@@ -78,4 +78,11 @@ mod coils {
         let result = Indexed::<u16>::parse(&mut cursor);
         assert_eq!(result, Ok(Indexed::new(1, 0xCAFE)));
     }
+
+    #[test]
+    fn parse_succeeds_for_valid_custom_function_code() {
+        let mut cursor = ReadCursor::new(&[0x00, 0x04, 0xCA, 0xFE, 0xC0, 0xDE, 0xCA, 0xFE, 0xC0, 0xDE]);
+        let result = crate::types::CustomFunctionCode::parse(&mut cursor);
+        assert_eq!(result, Ok(crate::types::CustomFunctionCode::new(4, [0xCAFE, 0xC0DE, 0xCAFE, 0xC0DE])));
+    }
 }
