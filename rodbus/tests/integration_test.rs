@@ -222,6 +222,13 @@ async fn test_requests_and_responses() {
             Indexed::new(2, 0x0506)
         ]
     );
+    assert_eq!(
+        channel
+            .write_custom_function_code(params, CustomFunctionCode::new(4, [0xC0DE, 0xCAFE, 0xC0DE, 0xCAFE]))
+            .await
+            .unwrap(),
+        CustomFunctionCode::new(4, [0xC0DE, 0xCAFE, 0xC0DE, 0xCAFE])
+    )
 }
 
 #[test]

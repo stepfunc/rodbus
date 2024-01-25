@@ -85,7 +85,7 @@ pub(crate) struct RegisterIteratorDisplay<'a> {
     level: AppDecodeLevel,
 }
 
-/// Custom buffer
+/// Custom Function Code
 #[derive(Clone, Debug, Copy, PartialEq)]
 pub struct CustomFunctionCode {
     len: usize,
