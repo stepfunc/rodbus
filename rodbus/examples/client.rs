@@ -96,7 +96,7 @@ async fn run_rtu() -> Result<(), Box<dyn std::error::Error>> {
 async fn run_tls(tls_config: TlsClientConfig) -> Result<(), Box<dyn std::error::Error>> {
     // ANCHOR: create_tls_channel
     let channel = spawn_tls_client_task(
-        HostAddr::ip(IpAddr::V4(Ipv4Addr::LOCALHOST), 802),
+        HostAddr::ip(IpAddr::V4(Ipv4Addr::LOCALHOST), 1802),
         1,
         default_retry_strategy(),
         tls_config,
@@ -178,7 +178,7 @@ async fn run_channel(mut channel: Channel) -> Result<(), Box<dyn std::error::Err
     channel.enable().await?;
 
     // ANCHOR: request_param
-    let params = RequestParam::new(UnitId::new(1), Duration::from_secs(1));
+    let params = RequestParam::new(UnitId::new(1), Duration::from_secs(900));
     // ANCHOR_END: request_param
 
     let mut reader = FramedRead::new(tokio::io::stdin(), LinesCodec::new());
