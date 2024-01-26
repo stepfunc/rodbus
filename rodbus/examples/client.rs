@@ -284,7 +284,7 @@ async fn run_channel(mut channel: Channel) -> Result<(), Box<dyn std::error::Err
             "wcfc" => {
                 // ANCHOR: write_custom_function_code
                 let length = 0x04 as usize;
-                let values = [0x2, 0x3, 0x4, 0x5]; // i.e.: Voltage Hi = 0x02 / Voltage Lo = 0x03 / Current Hi = 0x04 / Current Lo = 0x05
+                let values = [0xC0, 0xDE, 0xCA, 0xFE]; // i.e.: Voltage Hi = 0xC0 / Voltage Lo = 0xDE / Current Hi = 0xCA / Current Lo = 0xFE
 
                 let result = channel
                     .write_custom_function_code(
