@@ -16,7 +16,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     // ANCHOR: logging
     tracing_subscriber::fmt()
-        .with_max_level(tracing::Level::DEBUG)
+        .with_max_level(tracing::Level::INFO)
         .with_target(false)
         .init();
     // ANCHOR_END: logging
@@ -61,7 +61,7 @@ where
 async fn run_tcp() -> Result<(), Box<dyn std::error::Error>> {
     // ANCHOR: create_tcp_channel
     let channel = spawn_tcp_client_task(
-        HostAddr::ip(IpAddr::V4(Ipv4Addr::LOCALHOST), 1502),
+        HostAddr::ip(IpAddr::V4(Ipv4Addr::LOCALHOST), 502),
         1,
         default_retry_strategy(),
         DecodeLevel::default(),
@@ -96,7 +96,7 @@ async fn run_rtu() -> Result<(), Box<dyn std::error::Error>> {
 async fn run_tls(tls_config: TlsClientConfig) -> Result<(), Box<dyn std::error::Error>> {
     // ANCHOR: create_tls_channel
     let channel = spawn_tls_client_task(
-        HostAddr::ip(IpAddr::V4(Ipv4Addr::LOCALHOST), 1802),
+        HostAddr::ip(IpAddr::V4(Ipv4Addr::LOCALHOST), 802),
         1,
         default_retry_strategy(),
         tls_config,
@@ -178,7 +178,7 @@ async fn run_channel(mut channel: Channel) -> Result<(), Box<dyn std::error::Err
     channel.enable().await?;
 
     // ANCHOR: request_param
-    let params = RequestParam::new(UnitId::new(1), Duration::from_secs(900));
+    let params = RequestParam::new(UnitId::new(1), Duration::from_secs(1));
     // ANCHOR_END: request_param
 
     let mut reader = FramedRead::new(tokio::io::stdin(), LinesCodec::new());
@@ -198,8 +198,8 @@ async fn run_channel(mut channel: Channel) -> Result<(), Box<dyn std::error::Err
                 channel
                     .set_decode_level(DecodeLevel::new(
                         AppDecodeLevel::DataValues,
-                        FrameDecodeLevel::Payload,
-                        PhysDecodeLevel::Data,
+                        FrameDecodeLevel::Header,
+                        PhysDecodeLevel::Length,
                     ))
                     .await?;
             }
@@ -294,11 +294,6 @@ async fn run_channel(mut channel: Channel) -> Result<(), Box<dyn std::error::Err
                     .await;
                 print_write_result(result);
                 // ANCHOR_END: write_custom_function_code
-            }
-            "rcfc" => {
-                // ANCHOR: read_custom_function_code
-                println!("read success");
-                // ANCHOR_END: read_custom_function_code
             }
             _ => println!("unknown command"),
         }
