@@ -92,7 +92,7 @@ impl RequestHandler for SimpleHandler {
         }
     }
 
-    fn write_custom_function_code(&self, values: CustomFunctionCode) -> Result<(), ExceptionCode> {
+    fn write_custom_function_code(&mut self, values: CustomFunctionCode) -> Result<(), ExceptionCode> {
         let mut custom_fc_args = [0_u16; 4]; // i.e.: Voltage Hi = 0x02, Voltage Lo = 0x03, Current Hi = 0x04, Current Lo = 0x05
         for (i, &value) in values.iter().enumerate() {
             custom_fc_args[i] = value;
@@ -155,7 +155,7 @@ impl RequestHandler for SimpleHandler {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // initialize logging
     tracing_subscriber::fmt()
-        .with_max_level(tracing::Level::DEBUG)
+        .with_max_level(tracing::Level::INFO)
         .with_target(false)
         .init();
 
@@ -191,7 +191,7 @@ async fn run_tcp() -> Result<(), Box<dyn std::error::Error>> {
     // ANCHOR: tcp_server_create
     let server = rodbus::server::spawn_tcp_server_task(
         1,
-        "127.0.0.1:1502".parse()?,
+        "127.0.0.1:502".parse()?,
         map,
         AddressFilter::Any,
         DecodeLevel::default(),
@@ -230,7 +230,7 @@ async fn run_tls(tls_config: TlsServerConfig) -> Result<(), Box<dyn std::error::
     // ANCHOR: tls_server_create
     let server = rodbus::server::spawn_tls_server_task_with_authz(
         1,
-        "127.0.0.1:1802".parse()?,
+        "127.0.0.1:802".parse()?,
         map,
         ReadOnlyAuthorizationHandler::create(),
         tls_config,
@@ -305,8 +305,8 @@ async fn run_server(
                 server
                     .set_decode_level(DecodeLevel::new(
                         AppDecodeLevel::DataValues,
-                        FrameDecodeLevel::Payload,
-                        PhysDecodeLevel::Data,
+                        FrameDecodeLevel::Header,
+                        PhysDecodeLevel::Length,
                     ))
                     .await?;
             }
