@@ -92,6 +92,16 @@ impl RequestHandler for SimpleHandler {
         }
     }
 
+    fn write_custom_function_code(&mut self, values: CustomFunctionCode) -> Result<(), ExceptionCode> {
+        let mut custom_fc_args = [0_u16; 4]; // i.e.: Voltage Hi = 0x02, Voltage Lo = 0x03, Current Hi = 0x04, Current Lo = 0x05
+        for (i, &value) in values.iter().enumerate() {
+            custom_fc_args[i] = value;
+        }
+        tracing::info!("processing custom function code arguments: {:?}", custom_fc_args);
+
+        Ok(())
+    }
+
     fn write_single_register(&mut self, value: Indexed<u16>) -> Result<(), ExceptionCode> {
         tracing::info!(
             "write single register, index: {} value: {}",

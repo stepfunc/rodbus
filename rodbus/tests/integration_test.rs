@@ -13,6 +13,7 @@ struct Handler {
     pub discrete_inputs: [bool; 10],
     pub holding_registers: [u16; 10],
     pub input_registers: [u16; 10],
+    pub custom_function_code: [u16; 5],
 }
 
 impl Handler {
@@ -22,6 +23,7 @@ impl Handler {
             discrete_inputs: [false; 10],
             holding_registers: [0; 10],
             input_registers: [0; 10],
+            custom_function_code: [0; 5],
         }
     }
 }
@@ -94,7 +96,17 @@ impl RequestHandler for Handler {
         }
         Ok(())
     }
-}
+
+    fn write_custom_function_code(&mut self, values: CustomFunctionCode) -> Result<(), ExceptionCode> {
+        for (i, &value) in values.iter().enumerate() {
+            match self.custom_function_code.get_mut(i) {
+                Some(c) => *c = value,
+                None => return Err(ExceptionCode::IllegalDataAddress),
+            }
+        }
+        Ok(())  
+    }
+    }
 
 async fn test_requests_and_responses() {
     let handler = Handler::new().wrap();
@@ -221,6 +233,13 @@ async fn test_requests_and_responses() {
             Indexed::new(1, 0x0304),
             Indexed::new(2, 0x0506)
         ]
+    );
+    assert_eq!(
+        channel
+            .write_custom_function_code(params, CustomFunctionCode::new(0x04, [0xC0, 0xDE, 0xCA, 0xFE]))
+            .await
+            .unwrap(),
+        CustomFunctionCode::new(4, [0xC0, 0xDE, 0xCA, 0xFE])
     );
 }
 

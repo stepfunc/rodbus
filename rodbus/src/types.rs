@@ -85,6 +85,13 @@ pub(crate) struct RegisterIteratorDisplay<'a> {
     level: AppDecodeLevel,
 }
 
+/// Custom Function Code
+#[derive(Clone, Debug, Copy, PartialEq)]
+pub struct CustomFunctionCode {
+    len: usize,
+    data: [u16; 4],
+}
+
 impl std::fmt::Display for UnitId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:#04X}", self.value)
@@ -364,6 +371,36 @@ impl UnitId {
 impl Default for UnitId {
     fn default() -> Self {
         Self { value: 0xFF }
+    }
+}
+
+impl CustomFunctionCode {
+    /// Create a new custom function code
+    pub fn new(len: usize, data: [u16; 4]) -> Self {
+        Self { len, data }
+    }
+
+    /// Get the length of the underlying vector
+    pub fn len(&self) -> usize {
+        self.data.len()
+    }
+
+    /// Iterate over the underlying vector
+    pub fn iter(&self) -> std::slice::Iter<u16> {
+        self.data.iter()
+    }
+}
+
+impl std::fmt::Display for CustomFunctionCode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "values: [")?;
+        for (i, val) in self.data.iter().enumerate() {
+            if i != 0 {
+                write!(f, ", ")?;
+            }
+            write!(f, "{}", val)?;
+        }
+        write!(f, "]")
     }
 }
 

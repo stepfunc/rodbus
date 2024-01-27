@@ -8,7 +8,7 @@ use crate::error::{InternalError, RequestError};
 use crate::server::response::{BitWriter, RegisterWriter};
 use crate::types::{
     coil_from_u16, coil_to_u16, AddressRange, BitIterator, BitIteratorDisplay, Indexed,
-    RegisterIterator, RegisterIteratorDisplay,
+    RegisterIterator, RegisterIteratorDisplay, CustomFunctionCode,
 };
 
 use scursor::{ReadCursor, WriteCursor};
@@ -290,6 +290,51 @@ impl Serialize for WriteMultiple<u16> {
     }
 }
 
+impl Serialize for CustomFunctionCode {
+    fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
+        cursor.write_u16_be(self.len() as u16)?;
+
+        for &item in self.iter() {
+            cursor.write_u16_be(item)?;
+        }
+        Ok(())
+    }
+}
+
+impl Loggable for CustomFunctionCode {
+    fn log(
+        &self,
+        payload: &[u8],
+        level: crate::decode::AppDecodeLevel,
+        f: &mut std::fmt::Formatter,
+    ) -> std::fmt::Result {
+        if level.data_headers() {
+            let mut cursor = ReadCursor::new(payload);
+
+            let len = match cursor.read_u16_be() {
+                Ok(value) => value as usize,
+                Err(_) => return Ok(()),
+            };
+
+            let mut data = [0_u16; 4];
+            
+            for i in 0..4 {
+                data[i] = match cursor.read_u16_be() {
+                    Ok(value) => value,
+                    Err(_) => return Ok(()),
+                };
+            }
+
+            let custom_fc = CustomFunctionCode::new(len, data);
+
+            write!(f, "{:?}", custom_fc)?;
+
+        }
+
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -301,5 +346,14 @@ mod tests {
         let mut cursor = WriteCursor::new(&mut buffer);
         range.serialize(&mut cursor).unwrap();
         assert_eq!(buffer, [0x00, 0x03, 0x02, 0x00]);
+    }
+
+    #[test]
+    fn serializes_valid_custom_function_code() {
+        let custom_fc = CustomFunctionCode::new(4, [0xCAFE, 0xC0DE, 0xCAFE, 0xC0DE]);
+        let mut buffer = [0u8; 10];
+        let mut cursor = WriteCursor::new(&mut buffer);
+        custom_fc.serialize(&mut cursor).unwrap();
+        assert_eq!(buffer, [0x00, 0x04, 0xCA, 0xFE, 0xC0, 0xDE, 0xCA, 0xFE, 0xC0, 0xDE]);
     }
 }

@@ -67,6 +67,11 @@ pub trait RequestHandler: Send + 'static {
     fn write_multiple_registers(&mut self, _values: WriteRegisters) -> Result<(), ExceptionCode> {
         Err(ExceptionCode::IllegalFunction)
     }
+
+    /// Write a custom function code
+    fn write_custom_function_code(&mut self, _values: CustomFunctionCode) -> Result<(), ExceptionCode> {
+        Err(ExceptionCode::IllegalFunction)
+    }
 }
 
 /// Trait useful for converting None into IllegalDataAddress
@@ -239,6 +244,11 @@ pub trait AuthorizationHandler: Send + Sync + 'static {
     ) -> Authorization {
         Authorization::Deny
     }
+
+    /// Authorize a Write Custom Function Code request
+    fn write_custom_function_code(&self, _value: CustomFunctionCode, _role: &str) -> Authorization {
+        Authorization::Deny
+    }
 }
 
 /// Read-only authorization handler that blindly accepts
@@ -316,6 +326,11 @@ impl AuthorizationHandler for ReadOnlyAuthorizationHandler {
         _role: &str,
     ) -> Authorization {
         Authorization::Deny
+    }
+
+    /// Authorize a Write Custom Function Code request
+    fn write_custom_function_code(&self, _value: CustomFunctionCode, _role: &str) -> Authorization {
+        Authorization::Allow
     }
 }
 
