@@ -43,11 +43,6 @@ pub trait RequestHandler: Send + 'static {
         Err(ExceptionCode::IllegalFunction)
     }
 
-    /// Read single custom buffer or return an ExceptionCode
-    fn receive_custom_buffer(&self, _value: Indexed<u16>) -> Result<u16, ExceptionCode> {
-        Err(ExceptionCode::IllegalFunction)
-    }
-
     /// Write a single coil value
     fn write_single_coil(&mut self, _value: Indexed<bool>) -> Result<(), ExceptionCode> {
         Err(ExceptionCode::IllegalFunction)
@@ -187,14 +182,6 @@ pub trait AuthorizationHandler: Send + Sync + 'static {
         Authorization::Deny
     }
 
-    /// Authorize a Read Custom Buffer request
-    fn receive_custom_buffer(
-        &self,
-        _value: Indexed<u16>,
-        _role: &str,
-    ) -> Authorization {
-        Authorization::Deny
-    }
     /// Authorize a Read Holding Registers request
     fn read_holding_registers(
         &self,
