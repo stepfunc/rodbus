@@ -61,7 +61,7 @@ where
 async fn run_tcp() -> Result<(), Box<dyn std::error::Error>> {
     // ANCHOR: create_tcp_channel
     let channel = spawn_tcp_client_task(
-        HostAddr::ip(IpAddr::V4(Ipv4Addr::LOCALHOST), 502),
+        HostAddr::ip(IpAddr::V4(Ipv4Addr::LOCALHOST), 10502),
         1,
         default_retry_strategy(),
         DecodeLevel::default(),
@@ -96,7 +96,7 @@ async fn run_rtu() -> Result<(), Box<dyn std::error::Error>> {
 async fn run_tls(tls_config: TlsClientConfig) -> Result<(), Box<dyn std::error::Error>> {
     // ANCHOR: create_tls_channel
     let channel = spawn_tls_client_task(
-        HostAddr::ip(IpAddr::V4(Ipv4Addr::LOCALHOST), 802),
+        HostAddr::ip(IpAddr::V4(Ipv4Addr::LOCALHOST), 10802),
         1,
         default_retry_strategy(),
         tls_config,
