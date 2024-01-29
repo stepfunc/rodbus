@@ -281,19 +281,19 @@ async fn run_channel(mut channel: Channel) -> Result<(), Box<dyn std::error::Err
                 print_write_result(result);
                 // ANCHOR_END: write_multiple_registers
             }
-            "wcfc" => {
-                // ANCHOR: write_custom_function_code
+            "scfc" => {
+                // ANCHOR: send_custom_function_code
                 let length = 0x04 as usize;
                 let values = [0xC0, 0xDE, 0xCA, 0xFE]; // i.e.: Voltage Hi = 0xC0 / Voltage Lo = 0xDE / Current Hi = 0xCA / Current Lo = 0xFE
 
                 let result = channel
-                    .write_custom_function_code(
+                    .send_custom_function_code(
                         params,
                         CustomFunctionCode::new(length, values)
                     )
                     .await;
                 print_write_result(result);
-                // ANCHOR_END: write_custom_function_code
+                // ANCHOR_END: send_custom_function_code
             }
             _ => println!("unknown command"),
         }
