@@ -5,6 +5,7 @@ use crate::client::requests::read_bits::ReadBits;
 use crate::client::requests::read_registers::ReadRegisters;
 use crate::client::requests::write_multiple::{MultipleWriteRequest, WriteMultiple};
 use crate::client::requests::write_single::SingleWrite;
+use crate::client::requests::read_write_multiple::{MultipleReadWriteRequest, ReadWriteMultiple};
 use crate::client::requests::write_custom_fc::WriteCustomFunctionCode;
 use crate::error::*;
 use crate::types::{AddressRange, BitIterator, Indexed, RegisterIterator, UnitId, CustomFunctionCode};
@@ -252,19 +253,21 @@ impl Channel {
         param: RequestParam,
         read_range: AddressRange,
         write_request: WriteMultiple<u16>,
-    ) -> Result<Vec<Indexed<u16>>, RequestError> {
-        let (tx, rx) = tokio::sync::oneshot::channel::<Result<Vec<Indexed<u16>>, RequestError>>();
+    ) -> Result<AddressRange, RequestError> {
+        let (tx, rx) = tokio::sync::oneshot::channel::<Result<AddressRange, RequestError>>();
         let request = wrap(
             param,
             RequestDetails::ReadWriteMultipleRegisters(
-                MultipleWriteRequest::new(
-                    write_request,
-                    Promise::channel(tx),
+                MultipleReadWriteRequest::new(
+                    ReadWriteMultiple::new(
+                        read_range.start,
+                        read_range.count,
+                        write_request.range.start,
+                        write_request.range.count,
+                        write_request.values,
+                    ), Promise::channel(tx)
                 ),
-                ReadRegisters::channel(
-                read_range.of_read_registers()?,
-                tx,
-            )),
+            ),
         );
         self.tx.send(request).await?;
         rx.await?
