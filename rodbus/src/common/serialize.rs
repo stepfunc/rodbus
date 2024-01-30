@@ -1,5 +1,6 @@
 use std::convert::TryFrom;
 
+use crate::client::requests::read_write_multiple::ReadWriteMultiple;
 use crate::client::WriteMultiple;
 use crate::common::traits::Loggable;
 use crate::common::traits::Parse;
@@ -287,6 +288,21 @@ impl Serialize for WriteMultiple<u16> {
     fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
         self.range.serialize(cursor)?;
         self.values.as_slice().serialize(cursor)
+    }
+}
+
+impl Serialize for ReadWriteMultiple<ReadWriteMultiple<u16>> {
+    fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
+        // Implement the serialization logic for ReadWriteMultiple<ReadWriteMultiple<u16>> here
+        Ok(())
+    }
+}
+
+impl Serialize for ReadWriteMultiple<u16> {
+    fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
+        self.read_range.serialize(cursor)?;
+        self.write_range.serialize(cursor)?;
+        self.write_values.as_slice().serialize(cursor)
     }
 }
 
