@@ -88,7 +88,7 @@ impl RtuParser {
                 FunctionCode::WriteSingleRegister => LengthMode::Fixed(4),
                 FunctionCode::WriteMultipleCoils => LengthMode::Offset(5),
                 FunctionCode::WriteMultipleRegisters => LengthMode::Offset(5),
-                FunctionCode::SendCustomFunctionCode => LengthMode::Offset(1),
+                FunctionCode::WriteCustomFunctionCode => LengthMode::Offset(1),
             },
             ParserType::Response => match function_code {
                 FunctionCode::ReadCoils => LengthMode::Offset(1),
@@ -100,7 +100,7 @@ impl RtuParser {
                 FunctionCode::WriteSingleRegister => LengthMode::Fixed(4),
                 FunctionCode::WriteMultipleCoils => LengthMode::Fixed(4),
                 FunctionCode::WriteMultipleRegisters => LengthMode::Fixed(4),
-                FunctionCode::SendCustomFunctionCode => LengthMode::Offset(1),
+                FunctionCode::WriteCustomFunctionCode => LengthMode::Offset(1),
             },
         }
     }

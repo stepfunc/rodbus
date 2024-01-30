@@ -10,7 +10,7 @@ mod constants {
     pub(crate) const WRITE_MULTIPLE_COILS: u8 = 15;
     pub(crate) const WRITE_MULTIPLE_REGISTERS: u8 = 16;
     pub(crate) const SEND_CUSTOM_BUFFERS: u8 = 68;
-    pub(crate) const SEND_CUSTOM_FUNCTION_CODE: u8 = 69;
+    pub(crate) const WRITE_CUSTOM_FUNCTION_CODE: u8 = 69;
 }
 
 #[derive(Debug, Copy, Clone, PartialEq)]
@@ -25,7 +25,7 @@ pub(crate) enum FunctionCode {
     WriteMultipleCoils = constants::WRITE_MULTIPLE_COILS,
     WriteMultipleRegisters = constants::WRITE_MULTIPLE_REGISTERS,
     SendCustomBuffers = constants::SEND_CUSTOM_BUFFERS,
-    SendCustomFunctionCode = constants::SEND_CUSTOM_FUNCTION_CODE,
+    WriteCustomFunctionCode = constants::WRITE_CUSTOM_FUNCTION_CODE,
 }
 
 impl Display for FunctionCode {
@@ -56,8 +56,8 @@ impl Display for FunctionCode {
             FunctionCode::SendCustomBuffers => {
                 write!(f, "SEND CUSTOM BUFFER ({:#04X})", self.get_value())
             }
-            FunctionCode::SendCustomFunctionCode => {
-                write!(f, "SEND CUSTOM FUNCTION CODE ({:#04X})", self.get_value())
+            FunctionCode::WriteCustomFunctionCode => {
+                write!(f, "WRITE CUSTOM FUNCTION CODE ({:#04X})", self.get_value())
             }
         }
     }
@@ -83,7 +83,7 @@ impl FunctionCode {
             constants::WRITE_MULTIPLE_COILS => Some(FunctionCode::WriteMultipleCoils),
             constants::WRITE_MULTIPLE_REGISTERS => Some(FunctionCode::WriteMultipleRegisters),
             constants::SEND_CUSTOM_BUFFERS => Some(FunctionCode::SendCustomBuffers),
-            constants::SEND_CUSTOM_FUNCTION_CODE => Some(FunctionCode::SendCustomFunctionCode),
+            constants::WRITE_CUSTOM_FUNCTION_CODE => Some(FunctionCode::WriteCustomFunctionCode),
             _ => None,
         }
     }

@@ -22,7 +22,7 @@ pub(crate) enum Request<'a> {
     WriteSingleRegister(Indexed<u16>),
     WriteMultipleCoils(WriteCoils<'a>),
     WriteMultipleRegisters(WriteRegisters<'a>),
-    SendCustomFunctionCode(CustomFunctionCode),
+    WriteCustomFunctionCode(CustomFunctionCode),
 }
 
 /// All requests that support broadcast
@@ -67,7 +67,7 @@ impl<'a> Request<'a> {
             Request::WriteSingleRegister(_) => FunctionCode::WriteSingleRegister,
             Request::WriteMultipleCoils(_) => FunctionCode::WriteMultipleCoils,
             Request::WriteMultipleRegisters(_) => FunctionCode::WriteMultipleRegisters,
-            Request::SendCustomFunctionCode(_) => FunctionCode::SendCustomFunctionCode,
+            Request::WriteCustomFunctionCode(_) => FunctionCode::WriteCustomFunctionCode,
         }
     }
 
@@ -82,7 +82,7 @@ impl<'a> Request<'a> {
             Request::WriteSingleRegister(x) => Some(BroadcastRequest::WriteSingleRegister(x)),
             Request::WriteMultipleCoils(x) => Some(BroadcastRequest::WriteMultipleCoils(x)),
             Request::WriteMultipleRegisters(x) => Some(BroadcastRequest::WriteMultipleRegisters(x)),
-            Request::SendCustomFunctionCode(_) => None,
+            Request::WriteCustomFunctionCode(_) => None,
         }
     }
 
@@ -151,8 +151,8 @@ impl<'a> Request<'a> {
                     .map(|_| items.range);
                 write_result(function, header, writer, result, level)
             }
-            Request::SendCustomFunctionCode(request) => {
-                let result = handler.process_custom_function_code(*request).map(|_| *request);
+            Request::WriteCustomFunctionCode(request) => {
+                let result = handler.write_custom_function_code(*request).map(|_| *request);
                 write_result(function, header, writer, result, level)
             }
         }
@@ -220,9 +220,9 @@ impl<'a> Request<'a> {
                     RegisterIterator::parse_all(range, cursor)?,
                 )))
             }
-            FunctionCode::SendCustomFunctionCode => {
+            FunctionCode::WriteCustomFunctionCode => {
                 let x =
-                    Request::SendCustomFunctionCode(CustomFunctionCode::parse(cursor)?);
+                    Request::WriteCustomFunctionCode(CustomFunctionCode::parse(cursor)?);
                 cursor.expect_empty()?;
                 Ok(x)
             }
@@ -282,7 +282,7 @@ impl std::fmt::Display for RequestDisplay<'_, '_> {
                         RegisterIteratorDisplay::new(self.level, items.iterator)
                     )?;
                 }
-                Request::SendCustomFunctionCode(request) => {
+                Request::WriteCustomFunctionCode(request) => {
                     write!(f, " {request}")?;
                 }
             }
