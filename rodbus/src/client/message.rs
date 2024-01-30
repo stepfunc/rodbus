@@ -10,7 +10,6 @@ use crate::client::requests::read_bits::ReadBits;
 use crate::client::requests::read_registers::ReadRegisters;
 use crate::client::requests::write_multiple::MultipleWriteRequest;
 use crate::client::requests::write_single::SingleWrite;
-use crate::client::requests::send_buffer::SendBuffer;
 use crate::client::requests::write_custom_fc::WriteCustomFunctionCode;
 use crate::common::traits::Serialize;
 use crate::types::{Indexed, UnitId, CustomFunctionCode};
@@ -43,7 +42,6 @@ pub(crate) enum RequestDetails {
     ReadDiscreteInputs(ReadBits),
     ReadHoldingRegisters(ReadRegisters),
     ReadInputRegisters(ReadRegisters),
-    SendCustomBuffers(SendBuffer<Indexed<u16>>),
     WriteSingleCoil(SingleWrite<Indexed<bool>>),
     WriteSingleRegister(SingleWrite<Indexed<u16>>),
     WriteMultipleCoils(MultipleWriteRequest<bool>),
@@ -129,7 +127,6 @@ impl RequestDetails {
             RequestDetails::ReadDiscreteInputs(_) => FunctionCode::ReadDiscreteInputs,
             RequestDetails::ReadHoldingRegisters(_) => FunctionCode::ReadHoldingRegisters,
             RequestDetails::ReadInputRegisters(_) => FunctionCode::ReadInputRegisters,
-            RequestDetails::SendCustomBuffers(_) => FunctionCode::SendCustomBuffers,
             RequestDetails::WriteSingleCoil(_) => FunctionCode::WriteSingleCoil,
             RequestDetails::WriteSingleRegister(_) => FunctionCode::WriteSingleRegister,
             RequestDetails::WriteMultipleCoils(_) => FunctionCode::WriteMultipleCoils,
@@ -144,7 +141,6 @@ impl RequestDetails {
             RequestDetails::ReadDiscreteInputs(x) => x.failure(err),
             RequestDetails::ReadHoldingRegisters(x) => x.failure(err),
             RequestDetails::ReadInputRegisters(x) => x.failure(err),
-            RequestDetails::SendCustomBuffers(x) => x.failure(err),
             RequestDetails::WriteSingleCoil(x) => x.failure(err),
             RequestDetails::WriteSingleRegister(x) => x.failure(err),
             RequestDetails::WriteMultipleCoils(x) => x.failure(err),
@@ -164,7 +160,6 @@ impl RequestDetails {
             RequestDetails::ReadDiscreteInputs(x) => x.handle_response(cursor, function, decode),
             RequestDetails::ReadHoldingRegisters(x) => x.handle_response(cursor, function, decode),
             RequestDetails::ReadInputRegisters(x) => x.handle_response(cursor, function, decode),
-            RequestDetails::SendCustomBuffers(x) => x.handle_response(cursor, function, decode),
             RequestDetails::WriteSingleCoil(x) => x.handle_response(cursor, function, decode),
             RequestDetails::WriteSingleRegister(x) => x.handle_response(cursor, function, decode),
             RequestDetails::WriteMultipleCoils(x) => x.handle_response(cursor, function, decode),
@@ -185,7 +180,6 @@ impl Serialize for RequestDetails {
             RequestDetails::ReadDiscreteInputs(x) => x.serialize(cursor),
             RequestDetails::ReadHoldingRegisters(x) => x.serialize(cursor),
             RequestDetails::ReadInputRegisters(x) => x.serialize(cursor),
-            RequestDetails::SendCustomBuffers(x) => x.serialize(cursor),
             RequestDetails::WriteSingleCoil(x) => x.serialize(cursor),
             RequestDetails::WriteSingleRegister(x) => x.serialize(cursor),
             RequestDetails::WriteMultipleCoils(x) => x.serialize(cursor),
@@ -232,9 +226,6 @@ impl std::fmt::Display for RequestDetailsDisplay<'_> {
                 }
                 RequestDetails::ReadInputRegisters(details) => {
                     write!(f, "{}", details.request.get())?;
-                }
-                RequestDetails::SendCustomBuffers(details) => {
-                    write!(f, "{}", details.request)?;
                 }
                 RequestDetails::WriteSingleCoil(details) => {
                     write!(f, "{}", details.request)?;

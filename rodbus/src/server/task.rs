@@ -256,7 +256,6 @@ impl AuthorizationType {
                 handler.read_holding_registers(unit_id, x.inner, role)
             }
             Request::ReadInputRegisters(x) => handler.read_input_registers(unit_id, x.inner, role),
-            Request::SendCustomBuffers(x) => handler.receive_custom_buffer(*x, role),
             Request::WriteSingleCoil(x) => handler.write_single_coil(unit_id, x.index, role),
             Request::WriteSingleRegister(x) => {
                 handler.write_single_register(unit_id, x.index, role)

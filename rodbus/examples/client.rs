@@ -267,20 +267,6 @@ async fn run_channel(mut channel: Channel) -> Result<(), Box<dyn std::error::Err
                 print_write_result(result);
                 // ANCHOR_END: write_multiple_registers
             }
-            "scb" => {
-                // ANCHOR: send_custom_buffer
-                let result = channel
-                    .send_custom_buffer(
-                        params,
-                        Indexed {
-                            index: (0x1),
-                            value: (0xAB),
-                        },
-                    )
-                    .await;
-                print_write_result(result);
-                // ANCHOR_END: write_multiple_registers
-            }
             "wcfc" => {
                 // ANCHOR: write_custom_function_code
                 let length = 0x04 as usize;

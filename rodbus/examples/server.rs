@@ -78,20 +78,6 @@ impl RequestHandler for SimpleHandler {
         }
     }
 
-    fn receive_custom_buffer(&self, value: Indexed<u16>) -> Result<u16, ExceptionCode> {
-        tracing::info!(
-            "receive custom buffer, index: {} value: {}",
-            value.index,
-            value.value
-        );
-
-        if value.value == 0xAB {
-            Ok(0xCD)
-        } else {
-            Err(ExceptionCode::IllegalFunction)
-        }
-    }
-
     fn write_custom_function_code(&mut self, values: CustomFunctionCode) -> Result<(), ExceptionCode> {
         let mut custom_fc_args = [0_u16; 4]; // i.e.: Voltage Hi = 0x02, Voltage Lo = 0x03, Current Hi = 0x04, Current Lo = 0x05
         for (i, &value) in values.iter().enumerate() {
