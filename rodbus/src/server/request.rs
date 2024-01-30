@@ -17,6 +17,7 @@ pub(crate) enum Request<'a> {
     ReadDiscreteInputs(ReadBitsRange),
     ReadHoldingRegisters(ReadRegistersRange),
     ReadInputRegisters(ReadRegistersRange),
+    SendCustomBuffers(Indexed<u16>),
     WriteSingleCoil(Indexed<bool>),
     WriteSingleRegister(Indexed<u16>),
     WriteMultipleCoils(WriteCoils<'a>),
@@ -61,6 +62,7 @@ impl<'a> Request<'a> {
             Request::ReadDiscreteInputs(_) => FunctionCode::ReadDiscreteInputs,
             Request::ReadHoldingRegisters(_) => FunctionCode::ReadHoldingRegisters,
             Request::ReadInputRegisters(_) => FunctionCode::ReadInputRegisters,
+            Request::SendCustomBuffers(_) => FunctionCode::SendCustomBuffers,
             Request::WriteSingleCoil(_) => FunctionCode::WriteSingleCoil,
             Request::WriteSingleRegister(_) => FunctionCode::WriteSingleRegister,
             Request::WriteMultipleCoils(_) => FunctionCode::WriteMultipleCoils,
@@ -75,6 +77,7 @@ impl<'a> Request<'a> {
             Request::ReadDiscreteInputs(_) => None,
             Request::ReadHoldingRegisters(_) => None,
             Request::ReadInputRegisters(_) => None,
+            Request::SendCustomBuffers(_) => None,
             Request::WriteSingleCoil(x) => Some(BroadcastRequest::WriteSingleCoil(x)),
             Request::WriteSingleRegister(x) => Some(BroadcastRequest::WriteSingleRegister(x)),
             Request::WriteMultipleCoils(x) => Some(BroadcastRequest::WriteMultipleCoils(x)),
@@ -126,6 +129,10 @@ impl<'a> Request<'a> {
                 let registers = RegisterWriter::new(*range, |i| handler.read_input_register(i));
                 writer.format_reply(header, function, &registers, level)
             }
+            Request::SendCustomBuffers(request) => {
+                let result = handler.receive_custom_buffer(*request).map(|_| *request);
+                write_result(function, header, writer, result, level)
+            }
             Request::WriteSingleCoil(request) => {
                 let result = handler.write_single_coil(*request).map(|_| *request);
                 write_result(function, header, writer, result, level)
@@ -176,6 +183,12 @@ impl<'a> Request<'a> {
             FunctionCode::ReadInputRegisters => {
                 let x =
                     Request::ReadInputRegisters(AddressRange::parse(cursor)?.of_read_registers()?);
+                cursor.expect_empty()?;
+                Ok(x)
+            }
+            FunctionCode::SendCustomBuffers => {
+                let x =
+                    Request::SendCustomBuffers(Indexed::<u16>::parse(cursor)?);
                 cursor.expect_empty()?;
                 Ok(x)
             }
@@ -245,6 +258,9 @@ impl std::fmt::Display for RequestDisplay<'_, '_> {
                 }
                 Request::ReadInputRegisters(range) => {
                     write!(f, " {}", range.get())?;
+                }
+                Request::SendCustomBuffers(request) => {
+                    write!(f, " {request}")?;
                 }
                 Request::WriteSingleCoil(request) => {
                     write!(f, " {request}")?;
