@@ -246,6 +246,30 @@ impl Channel {
         rx.await?
     }
 
+    /// Read & Write multiple contiguous registers on the server
+    pub async fn read_write_multiple_registers(
+        &mut self,
+        param: RequestParam,
+        read_range: AddressRange,
+        write_request: WriteMultiple<u16>,
+    ) -> Result<Vec<Indexed<u16>>, RequestError> {
+        let (tx, rx) = tokio::sync::oneshot::channel::<Result<Vec<Indexed<u16>>, RequestError>>();
+        let request = wrap(
+            param,
+            RequestDetails::ReadWriteMultipleRegisters(
+                MultipleWriteRequest::new(
+                    write_request,
+                    Promise::channel(tx),
+                ),
+                ReadRegisters::channel(
+                read_range.of_read_registers()?,
+                tx,
+            )),
+        );
+        self.tx.send(request).await?;
+        rx.await?
+    }
+
     /// Dynamically change the protocol decoding level of the channel
     pub async fn set_decode_level(&mut self, level: DecodeLevel) -> Result<(), Shutdown> {
         self.tx
