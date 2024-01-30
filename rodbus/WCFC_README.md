@@ -1,4 +1,4 @@
-# 69 (0x45) Send Custom Function Code
+# 69 (0x45) Write Custom Function Code
 
 This document provides a detailed overview of the custom function code (0x45) used in the MODBUS Application Protocol. This function code is user-defined and falls within the range of 65 to 72, as specified in the MODBUS Application Protocol Specification V1.1b3 (Page 10, Section 5: Function Code Categories).
 
@@ -52,7 +52,7 @@ The 0x45 function code enables the implementation of user-defined logic on a rem
 
 
 ## Modify and Test Server-Side Buffer Handling
-The server currently forwards the Custom Function Code buffer to the client again without alteration. To test modifying or processing the buffer on the remote server device, edit the `send_custom_function_code()` function in `src/examples/client.rs` and `src/examples/server.rs` as needed.
+The server currently forwards the Custom Function Code buffer to the client again without alteration. To test modifying or processing the buffer on the remote server device, edit the `write_custom_function_code()` function in `src/examples/client.rs` and `src/examples/server.rs` as needed.
 
 
 ## Troubleshooting Tips
