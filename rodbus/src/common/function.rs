@@ -9,6 +9,7 @@ mod constants {
     pub(crate) const WRITE_SINGLE_REGISTER: u8 = 6;
     pub(crate) const WRITE_MULTIPLE_COILS: u8 = 15;
     pub(crate) const WRITE_MULTIPLE_REGISTERS: u8 = 16;
+    pub(crate) const READ_WRITE_MULTIPLE_REGISTERS: u8 = 23;
     pub(crate) const WRITE_CUSTOM_FUNCTION_CODE: u8 = 69;
 }
 
@@ -23,6 +24,7 @@ pub(crate) enum FunctionCode {
     WriteSingleRegister = constants::WRITE_SINGLE_REGISTER,
     WriteMultipleCoils = constants::WRITE_MULTIPLE_COILS,
     WriteMultipleRegisters = constants::WRITE_MULTIPLE_REGISTERS,
+    ReadWriteMultipleRegisters = constants::READ_WRITE_MULTIPLE_REGISTERS,
     WriteCustomFunctionCode = constants::WRITE_CUSTOM_FUNCTION_CODE,
 }
 
@@ -51,6 +53,9 @@ impl Display for FunctionCode {
             FunctionCode::WriteMultipleRegisters => {
                 write!(f, "WRITE MULTIPLE REGISTERS ({:#04X})", self.get_value())
             }
+            FunctionCode::ReadWriteMultipleRegisters => {
+                write!(f, "READ/WRITE MULTIPLE REGISTERS ({:#04X})", self.get_value())
+            }
             FunctionCode::WriteCustomFunctionCode => {
                 write!(f, "WRITE CUSTOM FUNCTION CODE ({:#04X})", self.get_value())
             }
@@ -77,6 +82,7 @@ impl FunctionCode {
             constants::WRITE_SINGLE_REGISTER => Some(FunctionCode::WriteSingleRegister),
             constants::WRITE_MULTIPLE_COILS => Some(FunctionCode::WriteMultipleCoils),
             constants::WRITE_MULTIPLE_REGISTERS => Some(FunctionCode::WriteMultipleRegisters),
+            constants::READ_WRITE_MULTIPLE_REGISTERS => Some(FunctionCode::ReadWriteMultipleRegisters),
             constants::WRITE_CUSTOM_FUNCTION_CODE => Some(FunctionCode::WriteCustomFunctionCode),
             _ => None,
         }
