@@ -267,6 +267,18 @@ async fn run_channel(mut channel: Channel) -> Result<(), Box<dyn std::error::Err
                 print_write_result(result);
                 // ANCHOR_END: write_multiple_registers
             }
+            "rwmr" => {
+                // ANCHOR: read_write_multiple_registers
+                let result = channel
+                    .read_write_multiple_registers(
+                        params,
+                        AddressRange::try_from(0, 5).unwrap(),
+                        WriteMultiple::from(0, vec![0xCA, 0xFE]).unwrap(),
+                    )
+                    .await;
+                print_read_result(result);
+                // ANCHOR_END: read_write_multiple_registers
+            }
             "wcfc" => {
                 // ANCHOR: write_custom_function_code
                 let length = 0x04 as usize;
