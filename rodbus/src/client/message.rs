@@ -10,7 +10,7 @@ use crate::client::requests::read_bits::ReadBits;
 use crate::client::requests::read_registers::ReadRegisters;
 use crate::client::requests::write_multiple::MultipleWriteRequest;
 use crate::client::requests::write_single::SingleWrite;
-use crate::client::requests::read_write_multiple::{ReadWriteMultiple, MultipleReadWriteRequest};
+use crate::client::requests::read_write_multiple::MultipleReadWriteRequest;
 use crate::client::requests::write_custom_fc::WriteCustomFunctionCode;
 use crate::common::traits::Serialize;
 use crate::types::{Indexed, UnitId, CustomFunctionCode};
@@ -47,7 +47,7 @@ pub(crate) enum RequestDetails {
     WriteSingleRegister(SingleWrite<Indexed<u16>>),
     WriteMultipleCoils(MultipleWriteRequest<bool>),
     WriteMultipleRegisters(MultipleWriteRequest<u16>),
-    ReadWriteMultipleRegisters(MultipleReadWriteRequest<ReadWriteMultiple<u16>>),
+    ReadWriteMultipleRegisters(MultipleReadWriteRequest<u16>),
     WriteCustomFunctionCode(WriteCustomFunctionCode<CustomFunctionCode>),
 }
 
