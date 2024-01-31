@@ -14,7 +14,7 @@ use std::convert::TryFrom;
 ///
 /// Used when making write multiple coil/register requests
 #[derive(Debug, Clone)]
-pub struct ReadWriteMultiple<T> {
+pub(crate) struct ReadWriteMultiple<T> {
     /// starting address
     pub(crate) read_range: AddressRange,
     /// starting address
@@ -31,7 +31,7 @@ pub(crate) struct ReadWriteMultipleIterator<'a, T> {
 
 impl<T> ReadWriteMultiple<T> {
     /// Create new collection of values
-    pub fn new(
+    pub(crate) fn new(
         read_range: AddressRange,
         write_range: AddressRange,
         values: Vec<T>,
@@ -49,12 +49,12 @@ impl<T> ReadWriteMultiple<T> {
         })
     }
 
-    pub(crate) fn iter(&self) -> ReadWriteMultipleIterator<'_, T> {
+    /*pub(crate) fn iter(&self) -> ReadWriteMultipleIterator<'_, T> {
         ReadWriteMultipleIterator::new(self.read_range, self.values.iter())
-    }
+    }*/
 }
 
-impl<'a, T> ReadWriteMultipleIterator<'a, T> {
+/*impl<'a, T> ReadWriteMultipleIterator<'a, T> {
     fn new(range: AddressRange, iter: std::slice::Iter<'a, T>) -> Self {
         Self {
             range,
@@ -62,7 +62,7 @@ impl<'a, T> ReadWriteMultipleIterator<'a, T> {
             iter,
         }
     }
-}
+}*/
 
 impl<T> Iterator for ReadWriteMultipleIterator<'_, T>
 where
