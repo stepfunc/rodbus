@@ -295,7 +295,7 @@ impl Serialize for ReadWriteMultiple<u16> {
     fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
         self.read_range.serialize(cursor)?;
         self.write_range.serialize(cursor)?;
-        self.write_values.as_slice().serialize(cursor)
+        self.values.as_slice().serialize(cursor)
     }
 }
 
