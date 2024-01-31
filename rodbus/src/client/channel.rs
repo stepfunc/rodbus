@@ -252,7 +252,7 @@ impl Channel {
         &mut self,
         param: RequestParam,
         read_range: AddressRange,
-        write_request: WriteMultiple<u16>,
+        write_request: WriteMultiple<T>,
     ) -> Result<AddressRange, RequestError> {
         let (tx, rx) = tokio::sync::oneshot::channel::<Result<AddressRange, RequestError>>();
         let request = wrap(
@@ -260,10 +260,8 @@ impl Channel {
             RequestDetails::ReadWriteMultipleRegisters(
                 MultipleReadWriteRequest::new(
                     ReadWriteMultiple::new(
-                        read_range.start,
-                        read_range.count,
-                        write_request.range.start,
-                        write_request.range.count,
+                        read_range,
+                        write_request.range,
                         write_request.values,
                     ), Promise::channel(tx)
                 ),
