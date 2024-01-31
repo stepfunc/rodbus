@@ -5,6 +5,7 @@ use crate::decode::AppDecodeLevel;
 use crate::error::RequestError;
 use crate::error::{AduParseError, InvalidRequest};
 use crate::types::{AddressRange, Indexed};
+use crate::InvalidRange;
 
 use scursor::{ReadCursor, WriteCursor};
 use std::convert::TryFrom;
@@ -31,16 +32,16 @@ pub(crate) struct ReadWriteMultipleIterator<'a, T> {
 impl<T> ReadWriteMultiple<T> {
     /// Create new collection of values
     pub fn new(
-        read_start: u16,
-        write_start: u16,
+        read_range: AddressRange,
+        write_range: AddressRange,
         values: Vec<T>,
     ) -> Result<Self, InvalidRequest> {
-        let count = match u16::try_from(values.len()) {
-            Ok(x) => x,
-            Err(_) => return Err(InvalidRequest::CountTooBigForU16(values.len())),
-        };
-        let read_range = AddressRange::try_from(read_start, count)?;
-        let write_range = AddressRange::try_from(write_start, count)?;
+        let count = u16::try_from(values.len()).map_err(|_| InvalidRequest::BadRange(InvalidRange::CountOfZero))?;
+
+        if read_range.count != count {
+            return Err(InvalidRequest::BadRange(InvalidRange::CountTooLargeForType(read_range.count, count)));
+        }
+
         Ok(Self {
             read_range,
             write_range,
