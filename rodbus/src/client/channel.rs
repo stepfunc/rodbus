@@ -252,7 +252,7 @@ impl Channel {
         &mut self,
         param: RequestParam,
         read_range: AddressRange,
-        write_request: WriteMultiple<T>,
+        write_request: WriteMultiple<u16>,
     ) -> Result<AddressRange, RequestError> {
         let (tx, rx) = tokio::sync::oneshot::channel::<Result<AddressRange, RequestError>>();
         let request = wrap(
@@ -263,7 +263,7 @@ impl Channel {
                         read_range,
                         write_request.range,
                         write_request.values,
-                    ), Promise::channel(tx)
+                    ).unwrap(), Promise::channel(tx)
                 ),
             ),
         );
