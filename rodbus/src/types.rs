@@ -99,7 +99,7 @@ pub(crate) struct ReadWriteMultipleRegistersRange<T> {
     pub(crate) write_values: Vec<T>,
 }
 
-impl<T> ReadWriteMultipleRegistersRange<T> {
+/*impl<T> ReadWriteMultipleRegistersRange<T> {
     pub(crate) fn new(
         read_start: u16,
         read_count: u16,
@@ -115,7 +115,7 @@ impl<T> ReadWriteMultipleRegistersRange<T> {
             write_values,
         })
     }
-}
+}*/
 
 impl std::fmt::Display for UnitId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
