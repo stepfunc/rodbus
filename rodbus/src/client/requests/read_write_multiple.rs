@@ -14,7 +14,7 @@ use std::convert::TryFrom;
 ///
 /// Used when making write multiple coil/register requests
 #[derive(Debug, Clone)]
-pub(crate) struct ReadWriteMultiple<T> {
+pub struct ReadWriteMultiple<T> {
     /// starting address
     pub(crate) read_range: AddressRange,
     /// starting address
@@ -31,7 +31,7 @@ pub(crate) struct ReadWriteMultipleIterator<'a, T> {
 
 impl<T> ReadWriteMultiple<T> {
     /// Create new collection of values
-    pub(crate) fn new(
+    pub fn new(
         read_range: AddressRange,
         write_range: AddressRange,
         values: Vec<T>,
@@ -95,14 +95,14 @@ where
     ReadWriteMultiple<T>: Serialize,
 {
     pub(crate) request: ReadWriteMultiple<T>,
-    promise: Promise<AddressRange>,
+    promise: Promise<Indexed<u16>>,
 }
 
 impl<T> MultipleReadWriteRequest<T>
 where
     ReadWriteMultiple<T>: Serialize,
 {
-    pub(crate) fn new(request: ReadWriteMultiple<T>, promise: Promise<AddressRange>) -> Self {
+    pub(crate) fn new(request: ReadWriteMultiple<T>, promise: Promise<Indexed<u16>>) -> Self {
         Self { request, promise }
     }
 
@@ -132,11 +132,11 @@ where
         Ok(())
     }
 
-    fn parse_all(&self, mut cursor: ReadCursor) -> Result<AddressRange, RequestError> {
-        let range = AddressRange::parse(&mut cursor)?;
-        if range != self.request.read_range {
+    fn parse_all(&self, mut cursor: ReadCursor) -> Result<Indexed<u16>, RequestError> {
+        let range = Indexed::<u16>::parse(&mut cursor)?;
+        /*if range != self.request.read_range {
             return Err(RequestError::BadResponse(AduParseError::ReplyEchoMismatch));
-        }
+        }*/
         cursor.expect_empty()?;
         Ok(range)
     }
