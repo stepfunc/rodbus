@@ -251,21 +251,15 @@ impl Channel {
     pub async fn read_write_multiple_registers(
         &mut self,
         param: RequestParam,
-        read_range: AddressRange,
-        write_request: WriteMultiple<u16>,
-    ) -> Result<AddressRange, RequestError> {
-        let (tx, rx) = tokio::sync::oneshot::channel::<Result<AddressRange, RequestError>>();
+        request: ReadWriteMultiple<u16>,
+    ) -> Result<Indexed<u16>, RequestError> {
+        let (tx, rx) = tokio::sync::oneshot::channel::<Result<Indexed<u16>, RequestError>>();
         let request = wrap(
             param,
-            RequestDetails::ReadWriteMultipleRegisters(
-                MultipleReadWriteRequest::new(
-                    ReadWriteMultiple::new(
-                        read_range,
-                        write_request.range,
-                        write_request.values,
-                    ).unwrap(), Promise::channel(tx)
-                ),
-            ),
+            RequestDetails::ReadWriteMultipleRegisters(MultipleReadWriteRequest::new(
+                    request,
+                    Promise::channel(tx)
+                )),
         );
         self.tx.send(request).await?;
         rx.await?
