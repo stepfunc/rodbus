@@ -95,14 +95,14 @@ where
     ReadWriteMultiple<T>: Serialize,
 {
     pub(crate) request: ReadWriteMultiple<T>,
-    promise: Promise<Indexed<u16>>,
+    promise: Promise<Vec<Indexed<u16>>>,
 }
 
 impl<T> MultipleReadWriteRequest<T>
 where
     ReadWriteMultiple<T>: Serialize,
 {
-    pub(crate) fn new(request: ReadWriteMultiple<T>, promise: Promise<Indexed<u16>>) -> Self {
+    pub(crate) fn new(request: ReadWriteMultiple<T>, promise: Promise<Vec<Indexed<u16>>>) -> Self {
         Self { request, promise }
     }
 
@@ -123,7 +123,7 @@ where
         let response = self.parse_all(cursor)?;
 
         if decode.data_headers() {
-            tracing::info!("PDU RX - {} {}", function, response);
+            tracing::info!("PDU RX - {} {:?}", function, response);
         } else if decode.header() {
             tracing::info!("PDU RX - {}", function);
         }
@@ -132,12 +132,15 @@ where
         Ok(())
     }
 
-    fn parse_all(&self, mut cursor: ReadCursor) -> Result<Indexed<u16>, RequestError> {
-        let range = Indexed::<u16>::parse(&mut cursor)?;
-        /*if range != self.request.read_range {
-            return Err(RequestError::BadResponse(AduParseError::ReplyEchoMismatch));
-        }*/
-        cursor.expect_empty()?;
-        Ok(range)
+    fn parse_all(&self, mut cursor: ReadCursor) -> Result<Vec<Indexed<u16>>, RequestError> {
+        let mut result = Vec::with_capacity(self.request.values.len());
+
+        for _ in 0..self.request.values.len() {
+            let value = cursor.read_u16_be().map_err(|_| AduParseError::InsufficientBytes)?;
+
+            result.push(Indexed::new(self.request.write_range.start, value));
+        }
+
+        Ok(result)
     }
 }
