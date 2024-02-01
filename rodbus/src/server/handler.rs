@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 
 use crate::exception::ExceptionCode;
-use crate::server::{WriteCoils, WriteRegisters};
+use crate::server::{WriteCoils, WriteRegisters, ReadWriteRegisters};
 use crate::types::*;
 
 /// Trait implemented by the user to process requests received from the client
@@ -64,12 +64,7 @@ pub trait RequestHandler: Send + 'static {
     }
 
     /// Read and write multiple registers
-    fn read_write_multiple_registers(
-        &mut self,
-        _read_range: AddressRange,
-        _write_range: AddressRange,
-        _values: Vec<Indexed<u16>>,
-    ) -> Result<(), ExceptionCode> {
+    fn read_write_multiple_registers(&mut self, _values: ReadWriteRegisters) -> Result<(), ExceptionCode> {
         Err(ExceptionCode::IllegalFunction)
     }
 
