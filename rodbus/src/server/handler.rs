@@ -63,6 +63,16 @@ pub trait RequestHandler: Send + 'static {
         Err(ExceptionCode::IllegalFunction)
     }
 
+    /// Read and write multiple registers
+    fn read_write_multiple_registers(
+        &mut self,
+        _read_range: AddressRange,
+        _write_range: AddressRange,
+        _values: Vec<Indexed<u16>>,
+    ) -> Result<(), ExceptionCode> {
+        Err(ExceptionCode::IllegalFunction)
+    }
+
     /// Write a custom function code
     fn write_custom_function_code(&mut self, _values: CustomFunctionCode) -> Result<(), ExceptionCode> {
         Err(ExceptionCode::IllegalFunction)
@@ -232,6 +242,17 @@ pub trait AuthorizationHandler: Send + Sync + 'static {
         Authorization::Deny
     }
 
+    /// Authorize a Read Write Multiple Registers request
+    fn read_write_multiple_registers(
+        &self,
+        _unit_id: UnitId,
+        _read_range: AddressRange,
+        _write_range: AddressRange,
+        _role: &str,
+    ) -> Authorization {
+        Authorization::Deny
+    }
+
     /// Authorize a Write Custom Function Code request
     fn write_custom_function_code(&self, _value: CustomFunctionCode, _role: &str) -> Authorization {
         Authorization::Deny
@@ -312,6 +333,17 @@ impl AuthorizationHandler for ReadOnlyAuthorizationHandler {
         _range: AddressRange,
         _role: &str,
     ) -> Authorization {
+        Authorization::Deny
+    }
+
+    /// Authorize a Read Write Multiple Registers request
+    fn read_write_multiple_registers(
+            &self,
+            _unit_id: UnitId,
+            _read_range: AddressRange,
+            _write_range: AddressRange,
+            _role: &str,
+        ) -> Authorization {
         Authorization::Deny
     }
 
