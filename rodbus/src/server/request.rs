@@ -21,6 +21,7 @@ pub(crate) enum Request<'a> {
     WriteSingleRegister(Indexed<u16>),
     WriteMultipleCoils(WriteCoils<'a>),
     WriteMultipleRegisters(WriteRegisters<'a>),
+    ReadWriteMultipleRegisters(ReadWriteRegisters<'a>),
     WriteCustomFunctionCode(CustomFunctionCode),
 }
 
@@ -65,6 +66,7 @@ impl<'a> Request<'a> {
             Request::WriteSingleRegister(_) => FunctionCode::WriteSingleRegister,
             Request::WriteMultipleCoils(_) => FunctionCode::WriteMultipleCoils,
             Request::WriteMultipleRegisters(_) => FunctionCode::WriteMultipleRegisters,
+            Request::ReadWriteMultipleRegisters(_) => FunctionCode::ReadWriteMultipleRegisters,
             Request::WriteCustomFunctionCode(_) => FunctionCode::WriteCustomFunctionCode,
         }
     }
@@ -79,6 +81,7 @@ impl<'a> Request<'a> {
             Request::WriteSingleRegister(x) => Some(BroadcastRequest::WriteSingleRegister(x)),
             Request::WriteMultipleCoils(x) => Some(BroadcastRequest::WriteMultipleCoils(x)),
             Request::WriteMultipleRegisters(x) => Some(BroadcastRequest::WriteMultipleRegisters(x)),
+            Request::ReadWriteMultipleRegisters(_) => None,
             Request::WriteCustomFunctionCode(_) => None,
         }
     }
@@ -144,6 +147,12 @@ impl<'a> Request<'a> {
                     .map(|_| items.range);
                 write_result(function, header, writer, result, level)
             }
+            Request::ReadWriteMultipleRegisters(request) => {
+                let result = handler
+                    .read_write_multiple_registers(*request)
+                    .map(|_| request.read_range);
+                write_result(function, header, writer, result, level)
+            }
             Request::WriteCustomFunctionCode(request) => {
                 let result = handler.write_custom_function_code(*request).map(|_| *request);
                 write_result(function, header, writer, result, level)
@@ -207,11 +216,13 @@ impl<'a> Request<'a> {
                     RegisterIterator::parse_all(range, cursor)?,
                 )))
             }
+            //TODO: parsing logic is not done yet, it's only a placeholder for now
             FunctionCode::ReadWriteMultipleRegisters => {
                 let range = AddressRange::parse(cursor)?;
                 // don't care about the count, validated b/c all bytes are consumed
                 cursor.read_u8()?;
-                Ok(Request::WriteMultipleRegisters(WriteRegisters::new(
+                Ok(Request::ReadWriteMultipleRegisters(ReadWriteRegisters::new(
+                    range,
                     range,
                     RegisterIterator::parse_all(range, cursor)?,
                 )))
@@ -273,6 +284,15 @@ impl std::fmt::Display for RequestDisplay<'_, '_> {
                         f,
                         " {}",
                         RegisterIteratorDisplay::new(self.level, items.iterator)
+                    )?;
+                }
+                Request::ReadWriteMultipleRegisters(request) => {
+                    write!(
+                        f,
+                        " {} {} {}",
+                        request.read_range,
+                        request.write_range,
+                        RegisterIteratorDisplay::new(self.level, request.iterator)
                     )?;
                 }
                 Request::WriteCustomFunctionCode(request) => {

@@ -264,6 +264,9 @@ impl AuthorizationType {
             Request::WriteMultipleRegisters(x) => {
                 handler.write_multiple_registers(unit_id, x.range, role)
             }
+            Request::ReadWriteMultipleRegisters(x) => {
+                handler.read_write_multiple_registers(unit_id, x.read_range, x.write_range, role)
+            }
             Request::WriteCustomFunctionCode(x) => handler.write_custom_function_code(*x, role),
         }
     }
