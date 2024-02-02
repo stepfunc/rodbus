@@ -198,8 +198,8 @@ async fn run_channel(mut channel: Channel) -> Result<(), Box<dyn std::error::Err
                 channel
                     .set_decode_level(DecodeLevel::new(
                         AppDecodeLevel::DataValues,
-                        FrameDecodeLevel::Header,
-                        PhysDecodeLevel::Length,
+                        FrameDecodeLevel::Payload,
+                        PhysDecodeLevel::Data,
                     ))
                     .await?;
             }
@@ -273,12 +273,10 @@ async fn run_channel(mut channel: Channel) -> Result<(), Box<dyn std::error::Err
                 let write_range = AddressRange::try_from(0, 4).unwrap();
                 let write_values = vec![0xCA, 0xFE, 0xC0, 0xDE];
 
-                let request = ReadWriteMultiple::new(read_range, write_range, write_values).unwrap();
-
                 let result = channel
                     .read_write_multiple_registers(
                         params,
-                        request,                        
+                        ReadWriteMultiple::new(read_range, write_range, write_values).unwrap(),                        
                     )
                     .await;
                 print_read_result(result);
