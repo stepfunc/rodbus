@@ -339,7 +339,7 @@ impl AuthorizationHandler for ReadOnlyAuthorizationHandler {
             _write_range: AddressRange,
             _role: &str,
         ) -> Authorization {
-        Authorization::Deny
+        Authorization::Allow
     }
 
     /// Authorize a Write Custom Function Code request
