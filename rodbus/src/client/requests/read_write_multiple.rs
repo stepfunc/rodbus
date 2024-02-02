@@ -1,14 +1,12 @@
 use crate::client::message::Promise;
 use crate::common::function::FunctionCode;
-use crate::common::traits::{Parse, Serialize};
+use crate::common::traits::Serialize;
 use crate::decode::AppDecodeLevel;
 use crate::error::RequestError;
 use crate::error::{AduParseError, InvalidRequest};
 use crate::types::{AddressRange, Indexed};
-use crate::InvalidRange;
 
 use scursor::{ReadCursor, WriteCursor};
-use std::convert::TryFrom;
 
 /// Collection of values and starting address
 ///
@@ -36,10 +34,9 @@ impl<T> ReadWriteMultiple<T> {
         write_range: AddressRange,
         values: Vec<T>,
     ) -> Result<Self, InvalidRequest> {
-        let count = u16::try_from(values.len()).map_err(|_| InvalidRequest::BadRange(InvalidRange::CountOfZero))?;
-
-        if read_range.count != count {
-            return Err(InvalidRequest::BadRange(InvalidRange::CountTooLargeForType(read_range.count, count)));
+        let values_count = values.len() as u16;
+        if write_range.count != values_count{
+            return Err(InvalidRequest::CountTooBigForType(write_range.count, values_count));
         }
 
         Ok(Self {
@@ -49,12 +46,12 @@ impl<T> ReadWriteMultiple<T> {
         })
     }
 
-    /*pub(crate) fn iter(&self) -> ReadWriteMultipleIterator<'_, T> {
-        ReadWriteMultipleIterator::new(self.read_range, self.values.iter())
-    }*/
+    pub(crate) fn iter(&self) -> ReadWriteMultipleIterator<'_, T> {
+        ReadWriteMultipleIterator::new(self.write_range, self.values.iter())
+    }
 }
 
-/*impl<'a, T> ReadWriteMultipleIterator<'a, T> {
+impl<'a, T> ReadWriteMultipleIterator<'a, T> {
     fn new(range: AddressRange, iter: std::slice::Iter<'a, T>) -> Self {
         Self {
             range,
@@ -62,7 +59,7 @@ impl<T> ReadWriteMultiple<T> {
             iter,
         }
     }
-}*/
+}
 
 impl<T> Iterator for ReadWriteMultipleIterator<'_, T>
 where
