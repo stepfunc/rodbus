@@ -261,7 +261,7 @@ impl std::fmt::Display for RequestDetailsDisplay<'_> {
                     write!(f, "{}", details.request.read_range)?;
                     write!(f, "{}", details.request.write_range)?;
                     if self.level.data_values() {
-                        for x in details.request.read_range.iter() {
+                        for x in details.request.iter() {
                             write!(f, "\n{x}")?;
                         }
                     }
