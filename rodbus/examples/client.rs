@@ -178,7 +178,7 @@ async fn run_channel(mut channel: Channel) -> Result<(), Box<dyn std::error::Err
     channel.enable().await?;
 
     // ANCHOR: request_param
-    let params = RequestParam::new(UnitId::new(1), Duration::from_secs(1));
+    let params = RequestParam::new(UnitId::new(1), Duration::from_secs(900));
     // ANCHOR_END: request_param
 
     let mut reader = FramedRead::new(tokio::io::stdin(), LinesCodec::new());
