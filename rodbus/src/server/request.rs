@@ -218,14 +218,17 @@ impl<'a> Request<'a> {
             }
             //TODO: parsing logic is not done yet, it's only a placeholder for now
             FunctionCode::ReadWriteMultipleRegisters => {
-                let range = AddressRange::parse(cursor)?;
+                let read_range = AddressRange::parse(cursor)?;
+                let write_range = AddressRange::parse(cursor)?;
                 // don't care about the count, validated b/c all bytes are consumed
                 cursor.read_u8()?;
-                Ok(Request::ReadWriteMultipleRegisters(ReadWriteRegisters::new(
-                    range,
-                    range,
-                    RegisterIterator::parse_all(range, cursor)?,
-                )))
+                let iterator = RegisterIterator::parse_all(write_range, cursor)?;
+                let read_write_registers = ReadWriteRegisters::new(
+                    read_range,
+                    write_range,
+                    iterator,
+                );
+                Ok(Request::ReadWriteMultipleRegisters(read_write_registers))
             }
             FunctionCode::WriteCustomFunctionCode => {
                 let x =
