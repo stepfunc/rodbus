@@ -258,7 +258,7 @@ impl std::fmt::Display for RequestDetailsDisplay<'_> {
                     }
                 }
                 RequestDetails::ReadWriteMultipleRegisters(details) => {
-                    write!(f, "read_range: ({}) \n", details.request.read_range)?;
+                    write!(f, "read_range: ({}) / ", details.request.read_range)?;
                     write!(f, "write_range: ({})", details.request.write_range)?;
                     if self.level.data_values() {
                         for x in details.request.iter() {
