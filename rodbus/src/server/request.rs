@@ -148,8 +148,9 @@ impl<'a> Request<'a> {
                     .map(|_| items.range);
                 write_result(function, header, writer, result, level)
             }
-            Request::ReadWriteMultipleRegisters(request) => {
-                let registers = RegisterWriter::new(ReadRegistersRange { inner: request.write_range }, |i| handler.read_holding_register(i));
+            Request::ReadWriteMultipleRegisters(items) => {
+                let range = &ReadRegistersRange{ inner: items.read_range };
+                let registers = RegisterWriter::new(*range, |i| handler.read_holding_register(i));
                 
                 writer.format_reply(header, function, &registers, level)
             }
@@ -216,7 +217,6 @@ impl<'a> Request<'a> {
                     RegisterIterator::parse_all(range, cursor)?,
                 )))
             }
-            //TODO: parsing logic is not done yet, it's only a placeholder for now
             FunctionCode::ReadWriteMultipleRegisters => {
                 let read_range = AddressRange::parse(cursor)?;
                 let write_range = AddressRange::parse(cursor)?;
