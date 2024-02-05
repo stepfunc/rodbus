@@ -1,6 +1,6 @@
 use crate::client::message::Promise;
 use crate::common::function::FunctionCode;
-use crate::common::traits::Serialize;
+use crate::common::traits::{Parse, Serialize};
 use crate::decode::AppDecodeLevel;
 use crate::error::RequestError;
 use crate::error::{AduParseError, InvalidRequest};
@@ -92,14 +92,14 @@ where
     ReadWriteMultiple<T>: Serialize,
 {
     pub(crate) request: ReadWriteMultiple<T>,
-    promise: Promise<Vec<Indexed<u16>>>,
+    promise: Promise<AddressRange>,
 }
 
 impl<T> MultipleReadWriteRequest<T>
 where
     ReadWriteMultiple<T>: Serialize,
 {
-    pub(crate) fn new(request: ReadWriteMultiple<T>, promise: Promise<Vec<Indexed<u16>>>) -> Self {
+    pub(crate) fn new(request: ReadWriteMultiple<T>, promise: Promise<AddressRange>) -> Self {
         Self { request, promise }
     }
 
@@ -129,15 +129,12 @@ where
         Ok(())
     }
 
-    fn parse_all(&self, mut cursor: ReadCursor) -> Result<Vec<Indexed<u16>>, RequestError> {
-        let mut result = Vec::with_capacity(self.request.values.len());
-
-        for _ in 0..self.request.values.len() {
-            let value = cursor.read_u16_be().map_err(|_| AduParseError::InsufficientBytes)?;
-
-            result.push(Indexed::new(self.request.write_range.start, value));
+    fn parse_all(&self, mut cursor: ReadCursor) -> Result<AddressRange, RequestError> {
+        let range = AddressRange::parse(&mut cursor)?;
+        if range != self.request.read_range {
+            return Err(RequestError::BadResponse(AduParseError::ReplyEchoMismatch));
         }
-
-        Ok(result)
+        cursor.expect_empty()?;
+        Ok(range)
     }
 }
