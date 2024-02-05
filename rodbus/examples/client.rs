@@ -269,9 +269,9 @@ async fn run_channel(mut channel: Channel) -> Result<(), Box<dyn std::error::Err
             }
             "rwmr" => {
                 // ANCHOR: read_write_multiple_registers
-                let read_range = AddressRange::try_from(0, 4).unwrap();
-                let write_range = AddressRange::try_from(0, 4).unwrap();
-                let write_values = vec![0xCA, 0xFE, 0xC0, 0xDE];
+                let read_range = AddressRange::try_from(0x03, 0x03).unwrap();
+                let write_range = AddressRange::try_from(0x03, 0x03).unwrap();
+                let write_values = vec![0xFF, 0xFF, 0xFF];
 
                 let result = channel
                     .read_write_multiple_registers(
@@ -279,7 +279,7 @@ async fn run_channel(mut channel: Channel) -> Result<(), Box<dyn std::error::Err
                         ReadWriteMultiple::new(read_range, write_range, write_values).unwrap(),                        
                     )
                     .await;
-                print_read_result(result);
+                print_write_result(result);
                 // ANCHOR_END: read_write_multiple_registers
             }
             "wcfc" => {
