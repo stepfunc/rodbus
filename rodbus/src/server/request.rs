@@ -1,4 +1,3 @@
-use crate::client::requests::write_multiple;
 use crate::common::frame::{FrameHeader, FrameWriter, FunctionField};
 use crate::common::function::FunctionCode;
 use crate::common::traits::{Loggable, Parse, Serialize};
@@ -149,10 +148,13 @@ impl<'a> Request<'a> {
                 write_result(function, header, writer, result, level)
             }
             Request::ReadWriteMultipleRegisters(items) => {
-                let range = &ReadRegistersRange{ inner: items.read_range };
-                let registers = RegisterWriter::new(*range, |i| handler.read_holding_register(i));
-                
-                writer.format_reply(header, function, &registers, level)
+                let write_registers = &WriteRegisters::new(items.write_range, items.iterator);
+                let write_res = handler.write_multiple_registers(*write_registers).map(|_| write_registers.range);
+                tracing::info!("write result - {}", write_res.unwrap());
+                //write_result(function, header, writer, write_res, level);
+                let read_registers = ReadRegistersRange{ inner: items.read_range };
+                let read_res = RegisterWriter::new(read_registers, |i| handler.read_holding_register(i));
+                writer.format_reply(header, function, &read_res, level)
             }
             Request::WriteCustomFunctionCode(request) => {
                 let result = handler.write_custom_function_code(*request).map(|_| *request);
