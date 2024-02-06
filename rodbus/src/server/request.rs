@@ -149,9 +149,8 @@ impl<'a> Request<'a> {
             }
             Request::ReadWriteMultipleRegisters(items) => {
                 let write_registers = &WriteRegisters::new(items.write_range, items.iterator);
-                let write_res = handler.write_multiple_registers(*write_registers).map(|_| write_registers.range);
-                tracing::info!("write result - {}", write_res.unwrap());
-                //write_result(function, header, writer, write_res, level);
+                handler.write_multiple_registers(*write_registers).map(|_| write_registers.range);
+                
                 let read_registers = ReadRegistersRange{ inner: items.read_range };
                 let read_res = RegisterWriter::new(read_registers, |i| handler.read_holding_register(i));
                 writer.format_reply(header, function, &read_res, level)
