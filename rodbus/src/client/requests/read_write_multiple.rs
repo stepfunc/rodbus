@@ -1,10 +1,10 @@
 use crate::client::message::Promise;
 use crate::common::function::FunctionCode;
-use crate::common::traits::{Parse, Serialize};
+use crate::common::traits::Serialize;
 use crate::decode::AppDecodeLevel;
 use crate::error::RequestError;
-use crate::error::{AduParseError, InvalidRequest};
-use crate::types::{AddressRange, Indexed};
+use crate::error::InvalidRequest;
+use crate::types::{AddressRange, Indexed, RegisterIterator, RegisterIteratorDisplay};
 
 use scursor::{ReadCursor, WriteCursor};
 
@@ -92,14 +92,14 @@ where
     ReadWriteMultiple<T>: Serialize,
 {
     pub(crate) request: ReadWriteMultiple<T>,
-    promise: Promise<AddressRange>,
+    promise: Promise<Vec<Indexed<u16>>>,
 }
 
 impl<T> MultipleReadWriteRequest<T>
 where
     ReadWriteMultiple<T>: Serialize,
 {
-    pub(crate) fn new(request: ReadWriteMultiple<T>, promise: Promise<AddressRange>) -> Self {
+    pub(crate) fn new(request: ReadWriteMultiple<T>, promise: Promise<Vec<Indexed<u16>>>) -> Self {
         Self { request, promise }
     }
 
@@ -113,28 +113,29 @@ where
 
     pub(crate) fn handle_response(
         &mut self,
-        cursor: ReadCursor,
+        mut cursor: ReadCursor,
         function: FunctionCode,
         decode: AppDecodeLevel,
     ) -> Result<(), RequestError> {
-        let response = self.parse_all(cursor)?;
+        let response = Self::parse_registers_response(self.request.write_range, &mut cursor)?;
 
         if decode.data_headers() {
-            tracing::info!("PDU RX - {} {:?}", function, response);
+            tracing::info!("PDU RX - {} {}", function, RegisterIteratorDisplay::new(decode, response));
         } else if decode.header() {
             tracing::info!("PDU RX - {}", function);
         }
 
-        self.promise.success(response);
+        self.promise.success(response.collect());
         Ok(())
     }
 
-    fn parse_all(&self, mut cursor: ReadCursor) -> Result<AddressRange, RequestError> {
-        let range = AddressRange::parse(&mut cursor)?;
-        if range != self.request.read_range {
-            return Err(RequestError::BadResponse(AduParseError::ReplyEchoMismatch));
-        }
-        cursor.expect_empty()?;
-        Ok(range)
+    fn parse_registers_response<'a>(
+        range: AddressRange,
+        cursor: &'a mut ReadCursor,
+    ) -> Result<RegisterIterator<'a>, RequestError> {
+        // there's a byte-count here that we don't actually need
+        cursor.read_u8()?;
+        // the reset is a sequence of bits
+        RegisterIterator::parse_all(range, cursor)
     }
 }
