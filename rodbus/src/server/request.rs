@@ -149,7 +149,7 @@ impl<'a> Request<'a> {
             }
             Request::ReadWriteMultipleRegisters(items) => {
                 let write_registers = &WriteRegisters::new(items.write_range, items.iterator);
-                handler.write_multiple_registers(*write_registers).map(|_| write_registers.range);
+                let _ = handler.write_multiple_registers(*write_registers).map(|_| write_registers.range);
                 
                 let read_registers = ReadRegistersRange{ inner: items.read_range };
                 let read_res = RegisterWriter::new(read_registers, |i| handler.read_holding_register(i));
