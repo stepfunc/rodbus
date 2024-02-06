@@ -252,8 +252,8 @@ impl Channel {
         &mut self,
         param: RequestParam,
         request: ReadWriteMultiple<u16>,
-    ) -> Result<AddressRange, RequestError> {
-        let (tx, rx) = tokio::sync::oneshot::channel::<Result<AddressRange, RequestError>>();
+    ) -> Result<Vec<Indexed<u16>>, RequestError> {
+        let (tx, rx) = tokio::sync::oneshot::channel::<Result<Vec<Indexed<u16>>, RequestError>>();
         let request = wrap(
             param,
             RequestDetails::ReadWriteMultipleRegisters(MultipleReadWriteRequest::new(
