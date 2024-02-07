@@ -148,12 +148,10 @@ impl<'a> Request<'a> {
                 write_result(function, header, writer, result, level)
             }
             Request::ReadWriteMultipleRegisters(items) => {
-                let write_registers = &WriteRegisters::new(items.write_range, items.iterator);
-                let _ = handler.write_multiple_registers(*write_registers).map(|_| write_registers.range);
-                
-                let read_registers = ReadRegistersRange{ inner: items.read_range };
-                let read_res = RegisterWriter::new(read_registers, |i| handler.read_holding_register(i));
-                writer.format_reply(header, function, &read_res, level)
+                let result = handler
+                    .read_write_multiple_registers(*items)
+                    .map(|_| items.write_range);
+                write_result(function, header, writer, result, level)
             }
             Request::WriteCustomFunctionCode(request) => {
                 let result = handler.write_custom_function_code(*request).map(|_| *request);
