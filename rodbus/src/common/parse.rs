@@ -1,3 +1,4 @@
+use crate::client::ReadWriteMultiple;
 use crate::common::traits::Parse;
 use crate::error::*;
 use crate::types::{coil_from_u16, AddressRange, Indexed, CustomFunctionCode};
@@ -37,11 +38,29 @@ impl Parse for CustomFunctionCode {
     }
 }
 
+impl Parse for ReadWriteMultiple<u16> {
+    fn parse(cursor: &mut ReadCursor) -> Result<Self, RequestError> {
+        let read_range = AddressRange::parse(cursor)?;
+        let write_range = AddressRange::parse(cursor)?;
+
+        let mut values = Vec::new();
+        for _ in write_range.start..write_range.count {
+            values.push(cursor.read_u16_be()?);
+        }
+
+        // the reset is a sequence of bits
+        //let register_iterator = RegisterIterator::parse_all(write_range, cursor).unwrap();
+
+        Ok(ReadWriteMultiple::new(read_range, write_range, values)?)
+    }
+}
+
 #[cfg(test)]
 mod coils {
     use crate::common::traits::Parse;
     use crate::error::AduParseError;
     use crate::types::Indexed;
+    use crate::client::requests::read_write_multiple::ReadWriteMultiple;
 
     use scursor::ReadCursor;
 
@@ -86,4 +105,19 @@ mod coils {
         let result = crate::types::CustomFunctionCode::parse(&mut cursor);
         assert_eq!(result, Err(AduParseError::InsufficientBytes.into()));
     }
+
+    #[test]
+    fn parse_succeeds_for_valid_read_write_multiple_values() {
+        let mut cursor = ReadCursor::new(&[0x00, 0x01, 0x00, 0x05, 0x00, 0x00, 0x00, 0x04, 0x08, 0xCA, 0xFE, 0xC0, 0xDE, 0xCA, 0xFE, 0xC0, 0xDE]);
+        let result = ReadWriteMultiple::<u16>::parse(&mut cursor);
+        let check = ReadWriteMultiple::<u16>::new(crate::types::AddressRange::try_from(0x00, 0x05).unwrap(), crate::types::AddressRange::try_from(0x00, 0x04).unwrap(), vec![0xCAFE, 0xC0DE, 0xCAFE, 0xC0DE]);
+        assert_eq!(result, check);
+    }
+
+    /*#[test]
+    fn parse_fails_for_invalid_read_write_multiple_values() {
+        let mut cursor = ReadCursor::new(&[0x00, 0x04, 0x00, 0x04, 0xCA, 0xFE, 0xC0, 0xDE, 0xCA, 0xFE, 0xC0]);
+        let result = ReadWriteMultiple::<u16>::parse(&mut cursor);
+        assert_eq!(result, Err(AduParseError::InsufficientBytes.into()));
+    }*/
 }
