@@ -11,7 +11,7 @@ use scursor::{ReadCursor, WriteCursor};
 /// Collection of values and starting address
 ///
 /// Used when making write multiple coil/register requests
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ReadWriteMultiple<T> {
     /// starting address
     pub(crate) read_range: AddressRange,
@@ -33,10 +33,10 @@ impl<T> ReadWriteMultiple<T> {
         read_range: AddressRange,
         write_range: AddressRange,
         values: Vec<T>,
-    ) -> Result<Self, InvalidRequest> {
+    ) -> Result<Self, RequestError> {
         let values_count = values.len() as u16;
         if write_range.count != values_count{
-            return Err(InvalidRequest::CountTooBigForType(write_range.count, values_count));
+            return Err(RequestError::BadRequest(InvalidRequest::CountTooBigForType(write_range.count, values_count)));
         }
 
         Ok(Self {
