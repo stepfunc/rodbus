@@ -134,6 +134,20 @@ impl RequestHandler for SimpleHandler {
 
         result
     }
+
+    fn read_write_multiple_registers(&mut self, _values: ReadWriteRegisters) -> Result<(), ExceptionCode> {
+        tracing::info!("read multiple registers {}", _values.read_range);
+        tracing::info!("write multiple registers {}", _values.write_range);
+
+        let w_res = self.write_multiple_registers(WriteRegisters {range: _values.write_range, iterator: _values.iterator})?;
+        
+        for idx in _values.read_range.start.._values.read_range.start+_values.read_range.count {
+            let read_value = self.holding_registers.get(idx as usize).unwrap();
+            tracing::info!("idx: {} value: {}", idx as usize, read_value);
+        }
+
+        Ok(w_res)
+    }
 }
 // ANCHOR_END: request_handler
 
