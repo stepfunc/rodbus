@@ -371,7 +371,7 @@ mod tests {
     /// Write a single zero value to register 1 (index 0) - Minimum test
     /// Read the registers 1 - 5 (index 0 - 4) afterwards
     #[test]
-    fn serialize_succeeds_for_valid_read_write_multiple_request_of_one_u16_zero_value() {
+    fn serialize_succeeds_for_valid_read_write_multiple_request_of_single_u16_zero_value() {
         // read 5 registers starting at register 2
         let read_range = AddressRange::try_from(0x00, 0x05).unwrap();
         // write 1 register starting at register 1
@@ -393,7 +393,7 @@ mod tests {
     /// Write a single 0xFFFF value to register 0xFFFF (65.535) - Maximum test
     /// Read the register 0xFFFF (65.535) afterwards
     #[test]
-    fn serialize_succeeds_for_valid_read_write_multiple_request_of_one_u16_value() {
+    fn serialize_succeeds_for_valid_read_write_multiple_request_of_single_u16_value() {
         // read only register 0xFFFF
         let read_range = AddressRange::try_from(0xFFFF, 0x01).unwrap();
         // write only register 0xFFFF
