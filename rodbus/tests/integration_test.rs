@@ -232,7 +232,7 @@ async fn test_requests_and_responses() {
             Indexed::new(2, true)
         ]
     );
-    
+
     // write registers and verify that they were written
     assert_eq!(
         channel
@@ -262,6 +262,7 @@ async fn test_requests_and_responses() {
             .unwrap(),
         CustomFunctionCode::new(4, [0xC0, 0xDE, 0xCA, 0xFE])
     );
+    // TODO this gives still an error, because 4 trailing bytes are in the response (res)
     let req = ReadWriteMultiple::new(AddressRange::try_from(0, 5).unwrap(), AddressRange::try_from(0, 3).unwrap(), vec![0xC0DE, 0xCAFE, 0xC0DE]).unwrap();
     let res = channel
     .read_write_multiple_registers(params, req)

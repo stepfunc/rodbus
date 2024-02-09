@@ -43,7 +43,7 @@ impl Parse for ReadWriteMultiple<u16> {
         let read_range = AddressRange::parse(cursor)?;
         let write_range = AddressRange::parse(cursor)?;
 
-        // ignore data length field
+        // ignore data byte count
         cursor.read_u8()?;
         let mut values = Vec::new();
         for _ in 0..write_range.count {

@@ -92,31 +92,6 @@ pub struct CustomFunctionCode {
     data: [u16; 4],
 }
 
-#[derive(Clone, Debug, PartialEq)]
-pub(crate) struct ReadWriteMultipleRegistersRange<T> {
-    pub(crate) read_range: AddressRange,
-    pub(crate) write_range: AddressRange,
-    pub(crate) write_values: Vec<T>,
-}
-
-/*impl<T> ReadWriteMultipleRegistersRange<T> {
-    pub(crate) fn new(
-        read_start: u16,
-        read_count: u16,
-        write_start: u16,
-        write_count: u16,
-        write_values: Vec<T>,
-    ) -> Result<Self, InvalidRange> {
-        let read_range = AddressRange::try_from(read_start, read_count)?;
-        let write_range = AddressRange::try_from(write_start, write_count)?;
-        Ok(Self {
-            read_range,
-            write_range,
-            write_values,
-        })
-    }
-}*/
-
 impl std::fmt::Display for UnitId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:#04X}", self.value)
@@ -426,12 +401,6 @@ impl std::fmt::Display for CustomFunctionCode {
             write!(f, "{}", val)?;
         }
         write!(f, "]")
-    }
-}
-
-impl<T> std::fmt::Display for ReadWriteMultipleRegistersRange<T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "read: {}, write: {}", self.read_range, self.write_range)
     }
 }
 
