@@ -435,4 +435,123 @@ mod tests {
             )
         }
     }
+
+    mod read_write_multiple_registers {    
+        use scursor::ReadCursor;
+
+        use super::super::*;
+        use crate::error::AduParseError;
+    
+        //ANCHOR: parse read_write_multiple_request
+    
+        /// Write a single zero value to register 1 (index 0) - Minimum test
+        /// Read 5 registers starting at register 1 (index 0-4) afterwards
+        /// 
+        /// read_range  start: 0x00, count: 0x05
+        /// write_range start: 0x00, count: 0x01
+        /// value length = 2 bytes, value = 0x0000
+        #[test]
+        fn can_parse_read_write_multiple_registers_request_of_single_zero_register_write() {
+            let mut cursor = ReadCursor::new(&[0x00, 0x00, 0x00, 0x05, 0x00, 0x00, 0x00, 0x01, 0x02, 0x00, 0x00]);
+            let registers = match Request::parse(FunctionCode::ReadWriteMultipleRegisters, &mut cursor).unwrap() {
+                Request::ReadWriteMultipleRegisters(registers) => registers,
+                _ => panic!("bad match"),
+            };
+            assert_eq!(registers.read_range, AddressRange::try_from(0x00, 0x05).unwrap());
+            assert_eq!(registers.write_range, AddressRange::try_from(0x00, 0x01).unwrap());
+            assert_eq!(registers.iterator.collect::<Vec<Indexed<u16>>>(), vec![Indexed::new(0x0000, 0x0000)]);
+        }
+    
+        /// Write a single 0xFFFF value to register 0xFFFF (index 65.535) - Limit test
+        /// Read 5 registers starting at register 0xFFFB (65.531-65.535) afterwards
+        /// 
+        /// read_range  start: 0xFFFB, count: 0x05
+        /// write_range start: 0xFFFF, count: 0x01
+        /// value length = 2 bytes, value = 0xFFFF
+        #[test]
+        fn can_parse_read_write_multiple_registers_request_of_single_u16_register_write() {
+            let mut cursor = ReadCursor::new(&[0xFF, 0xFB, 0x00, 0x05, 0xFF, 0xFF, 0x00, 0x01, 0x02, 0xFF, 0xFF]);
+            let registers = match Request::parse(FunctionCode::ReadWriteMultipleRegisters, &mut cursor).unwrap() {
+                Request::ReadWriteMultipleRegisters(registers) => registers,
+                _ => panic!("bad match"),
+            };
+            assert_eq!(registers.read_range, AddressRange::try_from(0xFFFB, 0x05).unwrap());
+            assert_eq!(registers.write_range, AddressRange::try_from(0xFFFF, 0x01).unwrap());
+            assert_eq!(registers.iterator.collect::<Vec<Indexed<u16>>>(), vec![Indexed::new(0xFFFF, 0xFFFF)]);
+        }
+    
+        /// Write multiple zero values to registers 1, 2 and 3 (index 0-2) - Minimum test
+        /// Read 5 registers starting at register 1 (0-4) afterwards
+        /// 
+        /// read_range  start: 0x00, count: 0x05
+        /// write_range start: 0x00, count: 0x03
+        /// values length = 6 bytes, values = 0x0000, 0x0000, 0x0000
+        #[test]
+        fn can_parse_read_write_multiple_registers_request_of_multiple_zero_register_write() {
+            let mut cursor = ReadCursor::new(&[0x00, 0x00, 0x00, 0x05, 0x00, 0x00, 0x00, 0x03, 0x06, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
+            let registers = match Request::parse(FunctionCode::ReadWriteMultipleRegisters, &mut cursor).unwrap() {
+                Request::ReadWriteMultipleRegisters(registers) => registers,
+                _ => panic!("bad match"),
+            };
+            assert_eq!(registers.read_range, AddressRange::try_from(0x00, 0x05).unwrap());
+            assert_eq!(registers.write_range, AddressRange::try_from(0x00, 0x03).unwrap());
+            assert_eq!(registers.iterator.collect::<Vec<Indexed<u16>>>(), vec![Indexed::new(0x0000, 0x0000), Indexed::new(0x0001, 0x0000), Indexed::new(0x0002, 0x0000)]);
+        }
+    
+        /// Write multiple 0xFFFF values to registers 0xFFFD, 0xFFFE and 0xFFFF (index 65.533 - 65.535) - Limit test
+        /// Read 5 registers starting at register 0xFFFB (65.531-65.535) afterwards
+        /// 
+        /// read_range  start: 0xFFFB, count: 0x05
+        /// write_range start: 0xFFFD, count: 0x03
+        /// values length = 6 bytes, values = 0xFFFF, 0xFFFF, 0xFFFF
+        #[test]
+        fn parse_succeeds_for_valid_read_write_multiple_request_of_multiple_u16_register_write() {
+            let mut cursor = ReadCursor::new(&[0xFF, 0xFB, 0x00, 0x05, 0xFF, 0xFD, 0x00, 0x03, 0x06, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF]);
+            let registers = match Request::parse(FunctionCode::ReadWriteMultipleRegisters, &mut cursor).unwrap() {
+                Request::ReadWriteMultipleRegisters(registers) => registers,
+                _ => panic!("bad match"),
+            };
+            assert_eq!(registers.read_range, AddressRange::try_from(0xFFFB, 0x05).unwrap());
+            assert_eq!(registers.write_range, AddressRange::try_from(0xFFFD, 0x03).unwrap());
+            assert_eq!(registers.iterator.collect::<Vec<Indexed<u16>>>(), vec![Indexed::new(0xFFFD, 0xFFFF), Indexed::new(0xFFFE, 0xFFFF), Indexed::new(0xFFFF, 0xFFFF)]);
+        }
+
+        #[test]
+        fn parse_fails_when_too_few_bytes_for_write_byte_count() {
+            let mut cursor = ReadCursor::new(&[0x00, 0x00, 0x00, 0x05, 0x00, 0x00, 0x00, 0x03, 0x06, 0xCA, 0xFE, 0xC0, 0xDE, 0xCA]);
+            let err = Request::parse(FunctionCode::ReadWriteMultipleRegisters, &mut cursor)
+                .err()
+                .unwrap();
+            assert_eq!(err, AduParseError::InsufficientBytes.into());
+        }
+
+        #[test]
+        fn parse_fails_when_too_many_bytes_for_write_byte_count() {
+            let mut cursor = ReadCursor::new(&[0x00, 0x00, 0x00, 0x05, 0x00, 0x00, 0x00, 0x03, 0x06, 0xCA, 0xFE, 0xC0, 0xDE, 0xCA, 0xFE, 0xC0]);
+            let err = Request::parse(FunctionCode::ReadWriteMultipleRegisters, &mut cursor)
+                .err()
+                .unwrap();
+            assert_eq!(err, AduParseError::TrailingBytes(1).into());
+        }
+
+        #[test]
+        fn parse_fails_when_specified_byte_count_not_present() {
+            let mut cursor = ReadCursor::new(&[0x00, 0x00, 0x00, 0x05, 0x00, 0x00, 0x00, 0x03, 0xCA, 0xFE, 0xC0, 0xDE, 0xCA, 0xFE]);
+            let err = Request::parse(FunctionCode::ReadWriteMultipleRegisters, &mut cursor)
+                .err()
+                .unwrap();
+            assert_eq!(err, AduParseError::InsufficientBytes.into());
+        }
+
+        #[test]
+        fn parse_fails_when_too_many_bytes_present() {
+            let mut cursor = ReadCursor::new(&[0x00, 0x00, 0x00, 0x05, 0x00, 0x00, 0x00, 0x03, 0x06, 0xCA, 0xFE, 0xC0, 0xDE, 0xCA, 0xFE, 0xC0, 0xDE]);
+            let err = Request::parse(FunctionCode::ReadWriteMultipleRegisters, &mut cursor)
+                .err()
+                .unwrap();
+            assert_eq!(err, AduParseError::TrailingBytes(2).into());
+        }
+    
+        //ANCHOR_END: parse read_write_multiple_request
+    }
 }
