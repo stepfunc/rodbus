@@ -316,9 +316,9 @@ impl Loggable for CustomFunctionCode<u16> {
                 Err(_) => return Ok(()),
             };
 
-            let mut data = [0_u16; 4];
-            
-            for i in 0..4 {
+            let mut data = Vec::with_capacity(len);
+
+            for i in 0..len {
                 data[i] = match cursor.read_u16_be() {
                     Ok(value) => value,
                     Err(_) => return Ok(()),

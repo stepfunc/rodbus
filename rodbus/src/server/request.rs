@@ -145,7 +145,7 @@ impl<'a> Request<'a> {
                 write_result(function, header, writer, result, level)
             }
             Request::SendCustomFunctionCode(request) => {
-                let result = handler.process_custom_function_code(*request).map(|_| *request);
+                let result = handler.process_custom_function_code(request.clone()).map(|_| request.clone());
                 write_result(function, header, writer, result, level)
             }
         }

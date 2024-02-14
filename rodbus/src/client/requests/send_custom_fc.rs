@@ -78,12 +78,10 @@ impl CustomFCOperation for CustomFunctionCode<u16> {
 
     fn parse(cursor: &mut ReadCursor) -> Result<Self, RequestError> {
         let len = cursor.read_u16_be()? as usize;
-        let val1 = cursor.read_u16_be()?;
-        let val2 = cursor.read_u16_be()?;
-        let val3 = cursor.read_u16_be()?;
-        let val4 = cursor.read_u16_be()?;
-        
-        let values = [val1, val2, val3, val4];
+        let mut values = Vec::with_capacity(len);
+        for _ in 0..len {
+            values.push(cursor.read_u16_be()?);
+        }
 
         Ok(CustomFunctionCode::new(len, values))
     }

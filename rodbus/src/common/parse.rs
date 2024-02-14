@@ -30,8 +30,12 @@ impl Parse for Indexed<u16> {
 
 impl Parse for CustomFunctionCode<u16> {
     fn parse(cursor: &mut ReadCursor) -> Result<Self, RequestError> {
-        let len = cursor.read_u16_be()? as usize;        
-        let values = [cursor.read_u16_be()?, cursor.read_u16_be()?, cursor.read_u16_be()?, cursor.read_u16_be()?];
+        let len = cursor.read_u16_be()? as usize;
+        let mut values = Vec::with_capacity(len);
+        for _ in 0..len {
+            values.push(cursor.read_u16_be()?);
+        }
+        cursor.expect_empty()?;
 
         Ok(CustomFunctionCode::new(len, values))
     }
@@ -77,7 +81,7 @@ mod coils {
     fn parse_succeeds_for_valid_custom_function_code() {
         let mut cursor = ReadCursor::new(&[0x00, 0x04, 0xCA, 0xFE, 0xC0, 0xDE, 0xCA, 0xFE, 0xC0, 0xDE]);
         let result = crate::types::CustomFunctionCode::parse(&mut cursor);
-        assert_eq!(result, Ok(crate::types::CustomFunctionCode::new(4, [0xCAFE, 0xC0DE, 0xCAFE, 0xC0DE])));
+        assert_eq!(result, Ok(crate::types::CustomFunctionCode::new(4, vec![0xCAFE, 0xC0DE, 0xCAFE, 0xC0DE])));
     }
 
     #[test]

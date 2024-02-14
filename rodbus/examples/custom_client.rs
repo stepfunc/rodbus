@@ -207,13 +207,13 @@ async fn run_channel(mut channel: Channel) -> Result<(), Box<dyn std::error::Err
             }
             ["scfc", length_str, values @ ..] => {
                 let length = length_str.parse::<usize>().unwrap_or(0);
-                let values: Vec<u8> = values.iter().filter_map(|&v| u8::from_str_radix(v.trim_start_matches("0x"), 16).ok()).collect();
+                let values: Vec<u16> = values.iter().filter_map(|&v| u16::from_str_radix(v.trim_start_matches("0x"), 16).ok()).collect();
 
                 if values.len() == length {
                     let result = channel
                         .send_custom_function_code(
                             params,
-                            CustomFunctionCode::new(length, &values)
+                            CustomFunctionCode::new(length, values)
                         )
                         .await;
                     print_write_result(result);

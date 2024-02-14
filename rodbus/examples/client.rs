@@ -270,7 +270,7 @@ async fn run_channel(mut channel: Channel) -> Result<(), Box<dyn std::error::Err
             "scfc" => {
                 // ANCHOR: send_custom_function_code
                 let length = 0x04 as usize;
-                let values = [0xC0, 0xDE, 0xCA, 0xFE]; // i.e.: Voltage Hi = 0xC0 / Voltage Lo = 0xDE / Current Hi = 0xCA / Current Lo = 0xFE
+                let values = vec![0xC0DE, 0xCAFE, 0xC0DE, 0xCAFE]; // i.e.: Voltage Hi = 0xC0 / Voltage Lo = 0xDE / Current Hi = 0xCA / Current Lo = 0xFE
 
                 let result = channel
                     .send_custom_function_code(

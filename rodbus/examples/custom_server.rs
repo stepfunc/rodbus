@@ -78,10 +78,11 @@ impl RequestHandler for SimpleHandler {
         }
     }
 
-    fn process_custom_function_code(&mut self, values: CustomFunctionCode) -> Result<(), ExceptionCode> {
-        let mut custom_fc_args = [0_u16; 4]; // i.e.: Voltage Hi = 0x02, Voltage Lo = 0x03, Current Hi = 0x04, Current Lo = 0x05
-        for (i, &value) in values.iter().enumerate() {
-            custom_fc_args[i] = value;
+    fn process_custom_function_code(&mut self, values: CustomFunctionCode<u16>) -> Result<(), ExceptionCode> {
+        let mut custom_fc_args = Vec::with_capacity(values.len()); // i.e.: Voltage Hi = 0x02, Voltage Lo = 0x03, Current Hi = 0x04, Current Lo = 0x05
+
+        for &item in values.iter() {
+            custom_fc_args.push(item);
         }
         tracing::info!("processing custom function code arguments: {:?}", custom_fc_args);
 
