@@ -117,7 +117,7 @@ where
         function: FunctionCode,
         decode: AppDecodeLevel,
     ) -> Result<(), RequestError> {
-        let response = Self::parse_registers_response(self.request.write_range, &mut cursor)?;
+        let response = Self::parse_registers_response(self.request.read_range, &mut cursor)?;
 
         if decode.data_headers() {
             tracing::info!("PDU RX - {} {}", function, RegisterIteratorDisplay::new(decode, response));
