@@ -28,7 +28,7 @@ impl Parse for Indexed<u16> {
     }
 }
 
-impl Parse for CustomFunctionCode {
+impl Parse for CustomFunctionCode<u16> {
     fn parse(cursor: &mut ReadCursor) -> Result<Self, RequestError> {
         let len = cursor.read_u16_be()? as usize;        
         let values = [cursor.read_u16_be()?, cursor.read_u16_be()?, cursor.read_u16_be()?, cursor.read_u16_be()?];

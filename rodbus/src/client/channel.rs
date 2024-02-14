@@ -169,9 +169,9 @@ impl Channel {
     pub async fn send_custom_function_code(
         &mut self,
         param: RequestParam,
-        request: CustomFunctionCode,
-    ) -> Result<CustomFunctionCode, RequestError> {
-        let (tx, rx) = tokio::sync::oneshot::channel::<Result<CustomFunctionCode, RequestError>>();
+        request: CustomFunctionCode<u16>,
+    ) -> Result<CustomFunctionCode<u16>, RequestError> {
+        let (tx, rx) = tokio::sync::oneshot::channel::<Result<CustomFunctionCode<u16>, RequestError>>();
         let request = wrap(
             param,
             RequestDetails::SendCustomFunctionCode(CustomFCRequest::new(request, Promise::channel(tx))),

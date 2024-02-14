@@ -64,7 +64,7 @@ pub trait RequestHandler: Send + 'static {
     }
 
     /// Write a custom function code
-    fn process_custom_function_code(&mut self, _values: CustomFunctionCode) -> Result<(), ExceptionCode> {
+    fn process_custom_function_code(&mut self, _values: CustomFunctionCode<u16>) -> Result<(), ExceptionCode> {
         Err(ExceptionCode::IllegalFunction)
     }
 }
@@ -233,7 +233,7 @@ pub trait AuthorizationHandler: Send + Sync + 'static {
     }
 
     /// Authorize a Send Custom Function Code request
-    fn process_custom_function_code(&self, _value: CustomFunctionCode, _role: &str) -> Authorization {
+    fn process_custom_function_code(&self, _value: CustomFunctionCode<u16>, _role: &str) -> Authorization {
         Authorization::Deny
     }
 }
@@ -316,7 +316,7 @@ impl AuthorizationHandler for ReadOnlyAuthorizationHandler {
     }
 
     /// Authorize a Send Custom Function Code request
-    fn process_custom_function_code(&self, _value: CustomFunctionCode, _role: &str) -> Authorization {
+    fn process_custom_function_code(&self, _value: CustomFunctionCode<u16>, _role: &str) -> Authorization {
         Authorization::Allow
     }
 }

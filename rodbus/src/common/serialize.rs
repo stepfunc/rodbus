@@ -290,7 +290,7 @@ impl Serialize for WriteMultiple<u16> {
     }
 }
 
-impl Serialize for CustomFunctionCode {
+impl Serialize for CustomFunctionCode<u16> {
     fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
         cursor.write_u16_be(self.len() as u16)?;
 
@@ -301,7 +301,7 @@ impl Serialize for CustomFunctionCode {
     }
 }
 
-impl Loggable for CustomFunctionCode {
+impl Loggable for CustomFunctionCode<u16> {
     fn log(
         &self,
         payload: &[u8],
@@ -325,7 +325,7 @@ impl Loggable for CustomFunctionCode {
                 };
             }
 
-            let custom_fc = CustomFunctionCode::new(len, data);
+            let custom_fc = CustomFunctionCode::<u16>::new(len, data);
 
             write!(f, "{:?}", custom_fc)?;
 
@@ -350,7 +350,7 @@ mod tests {
 
     #[test]
     fn serializes_valid_custom_function_code() {
-        let custom_fc = CustomFunctionCode::new(4, [0xCAFE, 0xC0DE, 0xCAFE, 0xC0DE]);
+        let custom_fc = CustomFunctionCode::new(4, vec![0xCAFE, 0xC0DE, 0xCAFE, 0xC0DE]);
         let mut buffer = [0u8; 10];
         let mut cursor = WriteCursor::new(&mut buffer);
         custom_fc.serialize(&mut cursor).unwrap();
