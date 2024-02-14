@@ -150,9 +150,9 @@ where
     T: std::fmt::Display,
 {
     match result {
-        Ok(coils) => {
-            for bit in coils {
-                println!("index: {} value: {}", bit.index, bit.value);
+        Ok(registers) => {
+            for register in registers {
+                println!("index: {} value: {}", register.index, register.value);
             }
         }
         Err(rodbus::RequestError::Exception(exception)) => {
@@ -182,19 +182,18 @@ async fn run_channel(mut channel: Channel) -> Result<(), Box<dyn std::error::Err
     // ANCHOR_END: request_param
 
     let mut reader = FramedRead::new(tokio::io::stdin(), LinesCodec::new());
-    loop {
-        match reader.next().await.unwrap()?.as_str() {
-            "x" => return Ok(()),
-            "ec" => {
-                // enable channel
+    while let Some(line) = reader.next().await {
+        let line = line?; // This handles the Some(Err(e)) case by returning Err(e)
+        let parts = line.split_whitespace().collect::<Vec<&str>>();
+        match parts.as_slice() {
+            ["x"] => return Ok(()),
+            ["ec"] => {
                 channel.enable().await?;
             }
-            "dc" => {
-                // disable channel
+            ["dc"] => {
                 channel.disable().await?;
             }
-            "ed" => {
-                // enable decoding
+            ["ed"] => {
                 channel
                     .set_decode_level(DecodeLevel::new(
                         AppDecodeLevel::DataValues,
@@ -203,85 +202,27 @@ async fn run_channel(mut channel: Channel) -> Result<(), Box<dyn std::error::Err
                     ))
                     .await?;
             }
-            "dd" => {
-                // disable decoded
+            ["dd"] => {
                 channel.set_decode_level(DecodeLevel::nothing()).await?;
             }
-            "rc" => {
-                // ANCHOR: read_coils
-                let result = channel
-                    .read_coils(params, AddressRange::try_from(0, 5).unwrap())
-                    .await;
-                // ANCHOR_END: read_coils
-                print_read_result(result);
-            }
-            "rdi" => {
-                let result = channel
-                    .read_discrete_inputs(params, AddressRange::try_from(0, 5).unwrap())
-                    .await;
-                print_read_result(result);
-            }
-            "rhr" => {
-                let result = channel
-                    .read_holding_registers(params, AddressRange::try_from(0, 5).unwrap())
-                    .await;
-                print_read_result(result);
-            }
-            "rir" => {
-                let result = channel
-                    .read_input_registers(params, AddressRange::try_from(0, 5).unwrap())
-                    .await;
-                print_read_result(result);
-            }
-            "wsc" => {
-                // ANCHOR: write_single_coil
-                let result = channel
-                    .write_single_coil(params, Indexed::new(0, true))
-                    .await;
-                // ANCHOR_END: write_single_coil
-                print_write_result(result);
-            }
-            "wsr" => {
-                let result = channel
-                    .write_single_register(params, Indexed::new(0, 76))
-                    .await;
-                print_write_result(result);
-            }
-            "wmc" => {
-                let result = channel
-                    .write_multiple_coils(
-                        params,
-                        WriteMultiple::from(0, vec![true, false]).unwrap(),
-                    )
-                    .await;
-                print_write_result(result);
-            }
-            "wmr" => {
-                // ANCHOR: write_multiple_registers
-                let result = channel
-                    .write_multiple_registers(
-                        params,
-                        WriteMultiple::from(0, vec![0xCA, 0xFE]).unwrap(),
-                    )
-                    .await;
-                print_write_result(result);
-                // ANCHOR_END: write_multiple_registers
-            }
-            "scfc" => {
-                // ANCHOR: send_custom_function_code
-                let length = 0x04 as usize;
-                let values = [0xC0, 0xDE, 0xCA, 0xFE]; // i.e.: Voltage Hi = 0xC0 / Voltage Lo = 0xDE / Current Hi = 0xCA / Current Lo = 0xFE
+            ["scfc", length_str, values @ ..] => {
+                let length = length_str.parse::<usize>().unwrap_or(0);
+                let values: Vec<u8> = values.iter().filter_map(|&v| u8::from_str_radix(v.trim_start_matches("0x"), 16).ok()).collect();
 
-                let result = channel
-                    .send_custom_function_code(
-                        params,
-                        CustomFunctionCode::new(length, values)
-                    )
-                    .await;
-                print_write_result(result);
-                // ANCHOR_END: send_custom_function_code
+                if values.len() == length {
+                    let result = channel
+                        .send_custom_function_code(
+                            params,
+                            CustomFunctionCode::new(length, &values)
+                        )
+                        .await;
+                    print_write_result(result);
+                } else {
+                    println!("Error: Length does not match the number of provided values");
+                }
             }
             _ => println!("unknown command"),
         }
     }
+    Ok(())
 }
