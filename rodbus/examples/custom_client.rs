@@ -197,8 +197,8 @@ async fn run_channel(mut channel: Channel) -> Result<(), Box<dyn std::error::Err
                 channel
                     .set_decode_level(DecodeLevel::new(
                         AppDecodeLevel::DataValues,
-                        FrameDecodeLevel::Header,
-                        PhysDecodeLevel::Length,
+                        FrameDecodeLevel::Payload,
+                        PhysDecodeLevel::Data,
                     ))
                     .await?;
             }
@@ -206,7 +206,7 @@ async fn run_channel(mut channel: Channel) -> Result<(), Box<dyn std::error::Err
                 channel.set_decode_level(DecodeLevel::nothing()).await?;
             }
             ["scfc", length_str, values @ ..] => {
-                let length = length_str.parse::<usize>().unwrap_or(0);
+                let length = u16::from_str_radix(length_str.trim_start_matches("0x"), 16).unwrap_or(0) as usize;
                 let values: Vec<u16> = values.iter().filter_map(|&v| u16::from_str_radix(v.trim_start_matches("0x"), 16).ok()).collect();
 
                 if values.len() == length {

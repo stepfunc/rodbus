@@ -97,7 +97,7 @@ impl RequestHandler for Handler {
         Ok(())
     }
 
-    fn process_custom_function_code(&mut self, values: CustomFunctionCode) -> Result<(), ExceptionCode> {
+    fn process_custom_function_code(&mut self, values: CustomFunctionCode<u16>) -> Result<(), ExceptionCode> {
         for (i, &value) in values.iter().enumerate() {
             match self.custom_function_code.get_mut(i) {
                 Some(c) => *c = value,
@@ -236,10 +236,10 @@ async fn test_requests_and_responses() {
     );
     assert_eq!(
         channel
-            .send_custom_function_code(params, CustomFunctionCode::new(0x04, [0xC0, 0xDE, 0xCA, 0xFE]))
+            .send_custom_function_code(params, CustomFunctionCode::new(0x04, vec![0xC0, 0xDE, 0xCA, 0xFE]))
             .await
             .unwrap(),
-        CustomFunctionCode::new(4, [0xC0, 0xDE, 0xCA, 0xFE])
+        CustomFunctionCode::new(4, vec![0xC0, 0xDE, 0xCA, 0xFE])
     );
 }
 
