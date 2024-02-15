@@ -76,18 +76,42 @@ mod coils {
         let result = Indexed::<u16>::parse(&mut cursor);
         assert_eq!(result, Ok(Indexed::new(1, 0xCAFE)));
     }
+}
+
+
+#[cfg(test)]
+mod custom_fc {
+    use crate::common::traits::Parse;
+    use crate::error::AduParseError;
+    use crate::types::CustomFunctionCode;
+
+    use scursor::ReadCursor;
 
     #[test]
-    fn parse_succeeds_for_valid_custom_function_code() {
-        let mut cursor = ReadCursor::new(&[0x00, 0x04, 0xCA, 0xFE, 0xC0, 0xDE, 0xCA, 0xFE, 0xC0, 0xDE]);
-        let result = crate::types::CustomFunctionCode::parse(&mut cursor);
-        assert_eq!(result, Ok(crate::types::CustomFunctionCode::new(4, vec![0xCAFE, 0xC0DE, 0xCAFE, 0xC0DE])));
+    fn parse_succeeds_for_single_value() {
+        let mut cursor = ReadCursor::new(&[0x00, 0x01, 0xCA, 0xFE]);
+        let result = CustomFunctionCode::parse(&mut cursor);
+        assert_eq!(result, Ok(CustomFunctionCode::new(1, vec![0xCAFE])));
     }
 
     #[test]
-    fn parse_fails_for_invalid_custom_function_code() {
+    fn parse_succeeds_for_multiple_values() {
+        let mut cursor = ReadCursor::new(&[0x00, 0x03, 0xCA, 0xFE, 0xC0, 0xDE, 0xCA, 0xFE]);
+        let result = CustomFunctionCode::parse(&mut cursor);
+        assert_eq!(result, Ok(CustomFunctionCode::new(3, vec![0xCAFE, 0xC0DE, 0xCAFE])));
+    }
+
+    #[test]
+    fn parse_fails_for_missing_len_byte() {
+        let mut cursor = ReadCursor::new(&[0x04, 0xCA, 0xFE, 0xC0, 0xDE, 0xCA, 0xFE, 0xC0, 0xDE]);
+        let result = CustomFunctionCode::parse(&mut cursor);
+        assert_eq!(result, Err(AduParseError::InsufficientBytes.into()));
+    }
+
+    #[test]
+    fn parse_fails_for_missing_data_byte() {
         let mut cursor = ReadCursor::new(&[0x00, 0x04, 0xCA, 0xFE, 0xC0, 0xDE, 0xCA, 0xFE, 0xC0]);
-        let result = crate::types::CustomFunctionCode::parse(&mut cursor);
+        let result = CustomFunctionCode::parse(&mut cursor);
         assert_eq!(result, Err(AduParseError::InsufficientBytes.into()));
     }
 }
