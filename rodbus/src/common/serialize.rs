@@ -350,20 +350,38 @@ mod tests {
     }
 
     #[test]
-    fn serialize_succeeds_for_valid_cfc_of_single_value() {
-        let custom_fc = CustomFunctionCode::new(1, vec![0xCAFE]);
+    fn serialize_succeeds_for_valid_cfc_of_single_min_value() {
+        let custom_fc = CustomFunctionCode::new(1, vec![0x0000]);
         let mut buffer = [0u8; 4];
         let mut cursor = WriteCursor::new(&mut buffer);
         custom_fc.serialize(&mut cursor).unwrap();
-        assert_eq!(buffer, [0x00, 0x01, 0xCA, 0xFE]);
+        assert_eq!(buffer, [0x00, 0x01, 0x00, 0x00]);
     }
 
     #[test]
-    fn serialize_succeeds_for_valid_cfc_of_multiple_values() {
-        let custom_fc = CustomFunctionCode::new(3, vec![0xCAFE, 0xC0DE, 0xCAFE]);
+    fn serialize_succeeds_for_valid_cfc_of_single_max_value() {
+        let custom_fc = CustomFunctionCode::new(1, vec![0xFFFF]);
+        let mut buffer = [0u8; 4];
+        let mut cursor = WriteCursor::new(&mut buffer);
+        custom_fc.serialize(&mut cursor).unwrap();
+        assert_eq!(buffer, [0x00, 0x01, 0xFF, 0xFF]);
+    }
+
+    #[test]
+    fn serialize_succeeds_for_valid_cfc_of_multiple_min_values() {
+        let custom_fc = CustomFunctionCode::new(3, vec![0x0000, 0x0000, 0x0000]);
         let mut buffer = [0u8; 8];
         let mut cursor = WriteCursor::new(&mut buffer);
         custom_fc.serialize(&mut cursor).unwrap();
-        assert_eq!(buffer, [0x00, 0x03, 0xCA, 0xFE, 0xC0, 0xDE, 0xCA, 0xFE]);
+        assert_eq!(buffer, [0x00, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
+    }
+
+    #[test]
+    fn serialize_succeeds_for_valid_cfc_of_multiple_max_values() {
+        let custom_fc = CustomFunctionCode::new(3, vec![0xFFFF, 0xFFFF, 0xFFFF]);
+        let mut buffer = [0u8; 8];
+        let mut cursor = WriteCursor::new(&mut buffer);
+        custom_fc.serialize(&mut cursor).unwrap();
+        assert_eq!(buffer, [0x00, 0x03, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF]);
     }
 }
