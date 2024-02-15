@@ -82,6 +82,7 @@ impl CustomFCOperation for CustomFunctionCode<u16> {
         for _ in 0..len {
             values.push(cursor.read_u16_be()?);
         }
+        cursor.expect_empty()?;
 
         Ok(CustomFunctionCode::new(len, values))
     }
