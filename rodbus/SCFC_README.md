@@ -4,25 +4,23 @@ This document provides a detailed overview of the custom function code (0x45) us
 
 
 ## Introduction
-The 0x45 function code enables the implementation of user-defined logic on a remote server device. It facilitates the transmission, reception, and processing of a custom function code with a fixed-size data buffer. This buffer currently supports 4 arguments, each 2 bytes (u16) in size, allowing for the execution of custom logic remotely.
-
-**Note:** To increase flexibility, support for a variable-length data buffer will be included in a future update.
+The 0x45 function code enables the implementation of user-defined logic on a remote server device. It facilitates the transmission, reception, and processing of a custom function code with a variable-size data buffer.
 
 
 ## Request Structure
-| Parameter          | Size     | Range / Value         |
-|--------------------|----------|-----------------------|
-| Function code      | 1 Byte   | 0x45                  |
-| Length             | 2 Bytes  | 0x0004                |
-| Data               | 8 Bytes  | 0x0000 to 0xFFFF      |
+| Parameter          | Size          | Range / Value         |
+|--------------------|---------------|-----------------------|
+| Function code      | 1 Byte        | 0x45                  |
+| Byte Count         | 2 Bytes       | 0x0000 to 0xFFFF (N*) |
+| Data               | N* x 2 Bytes  | 0x0000 to 0xFFFF      |
 
 
 ## Response Structure
-| Parameter     | Size    | Value/Description    |
-|---------------|---------|----------------------|
-| Function code | 1 Byte  | 0x45                 |
-| Length        | 2 Bytes | 0x0004               |
-| Data          | 8 Bytes | 0x0000 to 0xFFFF     |
+| Parameter     | Size         | Value/Description     |
+|---------------|--------------|-----------------------|
+| Function code | 1 Byte       | 0x45                  |
+| Byte Count    | 2 Bytes      | 0x0000 to 0xFFFF (N*) |
+| Data          | N* x 2 Bytes | 0x0000 to 0xFFFF      |
 
 
 ## Error Handling
@@ -39,20 +37,40 @@ The 0x45 function code enables the implementation of user-defined logic on a rem
 
 
 ## Usage Example
-### Request to send the custom buffer [0xC0, 0xDE, 0xCA, 0xFE]:
-
+### Request to send the custom buffer [0xC0DE, 0xCAFE, 0xC0DE, 0xCAFE] (Byte Count = 4 -> 8 bytes):
 | Request Field             | Hex | Response Field         | Hex |
 |---------------------------|-----|------------------------|-----|
 | Function                  | 45  | Function               | 45  |
-| Length                    | 04  | Byte Count             | 04  |
-| Arg1                      | C0  | Arg1                   | C0  |
-| Arg2                      | DE  | Arg2                   | DE  |
-| Arg3                      | CA  | Arg3                   | CA  |
-| Arg4                      | FE  | Arg4                   | FE  |
+| Byte Count Hi             | 00  | Byte Count Hi          | 00  |
+| Byte Count Lo             | 04  | Byte Count Lo          | 04  |
+| Arg1 Hi                   | C0  | Arg1 Hi                | C0  |
+| Arg1 Lo                   | DE  | Arg1 Lo                | DE  |
+| Arg2 Hi                   | CA  | Arg2 Hi                | CA  |
+| Arg2 Lo                   | FE  | Arg2 Lo                | FE  |
+| Arg3 Hi                   | C0  | Arg3 Hi                | C0  |
+| Arg3 Lo                   | DE  | Arg3 Lo                | DE  |
+| Arg4 Hi                   | CA  | Arg4 Hi                | CA  |
+| Arg4 Lo                   | FE  | Arg4 Lo                | FE  |
 
 
 ## Modify and Test Server-Side Buffer Handling
 The server currently forwards the Custom Function Code buffer to the client again without alteration. To test modifying or processing the buffer on the remote server device, edit the `send_custom_function_code()` function in `src/examples/client.rs` and `src/examples/server.rs` as needed.
+
+## Usage
+Make sure that you are in the `rodbus` project directory.
+
+### Start the custom_server example
+- `cargo run --example custom_server -- tcp`
+
+Leave the terminal open and open another terminal.
+
+### Start the custom_client example
+- `cargo run --example custom_client -- tcp`
+
+### Send the Custom Function Code CFC69 request
+In the terminal with the running custom_client example, run:
+- `scfc <u16 Byte Count> <u16 Arguments>`
+- e.g. `scfc 0x02 0xC0DE 0xCAFE`
 
 
 ## Troubleshooting Tips
