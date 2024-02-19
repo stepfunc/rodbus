@@ -1,5 +1,6 @@
 use std::convert::TryFrom;
 
+use crate::client::requests::read_write_multiple::ReadWriteMultiple;
 use crate::client::WriteMultiple;
 use crate::common::traits::Loggable;
 use crate::common::traits::Parse;
@@ -8,7 +9,7 @@ use crate::error::{InternalError, RequestError};
 use crate::server::response::{BitWriter, RegisterWriter};
 use crate::types::{
     coil_from_u16, coil_to_u16, AddressRange, BitIterator, BitIteratorDisplay, Indexed,
-    RegisterIterator, RegisterIteratorDisplay,
+    RegisterIterator, RegisterIteratorDisplay, CustomFunctionCode,
 };
 
 use scursor::{ReadCursor, WriteCursor};
@@ -290,6 +291,59 @@ impl Serialize for WriteMultiple<u16> {
     }
 }
 
+impl Serialize for ReadWriteMultiple<u16> {
+    fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
+        self.read_range.serialize(cursor)?;
+        self.write_range.serialize(cursor)?;
+        self.values.as_slice().serialize(cursor)
+    }
+}
+
+impl Serialize for CustomFunctionCode {
+    fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
+        cursor.write_u16_be(self.len() as u16)?;
+
+        for &item in self.iter() {
+            cursor.write_u16_be(item)?;
+        }
+        Ok(())
+    }
+}
+
+impl Loggable for CustomFunctionCode {
+    fn log(
+        &self,
+        payload: &[u8],
+        level: crate::decode::AppDecodeLevel,
+        f: &mut std::fmt::Formatter,
+    ) -> std::fmt::Result {
+        if level.data_headers() {
+            let mut cursor = ReadCursor::new(payload);
+
+            let len = match cursor.read_u16_be() {
+                Ok(value) => value as usize,
+                Err(_) => return Ok(()),
+            };
+
+            let mut data = [0_u16; 4];
+            
+            for i in 0..4 {
+                data[i] = match cursor.read_u16_be() {
+                    Ok(value) => value,
+                    Err(_) => return Ok(()),
+                };
+            }
+
+            let custom_fc = CustomFunctionCode::new(len, data);
+
+            write!(f, "{:?}", custom_fc)?;
+
+        }
+
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -302,4 +356,105 @@ mod tests {
         range.serialize(&mut cursor).unwrap();
         assert_eq!(buffer, [0x00, 0x03, 0x02, 0x00]);
     }
+
+    #[test]
+    fn serializes_valid_custom_function_code() {
+        let custom_fc = CustomFunctionCode::new(4, [0xCAFE, 0xC0DE, 0xCAFE, 0xC0DE]);
+        let mut buffer = [0u8; 10];
+        let mut cursor = WriteCursor::new(&mut buffer);
+        custom_fc.serialize(&mut cursor).unwrap();
+        assert_eq!(buffer, [0x00, 0x04, 0xCA, 0xFE, 0xC0, 0xDE, 0xCA, 0xFE, 0xC0, 0xDE]);
+    }
+
+    //ANCHOR: serialize read_write_multiple_request
+    
+    /// Write a single zero value to register 1 (index 0) - Minimum test
+    /// Read the registers 1 - 5 (index 0 - 4) afterwards
+    #[test]
+    fn serialize_succeeds_for_valid_read_write_multiple_request_of_single_u16_zero_value() {
+        // read 5 registers starting at register 2
+        let read_range = AddressRange::try_from(0x00, 0x05).unwrap();
+        // write 1 register starting at register 1
+        let write_range = AddressRange::try_from(0x00, 0x01).unwrap();
+        // write 1 value that has the value 0
+        let values = vec![0u16; 1];
+
+        // construct the request
+        let request = ReadWriteMultiple::new(read_range, write_range, values).unwrap();
+        
+        // serialize the request
+        let mut buffer = [0u8; 11];
+        let mut cursor = WriteCursor::new(&mut buffer);
+        request.serialize(&mut cursor).unwrap();
+
+        assert_eq!(buffer, [0x00, 0x00, 0x00, 0x05, 0x00, 0x00, 0x00, 0x01, 0x02, 0x00, 0x00]);
+    }
+
+    /// Write a single 0xFFFF value to register 0xFFFF (65.535) - Maximum test
+    /// Read the register 0xFFFF (65.535) afterwards
+    #[test]
+    fn serialize_succeeds_for_valid_read_write_multiple_request_of_single_u16_value() {
+        // read only register 0xFFFF
+        let read_range = AddressRange::try_from(0xFFFF, 0x01).unwrap();
+        // write only register 0xFFFF
+        let write_range = AddressRange::try_from(0xFFFF, 0x01).unwrap();
+        // write a single value of 0xFFFF (65.535)
+        let values = vec![0xFFFF];
+
+        // construct the request
+        let request = ReadWriteMultiple::new(read_range, write_range, values).unwrap();
+        
+        // serialize the request
+        let mut buffer = [0u8; 11];
+        let mut cursor = WriteCursor::new(&mut buffer);
+        request.serialize(&mut cursor).unwrap();
+
+        assert_eq!(buffer, [0xFF, 0xFF, 0x00, 0x01, 0xFF, 0xFF, 0x00, 0x01, 0x02, 0xFF, 0xFF]);
+    }
+
+    /// Write three zero values to registers 1, 2 and 3 (index 0 - 2) - Minimum test
+    /// Read the registers 1 - 5 (index 0 - 4) afterwards
+    #[test]
+    fn serialize_succeeds_for_valid_read_write_multiple_request_of_three_u16_zero_values() {
+        // read 5 registers starting at register 0x00
+        let read_range = AddressRange::try_from(0x00, 0x05).unwrap();
+        // write 3 registers starting at register 0x00
+        let write_range = AddressRange::try_from(0x00, 0x03).unwrap();
+        // write 3 values with a value of 0
+        let values = vec![0x00, 0x00, 0x00];
+
+        // construct the request
+        let request = ReadWriteMultiple::new(read_range, write_range, values).unwrap();
+        
+        // serialize the request
+        let mut buffer = [0u8; 15];
+        let mut cursor = WriteCursor::new(&mut buffer);
+        request.serialize(&mut cursor).unwrap();
+
+        assert_eq!(buffer, [0x00, 0x00, 0x00, 0x05, 0x00, 0x00, 0x00, 0x03, 0x06, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
+    }
+
+    /// Write three 0xFFFF values to registers 0xFFFD, 0xFFFE and 0xFFFF (65.533 - 65.535) - Maximum test
+    /// Read the registers 0xFFFB - 0xFFFF (65.531 - 65.535) afterwards
+    #[test]
+    fn serialize_succeeds_for_valid_read_write_multiple_request_of_three_u16_values() {
+        // read 5 registers starting at register 0xFFFB
+        let read_range = AddressRange::try_from(0xFFFB, 0x05).unwrap();
+        // write 3 registers starting at register 0xFFFD
+        let write_range = AddressRange::try_from(0xFFFD, 0x03).unwrap();
+        // write 3 values with a value of 0xFFFF
+        let values = vec![0xFFFF, 0xFFFF, 0xFFFF];
+
+        // construct the request
+        let request = ReadWriteMultiple::new(read_range, write_range, values).unwrap();
+        
+        // serialize the request
+        let mut buffer = [0u8; 15];
+        let mut cursor = WriteCursor::new(&mut buffer);
+        request.serialize(&mut cursor).unwrap();
+
+        assert_eq!(buffer, [0xFF, 0xFB, 0x00, 0x05, 0xFF, 0xFD, 0x00, 0x03, 0x06, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF]);
+    }
+
+    //ANCHOR_END: serialize read_write_multiple_request
 }

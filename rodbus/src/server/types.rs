@@ -29,3 +29,21 @@ impl<'a> WriteRegisters<'a> {
         Self { range, iterator }
     }
 }
+
+
+/// Request to write registers received by the server
+#[derive(Debug, Copy, Clone)]
+pub struct ReadWriteRegisters<'a> {
+    /// address range of the read request
+    pub read_range: AddressRange,
+    /// address range of the write request
+    pub write_range: AddressRange,
+    /// lazy iterator over the register values to write
+    pub iterator: RegisterIterator<'a>,
+}
+
+impl<'a> ReadWriteRegisters<'a> {
+    pub(crate) fn new(read_range: AddressRange, write_range: AddressRange, iterator: RegisterIterator<'a>) -> Self {
+        Self { read_range, write_range, iterator }
+    }
+}

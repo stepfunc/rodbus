@@ -13,6 +13,7 @@ struct Handler {
     pub discrete_inputs: [bool; 10],
     pub holding_registers: [u16; 10],
     pub input_registers: [u16; 10],
+    pub custom_function_code: [u16; 5],
 }
 
 impl Handler {
@@ -22,6 +23,7 @@ impl Handler {
             discrete_inputs: [false; 10],
             holding_registers: [0; 10],
             input_registers: [0; 10],
+            custom_function_code: [0; 5],
         }
     }
 }
@@ -94,6 +96,37 @@ impl RequestHandler for Handler {
         }
         Ok(())
     }
+
+    fn write_custom_function_code(&mut self, values: CustomFunctionCode) -> Result<(), ExceptionCode> {
+        for (i, &value) in values.iter().enumerate() {
+            match self.custom_function_code.get_mut(i) {
+                Some(c) => *c = value,
+                None => return Err(ExceptionCode::IllegalDataAddress),
+            }
+        }
+        Ok(())  
+    }
+
+    fn read_write_multiple_registers(&mut self, _values: ReadWriteRegisters) -> Result<(), ExceptionCode> {
+        //self.write_multiple_registers(WriteRegisters {range: w_range, iterator: _values.iterator}).unwrap();
+        for x in _values.iterator {
+            match self.holding_registers.get_mut(x.index as usize) {
+                Some(c) => *c = x.value,
+                None => return Err(ExceptionCode::IllegalDataAddress),
+            }
+        }
+
+        let range = _values.read_range;
+        let mut r_values = Vec::new();
+        for i in range.start..(range.start+range.count) {
+            match self.holding_registers.get(i as usize) {
+                Some(x) => r_values.push(Indexed::new(i, *x)),
+                None => return Err(ExceptionCode::IllegalDataAddress),
+            }
+        }
+        Ok(())
+    }
+    
 }
 
 async fn test_requests_and_responses() {
@@ -120,7 +153,7 @@ async fn test_requests_and_responses() {
 
     channel.enable().await.unwrap();
 
-    let params = RequestParam::new(UnitId::new(0x01), Duration::from_secs(1));
+    let params = RequestParam::new(UnitId::new(0x01), Duration::from_secs(900));
 
     {
         let mut guard = handler.lock().unwrap();
@@ -222,6 +255,27 @@ async fn test_requests_and_responses() {
             Indexed::new(2, 0x0506)
         ]
     );
+    assert_eq!(
+        channel
+            .write_custom_function_code(params, CustomFunctionCode::new(0x04, [0xC0, 0xDE, 0xCA, 0xFE]))
+            .await
+            .unwrap(),
+        CustomFunctionCode::new(4, [0xC0, 0xDE, 0xCA, 0xFE])
+    );
+    assert_eq!(
+        channel
+            .read_write_multiple_registers(params, ReadWriteMultiple::new(AddressRange::try_from(0, 5).unwrap(), AddressRange::try_from(0, 3).unwrap(), vec![0xC0DE, 0xCAFE, 0xC0DE]).unwrap())
+            .await
+            .unwrap(),
+            vec![
+                Indexed::new(0, 0xC0DE),
+                Indexed::new(1, 0xCAFE),
+                Indexed::new(2, 0xC0DE),
+                Indexed::new(3, 0x0000),
+                Indexed::new(4, 0x0000)
+            ]
+    );
+    
 }
 
 #[test]

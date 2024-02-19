@@ -61,7 +61,7 @@ where
 async fn run_tcp() -> Result<(), Box<dyn std::error::Error>> {
     // ANCHOR: create_tcp_channel
     let channel = spawn_tcp_client_task(
-        HostAddr::ip(IpAddr::V4(Ipv4Addr::LOCALHOST), 502),
+        HostAddr::ip(IpAddr::V4(Ipv4Addr::LOCALHOST), 10502),
         1,
         default_retry_strategy(),
         DecodeLevel::default(),
@@ -96,7 +96,7 @@ async fn run_rtu() -> Result<(), Box<dyn std::error::Error>> {
 async fn run_tls(tls_config: TlsClientConfig) -> Result<(), Box<dyn std::error::Error>> {
     // ANCHOR: create_tls_channel
     let channel = spawn_tls_client_task(
-        HostAddr::ip(IpAddr::V4(Ipv4Addr::LOCALHOST), 802),
+        HostAddr::ip(IpAddr::V4(Ipv4Addr::LOCALHOST), 10802),
         1,
         default_retry_strategy(),
         tls_config,
@@ -178,7 +178,7 @@ async fn run_channel(mut channel: Channel) -> Result<(), Box<dyn std::error::Err
     channel.enable().await?;
 
     // ANCHOR: request_param
-    let params = RequestParam::new(UnitId::new(1), Duration::from_secs(1));
+    let params = RequestParam::new(UnitId::new(1), Duration::from_secs(900));
     // ANCHOR_END: request_param
 
     let mut reader = FramedRead::new(tokio::io::stdin(), LinesCodec::new());
@@ -198,8 +198,8 @@ async fn run_channel(mut channel: Channel) -> Result<(), Box<dyn std::error::Err
                 channel
                     .set_decode_level(DecodeLevel::new(
                         AppDecodeLevel::DataValues,
-                        FrameDecodeLevel::Header,
-                        PhysDecodeLevel::Length,
+                        FrameDecodeLevel::Payload,
+                        PhysDecodeLevel::Data,
                     ))
                     .await?;
             }
@@ -266,6 +266,35 @@ async fn run_channel(mut channel: Channel) -> Result<(), Box<dyn std::error::Err
                     .await;
                 print_write_result(result);
                 // ANCHOR_END: write_multiple_registers
+            }
+            "rwmr" => {
+                // ANCHOR: read_write_multiple_registers
+                let read_range = AddressRange::try_from(0x01, 0x04).unwrap();
+                let write_range = AddressRange::try_from(0x01, 0x04).unwrap();
+                let write_values = vec![0xC0DE, 0xCAFE, 0xC0DE, 0xCAFE];
+
+                let result = channel
+                    .read_write_multiple_registers(
+                        params,
+                        ReadWriteMultiple::new(read_range, write_range, write_values).unwrap(),                        
+                    )
+                    .await;
+                print_write_result(result);
+                // ANCHOR_END: read_write_multiple_registers
+            }
+            "wcfc" => {
+                // ANCHOR: write_custom_function_code
+                let length = 0x04 as usize;
+                let values = [0xC0, 0xDE, 0xCA, 0xFE]; // i.e.: Voltage Hi = 0xC0 / Voltage Lo = 0xDE / Current Hi = 0xCA / Current Lo = 0xFE
+
+                let result = channel
+                    .write_custom_function_code(
+                        params,
+                        CustomFunctionCode::new(length, values)
+                    )
+                    .await;
+                print_write_result(result);
+                // ANCHOR_END: write_custom_function_code
             }
             _ => println!("unknown command"),
         }

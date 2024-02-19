@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 
 use crate::exception::ExceptionCode;
-use crate::server::{WriteCoils, WriteRegisters};
+use crate::server::{WriteCoils, WriteRegisters, ReadWriteRegisters};
 use crate::types::*;
 
 /// Trait implemented by the user to process requests received from the client
@@ -60,6 +60,16 @@ pub trait RequestHandler: Send + 'static {
 
     /// Write multiple registers
     fn write_multiple_registers(&mut self, _values: WriteRegisters) -> Result<(), ExceptionCode> {
+        Err(ExceptionCode::IllegalFunction)
+    }
+
+    /// Read and write multiple registers
+    fn read_write_multiple_registers(&mut self, _values: ReadWriteRegisters) -> Result<(), ExceptionCode> {
+        Err(ExceptionCode::IllegalFunction)
+    }
+
+    /// Write a custom function code
+    fn write_custom_function_code(&mut self, _values: CustomFunctionCode) -> Result<(), ExceptionCode> {
         Err(ExceptionCode::IllegalFunction)
     }
 }
@@ -176,7 +186,7 @@ pub trait AuthorizationHandler: Send + Sync + 'static {
     ) -> Authorization {
         Authorization::Deny
     }
-
+    
     /// Authorize a Read Holding Registers request
     fn read_holding_registers(
         &self,
@@ -224,6 +234,22 @@ pub trait AuthorizationHandler: Send + Sync + 'static {
         _range: AddressRange,
         _role: &str,
     ) -> Authorization {
+        Authorization::Deny
+    }
+
+    /// Authorize a Read Write Multiple Registers request
+    fn read_write_multiple_registers(
+        &self,
+        _unit_id: UnitId,
+        _read_range: AddressRange,
+        _write_range: AddressRange,
+        _role: &str,
+    ) -> Authorization {
+        Authorization::Deny
+    }
+
+    /// Authorize a Write Custom Function Code request
+    fn write_custom_function_code(&self, _value: CustomFunctionCode, _role: &str) -> Authorization {
         Authorization::Deny
     }
 }
@@ -303,6 +329,22 @@ impl AuthorizationHandler for ReadOnlyAuthorizationHandler {
         _role: &str,
     ) -> Authorization {
         Authorization::Deny
+    }
+
+    /// Authorize a Read Write Multiple Registers request
+    fn read_write_multiple_registers(
+            &self,
+            _unit_id: UnitId,
+            _read_range: AddressRange,
+            _write_range: AddressRange,
+            _role: &str,
+        ) -> Authorization {
+        Authorization::Allow
+    }
+
+    /// Authorize a Write Custom Function Code request
+    fn write_custom_function_code(&self, _value: CustomFunctionCode, _role: &str) -> Authorization {
+        Authorization::Allow
     }
 }
 

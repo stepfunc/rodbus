@@ -10,8 +10,10 @@ use crate::client::requests::read_bits::ReadBits;
 use crate::client::requests::read_registers::ReadRegisters;
 use crate::client::requests::write_multiple::MultipleWriteRequest;
 use crate::client::requests::write_single::SingleWrite;
+use crate::client::requests::read_write_multiple::MultipleReadWriteRequest;
+use crate::client::requests::write_custom_fc::WriteCustomFunctionCode;
 use crate::common::traits::Serialize;
-use crate::types::{Indexed, UnitId};
+use crate::types::{Indexed, UnitId, CustomFunctionCode};
 
 use scursor::{ReadCursor, WriteCursor};
 use std::time::Duration;
@@ -45,6 +47,8 @@ pub(crate) enum RequestDetails {
     WriteSingleRegister(SingleWrite<Indexed<u16>>),
     WriteMultipleCoils(MultipleWriteRequest<bool>),
     WriteMultipleRegisters(MultipleWriteRequest<u16>),
+    ReadWriteMultipleRegisters(MultipleReadWriteRequest<u16>),
+    WriteCustomFunctionCode(WriteCustomFunctionCode<CustomFunctionCode>),
 }
 
 impl Request {
@@ -129,6 +133,8 @@ impl RequestDetails {
             RequestDetails::WriteSingleRegister(_) => FunctionCode::WriteSingleRegister,
             RequestDetails::WriteMultipleCoils(_) => FunctionCode::WriteMultipleCoils,
             RequestDetails::WriteMultipleRegisters(_) => FunctionCode::WriteMultipleRegisters,
+            RequestDetails::ReadWriteMultipleRegisters(_) => FunctionCode::ReadWriteMultipleRegisters,
+            RequestDetails::WriteCustomFunctionCode(_) => FunctionCode::WriteCustomFunctionCode,
         }
     }
 
@@ -142,6 +148,8 @@ impl RequestDetails {
             RequestDetails::WriteSingleRegister(x) => x.failure(err),
             RequestDetails::WriteMultipleCoils(x) => x.failure(err),
             RequestDetails::WriteMultipleRegisters(x) => x.failure(err),
+            RequestDetails::ReadWriteMultipleRegisters(x) => x.failure(err),
+            RequestDetails::WriteCustomFunctionCode(x) => x.failure(err),
         }
     }
 
@@ -161,6 +169,12 @@ impl RequestDetails {
             RequestDetails::WriteMultipleCoils(x) => x.handle_response(cursor, function, decode),
             RequestDetails::WriteMultipleRegisters(x) => {
                 x.handle_response(cursor, function, decode)
+            },
+            RequestDetails::ReadWriteMultipleRegisters(x) => {
+                x.handle_response(cursor, function, decode)
+            },
+            RequestDetails::WriteCustomFunctionCode(x) => {
+                x.handle_response(cursor, function, decode)
             }
         }
     }
@@ -177,6 +191,8 @@ impl Serialize for RequestDetails {
             RequestDetails::WriteSingleRegister(x) => x.serialize(cursor),
             RequestDetails::WriteMultipleCoils(x) => x.serialize(cursor),
             RequestDetails::WriteMultipleRegisters(x) => x.serialize(cursor),
+            RequestDetails::ReadWriteMultipleRegisters(x) => x.serialize(cursor),
+            RequestDetails::WriteCustomFunctionCode(x) => x.serialize(cursor),
         }
     }
 }
@@ -240,6 +256,18 @@ impl std::fmt::Display for RequestDetailsDisplay<'_> {
                             write!(f, "\n{x}")?;
                         }
                     }
+                }
+                RequestDetails::ReadWriteMultipleRegisters(details) => {
+                    write!(f, "read_range: ({}) / ", details.request.read_range)?;
+                    write!(f, "write_range: ({})", details.request.write_range)?;
+                    if self.level.data_values() {
+                        for x in details.request.iter() {
+                            write!(f, "\n{x}")?;
+                        }
+                    }
+                }
+                RequestDetails::WriteCustomFunctionCode(details) => {
+                    write!(f, "{}", details.request)?;
                 }
             }
         }

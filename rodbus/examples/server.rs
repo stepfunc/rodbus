@@ -78,6 +78,16 @@ impl RequestHandler for SimpleHandler {
         }
     }
 
+    fn write_custom_function_code(&mut self, values: CustomFunctionCode) -> Result<(), ExceptionCode> {
+        let mut custom_fc_args = [0_u16; 4]; // i.e.: Voltage Hi = 0x02, Voltage Lo = 0x03, Current Hi = 0x04, Current Lo = 0x05
+        for (i, &value) in values.iter().enumerate() {
+            custom_fc_args[i] = value;
+        }
+        tracing::info!("processing custom function code arguments: {:?}", custom_fc_args);
+
+        Ok(())
+    }
+
     fn write_single_register(&mut self, value: Indexed<u16>) -> Result<(), ExceptionCode> {
         tracing::info!(
             "write single register, index: {} value: {}",
@@ -167,7 +177,7 @@ async fn run_tcp() -> Result<(), Box<dyn std::error::Error>> {
     // ANCHOR: tcp_server_create
     let server = rodbus::server::spawn_tcp_server_task(
         1,
-        "127.0.0.1:502".parse()?,
+        "127.0.0.1:10502".parse()?,
         map,
         AddressFilter::Any,
         DecodeLevel::default(),
@@ -206,7 +216,7 @@ async fn run_tls(tls_config: TlsServerConfig) -> Result<(), Box<dyn std::error::
     // ANCHOR: tls_server_create
     let server = rodbus::server::spawn_tls_server_task_with_authz(
         1,
-        "127.0.0.1:802".parse()?,
+        "127.0.0.1:10802".parse()?,
         map,
         ReadOnlyAuthorizationHandler::create(),
         tls_config,
@@ -281,8 +291,8 @@ async fn run_server(
                 server
                     .set_decode_level(DecodeLevel::new(
                         AppDecodeLevel::DataValues,
-                        FrameDecodeLevel::Header,
-                        PhysDecodeLevel::Length,
+                        FrameDecodeLevel::Payload,
+                        PhysDecodeLevel::Data,
                     ))
                     .await?;
             }
