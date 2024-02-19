@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 
 use crate::exception::ExceptionCode;
-use crate::server::{WriteCoils, WriteRegisters};
+use crate::server::{WriteCoils, WriteRegisters, ReadWriteRegisters};
 use crate::types::*;
 
 /// Trait implemented by the user to process requests received from the client
@@ -43,11 +43,6 @@ pub trait RequestHandler: Send + 'static {
         Err(ExceptionCode::IllegalFunction)
     }
 
-    /// Read single custom buffer or return an ExceptionCode
-    fn receive_custom_buffer(&self, _value: Indexed<u16>) -> Result<u16, ExceptionCode> {
-        Err(ExceptionCode::IllegalFunction)
-    }
-
     /// Write a single coil value
     fn write_single_coil(&mut self, _value: Indexed<bool>) -> Result<(), ExceptionCode> {
         Err(ExceptionCode::IllegalFunction)
@@ -65,6 +60,11 @@ pub trait RequestHandler: Send + 'static {
 
     /// Write multiple registers
     fn write_multiple_registers(&mut self, _values: WriteRegisters) -> Result<(), ExceptionCode> {
+        Err(ExceptionCode::IllegalFunction)
+    }
+
+    /// Read and write multiple registers
+    fn read_write_multiple_registers(&mut self, _values: ReadWriteRegisters) -> Result<(), ExceptionCode> {
         Err(ExceptionCode::IllegalFunction)
     }
 
@@ -186,15 +186,7 @@ pub trait AuthorizationHandler: Send + Sync + 'static {
     ) -> Authorization {
         Authorization::Deny
     }
-
-    /// Authorize a Read Custom Buffer request
-    fn receive_custom_buffer(
-        &self,
-        _value: Indexed<u16>,
-        _role: &str,
-    ) -> Authorization {
-        Authorization::Deny
-    }
+    
     /// Authorize a Read Holding Registers request
     fn read_holding_registers(
         &self,
@@ -240,6 +232,17 @@ pub trait AuthorizationHandler: Send + Sync + 'static {
         &self,
         _unit_id: UnitId,
         _range: AddressRange,
+        _role: &str,
+    ) -> Authorization {
+        Authorization::Deny
+    }
+
+    /// Authorize a Read Write Multiple Registers request
+    fn read_write_multiple_registers(
+        &self,
+        _unit_id: UnitId,
+        _read_range: AddressRange,
+        _write_range: AddressRange,
         _role: &str,
     ) -> Authorization {
         Authorization::Deny
@@ -326,6 +329,17 @@ impl AuthorizationHandler for ReadOnlyAuthorizationHandler {
         _role: &str,
     ) -> Authorization {
         Authorization::Deny
+    }
+
+    /// Authorize a Read Write Multiple Registers request
+    fn read_write_multiple_registers(
+            &self,
+            _unit_id: UnitId,
+            _read_range: AddressRange,
+            _write_range: AddressRange,
+            _role: &str,
+        ) -> Authorization {
+        Authorization::Allow
     }
 
     /// Authorize a Write Custom Function Code request

@@ -5,7 +5,7 @@ use crate::client::requests::read_bits::ReadBits;
 use crate::client::requests::read_registers::ReadRegisters;
 use crate::client::requests::write_multiple::{MultipleWriteRequest, WriteMultiple};
 use crate::client::requests::write_single::SingleWrite;
-use crate::client::requests::send_buffer::SendBuffer;
+use crate::client::requests::read_write_multiple::{MultipleReadWriteRequest, ReadWriteMultiple};
 use crate::client::requests::write_custom_fc::WriteCustomFunctionCode;
 use crate::error::*;
 use crate::types::{AddressRange, BitIterator, Indexed, RegisterIterator, UnitId, CustomFunctionCode};
@@ -166,21 +166,6 @@ impl Channel {
         rx.await?
     }
 
-    /// Send buffer to the server
-    pub async fn send_custom_buffer(
-        &mut self,
-        param: RequestParam,
-        request: Indexed<u16>,
-    ) -> Result<Indexed<u16>, RequestError> {
-        let (tx, rx) = tokio::sync::oneshot::channel::<Result<Indexed<u16>, RequestError>>();
-        let request = wrap(
-            param,
-            RequestDetails::SendCustomBuffers(SendBuffer::new(request, Promise::channel(tx))),
-        );
-        self.tx.send(request).await?;
-        rx.await?
-    }
-
     /// Write a Custom Function Code to the server
     pub async fn write_custom_function_code(
         &mut self,
@@ -257,6 +242,24 @@ impl Channel {
                 request,
                 Promise::channel(tx),
             )),
+        );
+        self.tx.send(request).await?;
+        rx.await?
+    }
+
+    /// Read & Write multiple contiguous registers on the server
+    pub async fn read_write_multiple_registers(
+        &mut self,
+        param: RequestParam,
+        request: ReadWriteMultiple<u16>,
+    ) -> Result<Vec<Indexed<u16>>, RequestError> {
+        let (tx, rx) = tokio::sync::oneshot::channel::<Result<Vec<Indexed<u16>>, RequestError>>();
+        let request = wrap(
+            param,
+            RequestDetails::ReadWriteMultipleRegisters(MultipleReadWriteRequest::new(
+                    request,
+                    Promise::channel(tx)
+                )),
         );
         self.tx.send(request).await?;
         rx.await?

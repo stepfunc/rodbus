@@ -83,11 +83,11 @@ impl RtuParser {
                 FunctionCode::ReadDiscreteInputs => LengthMode::Fixed(4),
                 FunctionCode::ReadHoldingRegisters => LengthMode::Fixed(4),
                 FunctionCode::ReadInputRegisters => LengthMode::Fixed(4),
-                FunctionCode::SendCustomBuffers => LengthMode::Offset(1),
                 FunctionCode::WriteSingleCoil => LengthMode::Fixed(4),
                 FunctionCode::WriteSingleRegister => LengthMode::Fixed(4),
                 FunctionCode::WriteMultipleCoils => LengthMode::Offset(5),
                 FunctionCode::WriteMultipleRegisters => LengthMode::Offset(5),
+                FunctionCode::ReadWriteMultipleRegisters => LengthMode::Offset(9),
                 FunctionCode::WriteCustomFunctionCode => LengthMode::Offset(1),
             },
             ParserType::Response => match function_code {
@@ -95,11 +95,11 @@ impl RtuParser {
                 FunctionCode::ReadDiscreteInputs => LengthMode::Offset(1),
                 FunctionCode::ReadHoldingRegisters => LengthMode::Offset(1),
                 FunctionCode::ReadInputRegisters => LengthMode::Offset(1),
-                FunctionCode::SendCustomBuffers => LengthMode::Offset(1),
                 FunctionCode::WriteSingleCoil => LengthMode::Fixed(4),
                 FunctionCode::WriteSingleRegister => LengthMode::Fixed(4),
                 FunctionCode::WriteMultipleCoils => LengthMode::Fixed(4),
                 FunctionCode::WriteMultipleRegisters => LengthMode::Fixed(4),
+                FunctionCode::ReadWriteMultipleRegisters => LengthMode::Fixed(4),
                 FunctionCode::WriteCustomFunctionCode => LengthMode::Offset(1),
             },
         }
@@ -349,21 +349,6 @@ mod tests {
         0x71, 0x86, // crc
     ];
 
-    const SEND_CUSTOM_BUFFER_REQUEST: &[u8] = &[
-        UNIT_ID, // unit id
-        0x44, // function code
-        0x02, // byte count   
-        0x01, 0xAB, // additonal data
-        0xC8, 0xD9, // crc
-    ];
-
-    const SEND_CUSTOM_BUFFER_RESPONSE: &[u8] = &[
-        UNIT_ID, // unit id
-        0x44,    // function code
-        0x01, // byte count
-        0xCD, // return value
-        0x88, 0x2C, // crc
-    ];
     const WRITE_SINGLE_COIL_REQUEST: &[u8] = &[
         UNIT_ID, // unit id
         0x05,    // function code
@@ -446,10 +431,6 @@ mod tests {
             FunctionCode::ReadInputRegisters,
             READ_INPUT_REGISTERS_REQUEST,
         ),
-        (
-            FunctionCode::SendCustomBuffers,
-            SEND_CUSTOM_BUFFER_REQUEST,
-        ),
         (FunctionCode::WriteSingleCoil, WRITE_SINGLE_COIL_REQUEST),
         (
             FunctionCode::WriteSingleRegister,
@@ -478,10 +459,6 @@ mod tests {
         (
             FunctionCode::ReadInputRegisters,
             READ_INPUT_REGISTERS_RESPONSE,
-        ),
-        (
-            FunctionCode::SendCustomBuffers,
-            SEND_CUSTOM_BUFFER_RESPONSE,
         ),
         (FunctionCode::WriteSingleCoil, WRITE_SINGLE_COIL_RESPONSE),
         (
