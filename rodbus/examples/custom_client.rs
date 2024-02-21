@@ -205,20 +205,20 @@ async fn run_channel(mut channel: Channel) -> Result<(), Box<dyn std::error::Err
             ["dd"] => {
                 channel.set_decode_level(DecodeLevel::nothing()).await?;
             }
-            ["scfc", length_str, values @ ..] => {
-                let length = u16::from_str_radix(length_str.trim_start_matches("0x"), 16).unwrap_or(0) as usize;
+            ["scfc", fc_str, values @ ..] => {
+                let fc = u8::from_str_radix(fc_str.trim_start_matches("0x"), 16).unwrap();
                 let values: Vec<u16> = values.iter().filter_map(|&v| u16::from_str_radix(v.trim_start_matches("0x"), 16).ok()).collect();
 
-                if values.len() == length {
+                if (fc >= 65 && fc <= 72) || (fc >= 100 && fc <= 110) {
                     let result = channel
                         .send_custom_function_code(
                             params,
-                            CustomFunctionCode::new(length, values)
+                            CustomFunctionCode::new(fc, values)
                         )
                         .await;
                     print_write_result(result);
                 } else {
-                    println!("Error: Length does not match the number of provided values");
+                    println!("Error: CFC number is not inside the range of 65-72 or 100-110.");
                 }
             }
             _ => println!("unknown command"),

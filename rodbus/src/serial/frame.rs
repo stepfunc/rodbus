@@ -87,7 +87,25 @@ impl RtuParser {
                 FunctionCode::WriteSingleRegister => LengthMode::Fixed(4),
                 FunctionCode::WriteMultipleCoils => LengthMode::Offset(5),
                 FunctionCode::WriteMultipleRegisters => LengthMode::Offset(5),
-                FunctionCode::SendCustomFunctionCode => LengthMode::Offset(1),
+                FunctionCode::SendCFC65 => LengthMode::Offset(1),
+                FunctionCode::SendCFC66 => LengthMode::Offset(1),
+                FunctionCode::SendCFC67 => LengthMode::Offset(1),
+                FunctionCode::SendCFC68 => LengthMode::Offset(1),
+                FunctionCode::SendCFC69 => LengthMode::Offset(1),
+                FunctionCode::SendCFC70 => LengthMode::Offset(1),
+                FunctionCode::SendCFC71 => LengthMode::Offset(1),
+                FunctionCode::SendCFC72 => LengthMode::Offset(1),
+                FunctionCode::SendCFC100 => LengthMode::Offset(1),
+                FunctionCode::SendCFC101 => LengthMode::Offset(1),
+                FunctionCode::SendCFC102 => LengthMode::Offset(1),
+                FunctionCode::SendCFC103 => LengthMode::Offset(1),
+                FunctionCode::SendCFC104 => LengthMode::Offset(1),
+                FunctionCode::SendCFC105 => LengthMode::Offset(1),
+                FunctionCode::SendCFC106 => LengthMode::Offset(1),
+                FunctionCode::SendCFC107 => LengthMode::Offset(1),
+                FunctionCode::SendCFC108 => LengthMode::Offset(1),
+                FunctionCode::SendCFC109 => LengthMode::Offset(1),
+                FunctionCode::SendCFC110 => LengthMode::Offset(1),
             },
             ParserType::Response => match function_code {
                 FunctionCode::ReadCoils => LengthMode::Offset(1),
@@ -98,7 +116,25 @@ impl RtuParser {
                 FunctionCode::WriteSingleRegister => LengthMode::Fixed(4),
                 FunctionCode::WriteMultipleCoils => LengthMode::Fixed(4),
                 FunctionCode::WriteMultipleRegisters => LengthMode::Fixed(4),
-                FunctionCode::SendCustomFunctionCode => LengthMode::Offset(1),
+                FunctionCode::SendCFC65 => LengthMode::Offset(1),
+                FunctionCode::SendCFC66 => LengthMode::Offset(1),
+                FunctionCode::SendCFC67 => LengthMode::Offset(1),
+                FunctionCode::SendCFC68 => LengthMode::Offset(1),
+                FunctionCode::SendCFC69 => LengthMode::Offset(1),
+                FunctionCode::SendCFC70 => LengthMode::Offset(1),
+                FunctionCode::SendCFC71 => LengthMode::Offset(1),
+                FunctionCode::SendCFC72 => LengthMode::Offset(1),
+                FunctionCode::SendCFC100 => LengthMode::Offset(1),
+                FunctionCode::SendCFC101 => LengthMode::Offset(1),
+                FunctionCode::SendCFC102 => LengthMode::Offset(1),
+                FunctionCode::SendCFC103 => LengthMode::Offset(1),
+                FunctionCode::SendCFC104 => LengthMode::Offset(1),
+                FunctionCode::SendCFC105 => LengthMode::Offset(1),
+                FunctionCode::SendCFC106 => LengthMode::Offset(1),
+                FunctionCode::SendCFC107 => LengthMode::Offset(1),
+                FunctionCode::SendCFC108 => LengthMode::Offset(1),
+                FunctionCode::SendCFC109 => LengthMode::Offset(1),
+                FunctionCode::SendCFC110 => LengthMode::Offset(1),
             },
         }
     }
@@ -347,21 +383,22 @@ mod tests {
         0x71, 0x86, // crc
     ];
 
-    const SEND_CUSTOM_FUNCTION_CODE_REQUEST: &[u8] = &[
+    const SEND_CFC_69_REQUEST: &[u8] = &[
         UNIT_ID, // unit id
-        0x44, // function code
-        0x08, // byte count (length of data)
+        0x45, // function code
+        0x08, // byte count
         0xC0, 0xDE, 0xCA, 0xFE, // data
         0xC8, 0xD9, // crc
     ];
 
-    const SEND_CUSTOM_FUNCTION_CODE_RESPONSE: &[u8] = &[
+    const SEND_CFC_69_RESPONSE: &[u8] = &[
         UNIT_ID, // unit id
-        0x44,    // function code
+        0x45,    // function code
         0x08, // byte count
         0xC0, 0xDE, 0xCA, 0xFE, // data
         0x88, 0x2C, // crc
     ];
+
     const WRITE_SINGLE_COIL_REQUEST: &[u8] = &[
         UNIT_ID, // unit id
         0x05,    // function code
@@ -445,8 +482,8 @@ mod tests {
             READ_INPUT_REGISTERS_REQUEST,
         ),
         (
-            FunctionCode::SendCustomFunctionCode,
-            SEND_CUSTOM_FUNCTION_CODE_REQUEST,
+            FunctionCode::SendCFC69,
+            SEND_CFC_69_REQUEST,
         ),
         (FunctionCode::WriteSingleCoil, WRITE_SINGLE_COIL_REQUEST),
         (
@@ -478,8 +515,8 @@ mod tests {
             READ_INPUT_REGISTERS_RESPONSE,
         ),
         (
-            FunctionCode::SendCustomFunctionCode,
-            SEND_CUSTOM_FUNCTION_CODE_RESPONSE,
+            FunctionCode::SendCFC69,
+            SEND_CFC_69_RESPONSE,
         ),
         (FunctionCode::WriteSingleCoil, WRITE_SINGLE_COIL_RESPONSE),
         (

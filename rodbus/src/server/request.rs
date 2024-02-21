@@ -65,7 +65,30 @@ impl<'a> Request<'a> {
             Request::WriteSingleRegister(_) => FunctionCode::WriteSingleRegister,
             Request::WriteMultipleCoils(_) => FunctionCode::WriteMultipleCoils,
             Request::WriteMultipleRegisters(_) => FunctionCode::WriteMultipleRegisters,
-            Request::SendCustomFunctionCode(_) => FunctionCode::SendCustomFunctionCode,
+            Request::SendCustomFunctionCode(x) => {
+                match x.function_code() {
+                    65 => FunctionCode::SendCFC65,
+                    66 => FunctionCode::SendCFC66,
+                    67 => FunctionCode::SendCFC67,
+                    68 => FunctionCode::SendCFC68,
+                    69 => FunctionCode::SendCFC69,
+                    70 => FunctionCode::SendCFC70,
+                    71 => FunctionCode::SendCFC71,
+                    72 => FunctionCode::SendCFC72,
+                    100 => FunctionCode::SendCFC100,
+                    101 => FunctionCode::SendCFC101,
+                    102 => FunctionCode::SendCFC102,
+                    103 => FunctionCode::SendCFC103,
+                    104 => FunctionCode::SendCFC104,
+                    105 => FunctionCode::SendCFC105,
+                    106 => FunctionCode::SendCFC106,
+                    107 => FunctionCode::SendCFC107,
+                    108 => FunctionCode::SendCFC108,
+                    109 => FunctionCode::SendCFC109,
+                    110 => FunctionCode::SendCFC110,
+                    _ => panic!("Invalid custom function code"),
+                }
+            },
         }
     }
 
@@ -207,9 +230,13 @@ impl<'a> Request<'a> {
                     RegisterIterator::parse_all(range, cursor)?,
                 )))
             }
-            FunctionCode::SendCustomFunctionCode => {
-                let x =
-                    Request::SendCustomFunctionCode(CustomFunctionCode::parse(cursor)?);
+            FunctionCode::SendCFC65 | FunctionCode::SendCFC66 | FunctionCode::SendCFC67 | FunctionCode::SendCFC68 | 
+            FunctionCode::SendCFC69 | FunctionCode::SendCFC70 | FunctionCode::SendCFC71 | FunctionCode::SendCFC72 | 
+            FunctionCode::SendCFC100 | FunctionCode::SendCFC101 | FunctionCode::SendCFC102 | FunctionCode::SendCFC103 | 
+            FunctionCode::SendCFC104 | FunctionCode::SendCFC105 | FunctionCode::SendCFC106 | FunctionCode::SendCFC107 | 
+            FunctionCode::SendCFC108 | FunctionCode::SendCFC109 | FunctionCode::SendCFC110 => {
+                let x = Request::SendCustomFunctionCode(CustomFunctionCode::parse(cursor)?);
+
                 cursor.expect_empty()?;
                 Ok(x)
             }

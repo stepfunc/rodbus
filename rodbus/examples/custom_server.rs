@@ -79,14 +79,18 @@ impl RequestHandler for SimpleHandler {
     }
 
     fn process_custom_function_code(&mut self, values: CustomFunctionCode<u16>) -> Result<(), ExceptionCode> {
-        let mut custom_fc_args = Vec::with_capacity(values.len()); // i.e.: Voltage Hi = 0x02, Voltage Lo = 0x03, Current Hi = 0x04, Current Lo = 0x05
-
-        for &item in values.iter() {
-            custom_fc_args.push(item);
+        tracing::info!("processing custom function code: {}, data: {:?}", values.function_code(), values.iter());
+        
+        match values.function_code() {
+            0x45 => {
+                tracing::info!("custom function code 0x45");
+                // call CFC69Handler.handle and return result
+                Ok(())
+            },
+            _ => {
+                return Err(ExceptionCode::IllegalFunction);
+            }
         }
-        tracing::info!("processing custom function code arguments: {:?}", custom_fc_args);
-
-        Ok(())
     }
 
     fn write_single_register(&mut self, value: Indexed<u16>) -> Result<(), ExceptionCode> {
@@ -292,8 +296,8 @@ async fn run_server(
                 server
                     .set_decode_level(DecodeLevel::new(
                         AppDecodeLevel::DataValues,
-                        FrameDecodeLevel::Header,
-                        PhysDecodeLevel::Length,
+                        FrameDecodeLevel::Payload,
+                        PhysDecodeLevel::Data,
                     ))
                     .await?;
             }

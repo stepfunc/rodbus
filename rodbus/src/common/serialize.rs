@@ -311,11 +311,13 @@ impl Loggable for CustomFunctionCode<u16> {
         if level.data_headers() {
             let mut cursor = ReadCursor::new(payload);
 
-            let len = match cursor.read_u16_be() {
-                Ok(value) => value as usize,
+            
+            let fc = match cursor.read_u8() {
+                Ok(value) => value,
                 Err(_) => return Ok(()),
             };
 
+            let len = cursor.remaining() / 2;
             let mut data = Vec::with_capacity(len);
 
             for _ in 0..len {
@@ -326,7 +328,7 @@ impl Loggable for CustomFunctionCode<u16> {
                 data.push(item);
             }
 
-            let custom_fc = CustomFunctionCode::<u16>::new(len, data);
+            let custom_fc = CustomFunctionCode::<u16>::new(fc, data);
 
             write!(f, "{:?}", custom_fc)?;
 

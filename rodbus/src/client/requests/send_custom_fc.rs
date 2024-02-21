@@ -68,22 +68,25 @@ where
 
 impl CustomFCOperation for CustomFunctionCode<u16> {
     fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
-        cursor.write_u16_be(self.len() as u16)?;
+        cursor.write_u8(self.function_code())?;
 
         for &item in self.iter() {
             cursor.write_u16_be(item)?;
         }
+
         Ok(())
     }
 
     fn parse(cursor: &mut ReadCursor) -> Result<Self, RequestError> {
-        let len = cursor.read_u16_be()? as usize;
-        let mut values = Vec::with_capacity(len);
+        let fc = cursor.read_u8()?;
+
+        let mut values = Vec::new();
+        let len = cursor.remaining() / 2;
         for _ in 0..len {
             values.push(cursor.read_u16_be()?);
         }
         cursor.expect_empty()?;
 
-        Ok(CustomFunctionCode::new(len, values))
+        Ok(CustomFunctionCode::new(fc, values))
     }
 }

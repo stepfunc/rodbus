@@ -131,7 +131,30 @@ impl RequestDetails {
             RequestDetails::WriteSingleRegister(_) => FunctionCode::WriteSingleRegister,
             RequestDetails::WriteMultipleCoils(_) => FunctionCode::WriteMultipleCoils,
             RequestDetails::WriteMultipleRegisters(_) => FunctionCode::WriteMultipleRegisters,
-            RequestDetails::SendCustomFunctionCode(_) => FunctionCode::SendCustomFunctionCode,
+            RequestDetails::SendCustomFunctionCode(x) => {
+                match x.request.function_code() {
+                    65 => FunctionCode::SendCFC65,
+                    66 => FunctionCode::SendCFC66,
+                    67 => FunctionCode::SendCFC67,
+                    68 => FunctionCode::SendCFC68,
+                    69 => FunctionCode::SendCFC69,
+                    70 => FunctionCode::SendCFC70,
+                    71 => FunctionCode::SendCFC71,
+                    72 => FunctionCode::SendCFC72,
+                    100 => FunctionCode::SendCFC100,
+                    101 => FunctionCode::SendCFC101,
+                    102 => FunctionCode::SendCFC102,
+                    103 => FunctionCode::SendCFC103,
+                    104 => FunctionCode::SendCFC104,
+                    105 => FunctionCode::SendCFC105,
+                    106 => FunctionCode::SendCFC106,
+                    107 => FunctionCode::SendCFC107,
+                    108 => FunctionCode::SendCFC108,
+                    109 => FunctionCode::SendCFC109,
+                    110 => FunctionCode::SendCFC110,
+                    _ => panic!("unsupported custom function code"),
+                }
+            },
         }
     }
 

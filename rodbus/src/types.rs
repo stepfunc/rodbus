@@ -88,7 +88,7 @@ pub(crate) struct RegisterIteratorDisplay<'a> {
 /// Custom Function Code
 #[derive(Clone, Debug, PartialEq)]
 pub struct CustomFunctionCode<T> {
-    len: usize,
+    fc: u8,
     data: Vec<T>,
 }
 
@@ -376,8 +376,13 @@ impl Default for UnitId {
 
 impl CustomFunctionCode<u16> {
     /// Create a new custom function code
-    pub fn new(len: usize, data: Vec<u16>) -> Self {
-        Self { len, data }
+    pub fn new(fc: u8, data: Vec<u16>) -> Self {
+        Self { fc, data }
+    }
+
+    /// Get the function code
+    pub fn function_code(&self) -> u8 {
+        self.fc
     }
 
     /// Get the length of the underlying vector
@@ -476,4 +481,5 @@ mod tests {
         assert!(UnitId::new(255).is_rtu_reserved());
         assert!(!UnitId::new(41).is_rtu_reserved());
     }
+
 }

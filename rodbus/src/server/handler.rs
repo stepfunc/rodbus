@@ -329,6 +329,15 @@ mod tests {
     impl RequestHandler for DefaultHandler {}
 
     #[test]
+    fn custom_fc() {
+        let mut handler = DefaultHandler {};
+        assert_eq!(
+            handler.process_custom_function_code(CustomFunctionCode::new(0x46, vec![0x01, 0x02, 0x03, 0x04])),
+            Err(ExceptionCode::IllegalFunction)
+        );
+    }
+
+    #[test]
     fn default_handler_returns_illegal_function() {
         let mut handler = DefaultHandler {};
         assert_eq!(handler.read_coil(0), Err(ExceptionCode::IllegalFunction));

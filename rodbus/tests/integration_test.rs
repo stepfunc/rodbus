@@ -236,7 +236,7 @@ async fn test_requests_and_responses() {
     );
     assert_eq!(
         channel
-            .send_custom_function_code(params, CustomFunctionCode::new(0x04, vec![0xC0DE, 0xCAFE, 0xC0DE, 0xCAFE]))
+            .send_custom_function_code(params, CustomFunctionCode::new(0x45, vec![0xC0DE, 0xCAFE, 0xC0DE, 0xCAFE]))
             .await
             .unwrap(),
         CustomFunctionCode::new(4, vec![0xC0DE, 0xCAFE, 0xC0DE, 0xCAFE])
