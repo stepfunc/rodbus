@@ -292,7 +292,7 @@ impl Serialize for WriteMultiple<u16> {
 
 impl Serialize for CustomFunctionCode<u16> {
     fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
-        cursor.write_u16_be(self.len() as u16)?;
+        cursor.write_u8(self.function_code())?;
 
         for &item in self.iter() {
             cursor.write_u16_be(item)?;
