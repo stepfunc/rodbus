@@ -67,25 +67,25 @@ impl<'a> Request<'a> {
             Request::WriteMultipleRegisters(_) => FunctionCode::WriteMultipleRegisters,
             Request::SendCustomFunctionCode(x) => {
                 match x.function_code() {
-                    65 => FunctionCode::SendCFC65,
-                    66 => FunctionCode::SendCFC66,
-                    67 => FunctionCode::SendCFC67,
-                    68 => FunctionCode::SendCFC68,
-                    69 => FunctionCode::SendCFC69,
-                    70 => FunctionCode::SendCFC70,
-                    71 => FunctionCode::SendCFC71,
-                    72 => FunctionCode::SendCFC72,
-                    100 => FunctionCode::SendCFC100,
-                    101 => FunctionCode::SendCFC101,
-                    102 => FunctionCode::SendCFC102,
-                    103 => FunctionCode::SendCFC103,
-                    104 => FunctionCode::SendCFC104,
-                    105 => FunctionCode::SendCFC105,
-                    106 => FunctionCode::SendCFC106,
-                    107 => FunctionCode::SendCFC107,
-                    108 => FunctionCode::SendCFC108,
-                    109 => FunctionCode::SendCFC109,
-                    110 => FunctionCode::SendCFC110,
+                    0x41 => FunctionCode::SendCFC65,
+                    0x42 => FunctionCode::SendCFC66,
+                    0x43 => FunctionCode::SendCFC67,
+                    0x44 => FunctionCode::SendCFC68,
+                    0x45 => FunctionCode::SendCFC69,
+                    0x46 => FunctionCode::SendCFC70,
+                    0x47 => FunctionCode::SendCFC71,
+                    0x48 => FunctionCode::SendCFC72,
+                    0x64 => FunctionCode::SendCFC100,
+                    0x65 => FunctionCode::SendCFC101,
+                    0x66 => FunctionCode::SendCFC102,
+                    0x67 => FunctionCode::SendCFC103,
+                    0x68 => FunctionCode::SendCFC104,
+                    0x69 => FunctionCode::SendCFC105,
+                    0x6A => FunctionCode::SendCFC106,
+                    0x6B => FunctionCode::SendCFC107,
+                    0x6C => FunctionCode::SendCFC108,
+                    0x6D => FunctionCode::SendCFC109,
+                    0x6E => FunctionCode::SendCFC110,
                     _ => panic!("Invalid custom function code"),
                 }
             },
@@ -168,7 +168,28 @@ impl<'a> Request<'a> {
                 write_result(function, header, writer, result, level)
             }
             Request::SendCustomFunctionCode(request) => {
-                let result = handler.process_custom_function_code(request.clone()).map(|_| request.clone());
+                let result = match function {
+                    FunctionCode::SendCFC65 => handler.process_cfc_65(request.clone()).map(|_| request.clone()),
+                    FunctionCode::SendCFC66 => handler.process_cfc_66(request.clone()).map(|_| request.clone()),
+                    FunctionCode::SendCFC67 => handler.process_cfc_67(request.clone()).map(|_| request.clone()),
+                    FunctionCode::SendCFC68 => handler.process_cfc_68(request.clone()).map(|_| request.clone()),
+                    FunctionCode::SendCFC69 => handler.process_cfc_69(request.clone()).map(|_| request.clone()),
+                    FunctionCode::SendCFC70 => handler.process_cfc_70(request.clone()).map(|_| request.clone()),
+                    FunctionCode::SendCFC71 => handler.process_cfc_71(request.clone()).map(|_| request.clone()),
+                    FunctionCode::SendCFC72 => handler.process_cfc_72(request.clone()).map(|_| request.clone()),
+                    FunctionCode::SendCFC100 => handler.process_cfc_100(request.clone()).map(|_| request.clone()),
+                    FunctionCode::SendCFC101 => handler.process_cfc_101(request.clone()).map(|_| request.clone()),
+                    FunctionCode::SendCFC102 => handler.process_cfc_102(request.clone()).map(|_| request.clone()),
+                    FunctionCode::SendCFC103 => handler.process_cfc_103(request.clone()).map(|_| request.clone()),
+                    FunctionCode::SendCFC104 => handler.process_cfc_104(request.clone()).map(|_| request.clone()),
+                    FunctionCode::SendCFC105 => handler.process_cfc_105(request.clone()).map(|_| request.clone()),
+                    FunctionCode::SendCFC106 => handler.process_cfc_106(request.clone()).map(|_| request.clone()),
+                    FunctionCode::SendCFC107 => handler.process_cfc_107(request.clone()).map(|_| request.clone()),
+                    FunctionCode::SendCFC108 => handler.process_cfc_108(request.clone()).map(|_| request.clone()),
+                    FunctionCode::SendCFC109 => handler.process_cfc_109(request.clone()).map(|_| request.clone()),
+                    FunctionCode::SendCFC110 => handler.process_cfc_110(request.clone()).map(|_| request.clone()),
+                    _ => Err(ExceptionCode::IllegalFunction),
+                };
                 write_result(function, header, writer, result, level)
             }
         }
@@ -236,7 +257,6 @@ impl<'a> Request<'a> {
             FunctionCode::SendCFC104 | FunctionCode::SendCFC105 | FunctionCode::SendCFC106 | FunctionCode::SendCFC107 | 
             FunctionCode::SendCFC108 | FunctionCode::SendCFC109 | FunctionCode::SendCFC110 => {
                 let x = Request::SendCustomFunctionCode(CustomFunctionCode::parse(cursor)?);
-
                 cursor.expect_empty()?;
                 Ok(x)
             }
