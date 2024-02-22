@@ -31,8 +31,9 @@ impl Parse for Indexed<u16> {
 impl Parse for CustomFunctionCode<u16> {
     fn parse(cursor: &mut ReadCursor) -> Result<Self, RequestError> {
         let fc = cursor.read_u8()?;
-        let mut values = Vec::new();
         let len = cursor.remaining() / 2;
+        let mut values = Vec::with_capacity(len);
+        
         for _ in 0..len {
             values.push(cursor.read_u16_be()?);
         }
