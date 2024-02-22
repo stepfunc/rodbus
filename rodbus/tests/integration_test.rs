@@ -12,8 +12,7 @@ struct Handler {
     pub coils: [bool; 10],
     pub discrete_inputs: [bool; 10],
     pub holding_registers: [u16; 10],
-    pub input_registers: [u16; 10],
-    pub custom_function_code: [u16; 5],
+    pub input_registers: [u16; 10]
 }
 
 impl Handler {
@@ -22,8 +21,7 @@ impl Handler {
             coils: [false; 10],
             discrete_inputs: [false; 10],
             holding_registers: [0; 10],
-            input_registers: [0; 10],
-            custom_function_code: [0; 5],
+            input_registers: [0; 10]
         }
     }
 }
@@ -97,16 +95,13 @@ impl RequestHandler for Handler {
         Ok(())
     }
 
-    fn process_custom_function_code(&mut self, values: CustomFunctionCode<u16>) -> Result<(), ExceptionCode> {
-        for (i, &value) in values.iter().enumerate() {
-            match self.custom_function_code.get_mut(i) {
-                Some(c) => *c = value,
-                None => return Err(ExceptionCode::IllegalDataAddress),
-            }
-        }
-        Ok(())  
+    fn process_cfc_69(&mut self, values: CustomFunctionCode<u16>) -> Result<CustomFunctionCode<u16>, ExceptionCode> {
+        tracing::info!("processing custom function code: {}, data: {:?}", values.function_code(), values.iter());
+        // increment each CFC value by 1 and return the result
+        let incremented_values = values.iter().map(|&x| x + 1).collect();
+        Ok(CustomFunctionCode::new(values.function_code(), incremented_values))
     }
-    }
+}
 
 async fn test_requests_and_responses() {
     let handler = Handler::new().wrap();
@@ -239,7 +234,7 @@ async fn test_requests_and_responses() {
             .send_custom_function_code(params, CustomFunctionCode::new(0x45, vec![0xC0DE, 0xCAFE, 0xC0DE, 0xCAFE]))
             .await
             .unwrap(),
-        CustomFunctionCode::new(4, vec![0xC0DE, 0xCAFE, 0xC0DE, 0xCAFE])
+        CustomFunctionCode::new(0x45, vec![0xC0DE, 0xCAFE, 0xC0DE, 0xCAFE])
     );
 }
 
