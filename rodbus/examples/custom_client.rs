@@ -145,7 +145,7 @@ fn get_ca_chain_config() -> Result<TlsClientConfig, Box<dyn std::error::Error>> 
     Ok(tls_config)
 }
 
-fn print_read_result<T>(result: Result<Vec<Indexed<T>>, RequestError>)
+/*fn print_read_result<T>(result: Result<Vec<Indexed<T>>, RequestError>)
 where
     T: std::fmt::Display,
 {
@@ -160,7 +160,7 @@ where
         }
         Err(err) => println!("read error: {err}"),
     }
-}
+}*/
 
 fn print_write_result<T>(result: Result<T, RequestError>) {
     match result {
