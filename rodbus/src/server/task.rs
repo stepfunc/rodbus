@@ -264,7 +264,31 @@ impl AuthorizationType {
             Request::WriteMultipleRegisters(x) => {
                 handler.write_multiple_registers(unit_id, x.range, role)
             }
-            Request::SendCustomFunctionCode(x) => handler.process_custom_function_code(x.clone(), role),
+            Request::SendCustomFunctionCode(x) => {
+                match x.function_code() {
+                    0x41 => handler.process_cfc_65(unit_id, x.clone(), role),
+                    0x42 => handler.process_cfc_66(unit_id, x.clone(), role),
+                    0x43 => handler.process_cfc_67(unit_id, x.clone(), role),
+                    0x44 => handler.process_cfc_68(unit_id, x.clone(), role),
+                    0x45 => handler.process_cfc_69(unit_id, x.clone(), role),
+                    0x46 => handler.process_cfc_70(unit_id, x.clone(), role),
+                    0x47 => handler.process_cfc_71(unit_id, x.clone(), role),
+                    0x48 => handler.process_cfc_72(unit_id, x.clone(), role),
+                    0x64 => handler.process_cfc_100(unit_id, x.clone(), role),
+                    0x65 => handler.process_cfc_101(unit_id, x.clone(), role),
+                    0x66 => handler.process_cfc_102(unit_id, x.clone(), role),
+                    0x67 => handler.process_cfc_103(unit_id, x.clone(), role),
+                    0x68 => handler.process_cfc_104(unit_id, x.clone(), role),
+                    0x69 => handler.process_cfc_105(unit_id, x.clone(), role),
+                    0x6A => handler.process_cfc_106(unit_id, x.clone(), role),
+                    0x6B => handler.process_cfc_107(unit_id, x.clone(), role),
+                    0x6C => handler.process_cfc_108(unit_id, x.clone(), role),
+                    0x6D => handler.process_cfc_109(unit_id, x.clone(), role),
+                    0x6E => handler.process_cfc_110(unit_id, x.clone(), role),
+                    _ => Authorization::Deny,
+                }
+
+            },
         }
     }
 
