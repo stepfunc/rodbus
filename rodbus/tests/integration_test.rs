@@ -95,7 +95,7 @@ impl RequestHandler for Handler {
         Ok(())
     }
 
-    fn process_cfc_69(&mut self, values: &CustomFunctionCode<u16>) -> Result<CustomFunctionCode<u16>, ExceptionCode> {
+    fn process_cfc_69(&mut self, values: CustomFunctionCode<u16>) -> Result<CustomFunctionCode<u16>, ExceptionCode> {
         tracing::info!("processing custom function code: {}, data: {:?}", values.function_code(), values.iter());
         // increment each CFC value by 1 and return the result
         let incremented_values = values.iter().map(|&x| x + 1).collect();

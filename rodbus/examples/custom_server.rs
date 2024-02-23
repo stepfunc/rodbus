@@ -78,7 +78,7 @@ impl RequestHandler for SimpleHandler {
         }
     }
 
-    fn process_cfc_69(&mut self, values: &CustomFunctionCode<u16>) -> Result<CustomFunctionCode<u16>, ExceptionCode> {
+    fn process_cfc_69(&mut self, values: CustomFunctionCode<u16>) -> Result<CustomFunctionCode<u16>, ExceptionCode> {
         tracing::info!("processing custom function code: {}", values.function_code());
         // increment each CFC value by 1 and return the result
         // Create a new vector to hold the incremented values

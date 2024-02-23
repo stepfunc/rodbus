@@ -64,97 +64,97 @@ pub trait RequestHandler: Send + 'static {
     }
 
     /// Write the CFC65 custom function code
-    fn process_cfc_65(&mut self, _values: CustomFunctionCode<u16>) -> Result<CustomFunctionCode<u16>, ExceptionCode> {
+    fn process_cfc_65(&mut self, _values: CustomFunctionCode) -> Result<CustomFunctionCode, ExceptionCode> {
         Err(ExceptionCode::IllegalFunction)
     }
 
     /// Write the CFC66 custom function code
-    fn process_cfc_66(&mut self, _values: CustomFunctionCode<u16>) -> Result<CustomFunctionCode<u16>, ExceptionCode> {
+    fn process_cfc_66(&mut self, _values: CustomFunctionCode) -> Result<CustomFunctionCode, ExceptionCode> {
         Err(ExceptionCode::IllegalFunction)
     }
 
     /// Write the CFC67 custom function code
-    fn process_cfc_67(&mut self, _values: CustomFunctionCode<u16>) -> Result<CustomFunctionCode<u16>, ExceptionCode> {
+    fn process_cfc_67(&mut self, _values: CustomFunctionCode) -> Result<CustomFunctionCode, ExceptionCode> {
         Err(ExceptionCode::IllegalFunction)
     }
 
     /// Write the CFC68 custom function code
-    fn process_cfc_68(&mut self, _values: CustomFunctionCode<u16>) -> Result<CustomFunctionCode<u16>, ExceptionCode> {
+    fn process_cfc_68(&mut self, _values: CustomFunctionCode) -> Result<CustomFunctionCode, ExceptionCode> {
         Err(ExceptionCode::IllegalFunction)
     }
 
     /// Write the CFC69 custom function code
-    fn process_cfc_69(&mut self, _values: &CustomFunctionCode<u16>) -> Result<CustomFunctionCode<u16>, ExceptionCode> {
+    fn process_cfc_69(&mut self, _values: CustomFunctionCode) -> Result<CustomFunctionCode, ExceptionCode> {
         Err(ExceptionCode::IllegalFunction)
     }
 
     /// Write the CFC70 custom function code
-    fn process_cfc_70(&mut self, _values: CustomFunctionCode<u16>) -> Result<CustomFunctionCode<u16>, ExceptionCode> {
+    fn process_cfc_70(&mut self, _values: CustomFunctionCode) -> Result<CustomFunctionCode, ExceptionCode> {
         Err(ExceptionCode::IllegalFunction)
     }
 
     /// Write the CFC71 custom function code
-    fn process_cfc_71(&mut self, _values: CustomFunctionCode<u16>) -> Result<CustomFunctionCode<u16>, ExceptionCode> {
+    fn process_cfc_71(&mut self, _values: CustomFunctionCode) -> Result<CustomFunctionCode, ExceptionCode> {
         Err(ExceptionCode::IllegalFunction)
     }
 
     /// Write the CFC72 custom function code
-    fn process_cfc_72(&mut self, _values: CustomFunctionCode<u16>) -> Result<CustomFunctionCode<u16>, ExceptionCode> {
+    fn process_cfc_72(&mut self, _values: CustomFunctionCode) -> Result<CustomFunctionCode, ExceptionCode> {
         Err(ExceptionCode::IllegalFunction)
     }
 
     /// Write the CFC100 custom function code
-    fn process_cfc_100(&mut self, _values: CustomFunctionCode<u16>) -> Result<CustomFunctionCode<u16>, ExceptionCode> {
+    fn process_cfc_100(&mut self, _values: CustomFunctionCode) -> Result<CustomFunctionCode, ExceptionCode> {
         Err(ExceptionCode::IllegalFunction)
     }
 
     /// Write the CFC7101 custom function code
-    fn process_cfc_101(&mut self, _values: CustomFunctionCode<u16>) -> Result<CustomFunctionCode<u16>, ExceptionCode> {
+    fn process_cfc_101(&mut self, _values: CustomFunctionCode) -> Result<CustomFunctionCode, ExceptionCode> {
         Err(ExceptionCode::IllegalFunction)
     }
 
     /// Write the CFC102 custom function code
-    fn process_cfc_102(&mut self, _values: CustomFunctionCode<u16>) -> Result<CustomFunctionCode<u16>, ExceptionCode> {
+    fn process_cfc_102(&mut self, _values: CustomFunctionCode) -> Result<CustomFunctionCode, ExceptionCode> {
         Err(ExceptionCode::IllegalFunction)
     }
 
     /// Write the CFC103 custom function code
-    fn process_cfc_103(&mut self, _values: CustomFunctionCode<u16>) -> Result<CustomFunctionCode<u16>, ExceptionCode> {
+    fn process_cfc_103(&mut self, _values: CustomFunctionCode) -> Result<CustomFunctionCode, ExceptionCode> {
         Err(ExceptionCode::IllegalFunction)
     }
 
     /// Write the CFC104 custom function code
-    fn process_cfc_104(&mut self, _values: CustomFunctionCode<u16>) -> Result<CustomFunctionCode<u16>, ExceptionCode> {
+    fn process_cfc_104(&mut self, _values: CustomFunctionCode) -> Result<CustomFunctionCode, ExceptionCode> {
         Err(ExceptionCode::IllegalFunction)
     }
 
     /// Write the CFC105 custom function code
-    fn process_cfc_105(&mut self, _values: CustomFunctionCode<u16>) -> Result<CustomFunctionCode<u16>, ExceptionCode> {
+    fn process_cfc_105(&mut self, _values: CustomFunctionCode) -> Result<CustomFunctionCode, ExceptionCode> {
         Err(ExceptionCode::IllegalFunction)
     }
 
     /// Write the CFC106 custom function code
-    fn process_cfc_106(&mut self, _values: CustomFunctionCode<u16>) -> Result<CustomFunctionCode<u16>, ExceptionCode> {
+    fn process_cfc_106(&mut self, _values: CustomFunctionCode) -> Result<CustomFunctionCode, ExceptionCode> {
         Err(ExceptionCode::IllegalFunction)
     }
 
     /// Write the CFC107 custom function code
-    fn process_cfc_107(&mut self, _values: CustomFunctionCode<u16>) -> Result<CustomFunctionCode<u16>, ExceptionCode> {
+    fn process_cfc_107(&mut self, _values: CustomFunctionCode) -> Result<CustomFunctionCode, ExceptionCode> {
         Err(ExceptionCode::IllegalFunction)
     }
 
     /// Write the CFC108 custom function code
-    fn process_cfc_108(&mut self, _values: CustomFunctionCode<u16>) -> Result<CustomFunctionCode<u16>, ExceptionCode> {
+    fn process_cfc_108(&mut self, _values: CustomFunctionCode) -> Result<CustomFunctionCode, ExceptionCode> {
         Err(ExceptionCode::IllegalFunction)
     }
 
     /// Write the CFC109 custom function code
-    fn process_cfc_109(&mut self, _values: CustomFunctionCode<u16>) -> Result<CustomFunctionCode<u16>, ExceptionCode> {
+    fn process_cfc_109(&mut self, _values: CustomFunctionCode) -> Result<CustomFunctionCode, ExceptionCode> {
         Err(ExceptionCode::IllegalFunction)
     }
 
     /// Write the CFC110 custom function code
-    fn process_cfc_110(&mut self, _values: CustomFunctionCode<u16>) -> Result<CustomFunctionCode<u16>, ExceptionCode> {
+    fn process_cfc_110(&mut self, _values: CustomFunctionCode) -> Result<CustomFunctionCode, ExceptionCode> {
         Err(ExceptionCode::IllegalFunction)
     }
 }
@@ -323,97 +323,97 @@ pub trait AuthorizationHandler: Send + Sync + 'static {
     }
 
     /// Authorize a Send CFC65 request
-    fn process_cfc_65(&self, _unit_id: UnitId, _value: CustomFunctionCode<u16>, _role: &str) -> Authorization {
+    fn process_cfc_65(&self, _unit_id: UnitId, _value: CustomFunctionCode, _role: &str) -> Authorization {
         Authorization::Deny
     }
 
     /// Authorize a Send CFC66 request
-    fn process_cfc_66(&self, _unit_id: UnitId, _value: CustomFunctionCode<u16>, _role: &str) -> Authorization {
+    fn process_cfc_66(&self, _unit_id: UnitId, _value: CustomFunctionCode, _role: &str) -> Authorization {
         Authorization::Deny
     }
 
     /// Authorize a Send CFC67 request
-    fn process_cfc_67(&self, _unit_id: UnitId, _value: CustomFunctionCode<u16>, _role: &str) -> Authorization {
+    fn process_cfc_67(&self, _unit_id: UnitId, _value: CustomFunctionCode, _role: &str) -> Authorization {
         Authorization::Deny
     }
 
     /// Authorize a Send CFC68 request
-    fn process_cfc_68(&self, _unit_id: UnitId, _value: CustomFunctionCode<u16>, _role: &str) -> Authorization {
+    fn process_cfc_68(&self, _unit_id: UnitId, _value: CustomFunctionCode, _role: &str) -> Authorization {
         Authorization::Deny
     }
 
     /// Authorize a Send CFC69 request
-    fn process_cfc_69(&self, _unit_id: UnitId, _value: CustomFunctionCode<u16>, _role: &str) -> Authorization {
+    fn process_cfc_69(&self, _unit_id: UnitId, _value: CustomFunctionCode, _role: &str) -> Authorization {
         Authorization::Deny
     }
 
     /// Authorize a Send CFC70 request
-    fn process_cfc_70(&self, _unit_id: UnitId, _value: CustomFunctionCode<u16>, _role: &str) -> Authorization {
+    fn process_cfc_70(&self, _unit_id: UnitId, _value: CustomFunctionCode, _role: &str) -> Authorization {
         Authorization::Deny
     }
 
     /// Authorize a Send CFC71 request
-    fn process_cfc_71(&self, _unit_id: UnitId, _value: CustomFunctionCode<u16>, _role: &str) -> Authorization {
+    fn process_cfc_71(&self, _unit_id: UnitId, _value: CustomFunctionCode, _role: &str) -> Authorization {
         Authorization::Deny
     }
 
     /// Authorize a Send CFC72 request
-    fn process_cfc_72(&self, _unit_id: UnitId, _value: CustomFunctionCode<u16>, _role: &str) -> Authorization {
+    fn process_cfc_72(&self, _unit_id: UnitId, _value: CustomFunctionCode, _role: &str) -> Authorization {
         Authorization::Deny
     }
 
     /// Authorize a Send CFC100 request
-    fn process_cfc_100(&self, _unit_id: UnitId, _value: CustomFunctionCode<u16>, _role: &str) -> Authorization {
+    fn process_cfc_100(&self, _unit_id: UnitId, _value: CustomFunctionCode, _role: &str) -> Authorization {
         Authorization::Deny
     }
 
     /// Authorize a Send CFC101 request
-    fn process_cfc_101(&self, _unit_id: UnitId, _value: CustomFunctionCode<u16>, _role: &str) -> Authorization {
+    fn process_cfc_101(&self, _unit_id: UnitId, _value: CustomFunctionCode, _role: &str) -> Authorization {
         Authorization::Deny
     }
 
     /// Authorize a Send CFC102 request
-    fn process_cfc_102(&self, _unit_id: UnitId, _value: CustomFunctionCode<u16>, _role: &str) -> Authorization {
+    fn process_cfc_102(&self, _unit_id: UnitId, _value: CustomFunctionCode, _role: &str) -> Authorization {
         Authorization::Deny
     }
 
     /// Authorize a Send CFC103 request
-    fn process_cfc_103(&self, _unit_id: UnitId, _value: CustomFunctionCode<u16>, _role: &str) -> Authorization {
+    fn process_cfc_103(&self, _unit_id: UnitId, _value: CustomFunctionCode, _role: &str) -> Authorization {
         Authorization::Deny
     }
 
     /// Authorize a Send CFC104 request
-    fn process_cfc_104(&self, _unit_id: UnitId, _value: CustomFunctionCode<u16>, _role: &str) -> Authorization {
+    fn process_cfc_104(&self, _unit_id: UnitId, _value: CustomFunctionCode, _role: &str) -> Authorization {
         Authorization::Deny
     }
 
     /// Authorize a Send CFC105 request
-    fn process_cfc_105(&self, _unit_id: UnitId, _value: CustomFunctionCode<u16>, _role: &str) -> Authorization {
+    fn process_cfc_105(&self, _unit_id: UnitId, _value: CustomFunctionCode, _role: &str) -> Authorization {
         Authorization::Deny
     }
 
     /// Authorize a Send CFC106 request
-    fn process_cfc_106(&self, _unit_id: UnitId, _value: CustomFunctionCode<u16>, _role: &str) -> Authorization {
+    fn process_cfc_106(&self, _unit_id: UnitId, _value: CustomFunctionCode, _role: &str) -> Authorization {
         Authorization::Deny
     }
 
     /// Authorize a Send CFC107 request
-    fn process_cfc_107(&self, _unit_id: UnitId, _value: CustomFunctionCode<u16>, _role: &str) -> Authorization {
+    fn process_cfc_107(&self, _unit_id: UnitId, _value: CustomFunctionCode, _role: &str) -> Authorization {
         Authorization::Deny
     }
 
     /// Authorize a Send CFC108 request
-    fn process_cfc_108(&self, _unit_id: UnitId, _value: CustomFunctionCode<u16>, _role: &str) -> Authorization {
+    fn process_cfc_108(&self, _unit_id: UnitId, _value: CustomFunctionCode, _role: &str) -> Authorization {
         Authorization::Deny
     }
 
     /// Authorize a Send CFC109 request
-    fn process_cfc_109(&self, _unit_id: UnitId, _value: CustomFunctionCode<u16>, _role: &str) -> Authorization {
+    fn process_cfc_109(&self, _unit_id: UnitId, _value: CustomFunctionCode, _role: &str) -> Authorization {
         Authorization::Deny
     }
 
     /// Authorize a Send CFC110 request
-    fn process_cfc_110(&self, _unit_id: UnitId, _value: CustomFunctionCode<u16>, _role: &str) -> Authorization {
+    fn process_cfc_110(&self, _unit_id: UnitId, _value: CustomFunctionCode, _role: &str) -> Authorization {
         Authorization::Deny
     }
 }
@@ -496,97 +496,97 @@ impl AuthorizationHandler for ReadOnlyAuthorizationHandler {
     }
 
     /// Authorize a Send CFC65 request
-    fn process_cfc_65(&self, _unit_id: UnitId, _value: CustomFunctionCode<u16>, _role: &str) -> Authorization {
+    fn process_cfc_65(&self, _unit_id: UnitId, _value: CustomFunctionCode, _role: &str) -> Authorization {
         Authorization::Allow
     }
 
     /// Authorize a Send CFC66 request
-    fn process_cfc_66(&self, _unit_id: UnitId, _value: CustomFunctionCode<u16>, _role: &str) -> Authorization {
+    fn process_cfc_66(&self, _unit_id: UnitId, _value: CustomFunctionCode, _role: &str) -> Authorization {
         Authorization::Allow
     }
 
     /// Authorize a Send CFC67 request
-    fn process_cfc_67(&self, _unit_id: UnitId, _value: CustomFunctionCode<u16>, _role: &str) -> Authorization {
+    fn process_cfc_67(&self, _unit_id: UnitId, _value: CustomFunctionCode, _role: &str) -> Authorization {
         Authorization::Allow
     }
 
     /// Authorize a Send CFC68 request
-    fn process_cfc_68(&self, _unit_id: UnitId, _value: CustomFunctionCode<u16>, _role: &str) -> Authorization {
+    fn process_cfc_68(&self, _unit_id: UnitId, _value: CustomFunctionCode, _role: &str) -> Authorization {
         Authorization::Allow
     }
 
     /// Authorize a Send CFC69 request
-    fn process_cfc_69(&self, _unit_id: UnitId, _value: CustomFunctionCode<u16>, _role: &str) -> Authorization {
+    fn process_cfc_69(&self, _unit_id: UnitId, _value: CustomFunctionCode, _role: &str) -> Authorization {
         Authorization::Allow
     }
 
     /// Authorize a Send CFC70 request
-    fn process_cfc_70(&self, _unit_id: UnitId, _value: CustomFunctionCode<u16>, _role: &str) -> Authorization {
+    fn process_cfc_70(&self, _unit_id: UnitId, _value: CustomFunctionCode, _role: &str) -> Authorization {
         Authorization::Allow
     }
 
     /// Authorize a Send CFC71 request
-    fn process_cfc_71(&self, _unit_id: UnitId, _value: CustomFunctionCode<u16>, _role: &str) -> Authorization {
+    fn process_cfc_71(&self, _unit_id: UnitId, _value: CustomFunctionCode, _role: &str) -> Authorization {
         Authorization::Allow
     }
 
     /// Authorize a Send CFC72 request
-    fn process_cfc_72(&self, _unit_id: UnitId, _value: CustomFunctionCode<u16>, _role: &str) -> Authorization {
+    fn process_cfc_72(&self, _unit_id: UnitId, _value: CustomFunctionCode, _role: &str) -> Authorization {
         Authorization::Allow
     }
 
     /// Authorize a Send CFC100 request
-    fn process_cfc_100(&self, _unit_id: UnitId, _value: CustomFunctionCode<u16>, _role: &str) -> Authorization {
+    fn process_cfc_100(&self, _unit_id: UnitId, _value: CustomFunctionCode, _role: &str) -> Authorization {
         Authorization::Allow
     }
 
     /// Authorize a Send CFC101 request
-    fn process_cfc_101(&self, _unit_id: UnitId, _value: CustomFunctionCode<u16>, _role: &str) -> Authorization {
+    fn process_cfc_101(&self, _unit_id: UnitId, _value: CustomFunctionCode, _role: &str) -> Authorization {
         Authorization::Allow
     }
 
     /// Authorize a Send CFC102 request
-    fn process_cfc_102(&self, _unit_id: UnitId, _value: CustomFunctionCode<u16>, _role: &str) -> Authorization {
+    fn process_cfc_102(&self, _unit_id: UnitId, _value: CustomFunctionCode, _role: &str) -> Authorization {
         Authorization::Allow
     }
 
     /// Authorize a Send CFC103 request
-    fn process_cfc_103(&self, _unit_id: UnitId, _value: CustomFunctionCode<u16>, _role: &str) -> Authorization {
+    fn process_cfc_103(&self, _unit_id: UnitId, _value: CustomFunctionCode, _role: &str) -> Authorization {
         Authorization::Allow
     }
 
     /// Authorize a Send CFC104 request
-    fn process_cfc_104(&self, _unit_id: UnitId, _value: CustomFunctionCode<u16>, _role: &str) -> Authorization {
+    fn process_cfc_104(&self, _unit_id: UnitId, _value: CustomFunctionCode, _role: &str) -> Authorization {
         Authorization::Allow
     }
 
     /// Authorize a Send CFC105 request
-    fn process_cfc_105(&self, _unit_id: UnitId, _value: CustomFunctionCode<u16>, _role: &str) -> Authorization {
+    fn process_cfc_105(&self, _unit_id: UnitId, _value: CustomFunctionCode, _role: &str) -> Authorization {
         Authorization::Allow
     }
 
     /// Authorize a Send CFC106 request
-    fn process_cfc_106(&self, _unit_id: UnitId, _value: CustomFunctionCode<u16>, _role: &str) -> Authorization {
+    fn process_cfc_106(&self, _unit_id: UnitId, _value: CustomFunctionCode, _role: &str) -> Authorization {
         Authorization::Allow
     }
 
     /// Authorize a Send CFC107 request
-    fn process_cfc_107(&self, _unit_id: UnitId, _value: CustomFunctionCode<u16>, _role: &str) -> Authorization {
+    fn process_cfc_107(&self, _unit_id: UnitId, _value: CustomFunctionCode, _role: &str) -> Authorization {
         Authorization::Allow
     }
 
     /// Authorize a Send CFC108 request
-    fn process_cfc_108(&self, _unit_id: UnitId, _value: CustomFunctionCode<u16>, _role: &str) -> Authorization {
+    fn process_cfc_108(&self, _unit_id: UnitId, _value: CustomFunctionCode, _role: &str) -> Authorization {
         Authorization::Allow
     }
 
     /// Authorize a Send CFC109 request
-    fn process_cfc_109(&self, _unit_id: UnitId, _value: CustomFunctionCode<u16>, _role: &str) -> Authorization {
+    fn process_cfc_109(&self, _unit_id: UnitId, _value: CustomFunctionCode, _role: &str) -> Authorization {
         Authorization::Allow
     }
 
     /// Authorize a Send CFC110 request
-    fn process_cfc_110(&self, _unit_id: UnitId, _value: CustomFunctionCode<u16>, _role: &str) -> Authorization {
+    fn process_cfc_110(&self, _unit_id: UnitId, _value: CustomFunctionCode, _role: &str) -> Authorization {
         Authorization::Allow
     }
 }
@@ -624,7 +624,7 @@ mod tests {
         );
 
         assert_eq!(
-            handler.process_cfc_69(&CustomFunctionCode::new(0x45, vec![0x01, 0x02, 0x03, 0x04])),
+            handler.process_cfc_69(CustomFunctionCode::new(0x45, vec![0x01, 0x02, 0x03, 0x04])),
             Err(ExceptionCode::IllegalFunction)
         );
         assert_eq!(

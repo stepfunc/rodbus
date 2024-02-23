@@ -21,7 +21,7 @@ pub(crate) enum Request<'a> {
     WriteSingleRegister(Indexed<u16>),
     WriteMultipleCoils(WriteCoils<'a>),
     WriteMultipleRegisters(WriteRegisters<'a>),
-    SendCustomFunctionCode(CustomFunctionCode<u16>),
+    SendCustomFunctionCode(CustomFunctionCode),
 }
 
 /// All requests that support broadcast

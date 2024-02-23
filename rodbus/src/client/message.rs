@@ -46,7 +46,7 @@ pub(crate) enum RequestDetails {
     WriteSingleRegister(SingleWrite<Indexed<u16>>),
     WriteMultipleCoils(MultipleWriteRequest<bool>),
     WriteMultipleRegisters(MultipleWriteRequest<u16>),
-    SendCustomFunctionCode(CustomFCRequest<CustomFunctionCode<u16>>),
+    SendCustomFunctionCode(CustomFCRequest<CustomFunctionCode>),
 }
 
 impl Request {

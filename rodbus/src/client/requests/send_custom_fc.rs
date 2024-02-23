@@ -66,7 +66,7 @@ where
     }
 }
 
-impl CustomFCOperation for CustomFunctionCode<u16> {
+impl CustomFCOperation for CustomFunctionCode {
     fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
         cursor.write_u8(self.function_code())?;
 
