@@ -270,7 +270,7 @@ impl AuthorizationType {
                     0x42 => handler.process_cfc_66(unit_id, x.clone(), role),
                     0x43 => handler.process_cfc_67(unit_id, x.clone(), role),
                     0x44 => handler.process_cfc_68(unit_id, x.clone(), role),
-                    0x45 => handler.process_cfc_69(unit_id, x.clone(), role),
+                    0x45 => handler.process_cfc_69(unit_id, *x, role),
                     0x46 => handler.process_cfc_70(unit_id, x.clone(), role),
                     0x47 => handler.process_cfc_71(unit_id, x.clone(), role),
                     0x48 => handler.process_cfc_72(unit_id, x.clone(), role),

@@ -78,11 +78,17 @@ impl RequestHandler for SimpleHandler {
         }
     }
 
-    fn process_cfc_69(&mut self, values: CustomFunctionCode<u16>) -> Result<CustomFunctionCode<u16>, ExceptionCode> {
+    fn process_cfc_69(&mut self, values: &CustomFunctionCode<u16>) -> Result<CustomFunctionCode<u16>, ExceptionCode> {
         tracing::info!("processing custom function code: {}", values.function_code());
         // increment each CFC value by 1 and return the result
-        let incremented_values = values.iter().map(|v| v + 1).collect();
-        Ok(CustomFunctionCode::new(values.function_code(), incremented_values))
+        // Create a new vector to hold the incremented values
+        let incremented_data = values.iter().map(|&val| val + 1).collect();
+
+        // Create a new CustomFunctionCode with the incremented data
+        let modified_values = CustomFunctionCode::new(values.function_code(), incremented_data);
+
+        Ok(modified_values)
+        //Ok(&CustomFunctionCode::new(values.function_code(), incremented_values))
     }
 
     fn write_single_register(&mut self, value: Indexed<u16>) -> Result<(), ExceptionCode> {
