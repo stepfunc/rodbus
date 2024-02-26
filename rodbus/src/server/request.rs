@@ -139,7 +139,8 @@ impl<'a> Request<'a> {
                 //
                 // And then write them AFTER writing the info objects
                 let device_information = DeviceIdentificationResponse::new(|| {
-                    handler.read_device_info(read.mei_code, read.dev_id, read.obj_id)
+                    let object_data = handler.read_device_info(read.mei_code, read.dev_id, read.obj_id);
+                    todo!()
                 });
                 writer.format_reply(header, function, &device_information, level)
             }
