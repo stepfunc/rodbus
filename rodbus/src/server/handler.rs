@@ -56,7 +56,7 @@ pub trait RequestHandler: Send + 'static {
         _mei_code: MeiCode,
         _read_dev_id: ReadDeviceCode,
         _object_id: Option<u8>,
-    ) -> Result<DeviceInfo, ExceptionCode> {
+    ) -> Result<ServerDeviceInfo, ExceptionCode> {
         Err(ExceptionCode::IllegalFunction)
     }
 
