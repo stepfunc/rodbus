@@ -25,17 +25,29 @@ pub(crate) enum SessionError {
     Shutdown,
 }
 
+impl From<Shutdown> for SessionError {
+    fn from(_: Shutdown) -> Self {
+        SessionError::Shutdown
+    }
+}
+
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub(crate) enum StateChange {
     Disable,
     Shutdown,
 }
 
+impl From<Shutdown> for StateChange {
+    fn from(_: Shutdown) -> Self {
+        StateChange::Shutdown
+    }
+}
+
 impl std::fmt::Display for SessionError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             SessionError::IoError(err) => {
-                write!(f, "i/o error: {err}")
+                write!(f, "I/O error: {err}")
             }
             SessionError::BadFrame => {
                 write!(f, "Parser encountered a bad frame")
@@ -51,9 +63,9 @@ impl std::fmt::Display for SessionError {
 }
 
 impl SessionError {
-    pub(crate) fn from(err: &RequestError) -> Option<Self> {
+    pub(crate) fn from_request_err(err: RequestError) -> Option<Self> {
         match err {
-            RequestError::Io(x) => Some(SessionError::IoError(*x)),
+            RequestError::Io(x) => Some(SessionError::IoError(x)),
             RequestError::BadFrame(_) => Some(SessionError::BadFrame),
             // all other errors don't kill the loop
             _ => None,
@@ -62,7 +74,7 @@ impl SessionError {
 }
 
 pub(crate) struct ClientLoop {
-    rx: tokio::sync::mpsc::Receiver<Command>,
+    rx: crate::channel::Receiver<Command>,
     writer: FrameWriter,
     reader: FramedReader,
     tx_id: TxId,
@@ -72,7 +84,7 @@ pub(crate) struct ClientLoop {
 
 impl ClientLoop {
     pub(crate) fn new(
-        rx: tokio::sync::mpsc::Receiver<Command>,
+        rx: crate::channel::Receiver<Command>,
         writer: FrameWriter,
         reader: FramedReader,
         decode: DecodeLevel,
@@ -118,31 +130,30 @@ impl ClientLoop {
 
     pub(crate) async fn run(&mut self, io: &mut PhysLayer) -> SessionError {
         loop {
-            tokio::select! {
-                frame = self.reader.next_frame(io, self.decode) => {
-                    match frame {
-                        Ok(frame) => {
-                            tracing::warn!("Received unexpected frame while idle: {:?}", frame.header);
-                        }
-                        Err(err) => {
-                            if let Some(err) = SessionError::from(&err) {
-                                tracing::warn!("{}", err);
-                                return err;
-                            }
-                        }
+            if let Err(err) = self.poll(io).await {
+                tracing::warn!("ending session: {}", err);
+                return err;
+            }
+        }
+    }
+
+    pub(crate) async fn poll(&mut self, io: &mut PhysLayer) -> Result<(), SessionError> {
+        tokio::select! {
+            frame = self.reader.next_frame(io, self.decode) => {
+                match frame {
+                    Ok(frame) => {
+                        tracing::warn!("Received unexpected frame while idle: {:?}", frame.header);
+                        Ok(())
+                    }
+                    Err(err) => match SessionError::from_request_err(err) {
+                        Some(err) => Err(err),
+                        None => Ok(()),
                     }
                 }
-                cmd = self.rx.recv() => {
-                    match cmd {
-                        // other side has closed the request channel
-                        None => return SessionError::Shutdown,
-                        Some(cmd) => {
-                            if let Err(err) = self.run_cmd(cmd, io).await {
-                                return err;
-                            }
-                        }
-                    }
-                }
+            }
+            res = self.rx.recv() => {
+                let cmd: Command = res?;
+                self.run_cmd(cmd, io).await
             }
         }
     }
@@ -166,7 +177,7 @@ impl ClientLoop {
 
             // some request errors are a session error that will
             // bubble up and close the session
-            if let Some(err) = SessionError::from(&err) {
+            if let Some(err) = SessionError::from_request_err(err) {
                 return Err(err);
             }
         }
@@ -240,21 +251,20 @@ impl ClientLoop {
     }
 
     async fn fail_next_request(&mut self) -> Result<(), StateChange> {
-        match self.rx.recv().await {
-            None => return Err(StateChange::Disable),
-            Some(cmd) => match cmd {
-                Command::Request(mut req) => {
-                    req.details.fail(RequestError::NoConnection);
+        match self.rx.recv().await? {
+            Command::Request(mut req) => {
+                req.details.fail(RequestError::NoConnection);
+                Ok(())
+            }
+            Command::Setting(x) => {
+                self.change_setting(x);
+                if self.enabled {
+                    Ok(())
+                } else {
+                    Err(StateChange::Disable)
                 }
-                Command::Setting(x) => {
-                    self.change_setting(x);
-                    if !self.enabled {
-                        return Err(StateChange::Disable);
-                    }
-                }
-            },
+            }
         }
-        Ok(())
     }
 
     pub(crate) async fn fail_requests_for(
@@ -300,7 +310,7 @@ mod tests {
         let (tx, rx) = tokio::sync::mpsc::channel(16);
         let (mock, io_handle) = sfio_tokio_mock_io::mock();
         let mut client_loop = ClientLoop::new(
-            rx,
+            rx.into(),
             FrameWriter::tcp(),
             FramedReader::tcp(),
             DecodeLevel::default().application(AppDecodeLevel::DataValues),

@@ -30,7 +30,7 @@ pub(crate) struct ReadBitsRange {
 }
 
 #[derive(Debug, Copy, Clone, PartialEq)]
-///MODBUS Encapsulated Interface 
+///MODBUS Encapsulated Interface
 pub enum MeiCode {
     ///Can Open General Reference (Unused)
     CanOpenGeneralReference = 0x0D,
@@ -73,7 +73,7 @@ pub enum ReadDeviceCode {
 }
 
 impl TryFrom<u8> for ReadDeviceCode {
-    type Error=AduParseError;
+    type Error = AduParseError;
 
     fn try_from(value: u8) -> Result<Self, Self::Error> {
         match value {
@@ -81,7 +81,7 @@ impl TryFrom<u8> for ReadDeviceCode {
             0x02 => Ok(ReadDeviceCode::RegularStreaming),
             0x03 => Ok(ReadDeviceCode::ExtendedStreaming),
             0x04 => Ok(ReadDeviceCode::Specific),
-            value => Err(AduParseError::DeviceCodeOutOfRange(value))
+            value => Err(AduParseError::DeviceCodeOutOfRange(value)),
         }
     }
 }
@@ -104,7 +104,7 @@ pub enum DeviceConformityLevel {
 }
 
 impl TryFrom<u8> for DeviceConformityLevel {
-    type Error=AduParseError;
+    type Error = AduParseError;
 
     fn try_from(value: u8) -> Result<Self, Self::Error> {
         match value {
@@ -114,7 +114,7 @@ impl TryFrom<u8> for DeviceConformityLevel {
             0x81 => Ok(DeviceConformityLevel::BasicIdentificationIndividual),
             0x82 => Ok(DeviceConformityLevel::RegularIdentificationIndividual),
             0x83 => Ok(DeviceConformityLevel::ExtendedIdentificationIndividual),
-            value => Err(AduParseError::DeviceConformityLevelOutOfRange(value))
+            value => Err(AduParseError::DeviceConformityLevelOutOfRange(value)),
         }
     }
 }
@@ -125,12 +125,10 @@ impl std::fmt::Display for ReadDeviceCode {
             Self::BasicStreaming => write!(f, " (READ DEVICE ID CODE) Basic Streaming"),
             Self::RegularStreaming => write!(f, " (READ DEVICE ID CODE) Regular Streaming"),
             Self::ExtendedStreaming => write!(f, " (READ DEVICE ID CODE) Extended Streaming"),
-            Self::Specific => write!(f, " (READ DEVICE ID CODE) Specific")
+            Self::Specific => write!(f, " (READ DEVICE ID CODE) Specific"),
         }
     }
 }
-
-
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 ///MODBUS client request for retrieving information about a Device.
@@ -156,15 +154,53 @@ impl ReadDeviceRequest {
 
 impl std::fmt::Display for ReadDeviceRequest {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}, {}, {:?}",self.mei_code,self.dev_id, if let Some(value) = self.obj_id { value } else { 0x00 })
+        write!(
+            f,
+            "{}, {}, {:?}",
+            self.mei_code,
+            self.dev_id,
+            if let Some(value) = self.obj_id {
+                value
+            } else {
+                0x00
+            }
+        )
     }
+}
+
+/// String information objects defined by the standard
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum StringInfoObject {
+    /// Name of the vendor of the device
+    VendorName,
+    /// Product code
+    ProductCode,
+    /// Version of the software on the device
+    MajorMinorRevision,
+    /// URL of the vendor's website
+    VendorUrl,
+    /// Name of the produce
+    ProductName,
+    /// Model of the product
+    ModelName,
+    /// User application name
+    UserApplicationName,
+}
+
+/// Type that models information objects defined by the standard and private types
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum InfoObject {
+    /// The type is string defined by the standard
+    DefinedString(StringInfoObject, String),
+    /// The type is a reserved or private type
+    Other(u8, Vec<u8>),
 }
 
 #[derive(Debug, PartialEq)]
 ///Data that is returned by a modbus server can contain ascii and in some cases other types of data. This data structure converts the raw bytes into ASCII Strings
 /// if possible. In the case where the data cannot be converted into ASCII due to unknown bytes we return the raw bytes to the user.
 pub enum ModbusInfoObject {
-    ///Type that represents a ascii string. used for everything that comes from the basic and regular storage of the server (see modbus specification page 43 object table)
+    ///Type that represents an ascii string. used for everything that comes from the basic and regular storage of the server (see modbus specification page 43 object table)
     ModbusString(u8, String),
     ///Stores a unknown piece of binary data returned by the server. cast these into ascii strings at your own discretion. used for everything that comes from the extended storage (see modbus specification page 43 object table)
     ModbusRawData(u8, Vec<u8>),
@@ -173,13 +209,20 @@ pub enum ModbusInfoObject {
 impl From<RawModbusInfoObject> for ModbusInfoObject {
     fn from(value: RawModbusInfoObject) -> Self {
         match value.device_code {
-            ReadDeviceCode::BasicStreaming | ReadDeviceCode::RegularStreaming if value.raw_data.is_ascii() => Self::ModbusString(value.index, String::from_utf8(value.raw_data).unwrap()),
-            ReadDeviceCode::BasicStreaming | ReadDeviceCode::RegularStreaming => Self::ModbusRawData(value.index, value.raw_data.clone()),
-            ReadDeviceCode::ExtendedStreaming | ReadDeviceCode::Specific => Self::ModbusRawData(value.index, value.raw_data.clone()),
+            ReadDeviceCode::BasicStreaming | ReadDeviceCode::RegularStreaming
+                if value.raw_data.is_ascii() =>
+            {
+                Self::ModbusString(value.index, String::from_utf8(value.raw_data).unwrap())
+            }
+            ReadDeviceCode::BasicStreaming | ReadDeviceCode::RegularStreaming => {
+                Self::ModbusRawData(value.index, value.raw_data)
+            }
+            ReadDeviceCode::ExtendedStreaming | ReadDeviceCode::Specific => {
+                Self::ModbusRawData(value.index, value.raw_data)
+            }
         }
     }
 }
-
 #[derive(Debug, Clone, PartialEq)]
 #[allow(missing_docs)]
 pub struct RawModbusInfoObject {
@@ -204,7 +247,7 @@ impl RawModbusInfoObject {
     pub fn get_data(&self) -> &[u8] {
         &self.raw_data
     }
-    
+
     ///Convert the raw data value into a ModbusInfoObject
     pub fn convert(self) -> ModbusInfoObject {
         self.into()
@@ -228,10 +271,14 @@ pub struct DeviceInfo {
     pub storage: Vec<RawModbusInfoObject>,
 }
 
-
 impl DeviceInfo {
     ///Creates a new Device Identification Reply
-    pub fn new(mei_code: MeiCode, device_id: ReadDeviceCode, conformity_level: DeviceConformityLevel, number_objects: u8) -> Self {
+    pub fn new(
+        mei_code: MeiCode,
+        device_id: ReadDeviceCode,
+        conformity_level: DeviceConformityLevel,
+        number_objects: u8,
+    ) -> Self {
         Self {
             mei_code,
             read_device_id: device_id,
@@ -244,17 +291,20 @@ impl DeviceInfo {
 
     ///Checks if the response is complete and decorates the continue_at field accordingly
     pub fn continue_at(mut self, more_follows: u8, value: u8) -> Self {
-        self.continue_at = if more_follows == 0xFF { Some(value) } else { None };
+        self.continue_at = if more_follows == 0xFF {
+            Some(value)
+        } else {
+            None
+        };
 
         self
-    } 
+    }
 
- 
     pub(crate) fn response_message_count(&self, max_msg_size: u8) -> Option<u8> {
         const ADDITIONAL_BYTES: u8 = 0x02; //Two bytes get consumed by the object id and the length of the object itself.
-        
+
         let mut max_length = max_msg_size;
-        
+
         for (idx, object) in self.storage.iter().enumerate() {
             let length = object.raw_data.len();
 
@@ -264,7 +314,7 @@ impl DeviceInfo {
 
             max_length = max_length.saturating_sub((length as u8) + ADDITIONAL_BYTES);
         }
-        
+
         None
     }
 
@@ -281,9 +331,21 @@ impl DeviceInfo {
 
 impl std::fmt::Display for DeviceInfo {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let next_value = if let Some(value) = self.continue_at { value } else { 0x00 }; 
-        write!(f, "DEVICE INFO  ({:?}) ({:?}) ({:?}) (More Follows: {} Position: {}) storage: {:#?}", 
-            self.mei_code,  self.read_device_id, self.conformity_level, self.continue_at.is_some(), next_value, self.storage)
+        let next_value = if let Some(value) = self.continue_at {
+            value
+        } else {
+            0x00
+        };
+        write!(
+            f,
+            "DEVICE INFO  ({:?}) ({:?}) ({:?}) (More Follows: {} Position: {}) storage: {:#?}",
+            self.mei_code,
+            self.read_device_id,
+            self.conformity_level,
+            self.continue_at.is_some(),
+            next_value,
+            self.storage
+        )
     }
 }
 

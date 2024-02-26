@@ -261,8 +261,8 @@ pub enum AduParseError {
     MeiCodeOutOfRange(u8),
     /// Device Code outside of MODBUS specification range
     DeviceCodeOutOfRange(u8),
-    /// Server Conformity Level outside of MODUBUS specification range
-    DeviceConformityLevelOutOfRange(u8), 
+    /// Server Conformity Level outside of MODBUS specification range
+    DeviceConformityLevelOutOfRange(u8),
 }
 
 impl std::error::Error for AduParseError {}

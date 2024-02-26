@@ -5,9 +5,9 @@ use crate::client::requests::read_bits::ReadBits;
 use crate::client::requests::read_registers::ReadRegisters;
 use crate::client::requests::write_multiple::{MultipleWriteRequest, WriteMultiple};
 use crate::client::requests::write_single::SingleWrite;
-use crate::{error::*, ReadDeviceRequest, DeviceInfo};
 use crate::types::{AddressRange, BitIterator, Indexed, RegisterIterator, UnitId};
 use crate::DecodeLevel;
+use crate::{error::*, DeviceInfo, ReadDeviceRequest};
 
 use super::requests::read_device_identification::ReadDevice;
 
@@ -75,7 +75,7 @@ impl Channel {
             let _ = crate::serial::client::SerialChannelTask::new(
                 &path,
                 serial_settings,
-                rx,
+                rx.into(),
                 retry,
                 decode,
                 listener.unwrap_or_else(|| crate::client::NullListener::create()),
@@ -174,10 +174,7 @@ impl Channel {
         let (tx, rx) = tokio::sync::oneshot::channel::<Result<DeviceInfo, RequestError>>();
         let request = wrap(
             param,
-            RequestDetails::ReadDeviceIdentification(ReadDevice::channel(
-                device_params,
-                tx
-            ))
+            RequestDetails::ReadDeviceIdentification(ReadDevice::channel(device_params, tx)),
         );
 
         self.tx.send(request).await?;

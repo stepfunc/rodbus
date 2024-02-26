@@ -1,6 +1,6 @@
 use crate::common::traits::Parse;
-use crate::{error::*, ReadDeviceRequest, ReadDeviceCode, ExceptionCode, MeiCode};
 use crate::types::{coil_from_u16, AddressRange, Indexed};
+use crate::{error::*, ExceptionCode, MeiCode, ReadDeviceCode, ReadDeviceRequest};
 
 use scursor::ReadCursor;
 
@@ -33,7 +33,7 @@ impl Parse for ReadDeviceRequest {
         let mei_type = cursor.read_u8()?.try_into()?;
 
         if mei_type == MeiCode::CanOpenGeneralReference {
-            return Err(RequestError::Exception(ExceptionCode::IllegalDataValue))
+            return Err(RequestError::Exception(ExceptionCode::IllegalDataValue));
         }
 
         let dev_id: ReadDeviceCode = cursor.read_u8()?.try_into()?;
@@ -82,14 +82,12 @@ mod coils {
         let result = Indexed::<u16>::parse(&mut cursor);
         assert_eq!(result, Ok(Indexed::new(1, 0xCAFE)));
     }
-
-
 }
 #[cfg(test)]
 mod read_device_info {
-    use crate::{ReadDeviceRequest, MeiCode};
     use crate::common::traits::Parse;
     use crate::error::AduParseError;
+    use crate::{MeiCode, ReadDeviceRequest};
 
     use scursor::ReadCursor;
 
@@ -101,10 +99,12 @@ mod read_device_info {
         assert_eq!(result, Err(AduParseError::MeiCodeOutOfRange(0xFF).into()));
 
         let mut cursor = ReadCursor::new(&[0x0E, 0xFF, 0x01]);
-        
-        let result = ReadDeviceRequest::parse(&mut cursor);
-        assert_eq!(result, Err(AduParseError::DeviceCodeOutOfRange(0xFF).into()));
 
+        let result = ReadDeviceRequest::parse(&mut cursor);
+        assert_eq!(
+            result,
+            Err(AduParseError::DeviceCodeOutOfRange(0xFF).into())
+        );
     }
 
     #[test]
@@ -112,6 +112,13 @@ mod read_device_info {
         let mut cursor = ReadCursor::new(&[0x0E, 0x01, 0x00]);
 
         let result = ReadDeviceRequest::parse(&mut cursor);
-        assert_eq!(result, Ok(ReadDeviceRequest { mei_code: MeiCode::ReadDeviceId, dev_id: crate::ReadDeviceCode::BasicStreaming, obj_id:  Some(0x00)}))
+        assert_eq!(
+            result,
+            Ok(ReadDeviceRequest {
+                mei_code: MeiCode::ReadDeviceId,
+                dev_id: crate::ReadDeviceCode::BasicStreaming,
+                obj_id: Some(0x00)
+            })
+        )
     }
 }

@@ -129,7 +129,6 @@
     non_snake_case,
     non_upper_case_globals,
     no_mangle_generic_items,
-    private_in_public,
     stable_features,
     type_alias_bounds,
     tyvar_behind_raw_pointer,
@@ -138,7 +137,6 @@
     unreachable_pub,
     anonymous_parameters,
     missing_copy_implementations,
-    //missing_debug_implementations,
     missing_docs,
     trivial_casts,
     trivial_numeric_casts,
@@ -167,6 +165,7 @@ pub mod constants;
 pub mod server;
 
 // modules that are re-exported
+pub(crate) mod channel;
 pub(crate) mod decode;
 pub(crate) mod error;
 pub(crate) mod exception;

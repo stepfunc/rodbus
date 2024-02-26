@@ -5,7 +5,7 @@ use crate::decode::AppDecodeLevel;
 use crate::error::RequestError;
 use crate::exception::ExceptionCode;
 use crate::server::handler::RequestHandler;
-use crate::server::response::{BitWriter, RegisterWriter, DeviceIdentificationResponse};
+use crate::server::response::{BitWriter, DeviceIdentificationResponse, RegisterWriter};
 use crate::server::*;
 use crate::types::*;
 
@@ -127,8 +127,20 @@ impl<'a> Request<'a> {
                 writer.format_reply(header, function, &registers, level)
             }
             Request::ReadDeviceIdentification(read) => {
-                let device_information = 
-                    DeviceIdentificationResponse::new(|| handler.read_device_info(read.mei_code, read.dev_id, read.obj_id));
+                // TODO - this needs to be refactored to incrementally write the response, one device object at a time
+                // in accordance with the modified API to read handler.
+                //
+                // Note: This will require some changes to the FrameWriter =(
+                //
+                // You'll have to save the locations to the following fields:
+                //  - More Follows
+                //  - Next Object Id
+                //  - Number of Objects
+                //
+                // And then write them AFTER writing the info objects
+                let device_information = DeviceIdentificationResponse::new(|| {
+                    handler.read_device_info(read.mei_code, read.dev_id, read.obj_id)
+                });
                 writer.format_reply(header, function, &device_information, level)
             }
             Request::WriteSingleCoil(request) => {
@@ -247,7 +259,17 @@ impl std::fmt::Display for RequestDisplay<'_, '_> {
                     write!(f, " {}", range.get())?;
                 }
                 Request::ReadDeviceIdentification(read_dev) => {
-                    write!(f, " IME: {:?}, DEV_ID: {:?}, OBJ_ID: {:X}", read_dev.mei_code, read_dev.dev_id, if let Some(value) = read_dev.obj_id { value } else { 0x00 })?;
+                    write!(
+                        f,
+                        " IME: {:?}, DEV_ID: {:?}, OBJ_ID: {:X}",
+                        read_dev.mei_code,
+                        read_dev.dev_id,
+                        if let Some(value) = read_dev.obj_id {
+                            value
+                        } else {
+                            0x00
+                        }
+                    )?;
                 }
                 Request::WriteSingleCoil(request) => {
                     write!(f, " {request}")?;
@@ -288,7 +310,9 @@ mod tests {
         #[test]
         fn fails_when_too_few_bytes_for_coil_byte_count() {
             let mut cursor = ReadCursor::new(&[0x00, 0x01, 0x00, 0x08, 0x00]);
-            let err = Request::parse(FunctionCode::WriteMultipleCoils, &mut cursor).err().unwrap();
+            let err = Request::parse(FunctionCode::WriteMultipleCoils, &mut cursor)
+                .err()
+                .unwrap();
             assert_eq!(err, AduParseError::InsufficientBytes.into());
         }
 
@@ -410,7 +434,9 @@ mod tests {
         #[test]
         fn fails_when_too_few_bytes_for_read_device() {
             let mut cursor = ReadCursor::new(&[0x0E, 0x01]);
-            let err = Request::parse(FunctionCode::ReadDeviceIdentification, &mut cursor).err().unwrap();
+            let err = Request::parse(FunctionCode::ReadDeviceIdentification, &mut cursor)
+                .err()
+                .unwrap();
 
             assert_eq!(err, AduParseError::InsufficientBytes.into());
         }
@@ -418,7 +444,9 @@ mod tests {
         #[test]
         fn fails_when_too_many_bytes_specified_for_read_device() {
             let mut cursor = ReadCursor::new(&[0x0E, 0x01, 0x01, 0x00]);
-            let err = Request::parse(FunctionCode::ReadDeviceIdentification, &mut cursor).err().unwrap();
+            let err = Request::parse(FunctionCode::ReadDeviceIdentification, &mut cursor)
+                .err()
+                .unwrap();
 
             assert_eq!(err, AduParseError::TrailingBytes(1).into());
         }
@@ -426,7 +454,8 @@ mod tests {
         #[test]
         fn can_parse_read_device_info_request() {
             let mut cursor = ReadCursor::new(&[0x0E, 0x01, 0x00]);
-            let read_device_request = Request::parse(FunctionCode::ReadDeviceIdentification, &mut cursor).unwrap();
+            let read_device_request =
+                Request::parse(FunctionCode::ReadDeviceIdentification, &mut cursor).unwrap();
 
             let device_info = match read_device_request {
                 Request::ReadDeviceIdentification(device_info) => device_info,
@@ -436,6 +465,6 @@ mod tests {
             assert_eq!(device_info.mei_code, MeiCode::ReadDeviceId);
             assert_eq!(device_info.dev_id, ReadDeviceCode::BasicStreaming);
             assert_eq!(device_info.obj_id, Some(0x00));
-        }        
+        }
     }
 }

@@ -11,7 +11,6 @@ use crate::error::Shutdown;
 use crate::retry::RetryStrategy;
 
 use tokio::net::TcpStream;
-use tokio::sync::mpsc::Receiver;
 
 pub(crate) fn spawn_tcp_channel(
     host: HostAddr,
@@ -37,7 +36,7 @@ pub(crate) fn create_tcp_channel(
     let task = async move {
         TcpChannelTask::new(
             host.clone(),
-            rx,
+            rx.into(),
             TcpTaskConnectionHandler::Tcp,
             connect_retry,
             decode,
@@ -81,7 +80,7 @@ pub(crate) struct TcpChannelTask {
 impl TcpChannelTask {
     pub(crate) fn new(
         host: HostAddr,
-        rx: Receiver<Command>,
+        rx: crate::channel::Receiver<Command>,
         connection_handler: TcpTaskConnectionHandler,
         connect_retry: Box<dyn RetryStrategy>,
         decode: DecodeLevel,

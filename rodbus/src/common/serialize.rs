@@ -1,8 +1,6 @@
 use std::convert::TryFrom;
 use std::ops::Range;
 
-use crate::DeviceInfo;
-use crate::ReadDeviceRequest;
 use crate::client::WriteMultiple;
 use crate::common::frame::constants::MAX_ADU_LENGTH;
 use crate::common::traits::Loggable;
@@ -15,6 +13,8 @@ use crate::types::{
     coil_from_u16, coil_to_u16, AddressRange, BitIterator, BitIteratorDisplay, Indexed,
     RegisterIterator, RegisterIteratorDisplay,
 };
+use crate::DeviceInfo;
+use crate::ReadDeviceRequest;
 
 use scursor::{ReadCursor, WriteCursor};
 
@@ -310,20 +310,22 @@ impl Serialize for ReadDeviceRequest {
     }
 }
 
-impl<T> Serialize for DeviceIdentificationResponse<T> 
-where T: Fn() -> Result<DeviceInfo, crate::exception::ExceptionCode>, {
+impl<T> Serialize for DeviceIdentificationResponse<T>
+where
+    T: Fn() -> Result<DeviceInfo, crate::exception::ExceptionCode>,
+{
     fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
         let device_data: DeviceInfo = (self.getter)()?;
-        
+
         cursor.write_u8(device_data.mei_code as u8)?;
         cursor.write_u8(device_data.read_device_id as u8)?;
         cursor.write_u8(device_data.conformity_level as u8)?;
-        
+
         const SAFETY_MARGIN: u8 = 7;
         let max = device_data.response_message_count(MAX_ADU_LENGTH as u8 - SAFETY_MARGIN);
-        
+
         max.serialize(cursor)?;
-        
+
         let range: Range<usize> = Range {
             start: device_data.continue_at.unwrap_or_default().into(),
             end: max.unwrap_or(device_data.storage.len() as u8).into(),
@@ -333,7 +335,7 @@ where T: Fn() -> Result<DeviceInfo, crate::exception::ExceptionCode>, {
 
         for message in device_data.storage[range].iter() {
             cursor.write_u8(message.index)?;
-            
+
             let data = message.get_data();
             cursor.write_u8(data.len() as u8)?;
             cursor.write_bytes(data)?;
@@ -343,8 +345,10 @@ where T: Fn() -> Result<DeviceInfo, crate::exception::ExceptionCode>, {
     }
 }
 
-impl<T> Loggable for DeviceIdentificationResponse<T> 
-where T: Fn() -> Result<DeviceInfo, crate::exception::ExceptionCode>, {
+impl<T> Loggable for DeviceIdentificationResponse<T>
+where
+    T: Fn() -> Result<DeviceInfo, crate::exception::ExceptionCode>,
+{
     fn log(
         &self,
         bytes: &[u8],
@@ -354,19 +358,35 @@ where T: Fn() -> Result<DeviceInfo, crate::exception::ExceptionCode>, {
         let mut cursor = ReadCursor::new(bytes);
 
         if level.data_headers() {
-            write!(f, "DEVICE IDENTIFICATION RESPONSE\n")?;
+            writeln!(f, "DEVICE IDENTIFICATION RESPONSE")?;
 
             write!(f, "\t --> MEI CODE: {:X}", cursor.read_u8().unwrap())?;
-            write!(f, "\t --> READ DEVICE CODE: {:X}", cursor.read_u8().unwrap())?;
-            write!(f, "\t --> CONFORMITY LEVEL: {:X}", cursor.read_u8().unwrap())?;
+            write!(
+                f,
+                "\t --> READ DEVICE CODE: {:X}",
+                cursor.read_u8().unwrap()
+            )?;
+            write!(
+                f,
+                "\t --> CONFORMITY LEVEL: {:X}",
+                cursor.read_u8().unwrap()
+            )?;
         }
 
         if level.data_values() {
-            write!(f, "DEVICE IDENTIFICATION RESPONSE\n")?;
+            writeln!(f, "DEVICE IDENTIFICATION RESPONSE")?;
 
             write!(f, "\t --> MEI CODE: {:X}", cursor.read_u8().unwrap())?;
-            write!(f, "\t --> READ DEVICE CODE: {:X}", cursor.read_u8().unwrap())?;
-            write!(f, "\t --> CONFORMITY LEVEL: {:X}", cursor.read_u8().unwrap())?;
+            write!(
+                f,
+                "\t --> READ DEVICE CODE: {:X}",
+                cursor.read_u8().unwrap()
+            )?;
+            write!(
+                f,
+                "\t --> CONFORMITY LEVEL: {:X}",
+                cursor.read_u8().unwrap()
+            )?;
             let raw_string_data = cursor.read_all();
             write!(f, "\t --> RAW STRING DATA: ")?;
             for str in raw_string_data {
@@ -444,7 +464,9 @@ mod tests {
         let mut cursor = WriteCursor::new(&mut buffer);
         test_str.as_str().serialize(&mut cursor).unwrap();
 
-        let expected: [u8; 14] = [0x0D,0x48,0x65,0x6C,0x6C,0x6F,0x2C,0x20,0x57,0x6F,0x72,0x6C,0x64,0x21];
+        let expected: [u8; 14] = [
+            0x0D, 0x48, 0x65, 0x6C, 0x6C, 0x6F, 0x2C, 0x20, 0x57, 0x6F, 0x72, 0x6C, 0x64, 0x21,
+        ];
         assert_eq!(buffer, expected);
     }
 }

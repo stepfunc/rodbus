@@ -32,7 +32,7 @@ impl SimpleHandler {
 
             basic_info: ["Example Vendor".to_string(), "Little Dictionary".to_string(), "0.1.0".to_string()],
             regular_keys: ["0x8A".to_string(), "0x8B".to_string(), "0x8C".to_string(), "0x8D".to_string()],
-            extended_values: ["This is the value for key 0x8A".to_string(), "Value for 0x8B which is a bit longer than your usual method to test if the behaivor of sending responses is correct and works, and will it work over a different client as well ?".to_string(), "Another value for 0x8C".to_string(), "Last but not least the value for 0x8D".to_string()],
+            extended_values: ["This is the value for key 0x8A".to_string(), "Value for 0x8B which is a bit longer than your usual method to test if the behavior of sending responses is correct and works, and will it work over a different client as well ?".to_string(), "Another value for 0x8C".to_string(), "Last but not least the value for 0x8D".to_string()],
         }
     }
 
@@ -51,7 +51,6 @@ impl SimpleHandler {
     fn input_registers_as_mut(&mut self) -> &mut [u16] {
         self.input_registers.as_mut_slice()
     }
-
 }
 
 // ANCHOR: request_handler
@@ -134,8 +133,18 @@ impl RequestHandler for SimpleHandler {
         result
     }
 
-    fn read_device_info(&self, mei_code: MeiCode, read_dev_id: ReadDeviceCode, object_id: Option<u8>) -> Result<DeviceInfo, ExceptionCode> {
-        let mut device_info = DeviceInfo::new(mei_code, read_dev_id, DeviceConformityLevel::ExtendedIdentificationIndividual, 0);
+    fn read_device_info(
+        &self,
+        mei_code: MeiCode,
+        read_dev_id: ReadDeviceCode,
+        object_id: Option<u8>,
+    ) -> Result<DeviceInfo, ExceptionCode> {
+        let mut device_info = DeviceInfo::new(
+            mei_code,
+            read_dev_id,
+            DeviceConformityLevel::ExtendedIdentificationIndividual,
+            0,
+        );
         let response_data = match read_dev_id {
             ReadDeviceCode::BasicStreaming => self.basic_info.as_slice(),
             ReadDeviceCode::RegularStreaming => self.regular_keys.as_slice(),
@@ -154,17 +163,25 @@ impl RequestHandler for SimpleHandler {
                 0x8D => &self.extended_values[3],
                 _ => unreachable!(),
             };
-            device_info.storage = vec![
-                RawModbusInfoObject::new(ReadDeviceCode::Specific, index as u8, message.len() as u8, message.as_bytes())
-            ];
-            
+            device_info.storage = vec![RawModbusInfoObject::new(
+                ReadDeviceCode::Specific,
+                index as u8,
+                message.len() as u8,
+                message.as_bytes(),
+            )];
+
             return Ok(device_info);
         } else {
             device_info.number_objects = response_data.len() as u8;
             device_info.storage = vec![];
 
             for (idx, info_string) in response_data.iter().enumerate() {
-                let obj = RawModbusInfoObject::new(read_dev_id, idx as u8, info_string.len() as u8, info_string.as_bytes());
+                let obj = RawModbusInfoObject::new(
+                    read_dev_id,
+                    idx as u8,
+                    info_string.len() as u8,
+                    info_string.as_bytes(),
+                );
                 device_info.storage.push(obj);
             }
         }
@@ -178,8 +195,6 @@ impl RequestHandler for SimpleHandler {
     {
         std::sync::Arc::new(std::sync::Mutex::new(Box::new(self)))
     }
-
-    
 }
 // ANCHOR_END: request_handler
 
