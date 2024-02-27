@@ -300,7 +300,7 @@ impl DeviceInfo {
         self
     }
 
-    pub(crate) fn response_message_count(&self, max_msg_size: u8) -> Option<u8> {
+    /*pub(crate) fn response_message_count(&self, max_msg_size: u8) -> Option<u8> {
         const ADDITIONAL_BYTES: u8 = 0x02; //Two bytes get consumed by the object id and the length of the object itself.
 
         let mut max_length = max_msg_size;
@@ -316,7 +316,7 @@ impl DeviceInfo {
         }
 
         None
-    }
+    }*/
 
     ///Convert all Raw Modbus objects into ModbusObjects
     pub fn finalize_and_retrieve_objects(&self) -> Vec<ModbusInfoObject> {
