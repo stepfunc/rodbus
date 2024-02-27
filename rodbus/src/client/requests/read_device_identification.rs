@@ -2,8 +2,8 @@ use scursor::{ReadCursor, WriteCursor};
 
 use crate::{
     common::{function::FunctionCode, traits::Serialize},
-    AppDecodeLevel, DeviceInfo, RawModbusInfoObject, ReadDeviceCode, ReadDeviceRequest,
-    RequestError,
+    AppDecodeLevel, DeviceInfo, RawModbusInfoObject, ReadDeviceCode,
+    ReadDeviceRequest, RequestError,
 };
 
 pub(crate) struct ReadDevice {
