@@ -1,4 +1,5 @@
 use std::net::SocketAddr;
+use std::ptr::read;
 use std::str::FromStr;
 use std::time::Duration;
 
@@ -7,6 +8,7 @@ use rodbus::server::*;
 use rodbus::*;
 
 use tokio::runtime::Runtime;
+use rodbus::DeviceConformityLevel::ExtendedIdentificationIndividual;
 
 struct Handler {
     pub device_conformity_level: DeviceConformityLevel,
@@ -78,7 +80,15 @@ impl Handler {
         mei_code: MeiCode,
         read_dev_id: ReadDeviceCode,
         object_id: u8,
-    ) -> Result<DeviceInfo, ExceptionCode> {
+    ) -> Result<ServerDeviceInfo, ExceptionCode> {
+
+
+        let (min_range, max_range) = match read_dev_id {
+            ReadDeviceCode::BasicStreaming => (0x00, 0x03),
+            ReadDeviceCode::RegularStreaming => (0x04, 0x06),
+            ReadDeviceCode::ExtendedStreaming => (0x07, 0x7F),
+            ReadDeviceCode::Specific => (0x80, 0xFF),
+        };
         let data = match read_dev_id {
             ReadDeviceCode::BasicStreaming => self.read_basic_device_info()?,
             ReadDeviceCode::RegularStreaming => self.read_regular_device_info()?,
@@ -86,30 +96,35 @@ impl Handler {
             _ => unreachable!(),
         };
 
-        let mut modbus_response: Vec<RawModbusInfoObject> = vec![];
-
+        /*let mut modbus_response: Vec<u8> = vec![];
         for (idx, info_object) in data.iter().skip(object_id as usize).enumerate() {
             let modbus_object = match info_object {
-                Some(value) => RawModbusInfoObject::new(
+                Some(value) => value.as_bytes(), /*RawModbusInfoObject::new(
                     read_dev_id,
                     object_id + idx as u8,
                     value.len() as u8,
                     value.as_bytes(),
-                ),
+                ),*/
                 None => continue,
             };
 
-            modbus_response.push(modbus_object);
-        }
+            modbus_response.extend_from_slice(modbus_object);
+        }*/
 
         let length = Handler::message_count_from_area_slice(data) as u8;
 
-        let mut device_info_response =
-            DeviceInfo::new(mei_code, read_dev_id, self.device_conformity_level, length);
+        //let mut device_info_response =
+        //    DeviceInfo::new(mei_code, read_dev_id, self.device_conformity_level, length);
 
-        device_info_response.storage = modbus_response;
+        let mut server = ServerDeviceInfo {
+            conformity_level: ExtendedIdentificationIndividual,
+            //TODO(Kay): This is not checking it's boundaries ! It could easily read data that is not part of basic streaming...
+            next_object_id: if data.get(object_id as usize + 1).is_some() && object_id >= min_range && object_id <= max_range { Some(object_id + 1) } else { None },
+            //TODO(Kay): Remove the unwrap ?
+            object_data: data[object_id as usize].unwrap().as_bytes(),
+        };
 
-        Ok(device_info_response)
+        Ok(server)
     }
 
     fn read_device_info_individual(
@@ -117,8 +132,13 @@ impl Handler {
         mei_code: MeiCode,
         read_dev_id: ReadDeviceCode,
         object_id: u8,
-    ) -> Result<DeviceInfo, ExceptionCode> {
-        let data = self.read_specific_device_info(object_id)?;
+    ) -> Result<ServerDeviceInfo, ExceptionCode> {
+        let server = ServerDeviceInfo {
+            conformity_level: ExtendedIdentificationIndividual,
+            next_object_id: None,
+            object_data: &[0x00,0x04,0x41,0x41,0x41,0x41],
+        };
+        /*let data = self.read_specific_device_info(object_id)?;
         let string = RawModbusInfoObject::new(
             read_dev_id,
             object_id,
@@ -128,9 +148,9 @@ impl Handler {
 
         let mut device_info =
             DeviceInfo::new(mei_code, read_dev_id, self.device_conformity_level, 1);
-        device_info.storage.push(string);
+        device_info.storage.push(string);*/
 
-        Ok(device_info)
+        Ok(server)
     }
 }
 
@@ -140,7 +160,7 @@ impl RequestHandler for Handler {
         mei_code: MeiCode,
         read_dev_id: ReadDeviceCode,
         object_id: Option<u8>,
-    ) -> Result<DeviceInfo, ExceptionCode> {
+    ) -> Result<ServerDeviceInfo, ExceptionCode> {
         match (read_dev_id, object_id) {
             (ReadDeviceCode::BasicStreaming, None) => {
                 self.read_device_info_streaming(mei_code, read_dev_id, 0)
@@ -204,6 +224,7 @@ async fn test_read_device_info_request_response() {
         )
         .await
         .unwrap();
+
     assert_eq!(
         result,
         DeviceInfo {
