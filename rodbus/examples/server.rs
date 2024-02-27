@@ -138,8 +138,13 @@ impl RequestHandler for SimpleHandler {
         mei_code: MeiCode,
         read_dev_id: ReadDeviceCode,
         object_id: Option<u8>,
-    ) -> Result<DeviceInfo, ExceptionCode> {
-        let mut device_info = DeviceInfo::new(
+    ) -> Result<ServerDeviceInfo, ExceptionCode> {
+        let server = ServerDeviceInfo {
+            conformity_level: ExtendedIdentificationIndividual,
+            next_object_id: None,
+            object_data: &[0x00,0x04,0x41,0x41,0x41,0x41],
+        };
+        /*let mut device_info = DeviceInfo::new(
             mei_code,
             read_dev_id,
             DeviceConformityLevel::ExtendedIdentificationIndividual,
@@ -170,7 +175,7 @@ impl RequestHandler for SimpleHandler {
                 message.as_bytes(),
             )];
 
-            return Ok(device_info);
+            return Ok(server);
         } else {
             device_info.number_objects = response_data.len() as u8;
             device_info.storage = vec![];
@@ -184,9 +189,9 @@ impl RequestHandler for SimpleHandler {
                 );
                 device_info.storage.push(obj);
             }
-        }
+        }*/
 
-        Ok(device_info)
+        Ok(server)
     }
 
     fn wrap(self) -> std::sync::Arc<std::sync::Mutex<Box<Self>>>
