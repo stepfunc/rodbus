@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use crate::common::phys::PhysLayer;
 use std::ops::Range;
 
@@ -251,6 +252,10 @@ impl FormatType {
     }
 }
 
+pub(crate) struct FrameRecords {
+    records: HashSet<usize>,
+}
+
 pub(crate) struct FrameWriter {
     format_type: FormatType,
     buffer: [u8; constants::MAX_FRAME_LENGTH],
@@ -278,6 +283,44 @@ impl std::fmt::Display for FunctionField {
             }
         }
     }
+}
+
+impl FrameRecords {
+    pub(crate) fn new() -> Self {
+        Self {
+            records: HashSet::new(),
+        }
+    }
+
+    ///Record a offset to fill in the value at a later point, but before it's send.
+    /// NOTE: Currently only works with byte values.
+    pub(crate) fn record(&mut self, cursor: &mut WriteCursor) -> usize {
+        let offset = cursor.position();
+        self.records.insert(offset);
+        cursor.skip(1).unwrap();
+
+        offset
+    }
+
+    //TODO(Kay): Return an error here if things are looking wrong !
+    ///Tries to fill in the value at the recorded offset, returns an error if there is no corresponding
+    /// record found
+    pub(crate) fn fill_record(&mut self, cursor: &mut WriteCursor, position: usize, value: u8) {
+        if self.records.contains(&position) {
+            let current_position = cursor.position();
+            cursor.seek_to(position).unwrap();
+            cursor.write_u8(value).unwrap();
+            cursor.seek_to(current_position).unwrap();
+        }
+
+        //TODO(Kay): Error !
+    }
+
+    ///Return true if there are no recorded offsets in our store.
+    pub(crate) fn records_empty(&self) -> bool {
+        self.records.is_empty()
+    }
+
 }
 
 impl FunctionField {

@@ -1,7 +1,5 @@
 use crate::common::buffer::ReadBuffer;
-use crate::common::frame::{
-    Frame, FrameDestination, FrameHeader, FrameInfo, FrameType, FunctionField,
-};
+use crate::common::frame::{Frame, FrameDestination, FrameHeader, FrameInfo, FrameRecords, FrameType, FunctionField};
 use crate::common::function::FunctionCode;
 use crate::common::traits::Serialize;
 use crate::decode::FrameDecodeLevel;
@@ -219,7 +217,12 @@ pub(crate) fn format_rtu_pdu(
     cursor.write_u8(header.destination.value())?;
     cursor.write_u8(function.get_value())?;
     let start_pdu_body = cursor.position();
-    msg.serialize(cursor)?;
+    let mut records = FrameRecords::new();
+    msg.serialize(cursor, Some(&mut records))?;
+
+    if !records.records_empty() {
+        //TODO(Kay): We need to inform the user about a forgotten empty lonely byte :( (NOTE: Only user of this API is probably me but whatever :) )
+    }
     let end_pdu_body = cursor.position();
     // Write the CRC
     let crc = CRC.checksum(cursor.get(start_frame..end_pdu_body).unwrap());
