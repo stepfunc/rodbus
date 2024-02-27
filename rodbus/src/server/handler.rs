@@ -6,6 +6,7 @@ use crate::server::{WriteCoils, WriteRegisters};
 use crate::types::*;
 
 /// Type that the server will return in response to a read_device_info
+#[derive(Debug, PartialEq)]
 pub struct ServerDeviceInfo<'a> {
     /// Conformity level the the server is willing to grant
     pub conformity_level: DeviceConformityLevel,
