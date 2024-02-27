@@ -72,7 +72,7 @@ impl ReadBits {
     }
 
     pub(crate) fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
-        self.request.get().serialize(cursor)
+        self.request.get().serialize(cursor, None)
     }
 
     pub(crate) fn failure(&mut self, err: RequestError) {

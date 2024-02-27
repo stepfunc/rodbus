@@ -95,7 +95,7 @@ where
     }
 
     pub(crate) fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
-        self.request.serialize(cursor)
+        self.request.serialize(cursor, None)
     }
 
     pub(crate) fn failure(&mut self, err: RequestError) {
