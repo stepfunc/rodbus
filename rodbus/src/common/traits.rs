@@ -3,9 +3,10 @@ use crate::error::*;
 use crate::ExceptionCode;
 
 use scursor::{ReadCursor, WriteCursor};
+use crate::common::frame::FrameRecords;
 
 pub(crate) trait Serialize {
-    fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError>;
+    fn serialize(&self, cursor: &mut WriteCursor, records: Option<&mut FrameRecords>) -> Result<(), RequestError>;
 }
 
 pub(crate) trait Loggable {
