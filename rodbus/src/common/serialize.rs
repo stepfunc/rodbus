@@ -17,6 +17,7 @@ use crate::DeviceInfo;
 use crate::ReadDeviceRequest;
 
 use scursor::{ReadCursor, WriteCursor};
+use crate::server::ServerDeviceInfo;
 
 pub(crate) fn calc_bytes_for_bits(num_bits: usize) -> Result<u8, InternalError> {
     let div_8 = num_bits / 8;
@@ -310,44 +311,92 @@ impl Serialize for ReadDeviceRequest {
     }
 }
 
-impl<T> Serialize for DeviceIdentificationResponse<T>
+impl<'a, T> Serialize for DeviceIdentificationResponse<'a, T>
 where
-    T: Fn() -> Result<DeviceInfo, crate::exception::ExceptionCode>,
+    T: Fn(Option<u8>) -> Result<ServerDeviceInfo<'a>, crate::exception::ExceptionCode>,
 {
     fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
-        let device_data: DeviceInfo = (self.getter)()?;
+        let mut device_data: ServerDeviceInfo = (self.getter)(None)?;
 
-        cursor.write_u8(device_data.mei_code as u8)?;
-        cursor.write_u8(device_data.read_device_id as u8)?;
+        //TODO(Kay): We need to rollback things a bit so these values are standin values for now !
+        const MEI_CODE: u8 = 0x0E;
+        cursor.write_u8(MEI_CODE)?;
+        //TODO(Kay): We need to rollback things a bit so these values are standin values for now !
+        cursor.write_u8(0x03);
+
+        //cursor.write_u8(device_data.read_device_id as u8)?;
         cursor.write_u8(device_data.conformity_level as u8)?;
 
+
+        //let max = device_data.response_message_count(MAX_ADU_LENGTH as u8 - SAFETY_MARGIN);
+
+        //max.serialize(cursor)?;
+
+        //let range: Range<usize> = Range {
+        //    start: device_data.next_object_id.unwrap_or_default().into(),
+        //    end: max.unwrap_or(device_data.object_data.len() as u8).into(),
+        //};
+
+        //TODO(Kay): We need to write out the right amount of objects we don't have that value
+        //           currently but for now it's probably better to just write a zero value here
+        //           but don't forget that it's there !!!
+
+        //TODO(Kay): These fields need to be written after we know how much of the actual objects
+        //           we have written out !
+        cursor.write_u8(0x00); //MORE FOLLOWS INDICATOR
+        cursor.write_u8(0x00); //MORE FOLLOWS VALUE
+        cursor.write_u8(0)?;   //OBJECT COUNT
+
+
         const SAFETY_MARGIN: u8 = 7;
-        let max = device_data.response_message_count(MAX_ADU_LENGTH as u8 - SAFETY_MARGIN);
 
-        max.serialize(cursor)?;
+        let mut position = 0;
+        let mut id = 0; //Start with the id at the position our read starts !
+        while position < (MAX_ADU_LENGTH as u8 - SAFETY_MARGIN) {
 
-        let range: Range<usize> = Range {
-            start: device_data.continue_at.unwrap_or_default().into(),
-            end: max.unwrap_or(device_data.storage.len() as u8).into(),
-        };
+            if device_data.object_data.len() >= ((MAX_ADU_LENGTH as u8 - SAFETY_MARGIN)).into() {
+                //TODO(Kay): We need to store that id and make the next read at that address !
+                break;
+            }
+            cursor.write_u8(id)?; //ID
+            cursor.write_u8(device_data.object_data.len() as u8)?;
+            cursor.write_bytes(device_data.object_data)?;
 
-        cursor.write_u8(device_data.number_objects)?;
+            id +=1;
+            position += device_data.object_data.len() as u8;
 
-        for message in device_data.storage[range].iter() {
-            cursor.write_u8(message.index)?;
+            if device_data.next_object_id.is_none() {
+                break;
+            }
 
-            let data = message.get_data();
-            cursor.write_u8(data.len() as u8)?;
-            cursor.write_bytes(data)?;
+            device_data = (self.getter)(device_data.next_object_id)?;
         }
+
+        /*for object in device_data.object_data {
+            let id = device_data.object_data[position];
+
+            cursor.write_u8(device_data.object_data.len() as u8)?;
+            cursor.write_bytes(device_data.object_data)?;
+
+        }*/
+
+
+        //for message in device_data.object_data[range].iter() {
+            //let [id, length, data @ ..] = message;
+            //cursor.write_u8(message.index)?;
+
+            //let data = message.get_data();
+            //cursor.write_u8(data.len() as u8)?;
+            //cursor.write_bytes(data)?;
+        //}
 
         Ok(())
     }
 }
 
-impl<T> Loggable for DeviceIdentificationResponse<T>
+impl<'a, T> Loggable for DeviceIdentificationResponse<'a, T>
 where
-    T: Fn() -> Result<DeviceInfo, crate::exception::ExceptionCode>,
+    T: Fn(Option<u8>) -> Result<ServerDeviceInfo<'a>, crate::exception::ExceptionCode>,
 {
     fn log(
         &self,
