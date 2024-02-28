@@ -13,7 +13,7 @@ use crate::types::{
     coil_from_u16, coil_to_u16, AddressRange, BitIterator, BitIteratorDisplay, Indexed,
     RegisterIterator, RegisterIteratorDisplay,
 };
-use crate::DeviceInfo;
+use crate::{DeviceInfo, MeiCode};
 use crate::ReadDeviceRequest;
 
 use scursor::{ReadCursor, WriteCursor};
@@ -319,44 +319,26 @@ where
     fn serialize(&self, cursor: &mut WriteCursor, records: Option<&mut FrameRecords>) -> Result<(), RequestError> {
         let mut device_data: ServerDeviceInfo = (self.getter)(None)?;
 
-        //TODO(Kay): We need to rollback things a bit so these values are standin values for now !
-        const MEI_CODE: u8 = 0x0E;
-        cursor.write_u8(MEI_CODE)?;
-        //TODO(Kay): We need to rollback things a bit so these values are standin values for now !
-        cursor.write_u8(0x03);
-
-        //cursor.write_u8(device_data.read_device_id as u8)?;
+        //NOTE(Kay): The MEI Code is always 0x0E so we can write that directly and do not need to
+        //           store this data on the ServerDeviceInfo struct !
+        cursor.write_u8(MeiCode::ReadDeviceId as u8)?;
+        cursor.write_u8(device_data.read_device_code as u8)?;
         cursor.write_u8(device_data.conformity_level as u8)?;
 
 
-        //let max = device_data.response_message_count(MAX_ADU_LENGTH as u8 - SAFETY_MARGIN);
-
-        //max.serialize(cursor)?;
-
-        //let range: Range<usize> = Range {
-        //    start: device_data.next_object_id.unwrap_or_default().into(),
-        //    end: max.unwrap_or(device_data.object_data.len() as u8).into(),
-        //};
-
-        //TODO(Kay): We need to write out the right amount of objects we don't have that value
-        //           currently but for now it's probably better to just write a zero value here
-        //           but don't forget that it's there !!!
-
-        //TODO(Kay): These fields need to be written after we know how much of the actual objects
-        //           we have written out !
         //NOTE(Kay): Again one of my great clunky APIs :)
-        let mut more_follows_indicator_offset = 0;
-        let mut more_follows_value_offset = 0;
-        let mut number_of_objects_offset = 0;
+        //TODO(Kay): Maybe we can do some dumb kind of hashmap:
+        //      - We only can record at max 256 Bytes
+        //      - std::Hash is implemented for &str
         let mut records = records;
         if let Some(recorder) = records.as_mut() {
             //STORE:
             //  MORE_FOLLOWS_INDICATOR
             //  MORE_FOLLOWS_VALUE
             //  OBJECT_COUNT
-            more_follows_indicator_offset = recorder.record(cursor);
-            more_follows_value_offset = recorder.record(cursor);
-            number_of_objects_offset = recorder.record(cursor);
+            recorder.record("MORE_FOLLOWS_INDICATOR", cursor)?;
+            recorder.record("MORE_FOLLOWS_VALUE", cursor)?;
+            recorder.record("NUMBER_OF_OBJECTS", cursor)?;
         }
 
 
@@ -386,12 +368,12 @@ where
 
         if let Some(recorder) = records {
             if device_data.next_object_id.is_some() {
-                recorder.fill_record(cursor, more_follows_indicator_offset, 0xFF);
+                recorder.fill_record(cursor, "MORE_FOLLOWS_INDICATOR", 0xFF)?;
             } else {
-                recorder.fill_record(cursor, more_follows_value_offset, 0x00);
+                recorder.fill_record(cursor, "MORE_FOLLOWS_VALUE", 0x00)?;
             }
 
-            recorder.fill_record(cursor, number_of_objects_offset, id);
+            recorder.fill_record(cursor, "NUMBER_OF_OBJECTS", id)?;
         }
 
 
