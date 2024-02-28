@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use crate::common::phys::PhysLayer;
 use std::ops::Range;
 
@@ -8,7 +8,7 @@ use crate::common::traits::{Loggable, LoggableDisplay, Serialize};
 use crate::error::RequestError;
 use crate::tcp::frame::{MbapDisplay, MbapHeader, MbapParser};
 use crate::types::UnitId;
-use crate::{DecodeLevel, ExceptionCode, FrameDecodeLevel};
+use crate::{DecodeLevel, ExceptionCode, FrameDecodeLevel, RecorderError};
 
 use scursor::WriteCursor;
 
@@ -252,8 +252,11 @@ impl FormatType {
     }
 }
 
+
+
 pub(crate) struct FrameRecords {
-    records: HashSet<usize>,
+    records: HashMap<&'static str, usize>,
+    //records: HashSet<usize>,
 }
 
 pub(crate) struct FrameWriter {
@@ -288,32 +291,40 @@ impl std::fmt::Display for FunctionField {
 impl FrameRecords {
     pub(crate) fn new() -> Self {
         Self {
-            records: HashSet::new(),
+            records: HashMap::new(),
+            //records: HashSet::new(),
         }
     }
 
     ///Record a offset to fill in the value at a later point, but before it's send.
     /// NOTE: Currently only works with byte values.
-    pub(crate) fn record(&mut self, cursor: &mut WriteCursor) -> usize {
-        let offset = cursor.position();
-        self.records.insert(offset);
+    pub(crate) fn record(&mut self, key: &'static str, cursor: &mut WriteCursor) -> Result<(), crate::InternalError> {
+        if self.records.contains_key(key) {
+            return Err(RecorderError::RecordKeyExists(key.clone()).into());
+        }
+
+        //Insert our new key and advance the cursor position to the next byte.
+        self.records.insert(key, cursor.position());
         cursor.skip(1).unwrap();
 
-        offset
+        Ok(())
     }
 
-    //TODO(Kay): Return an error here if things are looking wrong !
     ///Tries to fill in the value at the recorded offset, returns an error if there is no corresponding
     /// record found
-    pub(crate) fn fill_record(&mut self, cursor: &mut WriteCursor, position: usize, value: u8) {
-        if self.records.contains(&position) {
+    pub(crate) fn fill_record(&mut self, cursor: &mut WriteCursor, key: &'static str, value: u8) -> Result<(), crate::InternalError> {
+        if let Some(position) = self.records.remove(key) {
             let current_position = cursor.position();
+
+            //TODO(Kay): Handle possible errors of the cursor !
             cursor.seek_to(position).unwrap();
             cursor.write_u8(value).unwrap();
             cursor.seek_to(current_position).unwrap();
+
+            return Ok(());
         }
 
-        //TODO(Kay): Error !
+        Err(RecorderError::RecordDoesNotExist(key).into())
     }
 
     ///Return true if there are no recorded offsets in our store.
