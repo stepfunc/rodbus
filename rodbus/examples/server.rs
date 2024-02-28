@@ -140,6 +140,7 @@ impl RequestHandler for SimpleHandler {
         object_id: Option<u8>,
     ) -> Result<ServerDeviceInfo, ExceptionCode> {
         let server = ServerDeviceInfo {
+            read_device_code: read_dev_id,
             conformity_level: DeviceConformityLevel::ExtendedIdentificationIndividual,
             next_object_id: None,
             object_data: &[0x00,0x04,0x41,0x41,0x41,0x41],
