@@ -506,7 +506,7 @@ mod tests {
         let range = AddressRange::try_from(3, 512).unwrap();
         let mut buffer = [0u8; 4];
         let mut cursor = WriteCursor::new(&mut buffer);
-        range.serialize(&mut cursor).unwrap();
+        range.serialize(&mut cursor, None).unwrap();
         assert_eq!(buffer, [0x00, 0x03, 0x02, 0x00]);
     }
 
@@ -517,14 +517,14 @@ mod tests {
 
         let mut cursor = WriteCursor::new(&mut buffer);
 
-        next_position.serialize(&mut cursor).unwrap();
+        next_position.serialize(&mut cursor, None).unwrap();
         assert_eq!(buffer, [0xFF, 0x03]);
 
         let next_position = None;
         let mut buffer = [0u8; 2];
 
         let mut cursor = WriteCursor::new(&mut buffer);
-        next_position.serialize(&mut cursor).unwrap();
+        next_position.serialize(&mut cursor, None).unwrap();
         assert_eq!(buffer, [0x00, 0x00]);
     }
 
@@ -534,7 +534,7 @@ mod tests {
         let mut buffer = [0u8; 14];
 
         let mut cursor = WriteCursor::new(&mut buffer);
-        test_str.as_str().serialize(&mut cursor).unwrap();
+        test_str.as_str().serialize(&mut cursor, None).unwrap();
 
         let expected: [u8; 14] = [
             0x0D, 0x48, 0x65, 0x6C, 0x6C, 0x6F, 0x2C, 0x20, 0x57, 0x6F, 0x72, 0x6C, 0x64, 0x21,

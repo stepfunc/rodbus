@@ -225,7 +225,7 @@ mod tests {
     }
 
     impl Serialize for MockBody {
-        fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
+        fn serialize(&self, cursor: &mut WriteCursor, records: Option<&mut FrameRecords>) -> Result<(), RequestError> {
             for b in self.body {
                 cursor.write_u8(*b)?;
             }

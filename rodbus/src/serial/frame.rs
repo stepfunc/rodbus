@@ -748,7 +748,7 @@ mod tests {
     }
 
     impl<'a> Serialize for MockMessage<'a> {
-        fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
+        fn serialize(&self, cursor: &mut WriteCursor, records: Option<&mut FrameRecords>) -> Result<(), RequestError> {
             for byte in &self.frame[2..self.frame.len() - 2] {
                 cursor.write_u8(*byte)?;
             }
