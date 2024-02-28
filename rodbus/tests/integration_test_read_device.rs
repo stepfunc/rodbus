@@ -117,6 +117,7 @@ impl Handler {
         //    DeviceInfo::new(mei_code, read_dev_id, self.device_conformity_level, length);
 
         let mut server = ServerDeviceInfo {
+            read_device_code: read_dev_id,
             conformity_level: ExtendedIdentificationIndividual,
             //TODO(Kay): This is not checking it's boundaries ! It could easily read data that is not part of basic streaming...
             next_object_id: if data.get(object_id as usize + 1).is_some() && object_id >= min_range && object_id <= max_range { Some(object_id + 1) } else { None },
@@ -134,6 +135,7 @@ impl Handler {
         object_id: u8,
     ) -> Result<ServerDeviceInfo, ExceptionCode> {
         let server = ServerDeviceInfo {
+            read_device_code: read_dev_id,
             conformity_level: ExtendedIdentificationIndividual,
             next_object_id: None,
             object_data: &[0x00,0x04,0x41,0x41,0x41,0x41],
