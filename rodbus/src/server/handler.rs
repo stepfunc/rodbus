@@ -8,6 +8,8 @@ use crate::types::*;
 /// Type that the server will return in response to a read_device_info
 #[derive(Debug, PartialEq)]
 pub struct ServerDeviceInfo<'a> {
+    /// Indicates the Area the Message came from (Basic, Regular, Extended)!
+    pub read_device_code: ReadDeviceCode,
     /// Conformity level the server is willing to grant
     pub conformity_level: DeviceConformityLevel,
     /// The ID of the next object, if available This will
