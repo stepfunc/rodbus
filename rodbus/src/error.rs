@@ -1,4 +1,6 @@
 use scursor::WriteError;
+use tracing::span::Record;
+use crate::InternalError::{RecordDoesNotExist, RecordKeyExists};
 
 /// The task processing requests has terminated
 #[derive(Clone, Copy, Debug)]
@@ -157,6 +159,15 @@ pub enum InvalidRange {
     CountTooLargeForType(u16, u16), // actual and limit
 }
 
+/// Errors that can be produced when the Frame Recorder is used incorrectly
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum RecorderError {
+    ///Record Key already in use.
+    RecordKeyExists(&'static str),
+    ///Record Key not found.
+    RecordDoesNotExist(&'static str),
+}
+
 /// Errors that indicate faulty logic in the library itself if they occur
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum InternalError {
@@ -170,6 +181,19 @@ pub enum InternalError {
     BadSeekOperation,
     /// Byte count would exceed maximum allowed size in the ADU of u8
     BadByteCount(usize),
+    /// A position with that name was already recorded.
+    RecordKeyExists(&'static str),
+    /// The recorded position was not found under the specified key.
+    RecordDoesNotExist(&'static str),
+}
+
+impl From<RecorderError> for InternalError {
+    fn from(value: RecorderError) -> Self {
+        match value {
+            RecorderError::RecordKeyExists(key) => RecordKeyExists(key),
+            RecorderError::RecordDoesNotExist(key) => RecordDoesNotExist(key),
+        }
+    }
 }
 
 impl std::error::Error for InternalError {}
@@ -195,6 +219,12 @@ impl std::fmt::Display for InternalError {
             InternalError::BadByteCount(size) => {
                 write!(f, "Byte count of in ADU {size} exceeds maximum size of u8")
             }
+            RecordKeyExists(key) => {
+                write!(f, "The key \"{key}\" is already stored inside the recorder")
+            },
+            RecordDoesNotExist(key) => {
+                write!(f, "The position with the key \"{key}\" was never recorded")
+            },
         }
     }
 }
