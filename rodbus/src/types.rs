@@ -89,6 +89,8 @@ pub(crate) struct RegisterIteratorDisplay<'a> {
 #[derive(Clone, Debug, PartialEq)]
 pub struct CustomFunctionCode<T> {
     fc: u8,
+    byte_count_in: u8,
+    byte_count_out: u8,
     data: Vec<T>,
 }
 
@@ -376,13 +378,23 @@ impl Default for UnitId {
 
 impl CustomFunctionCode<u16> {
     /// Create a new custom function code
-    pub fn new(fc: u8, data: Vec<u16>) -> Self {
-        Self { fc, data }
+    pub fn new(fc: u8, byte_count_in: u8, byte_count_out: u8, data: Vec<u16>) -> Self {
+        Self { fc, byte_count_in, byte_count_out, data }
     }
 
     /// Get the function code
     pub fn function_code(&self) -> u8 {
         self.fc
+    }
+
+    /// Get the function code
+    pub fn byte_count_in(&self) -> u8 {
+        self.byte_count_in
+    }
+
+    /// Get the function code
+    pub fn byte_count_out(&self) -> u8 {
+        self.byte_count_out
     }
 
     /// Get the length of the underlying vector

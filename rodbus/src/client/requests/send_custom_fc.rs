@@ -18,7 +18,7 @@ pub(crate) struct CustomFCRequest<T>
 where
     T: CustomFCOperation + Display + Send + 'static,
 {
-    pub(crate) request: T,
+    pub(crate) request: CustomFunctionCode<u16>,
     promise: Promise<T>,
 }
 
@@ -26,7 +26,7 @@ impl<T> CustomFCRequest<T>
 where
     T: CustomFCOperation + Display + Send + 'static,
 {
-    pub(crate) fn new(request: T, promise: Promise<T>) -> Self {
+    pub(crate) fn new(request: CustomFunctionCode<u16>, promise: Promise<T>) -> Self {
         Self { request, promise }
     }
 
@@ -51,7 +51,7 @@ where
         } else if decode.header() {
             tracing::info!("PDU RX - {}", function);
         }
-
+        
         self.promise.success(response);
         Ok(())
     }
@@ -59,9 +59,6 @@ where
     fn parse_all(&self, mut cursor: ReadCursor) -> Result<T, RequestError> {
         let response = T::parse(&mut cursor)?;
         cursor.expect_empty()?;
-        if self.request != response {
-            return Err(AduParseError::ReplyEchoMismatch.into());
-        }
         Ok(response)
     }
 }
@@ -79,13 +76,20 @@ impl CustomFCOperation for CustomFunctionCode<u16> {
 
     fn parse(cursor: &mut ReadCursor) -> Result<Self, RequestError> {
         let fc = cursor.read_u8()?;
-        let len = cursor.remaining() / 2;
+        let byte_count_in = cursor.read_u8()?;
+        let byte_count_out = cursor.read_u8()?;
+        let len = byte_count_in as usize;
+
+        if len != cursor.remaining() / 2 {
+            return Err(AduParseError::InsufficientBytesForByteCount(len, cursor.remaining() / 2).into());
+        }
+
         let mut values = Vec::with_capacity(len);
         for _ in 0..len {
             values.push(cursor.read_u16_be()?);
         }
         cursor.expect_empty()?;
 
-        Ok(CustomFunctionCode::new(fc, values))
+        Ok(CustomFunctionCode::new(fc, byte_count_in, byte_count_out, values))
     }
 }

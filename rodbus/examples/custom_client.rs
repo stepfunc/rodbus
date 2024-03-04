@@ -207,13 +207,15 @@ async fn run_channel(mut channel: Channel) -> Result<(), Box<dyn std::error::Err
             }
             ["scfc", fc_str, values @ ..] => {
                 let fc = u8::from_str_radix(fc_str.trim_start_matches("0x"), 16).unwrap();
+                let byte_count_in = u8::from_str_radix(fc_str.trim_start_matches("0x"), 16).unwrap();
+                let byte_count_out = u8::from_str_radix(fc_str.trim_start_matches("0x"), 16).unwrap();
                 let values: Vec<u16> = values.iter().filter_map(|&v| u16::from_str_radix(v.trim_start_matches("0x"), 16).ok()).collect();
 
                 if (fc >= 65 && fc <= 72) || (fc >= 100 && fc <= 110) {
                     let result = channel
                         .send_custom_function_code(
                             params,
-                            CustomFunctionCode::new(fc, values)
+                            CustomFunctionCode::new(fc, byte_count_in, byte_count_out, values)
                         )
                         .await;
                     print_write_result(result);

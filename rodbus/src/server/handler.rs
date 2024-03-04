@@ -624,11 +624,11 @@ mod tests {
         );
 
         assert_eq!(
-            handler.process_cfc_69(CustomFunctionCode::new(0x45, vec![0x01, 0x02, 0x03, 0x04])),
+            handler.process_cfc_69(CustomFunctionCode::new(0x45, 4, 4, vec![0x01, 0x02, 0x03, 0x04])),
             Err(ExceptionCode::IllegalFunction)
         );
         assert_eq!(
-            handler.process_cfc_70(CustomFunctionCode::new(0x46, vec![0x01, 0x02, 0x03, 0x04])),
+            handler.process_cfc_70(CustomFunctionCode::new(0x46, 4, 4, vec![0x01, 0x02, 0x03, 0x04])),
             Err(ExceptionCode::IllegalFunction)
         );
     }

@@ -84,11 +84,8 @@ impl RequestHandler for SimpleHandler {
         // Create a new vector to hold the incremented values
         let incremented_data = values.iter().map(|&val| val + 1).collect();
 
-        // Create a new CustomFunctionCode with the incremented data
-        let modified_values = CustomFunctionCode::new(values.function_code(), incremented_data);
-
-        Ok(modified_values)
-        //Ok(&CustomFunctionCode::new(values.function_code(), incremented_values))
+        // Return a new CustomFunctionCode with the incremented data
+        Ok(CustomFunctionCode::new(values.function_code(), values.byte_count_in(), values.byte_count_out(), incremented_data))
     }
 
     fn write_single_register(&mut self, value: Indexed<u16>) -> Result<(), ExceptionCode> {

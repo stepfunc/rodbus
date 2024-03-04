@@ -31,15 +31,21 @@ impl Parse for Indexed<u16> {
 impl Parse for CustomFunctionCode<u16> {
     fn parse(cursor: &mut ReadCursor) -> Result<Self, RequestError> {
         let fc = cursor.read_u8()?;
-        let len = cursor.remaining() / 2;
+        let byte_count_in = cursor.read_u8()?;
+        let byte_count_out = cursor.read_u8()?;
+        let len = byte_count_in as usize;
+
+        if len != cursor.remaining() / 2 {
+            return Err(AduParseError::InsufficientBytesForByteCount(len, cursor.remaining() / 2).into());
+        }
+
         let mut values = Vec::with_capacity(len);
-        
         for _ in 0..len {
             values.push(cursor.read_u16_be()?);
         }
         cursor.expect_empty()?;
-        
-        Ok(CustomFunctionCode::new(fc, values))
+
+        Ok(CustomFunctionCode::new(fc, byte_count_in, byte_count_out, values))
     }
 }
 
@@ -93,28 +99,28 @@ mod custom_fc {
     fn parse_succeeds_for_single_min_value() {
         let mut cursor = ReadCursor::new(&[0x00, 0x01, 0x00, 0x00]);
         let result = CustomFunctionCode::parse(&mut cursor);
-        assert_eq!(result, Ok(CustomFunctionCode::new(1, vec![0x0000])));
+        assert_eq!(result, Ok(CustomFunctionCode::new(69, 1, 1, vec![0x0000])));
     }
 
     #[test]
     fn parse_succeeds_for_single_max_value() {
         let mut cursor = ReadCursor::new(&[0x00, 0x01, 0xFF, 0xFF]);
         let result = CustomFunctionCode::parse(&mut cursor);
-        assert_eq!(result, Ok(CustomFunctionCode::new(1, vec![0xFFFF])));
+        assert_eq!(result, Ok(CustomFunctionCode::new(69, 1, 1, vec![0xFFFF])));
     }
 
     #[test]
     fn parse_succeeds_for_multiple_min_values() {
         let mut cursor = ReadCursor::new(&[0x00, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
         let result = CustomFunctionCode::parse(&mut cursor);
-        assert_eq!(result, Ok(CustomFunctionCode::new(3, vec![0x0000, 0x0000, 0x0000])));
+        assert_eq!(result, Ok(CustomFunctionCode::new(69, 3, 3, vec![0x0000, 0x0000, 0x0000])));
     }
 
     #[test]
     fn parse_succeeds_for_multiple_max_values() {
         let mut cursor = ReadCursor::new(&[0x00, 0x03, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF]);
         let result = CustomFunctionCode::parse(&mut cursor);
-        assert_eq!(result, Ok(CustomFunctionCode::new(3, vec![0xFFFF, 0xFFFF, 0xFFFF])));
+        assert_eq!(result, Ok(CustomFunctionCode::new(69, 3, 3, vec![0xFFFF, 0xFFFF, 0xFFFF])));
     }
 
     #[test]

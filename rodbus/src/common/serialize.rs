@@ -310,16 +310,26 @@ impl Loggable for CustomFunctionCode<u16> {
     ) -> std::fmt::Result {
         if level.data_headers() {
             let mut cursor = ReadCursor::new(payload);
-
             
             let fc = match cursor.read_u8() {
                 Ok(value) => value,
                 Err(_) => return Ok(()),
             };
+            let byte_count_in = match cursor.read_u8() {
+                Ok(value) => value,
+                Err(_) => return Ok(()),
+            };
+            let byte_count_out = match cursor.read_u8() {
+                Ok(value) => value,
+                Err(_) => return Ok(()),
+            };
+            let len = byte_count_in as usize;
 
-            let len = cursor.remaining() / 2;
+            if len != cursor.remaining() / 2 {
+                return Ok(());
+            }
+
             let mut data = Vec::with_capacity(len);
-
             for _ in 0..len {
                 let item = match cursor.read_u16_be() {
                     Ok(value) => value,
@@ -328,7 +338,7 @@ impl Loggable for CustomFunctionCode<u16> {
                 data.push(item);
             }
 
-            let custom_fc = CustomFunctionCode::new(fc, data);
+            let custom_fc = CustomFunctionCode::new(fc, byte_count_in, byte_count_out, data);
 
             write!(f, "{:?}", custom_fc)?;
 
@@ -353,7 +363,7 @@ mod tests {
 
     #[test]
     fn serialize_succeeds_for_valid_cfc_of_single_min_value() {
-        let custom_fc = CustomFunctionCode::new(1, vec![0x0000]);
+        let custom_fc = CustomFunctionCode::new(69, 1, 1, vec![0x0000]);
         let mut buffer = [0u8; 4];
         let mut cursor = WriteCursor::new(&mut buffer);
         custom_fc.serialize(&mut cursor).unwrap();
@@ -362,7 +372,7 @@ mod tests {
 
     #[test]
     fn serialize_succeeds_for_valid_cfc_of_single_max_value() {
-        let custom_fc = CustomFunctionCode::new(1, vec![0xFFFF]);
+        let custom_fc = CustomFunctionCode::new(69, 1, 1, vec![0xFFFF]);
         let mut buffer = [0u8; 4];
         let mut cursor = WriteCursor::new(&mut buffer);
         custom_fc.serialize(&mut cursor).unwrap();
@@ -371,7 +381,7 @@ mod tests {
 
     #[test]
     fn serialize_succeeds_for_valid_cfc_of_multiple_min_values() {
-        let custom_fc = CustomFunctionCode::new(3, vec![0x0000, 0x0000, 0x0000]);
+        let custom_fc = CustomFunctionCode::new(69, 3, 3, vec![0x0000, 0x0000, 0x0000]);
         let mut buffer = [0u8; 8];
         let mut cursor = WriteCursor::new(&mut buffer);
         custom_fc.serialize(&mut cursor).unwrap();
@@ -380,7 +390,7 @@ mod tests {
 
     #[test]
     fn serialize_succeeds_for_valid_cfc_of_multiple_max_values() {
-        let custom_fc = CustomFunctionCode::new(3, vec![0xFFFF, 0xFFFF, 0xFFFF]);
+        let custom_fc = CustomFunctionCode::new(69, 3, 3, vec![0xFFFF, 0xFFFF, 0xFFFF]);
         let mut buffer = [0u8; 8];
         let mut cursor = WriteCursor::new(&mut buffer);
         custom_fc.serialize(&mut cursor).unwrap();

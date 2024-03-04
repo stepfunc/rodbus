@@ -98,8 +98,8 @@ impl RequestHandler for Handler {
     fn process_cfc_69(&mut self, values: CustomFunctionCode<u16>) -> Result<CustomFunctionCode<u16>, ExceptionCode> {
         tracing::info!("processing custom function code: {}, data: {:?}", values.function_code(), values.iter());
         // increment each CFC value by 1 and return the result
-        let incremented_values = values.iter().map(|&x| x + 1).collect();
-        Ok(CustomFunctionCode::new(values.function_code(), incremented_values))
+        let incremented_values = values.iter().map(|&x| x + 1).collect::<Vec<u16>>();
+        Ok(CustomFunctionCode::new(values.function_code(), values.byte_count_in(), values.byte_count_out(), incremented_values))
     }
 }
 
@@ -231,10 +231,10 @@ async fn test_requests_and_responses() {
     );
     assert_eq!(
         channel
-            .send_custom_function_code(params, CustomFunctionCode::new(0x45, vec![0xC0DE, 0xCAFE, 0xC0DE, 0xCAFE]))
+            .send_custom_function_code(params, CustomFunctionCode::new(0x45, 4, 4, vec![0xC0DE, 0xCAFE, 0xC0DE, 0xCAFE]))
             .await
             .unwrap(),
-        CustomFunctionCode::new(0x45, vec![0xC0DE, 0xCAFE, 0xC0DE, 0xCAFE])
+        CustomFunctionCode::new(0x45, 4, 4, vec![0xC0DE, 0xCAFE, 0xC0DE, 0xCAFE])
     );
 }
 
