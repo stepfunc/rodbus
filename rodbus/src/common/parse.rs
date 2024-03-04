@@ -28,7 +28,7 @@ impl Parse for Indexed<u16> {
     }
 }
 
-impl<'a> Parse for CustomFunctionCode<'a> {
+impl Parse for CustomFunctionCode<u16> {
     fn parse(cursor: &mut ReadCursor) -> Result<Self, RequestError> {
         let fc = cursor.read_u8()?;
         let len = cursor.remaining() / 2;
@@ -39,7 +39,7 @@ impl<'a> Parse for CustomFunctionCode<'a> {
         }
         cursor.expect_empty()?;
         
-        Ok(CustomFunctionCode::new(fc, &values))
+        Ok(CustomFunctionCode::new(fc, values))
     }
 }
 
@@ -93,28 +93,28 @@ mod custom_fc {
     fn parse_succeeds_for_single_min_value() {
         let mut cursor = ReadCursor::new(&[0x00, 0x01, 0x00, 0x00]);
         let result = CustomFunctionCode::parse(&mut cursor);
-        assert_eq!(result, Ok(CustomFunctionCode::new(1, &[0x0000])));
+        assert_eq!(result, Ok(CustomFunctionCode::new(1, vec![0x0000])));
     }
 
     #[test]
     fn parse_succeeds_for_single_max_value() {
         let mut cursor = ReadCursor::new(&[0x00, 0x01, 0xFF, 0xFF]);
         let result = CustomFunctionCode::parse(&mut cursor);
-        assert_eq!(result, Ok(CustomFunctionCode::new(1, &[0xFFFF])));
+        assert_eq!(result, Ok(CustomFunctionCode::new(1, vec![0xFFFF])));
     }
 
     #[test]
     fn parse_succeeds_for_multiple_min_values() {
         let mut cursor = ReadCursor::new(&[0x00, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
         let result = CustomFunctionCode::parse(&mut cursor);
-        assert_eq!(result, Ok(CustomFunctionCode::new(3, &[0x0000, 0x0000, 0x0000])));
+        assert_eq!(result, Ok(CustomFunctionCode::new(3, vec![0x0000, 0x0000, 0x0000])));
     }
 
     #[test]
     fn parse_succeeds_for_multiple_max_values() {
         let mut cursor = ReadCursor::new(&[0x00, 0x03, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF]);
         let result = CustomFunctionCode::parse(&mut cursor);
-        assert_eq!(result, Ok(CustomFunctionCode::new(3, &[0xFFFF, 0xFFFF, 0xFFFF])));
+        assert_eq!(result, Ok(CustomFunctionCode::new(3, vec![0xFFFF, 0xFFFF, 0xFFFF])));
     }
 
     #[test]
