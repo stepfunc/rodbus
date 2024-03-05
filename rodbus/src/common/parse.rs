@@ -97,43 +97,43 @@ mod custom_fc {
 
     #[test]
     fn parse_succeeds_for_single_min_value() {
-        let mut cursor = ReadCursor::new(&[0x00, 0x01, 0x00, 0x00]);
+        let mut cursor = ReadCursor::new(&[0x45, 0x01, 0x01, 0x00, 0x00]);
         let result = CustomFunctionCode::parse(&mut cursor);
         assert_eq!(result, Ok(CustomFunctionCode::new(69, 1, 1, vec![0x0000])));
     }
 
     #[test]
     fn parse_succeeds_for_single_max_value() {
-        let mut cursor = ReadCursor::new(&[0x00, 0x01, 0xFF, 0xFF]);
+        let mut cursor = ReadCursor::new(&[0x45, 0x01, 0x01, 0xFF, 0xFF]);
         let result = CustomFunctionCode::parse(&mut cursor);
         assert_eq!(result, Ok(CustomFunctionCode::new(69, 1, 1, vec![0xFFFF])));
     }
 
     #[test]
     fn parse_succeeds_for_multiple_min_values() {
-        let mut cursor = ReadCursor::new(&[0x00, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
+        let mut cursor = ReadCursor::new(&[0x45, 0x03, 0x3, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
         let result = CustomFunctionCode::parse(&mut cursor);
         assert_eq!(result, Ok(CustomFunctionCode::new(69, 3, 3, vec![0x0000, 0x0000, 0x0000])));
     }
 
     #[test]
     fn parse_succeeds_for_multiple_max_values() {
-        let mut cursor = ReadCursor::new(&[0x00, 0x03, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF]);
+        let mut cursor = ReadCursor::new(&[0x45, 0x03, 0x3, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF]);
         let result = CustomFunctionCode::parse(&mut cursor);
         assert_eq!(result, Ok(CustomFunctionCode::new(69, 3, 3, vec![0xFFFF, 0xFFFF, 0xFFFF])));
     }
 
     #[test]
-    fn parse_fails_for_missing_len_byte() {
-        let mut cursor = ReadCursor::new(&[0x01, 0xFF, 0xFF]);
+    fn parse_fails_for_missing_byte_count() {
+        let mut cursor = ReadCursor::new(&[0x45, 0x01, 0xFF, 0xFF]);
         let result = CustomFunctionCode::parse(&mut cursor);
-        assert_eq!(result, Err(AduParseError::InsufficientBytes.into()));
+        assert_eq!(result, Err(AduParseError::InsufficientBytesForByteCount(1, 0).into()));
     }
 
     #[test]
     fn parse_fails_for_missing_data_byte() {
         let mut cursor = ReadCursor::new(&[0x00, 0x01, 0xFF]);
         let result = CustomFunctionCode::parse(&mut cursor);
-        assert_eq!(result, Err(AduParseError::InsufficientBytes.into()));
+        assert_eq!(result, Err(AduParseError::InsufficientBytesForByteCount(1, 0).into()));
     }
 }
