@@ -293,10 +293,13 @@ impl Serialize for WriteMultiple<u16> {
 impl Serialize for CustomFunctionCode<u16> {
     fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
         cursor.write_u8(self.function_code())?;
+        cursor.write_u8(self.byte_count_in())?;
+        cursor.write_u8(self.byte_count_out())?;
 
         for &item in self.iter() {
             cursor.write_u16_be(item)?;
         }
+
         Ok(())
     }
 }
@@ -364,36 +367,36 @@ mod tests {
     #[test]
     fn serialize_succeeds_for_valid_cfc_of_single_min_value() {
         let custom_fc = CustomFunctionCode::new(69, 1, 1, vec![0x0000]);
-        let mut buffer = [0u8; 4];
+        let mut buffer = [0u8; 5];
         let mut cursor = WriteCursor::new(&mut buffer);
         custom_fc.serialize(&mut cursor).unwrap();
-        assert_eq!(buffer, [0x00, 0x01, 0x00, 0x00]);
+        assert_eq!(buffer, [0x45, 0x01, 0x01, 0x00, 0x00]);
     }
 
     #[test]
     fn serialize_succeeds_for_valid_cfc_of_single_max_value() {
         let custom_fc = CustomFunctionCode::new(69, 1, 1, vec![0xFFFF]);
-        let mut buffer = [0u8; 4];
+        let mut buffer = [0u8; 5];
         let mut cursor = WriteCursor::new(&mut buffer);
         custom_fc.serialize(&mut cursor).unwrap();
-        assert_eq!(buffer, [0x00, 0x01, 0xFF, 0xFF]);
+        assert_eq!(buffer, [0x45, 0x01, 0x01, 0xFF, 0xFF]);
     }
 
     #[test]
     fn serialize_succeeds_for_valid_cfc_of_multiple_min_values() {
         let custom_fc = CustomFunctionCode::new(69, 3, 3, vec![0x0000, 0x0000, 0x0000]);
-        let mut buffer = [0u8; 8];
+        let mut buffer = [0u8; 9];
         let mut cursor = WriteCursor::new(&mut buffer);
         custom_fc.serialize(&mut cursor).unwrap();
-        assert_eq!(buffer, [0x00, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
+        assert_eq!(buffer, [0x45, 0x03, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
     }
 
     #[test]
     fn serialize_succeeds_for_valid_cfc_of_multiple_max_values() {
         let custom_fc = CustomFunctionCode::new(69, 3, 3, vec![0xFFFF, 0xFFFF, 0xFFFF]);
-        let mut buffer = [0u8; 8];
+        let mut buffer = [0u8; 9];
         let mut cursor = WriteCursor::new(&mut buffer);
         custom_fc.serialize(&mut cursor).unwrap();
-        assert_eq!(buffer, [0x00, 0x03, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF]);
+        assert_eq!(buffer, [0x45, 0x03, 0x03, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF]);
     }
 }

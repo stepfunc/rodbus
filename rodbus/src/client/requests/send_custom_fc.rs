@@ -66,6 +66,8 @@ where
 impl CustomFCOperation for CustomFunctionCode<u16> {
     fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
         cursor.write_u8(self.function_code())?;
+        cursor.write_u8(self.byte_count_in())?;
+        cursor.write_u8(self.byte_count_out())?;
 
         for &item in self.iter() {
             cursor.write_u16_be(item)?;
