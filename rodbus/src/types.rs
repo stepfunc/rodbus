@@ -410,12 +410,23 @@ impl CustomFunctionCode<u16> {
 
 impl std::fmt::Display for CustomFunctionCode<u16> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "fc: {:#X}, ", self.fc)?;
+        write!(f, "bytes in: {}, ", self.byte_count_in)?;
+        write!(f, "bytes out: {}, ", self.byte_count_out)?;
         write!(f, "values: [")?;
         for (i, val) in self.data.iter().enumerate() {
             if i != 0 {
                 write!(f, ", ")?;
             }
             write!(f, "{}", val)?;
+        }
+        write!(f, "], ")?;
+        write!(f, "hex: [")?;
+        for (i, val) in self.data.iter().enumerate() {
+            if i != 0 {
+                write!(f, ", ")?;
+            }
+            write!(f, "{:#X}", val)?;
         }
         write!(f, "]")
     }
