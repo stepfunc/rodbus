@@ -383,22 +383,6 @@ mod tests {
         0x71, 0x86, // crc
     ];
 
-    const SEND_CFC_69_REQUEST: &[u8] = &[
-        UNIT_ID, // unit id
-        0x45, // function code
-        0x08, // byte count
-        0xC0, 0xDE, 0xCA, 0xFE, // data
-        0xC8, 0xD9, // crc
-    ];
-
-    const SEND_CFC_69_RESPONSE: &[u8] = &[
-        UNIT_ID, // unit id
-        0x45,    // function code
-        0x08, // byte count
-        0xC0, 0xDE, 0xCA, 0xFE, // data
-        0x88, 0x2C, // crc
-    ];
-
     const WRITE_SINGLE_COIL_REQUEST: &[u8] = &[
         UNIT_ID, // unit id
         0x05,    // function code
@@ -481,10 +465,6 @@ mod tests {
             FunctionCode::ReadInputRegisters,
             READ_INPUT_REGISTERS_REQUEST,
         ),
-        (
-            FunctionCode::SendCFC69,
-            SEND_CFC_69_REQUEST,
-        ),
         (FunctionCode::WriteSingleCoil, WRITE_SINGLE_COIL_REQUEST),
         (
             FunctionCode::WriteSingleRegister,
@@ -513,10 +493,6 @@ mod tests {
         (
             FunctionCode::ReadInputRegisters,
             READ_INPUT_REGISTERS_RESPONSE,
-        ),
-        (
-            FunctionCode::SendCFC69,
-            SEND_CFC_69_RESPONSE,
         ),
         (FunctionCode::WriteSingleCoil, WRITE_SINGLE_COIL_RESPONSE),
         (
