@@ -88,6 +88,34 @@ impl RequestHandler for SimpleHandler {
         Ok(CustomFunctionCode::new(values.function_code(), values.byte_count_in(), values.byte_count_out(), incremented_data))
     }
 
+    fn process_cfc_70(&mut self, values: CustomFunctionCode<u16>) -> Result<CustomFunctionCode<u16>, ExceptionCode> {
+        tracing::info!("processing custom function code: {}", values.function_code());
+        // add a new value to the buffer and return the result
+        // Create a new vector to hold the incremented values
+        let extended_data = {
+            let mut extended_data = values.iter().map(|val| *val).collect::<Vec<u16>>();
+            extended_data.push(0xC0DE);
+            extended_data
+        };
+
+        // Return a new CustomFunctionCode with the incremented data
+        Ok(CustomFunctionCode::new(values.function_code(), values.byte_count_in(), values.byte_count_out(), extended_data))
+    }
+
+    fn process_cfc_71(&mut self, values: CustomFunctionCode<u16>) -> Result<CustomFunctionCode<u16>, ExceptionCode> {
+        tracing::info!("processing custom function code: {}", values.function_code());
+        // remove the first value from the buffer and return the result
+        // Create a new vector to hold the incremented values
+        let truncated_data = {
+            let mut truncated_data = values.iter().map(|val| *val).collect::<Vec<u16>>();
+            truncated_data.pop();
+            truncated_data
+        };
+
+        // Return a new CustomFunctionCode with the incremented data
+        Ok(CustomFunctionCode::new(values.function_code(), values.byte_count_in(), values.byte_count_out(), truncated_data))
+    }
+
     fn write_single_register(&mut self, value: Indexed<u16>) -> Result<(), ExceptionCode> {
         tracing::info!(
             "write single register, index: {} value: {}",

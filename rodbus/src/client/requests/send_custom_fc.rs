@@ -45,13 +45,13 @@ where
         decode: AppDecodeLevel,
     ) -> Result<(), RequestError> {
         let response = self.parse_all(cursor)?;
-
+        
         if decode.data_headers() {
             tracing::info!("PDU RX - {} {}", function, response);
         } else if decode.header() {
             tracing::info!("PDU RX - {}", function);
         }
-        
+
         self.promise.success(response);
         Ok(())
     }
