@@ -169,25 +169,12 @@ impl<'a> Request<'a> {
             }
             Request::SendCustomFunctionCode(request) => {
                 let result = match function {
-                    FunctionCode::SendCFC65 => handler.process_cfc_65(request.clone()),
-                    FunctionCode::SendCFC66 => handler.process_cfc_66(request.clone()),
-                    FunctionCode::SendCFC67 => handler.process_cfc_67(request.clone()),
-                    FunctionCode::SendCFC68 => handler.process_cfc_68(request.clone()),
-                    FunctionCode::SendCFC69 => handler.process_cfc_69(request.clone()),
-                    FunctionCode::SendCFC70 => handler.process_cfc_70(request.clone()),
-                    FunctionCode::SendCFC71 => handler.process_cfc_71(request.clone()),
-                    FunctionCode::SendCFC72 => handler.process_cfc_72(request.clone()),
-                    FunctionCode::SendCFC100 => handler.process_cfc_100(request.clone()),
-                    FunctionCode::SendCFC101 => handler.process_cfc_101(request.clone()),
-                    FunctionCode::SendCFC102 => handler.process_cfc_102(request.clone()),
-                    FunctionCode::SendCFC103 => handler.process_cfc_103(request.clone()),
-                    FunctionCode::SendCFC104 => handler.process_cfc_104(request.clone()),
-                    FunctionCode::SendCFC105 => handler.process_cfc_105(request.clone()),
-                    FunctionCode::SendCFC106 => handler.process_cfc_106(request.clone()),
-                    FunctionCode::SendCFC107 => handler.process_cfc_107(request.clone()),
-                    FunctionCode::SendCFC108 => handler.process_cfc_108(request.clone()),
-                    FunctionCode::SendCFC109 => handler.process_cfc_109(request.clone()),
-                    FunctionCode::SendCFC110 => handler.process_cfc_110(request.clone()),
+                    FunctionCode::SendCFC65 | FunctionCode::SendCFC66 | FunctionCode::SendCFC67 | FunctionCode::SendCFC68 | FunctionCode::SendCFC69 | 
+                    FunctionCode::SendCFC70 | FunctionCode::SendCFC71 | FunctionCode::SendCFC72 | FunctionCode::SendCFC100 | FunctionCode::SendCFC101 | 
+                    FunctionCode::SendCFC102 | FunctionCode::SendCFC103 | FunctionCode::SendCFC104 | FunctionCode::SendCFC105 | FunctionCode::SendCFC106 | 
+                    FunctionCode::SendCFC107 | FunctionCode::SendCFC108 | FunctionCode::SendCFC109 | FunctionCode::SendCFC110 => {
+                        handler.process_cfc(request.clone())
+                    },
                     _ => Err(ExceptionCode::IllegalFunction),
                 };
                 write_result(function, header, writer, result, level)

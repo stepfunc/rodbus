@@ -78,42 +78,43 @@ impl RequestHandler for SimpleHandler {
         }
     }
 
-    fn process_cfc_69(&mut self, values: CustomFunctionCode<u16>) -> Result<CustomFunctionCode<u16>, ExceptionCode> {
+    fn process_cfc(&mut self, values: CustomFunctionCode<u16>) -> Result<CustomFunctionCode<u16>, ExceptionCode> {
         tracing::info!("processing custom function code: {}", values.function_code());
-        // increment each CFC value by 1 and return the result
-        // Create a new vector to hold the incremented values
-        let incremented_data = values.iter().map(|&val| val + 1).collect();
+        match values.function_code() {
+            0x69 => {
+                // increment each CFC value by 1 and return the result
+                // Create a new vector to hold the incremented values
+                let incremented_data = values.iter().map(|&val| val + 1).collect();
 
-        // Return a new CustomFunctionCode with the incremented data
-        Ok(CustomFunctionCode::new(values.function_code(), values.byte_count_in(), values.byte_count_out(), incremented_data))
-    }
+                // Return a new CustomFunctionCode with the incremented data
+                Ok(CustomFunctionCode::new(values.function_code(), values.byte_count_in(), values.byte_count_out(), incremented_data))
+            },
+            0x70 => {
+                // add a new value to the buffer and return the result
+                // Create a new vector to hold the incremented values
+                let extended_data = {
+                    let mut extended_data = values.iter().map(|val| *val).collect::<Vec<u16>>();
+                    extended_data.push(0xC0DE);
+                    extended_data
+                };
 
-    fn process_cfc_70(&mut self, values: CustomFunctionCode<u16>) -> Result<CustomFunctionCode<u16>, ExceptionCode> {
-        tracing::info!("processing custom function code: {}", values.function_code());
-        // add a new value to the buffer and return the result
-        // Create a new vector to hold the incremented values
-        let extended_data = {
-            let mut extended_data = values.iter().map(|val| *val).collect::<Vec<u16>>();
-            extended_data.push(0xC0DE);
-            extended_data
-        };
+                // Return a new CustomFunctionCode with the incremented data
+                Ok(CustomFunctionCode::new(values.function_code(), values.byte_count_in(), values.byte_count_out(), extended_data))
+            },
+            0x71 => {
+                // remove the first value from the buffer and return the result
+                // Create a new vector to hold the incremented values
+                let truncated_data = {
+                    let mut truncated_data = values.iter().map(|val| *val).collect::<Vec<u16>>();
+                    truncated_data.pop();
+                    truncated_data
+                };
 
-        // Return a new CustomFunctionCode with the incremented data
-        Ok(CustomFunctionCode::new(values.function_code(), values.byte_count_in(), values.byte_count_out(), extended_data))
-    }
-
-    fn process_cfc_71(&mut self, values: CustomFunctionCode<u16>) -> Result<CustomFunctionCode<u16>, ExceptionCode> {
-        tracing::info!("processing custom function code: {}", values.function_code());
-        // remove the first value from the buffer and return the result
-        // Create a new vector to hold the incremented values
-        let truncated_data = {
-            let mut truncated_data = values.iter().map(|val| *val).collect::<Vec<u16>>();
-            truncated_data.pop();
-            truncated_data
-        };
-
-        // Return a new CustomFunctionCode with the incremented data
-        Ok(CustomFunctionCode::new(values.function_code(), values.byte_count_in(), values.byte_count_out(), truncated_data))
+                // Return a new CustomFunctionCode with the incremented data
+                Ok(CustomFunctionCode::new(values.function_code(), values.byte_count_in(), values.byte_count_out(), truncated_data))
+            },
+            _ => Err(ExceptionCode::IllegalFunction),
+        }
     }
 
     fn write_single_register(&mut self, value: Indexed<u16>) -> Result<(), ExceptionCode> {
