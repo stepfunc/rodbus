@@ -63,7 +63,7 @@ impl Request {
         payload: &[u8],
         decode: AppDecodeLevel,
     ) -> Result<(), RequestError> {
-        let expected_function = self.details.function();
+        let expected_function = self.details.function()?;
         let mut cursor = ReadCursor::new(payload);
         let function = match cursor.read_u8() {
             Ok(x) => x,
@@ -121,38 +121,38 @@ impl Request {
 }
 
 impl RequestDetails {
-    pub(crate) fn function(&self) -> FunctionCode {
+    pub(crate) fn function(&self) -> Result<FunctionCode, ExceptionCode> {
         match self {
-            RequestDetails::ReadCoils(_) => FunctionCode::ReadCoils,
-            RequestDetails::ReadDiscreteInputs(_) => FunctionCode::ReadDiscreteInputs,
-            RequestDetails::ReadHoldingRegisters(_) => FunctionCode::ReadHoldingRegisters,
-            RequestDetails::ReadInputRegisters(_) => FunctionCode::ReadInputRegisters,
-            RequestDetails::WriteSingleCoil(_) => FunctionCode::WriteSingleCoil,
-            RequestDetails::WriteSingleRegister(_) => FunctionCode::WriteSingleRegister,
-            RequestDetails::WriteMultipleCoils(_) => FunctionCode::WriteMultipleCoils,
-            RequestDetails::WriteMultipleRegisters(_) => FunctionCode::WriteMultipleRegisters,
+            RequestDetails::ReadCoils(_) => Ok(FunctionCode::ReadCoils),
+            RequestDetails::ReadDiscreteInputs(_) => Ok(FunctionCode::ReadDiscreteInputs),
+            RequestDetails::ReadHoldingRegisters(_) => Ok(FunctionCode::ReadHoldingRegisters),
+            RequestDetails::ReadInputRegisters(_) => Ok(FunctionCode::ReadInputRegisters),
+            RequestDetails::WriteSingleCoil(_) => Ok(FunctionCode::WriteSingleCoil),
+            RequestDetails::WriteSingleRegister(_) => Ok(FunctionCode::WriteSingleRegister),
+            RequestDetails::WriteMultipleCoils(_) => Ok(FunctionCode::WriteMultipleCoils),
+            RequestDetails::WriteMultipleRegisters(_) => Ok(FunctionCode::WriteMultipleRegisters),
             RequestDetails::SendCustomFunctionCode(x) => {
                 match x.request.function_code() {
-                    0x41 => FunctionCode::SendCFC65,
-                    0x42 => FunctionCode::SendCFC66,
-                    0x43 => FunctionCode::SendCFC67,
-                    0x44 => FunctionCode::SendCFC68,
-                    0x45 => FunctionCode::SendCFC69,
-                    0x46 => FunctionCode::SendCFC70,
-                    0x47 => FunctionCode::SendCFC71,
-                    0x48 => FunctionCode::SendCFC72,
-                    0x64 => FunctionCode::SendCFC100,
-                    0x65 => FunctionCode::SendCFC101,
-                    0x66 => FunctionCode::SendCFC102,
-                    0x67 => FunctionCode::SendCFC103,
-                    0x68 => FunctionCode::SendCFC104,
-                    0x69 => FunctionCode::SendCFC105,
-                    0x6A => FunctionCode::SendCFC106,
-                    0x6B => FunctionCode::SendCFC107,
-                    0x6C => FunctionCode::SendCFC108,
-                    0x6D => FunctionCode::SendCFC109,
-                    0x6E => FunctionCode::SendCFC110,
-                    _ => panic!("unsupported custom function code"),
+                    0x41 => Ok(FunctionCode::SendCFC65),
+                    0x42 => Ok(FunctionCode::SendCFC66),
+                    0x43 => Ok(FunctionCode::SendCFC67),
+                    0x44 => Ok(FunctionCode::SendCFC68),
+                    0x45 => Ok(FunctionCode::SendCFC69),
+                    0x46 => Ok(FunctionCode::SendCFC70),
+                    0x47 => Ok(FunctionCode::SendCFC71),
+                    0x48 => Ok(FunctionCode::SendCFC72),
+                    0x64 => Ok(FunctionCode::SendCFC100),
+                    0x65 => Ok(FunctionCode::SendCFC101),
+                    0x66 => Ok(FunctionCode::SendCFC102),
+                    0x67 => Ok(FunctionCode::SendCFC103),
+                    0x68 => Ok(FunctionCode::SendCFC104),
+                    0x69 => Ok(FunctionCode::SendCFC105),
+                    0x6A => Ok(FunctionCode::SendCFC106),
+                    0x6B => Ok(FunctionCode::SendCFC107),
+                    0x6C => Ok(FunctionCode::SendCFC108),
+                    0x6D => Ok(FunctionCode::SendCFC109),
+                    0x6E => Ok(FunctionCode::SendCFC110),
+                    _ => Err(ExceptionCode::IllegalFunction),
                 }
             },
         }
@@ -177,7 +177,7 @@ impl RequestDetails {
         cursor: ReadCursor,
         decode: AppDecodeLevel,
     ) -> Result<(), RequestError> {
-        let function = self.function();
+        let function = self.function()?;
         match self {
             RequestDetails::ReadCoils(x) => x.handle_response(cursor, function, decode),
             RequestDetails::ReadDiscreteInputs(x) => x.handle_response(cursor, function, decode),
