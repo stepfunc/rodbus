@@ -81,6 +81,104 @@ impl RequestHandler for SimpleHandler {
     fn process_cfc(&mut self, values: CustomFunctionCode<u16>) -> Result<CustomFunctionCode<u16>, ExceptionCode> {
         tracing::info!("processing custom function code: {}", values.function_code());
         match values.function_code() {
+            0x01 => {
+                if values.len() != 2 {
+                    return Err(ExceptionCode::IllegalDataValue);
+                }
+                let start = *values.iter().next().unwrap();
+                let count = *values.iter().next().unwrap();
+                // read coils
+                Ok(CustomFunctionCode::new(values.function_code(), values.byte_count_in(), values.byte_count_out(), vec![start, count]))
+            },
+            0x02 => {
+                if values.len() != 2 {
+                    return Err(ExceptionCode::IllegalDataValue);
+                }
+                let start = *values.iter().next().unwrap();
+                let count = *values.iter().next().unwrap();
+                // read discrete inputs
+                Ok(CustomFunctionCode::new(values.function_code(), values.byte_count_in(), values.byte_count_out(), vec![start, count]))
+            },
+            0x03 => {
+                if values.len() != 2 {
+                    return Err(ExceptionCode::IllegalDataValue);
+                }
+                let start = *values.iter().next().unwrap();
+                let count = *values.iter().next().unwrap();
+                // read holding registers
+                Ok(CustomFunctionCode::new(values.function_code(), values.byte_count_in(), values.byte_count_out(), vec![start, count]))
+            },
+            0x04 => {
+                if values.len() != 2 {
+                    return Err(ExceptionCode::IllegalDataValue);
+                }
+                let start = *values.iter().next().unwrap();
+                let count = *values.iter().next().unwrap();
+                // read input registers
+                Ok(CustomFunctionCode::new(values.function_code(), values.byte_count_in(), values.byte_count_out(), vec![start, count]))
+            },
+            0x05 => {
+                if values.len() != 2 {
+                    return Err(ExceptionCode::IllegalDataValue);
+                }
+                let address = *values.iter().next().unwrap();
+                let value = *values.iter().next().unwrap() != 0;
+                // write single coil
+                let result = self.write_single_coil(Indexed::new(address, value));
+                match result {
+                    Ok(_) => Ok(CustomFunctionCode::new(values.function_code(), values.byte_count_in(), values.byte_count_out(), vec![address, value as u16])),
+                    Err(exception) => Err(exception),
+                }
+            },
+            0x06 => {
+                if values.len() != 2 {
+                    return Err(ExceptionCode::IllegalDataValue);
+                }
+                let address = *values.iter().next().unwrap();
+                let value = *values.iter().next().unwrap();
+                // write single register
+                let result = self.write_single_register(Indexed::new(address, value));
+                match result {
+                    Ok(_) => Ok(CustomFunctionCode::new(values.function_code(), values.byte_count_in(), values.byte_count_out(), vec![address, value])),
+                    Err(exception) => Err(exception),
+                }
+            },
+            0x0F => {
+                if values.len() < 5 {
+                    return Err(ExceptionCode::IllegalDataValue);
+                }
+                let start = *values.iter().next().unwrap();
+                let count = *values.iter().next().unwrap();
+                let mut iterator = values.iter().skip(2);
+                let mut coils = vec![];
+                for _ in 0..count {
+                    coils.push(*iterator.next().unwrap() != 0);
+                }
+                // write multiple coils
+                let result = self.write_multiple_coils(WriteCoils::new(AddressRange::try_from(start, count).unwrap(), coils.into_iter()));
+                match result {
+                    Ok(_) => Ok(CustomFunctionCode::new(values.function_code(), values.byte_count_in(), values.byte_count_out(), vec![start, count])),
+                    Err(exception) => Err(exception),
+                }
+            },
+            0x10 => {
+                if values.len() < 5 {
+                    return Err(ExceptionCode::IllegalDataValue);
+                }
+                let start = *values.iter().next().unwrap();
+                let count = *values.iter().next().unwrap();
+                let mut iterator = values.iter().skip(2);
+                let mut registers = vec![];
+                for _ in 0..count {
+                    registers.push(*iterator.next().unwrap());
+                }
+                // write multiple registers
+                let result = self.write_multiple_registers(WriteRegisters::new(AddressRange::try_from(start, count).unwrap(), registers.into_iter());
+                match result {
+                    Ok(_) => Ok(CustomFunctionCode::new(values.function_code(), values.byte_count_in(), values.byte_count_out(), vec![start, count])),
+                    Err(exception) => Err(exception),
+                }
+            },
             0x69 => {
                 // increment each CFC value by 1 and return the result
                 // Create a new vector to hold the incremented values
