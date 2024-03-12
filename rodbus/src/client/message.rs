@@ -133,6 +133,16 @@ impl RequestDetails {
             RequestDetails::WriteMultipleRegisters(_) => Ok(FunctionCode::WriteMultipleRegisters),
             RequestDetails::SendCustomFunctionCode(x) => {
                 match x.request.function_code() {
+                    // Standard FCs
+                    0x01 => Ok(FunctionCode::ReadCoils),
+                    0x02 => Ok(FunctionCode::ReadDiscreteInputs),
+                    0x03 => Ok(FunctionCode::ReadHoldingRegisters),
+                    0x04 => Ok(FunctionCode::ReadInputRegisters),
+                    0x05 => Ok(FunctionCode::WriteSingleCoil),
+                    0x06 => Ok(FunctionCode::WriteSingleRegister),
+                    0x0F => Ok(FunctionCode::WriteMultipleCoils),
+                    0x10 => Ok(FunctionCode::WriteMultipleRegisters),
+                    // Custom FCs
                     0x41 => Ok(FunctionCode::SendCFC65),
                     0x42 => Ok(FunctionCode::SendCFC66),
                     0x43 => Ok(FunctionCode::SendCFC67),
