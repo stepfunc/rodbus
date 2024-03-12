@@ -80,7 +80,7 @@ impl CustomFCOperation for CustomFunctionCode<u16> {
         let fc = cursor.read_u8()?;
         let byte_count_in = cursor.read_u8()?;
         let byte_count_out = cursor.read_u8()?;
-        let len = byte_count_in as usize;
+        let len = byte_count_out as usize;
 
         if len != cursor.remaining() / 2 {
             return Err(AduParseError::InsufficientBytesForByteCount(len, cursor.remaining() / 2).into());
