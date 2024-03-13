@@ -81,7 +81,7 @@ impl RequestHandler for SimpleHandler {
     fn process_cfc(&mut self, values: CustomFunctionCode<u16>) -> Result<CustomFunctionCode<u16>, ExceptionCode> {
         tracing::info!("processing custom function code: {}", values.function_code());
         match values.function_code() {
-            0x69 => {
+            0x41 => {
                 // increment each CFC value by 1 and return the result
                 // Create a new vector to hold the incremented values
                 let incremented_data = values.iter().map(|&val| val + 1).collect();
@@ -89,7 +89,7 @@ impl RequestHandler for SimpleHandler {
                 // Return a new CustomFunctionCode with the incremented data
                 Ok(CustomFunctionCode::new(values.function_code(), values.byte_count_in(), values.byte_count_out(), incremented_data))
             },
-            0x70 => {
+            0x42 => {
                 // add a new value to the buffer and return the result
                 // Create a new vector to hold the incremented values
                 let extended_data = {
@@ -101,7 +101,7 @@ impl RequestHandler for SimpleHandler {
                 // Return a new CustomFunctionCode with the incremented data
                 Ok(CustomFunctionCode::new(values.function_code(), values.byte_count_in(), values.byte_count_out(), extended_data))
             },
-            0x71 => {
+            0x43 => {
                 // remove the first value from the buffer and return the result
                 // Create a new vector to hold the incremented values
                 let truncated_data = {
