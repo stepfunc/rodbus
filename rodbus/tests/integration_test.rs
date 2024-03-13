@@ -261,7 +261,14 @@ async fn test_requests_and_responses() {
             Indexed::new(2, 0x0506)
         ]
     );
-    // Test the implemented test handlers
+    // Test the invalid CFC handlers below 65
+    for i in 0..65 {
+        assert_eq!(
+            channel.send_custom_function_code(params, CustomFunctionCode::new(i, 4, 4, vec![0xC0DE, 0xCAFE, 0xC0DE, 0xCAFE])).await,
+            Err(rodbus::ExceptionCode::IllegalFunction.into())
+        );
+    }
+    // Test the implemented valid test handlers 65, 66, 67
     assert_eq!(
         channel.send_custom_function_code(params, CustomFunctionCode::new(0x41, 4, 4, vec![0xC0DE, 0xCAFE, 0xC0DE, 0xCAFE])).await,
         Ok(CustomFunctionCode::new(0x41, 4, 4, vec![0xC0DF, 0xCAFF, 0xC0DF, 0xCAFF]))
@@ -274,14 +281,29 @@ async fn test_requests_and_responses() {
         channel.send_custom_function_code(params, CustomFunctionCode::new(0x43, 4, 3, vec![0xC0DE, 0xCAFE, 0xC0DE, 0xCAFE])).await,
         Ok(CustomFunctionCode::new(0x43, 4, 3, vec![0xC0DE, 0xCAFE, 0xC0DE]))
     );
-    // Test the unimplemented test handlers
-    for i in 68..72 {
+    // Test the unimplemented valid handlers from 68 to 72
+    for i in 68..73 {
         assert_eq!(
             channel.send_custom_function_code(params, CustomFunctionCode::new(i, 4, 4, vec![0xC0DE, 0xCAFE, 0xC0DE, 0xCAFE])).await,
             Err(rodbus::ExceptionCode::IllegalFunction.into())
         );
     }
+    // Test the invalid handlers from 73 to 99
+    for i in 73..100 {
+        assert_eq!(
+            channel.send_custom_function_code(params, CustomFunctionCode::new(i, 4, 4, vec![0xC0DE, 0xCAFE, 0xC0DE, 0xCAFE])).await,
+            Err(rodbus::ExceptionCode::IllegalFunction.into())
+        );
+    }
+    // Test the unimplemented valid handlers from 100 to 110
     for i in 100..110 {
+        assert_eq!(
+            channel.send_custom_function_code(params, CustomFunctionCode::new(i, 4, 4, vec![0xC0DE, 0xCAFE, 0xC0DE, 0xCAFE])).await,
+            Err(rodbus::ExceptionCode::IllegalFunction.into())
+        );
+    }
+    // Test the invalid CFC handlers from 111 to 255
+    for i in 111..=255 {
         assert_eq!(
             channel.send_custom_function_code(params, CustomFunctionCode::new(i, 4, 4, vec![0xC0DE, 0xCAFE, 0xC0DE, 0xCAFE])).await,
             Err(rodbus::ExceptionCode::IllegalFunction.into())
