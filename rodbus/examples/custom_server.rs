@@ -85,67 +85,46 @@ impl RequestHandler for SimpleHandler {
                 if values.len() != 2 {
                     return Err(ExceptionCode::IllegalDataValue);
                 }
-
                 let start = *values.iter().next().unwrap();
                 let count = *values.iter().next().unwrap();
-
                 // read coils
-                let coil_values = self.coils_as_mut().get(start as usize..start as usize + count as usize).unwrap().to_vec();
-                let result = coil_values.iter().map(|&val| val as u16).collect();
-
-                Ok(CustomFunctionCode::new(values.function_code(), values.byte_count_in(), values.byte_count_out(), result))
+                Ok(CustomFunctionCode::new(values.function_code(), values.byte_count_in(), values.byte_count_out(), vec![start, count]))
             },
             0x02 => {
                 if values.len() != 2 {
                     return Err(ExceptionCode::IllegalDataValue);
                 }
-
                 let start = *values.iter().next().unwrap();
                 let count = *values.iter().next().unwrap();
-
                 // read discrete inputs
-                let discrete_input_values = self.discrete_inputs_as_mut().get(start as usize..start as usize + count as usize).unwrap().to_vec();
-                let result = discrete_input_values.iter().map(|&val| val as u16).collect();
-
-                Ok(CustomFunctionCode::new(values.function_code(), values.byte_count_in(), values.byte_count_out(), result))
+                Ok(CustomFunctionCode::new(values.function_code(), values.byte_count_in(), values.byte_count_out(), vec![start, count]))
             },
             0x03 => {
                 if values.len() != 2 {
                     return Err(ExceptionCode::IllegalDataValue);
                 }
-
                 let start = *values.iter().next().unwrap();
                 let count = *values.iter().next().unwrap();
-
                 // read holding registers
-                let result = self.holding_registers_as_mut().get(start as usize..start as usize + count as usize).unwrap().to_vec();
-
-                Ok(CustomFunctionCode::new(values.function_code(), values.byte_count_in(), values.byte_count_out(), result))
+                Ok(CustomFunctionCode::new(values.function_code(), values.byte_count_in(), values.byte_count_out(), vec![start, count]))
             },
             0x04 => {
                 if values.len() != 2 {
                     return Err(ExceptionCode::IllegalDataValue);
                 }
-
                 let start = *values.iter().next().unwrap();
                 let count = *values.iter().next().unwrap();
-
                 // read input registers
-                let result = self.input_registers_as_mut().get(start as usize..start as usize + count as usize).unwrap().to_vec();
-
-                Ok(CustomFunctionCode::new(values.function_code(), values.byte_count_in(), values.byte_count_out(), result))
+                Ok(CustomFunctionCode::new(values.function_code(), values.byte_count_in(), values.byte_count_out(), vec![start, count]))
             },
             0x05 => {
                 if values.len() != 2 {
                     return Err(ExceptionCode::IllegalDataValue);
                 }
-
                 let address = *values.iter().next().unwrap();
                 let value = *values.iter().next().unwrap() != 0;
-
                 // write single coil
                 let result = self.write_single_coil(Indexed::new(address, value));
-
                 match result {
                     Ok(_) => Ok(CustomFunctionCode::new(values.function_code(), values.byte_count_in(), values.byte_count_out(), vec![address, value as u16])),
                     Err(exception) => Err(exception),
@@ -157,10 +136,8 @@ impl RequestHandler for SimpleHandler {
                 }
                 let address = *values.iter().next().unwrap();
                 let value = *values.iter().next().unwrap();
-
                 // write single register
                 let result = self.write_single_register(Indexed::new(address, value));
-
                 match result {
                     Ok(_) => Ok(CustomFunctionCode::new(values.function_code(), values.byte_count_in(), values.byte_count_out(), vec![address, value])),
                     Err(exception) => Err(exception),
@@ -170,7 +147,6 @@ impl RequestHandler for SimpleHandler {
                 if values.len() < 5 {
                     return Err(ExceptionCode::IllegalDataValue);
                 }
-
                 let start = *values.iter().next().unwrap();
                 let count = *values.iter().next().unwrap();
                 let mut iterator = values.iter().skip(2);
@@ -178,25 +154,17 @@ impl RequestHandler for SimpleHandler {
                 for _ in 0..count {
                     coils.push(*iterator.next().unwrap() != 0);
                 }
-                
                 // write multiple coils
-                /*
-                let range = AddressRange::try_from(start, count).unwrap();
-                let result = self.write_multiple_coils(WriteCoils::new(range, coils.into_iter()));
-                
+                let result = self.write_multiple_coils(WriteCoils::new(AddressRange::try_from(start, count).unwrap(), coils.into_iter()));
                 match result {
                     Ok(_) => Ok(CustomFunctionCode::new(values.function_code(), values.byte_count_in(), values.byte_count_out(), vec![start, count])),
                     Err(exception) => Err(exception),
                 }
-                */
-
-                Ok(CustomFunctionCode::new(values.function_code(), values.byte_count_in(), values.byte_count_out(), vec![start, count]))
             },
             0x10 => {
                 if values.len() < 5 {
                     return Err(ExceptionCode::IllegalDataValue);
                 }
-
                 let start = *values.iter().next().unwrap();
                 let count = *values.iter().next().unwrap();
                 let mut iterator = values.iter().skip(2);
@@ -204,20 +172,14 @@ impl RequestHandler for SimpleHandler {
                 for _ in 0..count {
                     registers.push(*iterator.next().unwrap());
                 }
-
                 // write multiple registers
-                /*
-                let range = AddressRange::try_from(start, count).unwrap();
-                let result = self.write_multiple_registers(WriteRegisters::new(range, registers.into_iter()));
-                
+                let result = self.write_multiple_registers(WriteRegisters::new(AddressRange::try_from(start, count).unwrap(), registers.into_iter());
                 match result {
                     Ok(_) => Ok(CustomFunctionCode::new(values.function_code(), values.byte_count_in(), values.byte_count_out(), vec![start, count])),
                     Err(exception) => Err(exception),
                 }
-                */
-                Ok(CustomFunctionCode::new(values.function_code(), values.byte_count_in(), values.byte_count_out(), vec![start, count]))
             },
-            0x41 => {
+            0x69 => {
                 // increment each CFC value by 1 and return the result
                 // Create a new vector to hold the incremented values
                 let incremented_data = values.iter().map(|&val| val + 1).collect();
@@ -225,7 +187,7 @@ impl RequestHandler for SimpleHandler {
                 // Return a new CustomFunctionCode with the incremented data
                 Ok(CustomFunctionCode::new(values.function_code(), values.byte_count_in(), values.byte_count_out(), incremented_data))
             },
-            0x42 => {
+            0x70 => {
                 // add a new value to the buffer and return the result
                 // Create a new vector to hold the incremented values
                 let extended_data = {
@@ -237,7 +199,7 @@ impl RequestHandler for SimpleHandler {
                 // Return a new CustomFunctionCode with the incremented data
                 Ok(CustomFunctionCode::new(values.function_code(), values.byte_count_in(), values.byte_count_out(), extended_data))
             },
-            0x43 => {
+            0x71 => {
                 // remove the first value from the buffer and return the result
                 // Create a new vector to hold the incremented values
                 let truncated_data = {
