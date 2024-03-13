@@ -211,13 +211,17 @@ async fn run_channel(mut channel: Channel) -> Result<(), Box<dyn std::error::Err
                 let byte_count_out = u8::from_str_radix(bytes_out_str.trim_start_matches("0x"), 16).unwrap();
                 let values: Vec<u16> = values.iter().filter_map(|&v| u16::from_str_radix(v.trim_start_matches("0x"), 16).ok()).collect();
 
-                let result = channel
-                    .send_custom_function_code(
-                        params,
-                        CustomFunctionCode::new(fc, byte_count_in, byte_count_out, values)
-                    )
-                    .await;
-                print_write_result(result);
+                if (fc >= 65 && fc <= 72) || (fc >= 100 && fc <= 110) {
+                    let result = channel
+                        .send_custom_function_code(
+                            params,
+                            CustomFunctionCode::new(fc, byte_count_in, byte_count_out, values)
+                        )
+                        .await;
+                    print_write_result(result);
+                } else {
+                    println!("Error: CFC number is not inside the range of 65-72 or 100-110.");
+                }
             }
             _ => println!("unknown command"),
         }
