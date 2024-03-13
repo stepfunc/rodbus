@@ -190,7 +190,7 @@ where
                 self.reply_with_error(
                     io,
                     frame.header,
-                    request.get_function().unwrap(),
+                    request.get_function(),
                     ExceptionCode::IllegalFunction,
                 )
                 .await?;

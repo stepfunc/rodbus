@@ -55,38 +55,38 @@ impl<'a> BroadcastRequest<'a> {
 }
 
 impl<'a> Request<'a> {
-    pub(crate) fn get_function(&self) -> Result<FunctionCode, ExceptionCode> {
+    pub(crate) fn get_function(&self) -> FunctionCode {
         match self {
-            Request::ReadCoils(_) => Ok(FunctionCode::ReadCoils),
-            Request::ReadDiscreteInputs(_) => Ok(FunctionCode::ReadDiscreteInputs),
-            Request::ReadHoldingRegisters(_) => Ok(FunctionCode::ReadHoldingRegisters),
-            Request::ReadInputRegisters(_) => Ok(FunctionCode::ReadInputRegisters),
-            Request::WriteSingleCoil(_) => Ok(FunctionCode::WriteSingleCoil),
-            Request::WriteSingleRegister(_) => Ok(FunctionCode::WriteSingleRegister),
-            Request::WriteMultipleCoils(_) => Ok(FunctionCode::WriteMultipleCoils),
-            Request::WriteMultipleRegisters(_) => Ok(FunctionCode::WriteMultipleRegisters),
+            Request::ReadCoils(_) => FunctionCode::ReadCoils,
+            Request::ReadDiscreteInputs(_) => FunctionCode::ReadDiscreteInputs,
+            Request::ReadHoldingRegisters(_) => FunctionCode::ReadHoldingRegisters,
+            Request::ReadInputRegisters(_) => FunctionCode::ReadInputRegisters,
+            Request::WriteSingleCoil(_) => FunctionCode::WriteSingleCoil,
+            Request::WriteSingleRegister(_) => FunctionCode::WriteSingleRegister,
+            Request::WriteMultipleCoils(_) => FunctionCode::WriteMultipleCoils,
+            Request::WriteMultipleRegisters(_) => FunctionCode::WriteMultipleRegisters,
             Request::SendCustomFunctionCode(x) => {
                 match x.function_code() {
-                    0x41 => Ok(FunctionCode::SendCFC65),
-                    0x42 => Ok(FunctionCode::SendCFC66),
-                    0x43 => Ok(FunctionCode::SendCFC67),
-                    0x44 => Ok(FunctionCode::SendCFC68),
-                    0x45 => Ok(FunctionCode::SendCFC69),
-                    0x46 => Ok(FunctionCode::SendCFC70),
-                    0x47 => Ok(FunctionCode::SendCFC71),
-                    0x48 => Ok(FunctionCode::SendCFC72),
-                    0x64 => Ok(FunctionCode::SendCFC100),
-                    0x65 => Ok(FunctionCode::SendCFC101),
-                    0x66 => Ok(FunctionCode::SendCFC102),
-                    0x67 => Ok(FunctionCode::SendCFC103),
-                    0x68 => Ok(FunctionCode::SendCFC104),
-                    0x69 => Ok(FunctionCode::SendCFC105),
-                    0x6A => Ok(FunctionCode::SendCFC106),
-                    0x6B => Ok(FunctionCode::SendCFC107),
-                    0x6C => Ok(FunctionCode::SendCFC108),
-                    0x6D => Ok(FunctionCode::SendCFC109),
-                    0x6E => Ok(FunctionCode::SendCFC110),
-                    _ => Err(ExceptionCode::IllegalFunction),
+                    0x41 => FunctionCode::SendCFC65,
+                    0x42 => FunctionCode::SendCFC66,
+                    0x43 => FunctionCode::SendCFC67,
+                    0x44 => FunctionCode::SendCFC68,
+                    0x45 => FunctionCode::SendCFC69,
+                    0x46 => FunctionCode::SendCFC70,
+                    0x47 => FunctionCode::SendCFC71,
+                    0x48 => FunctionCode::SendCFC72,
+                    0x64 => FunctionCode::SendCFC100,
+                    0x65 => FunctionCode::SendCFC101,
+                    0x66 => FunctionCode::SendCFC102,
+                    0x67 => FunctionCode::SendCFC103,
+                    0x68 => FunctionCode::SendCFC104,
+                    0x69 => FunctionCode::SendCFC105,
+                    0x6A => FunctionCode::SendCFC106,
+                    0x6B => FunctionCode::SendCFC107,
+                    0x6C => FunctionCode::SendCFC108,
+                    0x6D => FunctionCode::SendCFC109,
+                    0x6E => FunctionCode::SendCFC110,
+                    _ => panic!("Invalid custom function code"),
                 }
             },
         }
@@ -135,40 +135,40 @@ impl<'a> Request<'a> {
         match self {
             Request::ReadCoils(range) => {
                 let bits = BitWriter::new(*range, |i| handler.read_coil(i));
-                writer.format_reply(header, function.unwrap(), &bits, level)
+                writer.format_reply(header, function, &bits, level)
             }
             Request::ReadDiscreteInputs(range) => {
                 let bits = BitWriter::new(*range, |i| handler.read_discrete_input(i));
-                writer.format_reply(header, function.unwrap(), &bits, level)
+                writer.format_reply(header, function, &bits, level)
             }
             Request::ReadHoldingRegisters(range) => {
                 let registers = RegisterWriter::new(*range, |i| handler.read_holding_register(i));
-                writer.format_reply(header, function.unwrap(), &registers, level)
+                writer.format_reply(header, function, &registers, level)
             }
             Request::ReadInputRegisters(range) => {
                 let registers = RegisterWriter::new(*range, |i| handler.read_input_register(i));
-                writer.format_reply(header, function.unwrap(), &registers, level)
+                writer.format_reply(header, function, &registers, level)
             }
             Request::WriteSingleCoil(request) => {
                 let result = handler.write_single_coil(*request).map(|_| *request);
-                write_result(function.unwrap(), header, writer, result, level)
+                write_result(function, header, writer, result, level)
             }
             Request::WriteSingleRegister(request) => {
                 let result = handler.write_single_register(*request).map(|_| *request);
-                write_result(function.unwrap(), header, writer, result, level)
+                write_result(function, header, writer, result, level)
             }
             Request::WriteMultipleCoils(items) => {
                 let result = handler.write_multiple_coils(*items).map(|_| items.range);
-                write_result(function.unwrap(), header, writer, result, level)
+                write_result(function, header, writer, result, level)
             }
             Request::WriteMultipleRegisters(items) => {
                 let result = handler
                     .write_multiple_registers(*items)
                     .map(|_| items.range);
-                write_result(function.unwrap(), header, writer, result, level)
+                write_result(function, header, writer, result, level)
             }
             Request::SendCustomFunctionCode(request) => {
-                let result = match function.unwrap() {
+                let result = match function {
                     FunctionCode::SendCFC65 | FunctionCode::SendCFC66 | FunctionCode::SendCFC67 | FunctionCode::SendCFC68 | FunctionCode::SendCFC69 | 
                     FunctionCode::SendCFC70 | FunctionCode::SendCFC71 | FunctionCode::SendCFC72 | FunctionCode::SendCFC100 | FunctionCode::SendCFC101 | 
                     FunctionCode::SendCFC102 | FunctionCode::SendCFC103 | FunctionCode::SendCFC104 | FunctionCode::SendCFC105 | FunctionCode::SendCFC106 | 
@@ -177,7 +177,7 @@ impl<'a> Request<'a> {
                     },
                     _ => Err(ExceptionCode::IllegalFunction),
                 };
-                write_result(function.unwrap(), header, writer, result, level)
+                write_result(function, header, writer, result, level)
             }
         }
     }
@@ -264,7 +264,7 @@ impl<'a, 'b> RequestDisplay<'a, 'b> {
 
 impl std::fmt::Display for RequestDisplay<'_, '_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.request.get_function().unwrap())?;
+        write!(f, "{}", self.request.get_function())?;
 
         if self.level.data_headers() {
             match self.request {
