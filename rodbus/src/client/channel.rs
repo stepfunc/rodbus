@@ -5,8 +5,7 @@ use crate::client::requests::read_bits::ReadBits;
 use crate::client::requests::read_registers::ReadRegisters;
 use crate::client::requests::write_multiple::{MultipleWriteRequest, WriteMultiple};
 use crate::client::requests::write_single::SingleWrite;
-use crate::client::requests::send_buffer::SendBuffer;
-use crate::client::requests::write_custom_fc::WriteCustomFunctionCode;
+use crate::client::requests::send_custom_fc::CustomFCRequest;
 use crate::error::*;
 use crate::types::{AddressRange, BitIterator, Indexed, RegisterIterator, UnitId, CustomFunctionCode};
 use crate::DecodeLevel;
@@ -166,31 +165,16 @@ impl Channel {
         rx.await?
     }
 
-    /// Send buffer to the server
-    pub async fn send_custom_buffer(
+    /// Send a Custom Function Code to the server
+    pub async fn send_custom_function_code(
         &mut self,
         param: RequestParam,
-        request: Indexed<u16>,
-    ) -> Result<Indexed<u16>, RequestError> {
-        let (tx, rx) = tokio::sync::oneshot::channel::<Result<Indexed<u16>, RequestError>>();
+        request: CustomFunctionCode<u16>,
+    ) -> Result<CustomFunctionCode<u16>, RequestError> {
+        let (tx, rx) = tokio::sync::oneshot::channel::<Result<CustomFunctionCode<u16>, RequestError>>();
         let request = wrap(
             param,
-            RequestDetails::SendCustomBuffers(SendBuffer::new(request, Promise::channel(tx))),
-        );
-        self.tx.send(request).await?;
-        rx.await?
-    }
-
-    /// Write a Custom Function Code to the server
-    pub async fn write_custom_function_code(
-        &mut self,
-        param: RequestParam,
-        request: CustomFunctionCode,
-    ) -> Result<CustomFunctionCode, RequestError> {
-        let (tx, rx) = tokio::sync::oneshot::channel::<Result<CustomFunctionCode, RequestError>>();
-        let request = wrap(
-            param,
-            RequestDetails::WriteCustomFunctionCode(WriteCustomFunctionCode::new(request, Promise::channel(tx))),
+            RequestDetails::SendCustomFunctionCode(CustomFCRequest::new(request, Promise::channel(tx))),
         );
         self.tx.send(request).await?;
         rx.await?

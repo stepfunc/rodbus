@@ -43,11 +43,6 @@ pub trait RequestHandler: Send + 'static {
         Err(ExceptionCode::IllegalFunction)
     }
 
-    /// Read single custom buffer or return an ExceptionCode
-    fn receive_custom_buffer(&self, _value: Indexed<u16>) -> Result<u16, ExceptionCode> {
-        Err(ExceptionCode::IllegalFunction)
-    }
-
     /// Write a single coil value
     fn write_single_coil(&mut self, _value: Indexed<bool>) -> Result<(), ExceptionCode> {
         Err(ExceptionCode::IllegalFunction)
@@ -68,8 +63,8 @@ pub trait RequestHandler: Send + 'static {
         Err(ExceptionCode::IllegalFunction)
     }
 
-    /// Write a custom function code
-    fn write_custom_function_code(&mut self, _values: CustomFunctionCode) -> Result<(), ExceptionCode> {
+    /// Write the CFC custom function code
+    fn process_cfc(&mut self, _values: CustomFunctionCode<u16>) -> Result<CustomFunctionCode<u16>, ExceptionCode> {
         Err(ExceptionCode::IllegalFunction)
     }
 }
@@ -187,14 +182,6 @@ pub trait AuthorizationHandler: Send + Sync + 'static {
         Authorization::Deny
     }
 
-    /// Authorize a Read Custom Buffer request
-    fn receive_custom_buffer(
-        &self,
-        _value: Indexed<u16>,
-        _role: &str,
-    ) -> Authorization {
-        Authorization::Deny
-    }
     /// Authorize a Read Holding Registers request
     fn read_holding_registers(
         &self,
@@ -245,8 +232,8 @@ pub trait AuthorizationHandler: Send + Sync + 'static {
         Authorization::Deny
     }
 
-    /// Authorize a Write Custom Function Code request
-    fn write_custom_function_code(&self, _value: CustomFunctionCode, _role: &str) -> Authorization {
+    /// Authorize a Send CFC request
+    fn process_cfc(&self, _unit_id: UnitId, _value: CustomFunctionCode<u16>, _role: &str) -> Authorization {
         Authorization::Deny
     }
 }
@@ -328,9 +315,9 @@ impl AuthorizationHandler for ReadOnlyAuthorizationHandler {
         Authorization::Deny
     }
 
-    /// Authorize a Write Custom Function Code request
-    fn write_custom_function_code(&self, _value: CustomFunctionCode, _role: &str) -> Authorization {
-        Authorization::Allow
+    /// Authorize a Send CFC request
+    fn process_cfc(&self, _unit_id: UnitId, _value: CustomFunctionCode<u16>, _role: &str) -> Authorization {
+        Authorization::Deny
     }
 }
 
@@ -363,6 +350,82 @@ mod tests {
         );
         assert_eq!(
             handler.write_single_register(Indexed::new(0, 0)),
+            Err(ExceptionCode::IllegalFunction)
+        );
+        assert_eq!(
+            handler.process_cfc(CustomFunctionCode::new(0x41, 4, 4, vec![0x01, 0x02, 0x03, 0x04])),
+            Err(ExceptionCode::IllegalFunction)
+        );
+        assert_eq!(
+            handler.process_cfc(CustomFunctionCode::new(0x42, 4, 4, vec![0x01, 0x02, 0x03, 0x04])),
+            Err(ExceptionCode::IllegalFunction)
+        );
+        assert_eq!(
+            handler.process_cfc(CustomFunctionCode::new(0x43, 4, 4, vec![0x01, 0x02, 0x03, 0x04])),
+            Err(ExceptionCode::IllegalFunction)
+        );
+        assert_eq!(
+            handler.process_cfc(CustomFunctionCode::new(0x44, 4, 4, vec![0x01, 0x02, 0x03, 0x04])),
+            Err(ExceptionCode::IllegalFunction)
+        );
+        assert_eq!(
+            handler.process_cfc(CustomFunctionCode::new(0x45, 4, 4, vec![0x01, 0x02, 0x03, 0x04])),
+            Err(ExceptionCode::IllegalFunction)
+        );
+        assert_eq!(
+            handler.process_cfc(CustomFunctionCode::new(0x46, 4, 4, vec![0x01, 0x02, 0x03, 0x04])),
+            Err(ExceptionCode::IllegalFunction)
+        );
+        assert_eq!(
+            handler.process_cfc(CustomFunctionCode::new(0x47, 4, 4, vec![0x01, 0x02, 0x03, 0x04])),
+            Err(ExceptionCode::IllegalFunction)
+        );
+        assert_eq!(
+            handler.process_cfc(CustomFunctionCode::new(0x48, 4, 4, vec![0x01, 0x02, 0x03, 0x04])),
+            Err(ExceptionCode::IllegalFunction)
+        );
+        assert_eq!(
+            handler.process_cfc(CustomFunctionCode::new(0x64, 4, 4, vec![0x01, 0x02, 0x03, 0x04])),
+            Err(ExceptionCode::IllegalFunction)
+        );
+        assert_eq!(
+            handler.process_cfc(CustomFunctionCode::new(0x65, 4, 4, vec![0x01, 0x02, 0x03, 0x04])),
+            Err(ExceptionCode::IllegalFunction)
+        );
+        assert_eq!(
+            handler.process_cfc(CustomFunctionCode::new(0x66, 4, 4, vec![0x01, 0x02, 0x03, 0x04])),
+            Err(ExceptionCode::IllegalFunction)
+        );
+        assert_eq!(
+            handler.process_cfc(CustomFunctionCode::new(0x67, 4, 4, vec![0x01, 0x02, 0x03, 0x04])),
+            Err(ExceptionCode::IllegalFunction)
+        );
+        assert_eq!(
+            handler.process_cfc(CustomFunctionCode::new(0x68, 4, 4, vec![0x01, 0x02, 0x03, 0x04])),
+            Err(ExceptionCode::IllegalFunction)
+        );
+        assert_eq!(
+            handler.process_cfc(CustomFunctionCode::new(0x69, 4, 4, vec![0x01, 0x02, 0x03, 0x04])),
+            Err(ExceptionCode::IllegalFunction)
+        );
+        assert_eq!(
+            handler.process_cfc(CustomFunctionCode::new(0x6A, 4, 4, vec![0x01, 0x02, 0x03, 0x04])),
+            Err(ExceptionCode::IllegalFunction)
+        );
+        assert_eq!(
+            handler.process_cfc(CustomFunctionCode::new(0x6B, 4, 4, vec![0x01, 0x02, 0x03, 0x04])),
+            Err(ExceptionCode::IllegalFunction)
+        );
+        assert_eq!(
+            handler.process_cfc(CustomFunctionCode::new(0x6C, 4, 4, vec![0x01, 0x02, 0x03, 0x04])),
+            Err(ExceptionCode::IllegalFunction)
+        );
+        assert_eq!(
+            handler.process_cfc(CustomFunctionCode::new(0x6D, 4, 4, vec![0x01, 0x02, 0x03, 0x04])),
+            Err(ExceptionCode::IllegalFunction)
+        );
+        assert_eq!(
+            handler.process_cfc(CustomFunctionCode::new(0x6E, 4, 4, vec![0x01, 0x02, 0x03, 0x04])),
             Err(ExceptionCode::IllegalFunction)
         );
     }

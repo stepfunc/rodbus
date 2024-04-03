@@ -290,18 +290,21 @@ impl Serialize for WriteMultiple<u16> {
     }
 }
 
-impl Serialize for CustomFunctionCode {
+impl Serialize for CustomFunctionCode<u16> {
     fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
-        cursor.write_u16_be(self.len() as u16)?;
+        cursor.write_u8(self.function_code())?;
+        cursor.write_u8(self.byte_count_in())?;
+        cursor.write_u8(self.byte_count_out())?;
 
         for &item in self.iter() {
             cursor.write_u16_be(item)?;
         }
+
         Ok(())
     }
 }
 
-impl Loggable for CustomFunctionCode {
+impl Loggable for CustomFunctionCode<u16> {
     fn log(
         &self,
         payload: &[u8],
@@ -310,22 +313,35 @@ impl Loggable for CustomFunctionCode {
     ) -> std::fmt::Result {
         if level.data_headers() {
             let mut cursor = ReadCursor::new(payload);
-
-            let len = match cursor.read_u16_be() {
-                Ok(value) => value as usize,
+            
+            let fc = match cursor.read_u8() {
+                Ok(value) => value,
                 Err(_) => return Ok(()),
             };
+            let byte_count_in = match cursor.read_u8() {
+                Ok(value) => value,
+                Err(_) => return Ok(()),
+            };
+            let byte_count_out = match cursor.read_u8() {
+                Ok(value) => value,
+                Err(_) => return Ok(()),
+            };
+            let len = byte_count_in as usize;
 
-            let mut data = [0_u16; 4];
-            
-            for i in 0..4 {
-                data[i] = match cursor.read_u16_be() {
+            if len != cursor.remaining() / 2 {
+                return Ok(());
+            }
+
+            let mut data = Vec::with_capacity(len);
+            for _ in 0..len {
+                let item = match cursor.read_u16_be() {
                     Ok(value) => value,
                     Err(_) => return Ok(()),
                 };
+                data.push(item);
             }
 
-            let custom_fc = CustomFunctionCode::new(len, data);
+            let custom_fc = CustomFunctionCode::new(fc, byte_count_in, byte_count_out, data);
 
             write!(f, "{:?}", custom_fc)?;
 
@@ -349,11 +365,38 @@ mod tests {
     }
 
     #[test]
-    fn serializes_valid_custom_function_code() {
-        let custom_fc = CustomFunctionCode::new(4, [0xCAFE, 0xC0DE, 0xCAFE, 0xC0DE]);
-        let mut buffer = [0u8; 10];
+    fn serialize_succeeds_for_valid_cfc_of_single_min_value() {
+        let custom_fc = CustomFunctionCode::new(69, 1, 1, vec![0x0000]);
+        let mut buffer = [0u8; 5];
         let mut cursor = WriteCursor::new(&mut buffer);
         custom_fc.serialize(&mut cursor).unwrap();
-        assert_eq!(buffer, [0x00, 0x04, 0xCA, 0xFE, 0xC0, 0xDE, 0xCA, 0xFE, 0xC0, 0xDE]);
+        assert_eq!(buffer, [0x45, 0x01, 0x01, 0x00, 0x00]);
+    }
+
+    #[test]
+    fn serialize_succeeds_for_valid_cfc_of_single_max_value() {
+        let custom_fc = CustomFunctionCode::new(69, 1, 1, vec![0xFFFF]);
+        let mut buffer = [0u8; 5];
+        let mut cursor = WriteCursor::new(&mut buffer);
+        custom_fc.serialize(&mut cursor).unwrap();
+        assert_eq!(buffer, [0x45, 0x01, 0x01, 0xFF, 0xFF]);
+    }
+
+    #[test]
+    fn serialize_succeeds_for_valid_cfc_of_multiple_min_values() {
+        let custom_fc = CustomFunctionCode::new(69, 3, 3, vec![0x0000, 0x0000, 0x0000]);
+        let mut buffer = [0u8; 9];
+        let mut cursor = WriteCursor::new(&mut buffer);
+        custom_fc.serialize(&mut cursor).unwrap();
+        assert_eq!(buffer, [0x45, 0x03, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
+    }
+
+    #[test]
+    fn serialize_succeeds_for_valid_cfc_of_multiple_max_values() {
+        let custom_fc = CustomFunctionCode::new(69, 3, 3, vec![0xFFFF, 0xFFFF, 0xFFFF]);
+        let mut buffer = [0u8; 9];
+        let mut cursor = WriteCursor::new(&mut buffer);
+        custom_fc.serialize(&mut cursor).unwrap();
+        assert_eq!(buffer, [0x45, 0x03, 0x03, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF]);
     }
 }

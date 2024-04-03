@@ -1,32 +1,32 @@
 use std::fmt::Display;
 
+use crate::CustomFunctionCode;
 use crate::client::message::Promise;
 use crate::common::function::FunctionCode;
 use crate::decode::AppDecodeLevel;
 use crate::error::AduParseError;
 use crate::error::RequestError;
-use crate::types::{coil_from_u16, coil_to_u16, Indexed};
 
 use scursor::{ReadCursor, WriteCursor};
 
-pub(crate) trait SendBufferOperation: Sized + PartialEq {
+pub(crate) trait CustomFCOperation: Sized + PartialEq {
     fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError>;
     fn parse(cursor: &mut ReadCursor) -> Result<Self, RequestError>;
 }
 
-pub(crate) struct SendBuffer<T>
+pub(crate) struct CustomFCRequest<T>
 where
-    T: SendBufferOperation + Display + Send + 'static,
+    T: CustomFCOperation + Display + Send + 'static,
 {
-    pub(crate) request: T,
+    pub(crate) request: CustomFunctionCode<u16>,
     promise: Promise<T>,
 }
 
-impl<T> SendBuffer<T>
+impl<T> CustomFCRequest<T>
 where
-    T: SendBufferOperation + Display + Send + 'static,
+    T: CustomFCOperation + Display + Send + 'static,
 {
-    pub(crate) fn new(request: T, promise: Promise<T>) -> Self {
+    pub(crate) fn new(request: CustomFunctionCode<u16>, promise: Promise<T>) -> Self {
         Self { request, promise }
     }
 
@@ -45,7 +45,7 @@ where
         decode: AppDecodeLevel,
     ) -> Result<(), RequestError> {
         let response = self.parse_all(cursor)?;
-
+        
         if decode.data_headers() {
             tracing::info!("PDU RX - {} {}", function, response);
         } else if decode.header() {
@@ -59,36 +59,39 @@ where
     fn parse_all(&self, mut cursor: ReadCursor) -> Result<T, RequestError> {
         let response = T::parse(&mut cursor)?;
         cursor.expect_empty()?;
-        if self.request != response {
-            return Err(AduParseError::ReplyEchoMismatch.into());
-        }
         Ok(response)
     }
 }
 
-impl SendBufferOperation for Indexed<bool> {
+impl CustomFCOperation for CustomFunctionCode<u16> {
     fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
-        cursor.write_u16_be(self.index)?;
-        cursor.write_u16_be(coil_to_u16(self.value))?;
+        cursor.write_u8(self.function_code())?;
+        cursor.write_u8(self.byte_count_in())?;
+        cursor.write_u8(self.byte_count_out())?;
+
+        for &item in self.iter() {
+            cursor.write_u16_be(item)?;
+        }
+
         Ok(())
     }
 
     fn parse(cursor: &mut ReadCursor) -> Result<Self, RequestError> {
-        Ok(Indexed::new(
-            cursor.read_u16_be()?,
-            coil_from_u16(cursor.read_u16_be()?)?,
-        ))
-    }
-}
+        let fc = cursor.read_u8()?;
+        let byte_count_in = cursor.read_u8()?;
+        let byte_count_out = cursor.read_u8()?;
+        let len = byte_count_out as usize;
 
-impl SendBufferOperation for Indexed<u16> {
-    fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
-        cursor.write_u16_be(self.index)?;
-        cursor.write_u16_be(self.value)?;
-        Ok(())
-    }
+        if len != cursor.remaining() / 2 {
+            return Err(AduParseError::InsufficientBytesForByteCount(len, cursor.remaining() / 2).into());
+        }
 
-    fn parse(cursor: &mut ReadCursor) -> Result<Self, RequestError> {
-        Ok(Indexed::new(cursor.read_u16_be()?, cursor.read_u16_be()?))
+        let mut values = Vec::with_capacity(len);
+        for _ in 0..len {
+            values.push(cursor.read_u16_be()?);
+        }
+        cursor.expect_empty()?;
+
+        Ok(CustomFunctionCode::new(fc, byte_count_in, byte_count_out, values))
     }
 }

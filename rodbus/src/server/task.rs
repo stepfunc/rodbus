@@ -190,7 +190,7 @@ where
                 self.reply_with_error(
                     io,
                     frame.header,
-                    request.get_function(),
+                    request.get_function().unwrap(),
                     ExceptionCode::IllegalFunction,
                 )
                 .await?;
@@ -256,7 +256,6 @@ impl AuthorizationType {
                 handler.read_holding_registers(unit_id, x.inner, role)
             }
             Request::ReadInputRegisters(x) => handler.read_input_registers(unit_id, x.inner, role),
-            Request::SendCustomBuffers(x) => handler.receive_custom_buffer(*x, role),
             Request::WriteSingleCoil(x) => handler.write_single_coil(unit_id, x.index, role),
             Request::WriteSingleRegister(x) => {
                 handler.write_single_register(unit_id, x.index, role)
@@ -265,7 +264,15 @@ impl AuthorizationType {
             Request::WriteMultipleRegisters(x) => {
                 handler.write_multiple_registers(unit_id, x.range, role)
             }
-            Request::WriteCustomFunctionCode(x) => handler.write_custom_function_code(*x, role),
+            Request::SendCustomFunctionCode(x) => {
+                match x.function_code() {
+                    0x41 | 0x42 | 0x43 | 0x44 | 0x45 | 0x46 | 0x47 | 0x48 | 0x64 | 0x65 | 0x66 | 0x67 | 0x68 | 0x69 | 0x6A | 0x6B | 0x6C | 0x6D | 0x6E => {
+                        handler.process_cfc(unit_id, x.clone(), role)
+                    },
+                    _ => Authorization::Deny,
+                }
+
+            },
         }
     }
 
