@@ -8,11 +8,11 @@ use crate::DecodeLevel;
 
 use crate::client::requests::read_bits::ReadBits;
 use crate::client::requests::read_registers::ReadRegisters;
+use crate::client::requests::send_custom_fc::CustomFCRequest;
 use crate::client::requests::write_multiple::MultipleWriteRequest;
 use crate::client::requests::write_single::SingleWrite;
-use crate::client::requests::send_custom_fc::CustomFCRequest;
 use crate::common::traits::Serialize;
-use crate::types::{Indexed, UnitId, CustomFunctionCode};
+use crate::types::{CustomFunctionCode, Indexed, UnitId};
 
 use scursor::{ReadCursor, WriteCursor};
 use std::time::Duration;
@@ -131,29 +131,27 @@ impl RequestDetails {
             RequestDetails::WriteSingleRegister(_) => Ok(FunctionCode::WriteSingleRegister),
             RequestDetails::WriteMultipleCoils(_) => Ok(FunctionCode::WriteMultipleCoils),
             RequestDetails::WriteMultipleRegisters(_) => Ok(FunctionCode::WriteMultipleRegisters),
-            RequestDetails::SendCustomFunctionCode(x) => {
-                match x.request.function_code() {
-                    0x41 => Ok(FunctionCode::SendCFC65),
-                    0x42 => Ok(FunctionCode::SendCFC66),
-                    0x43 => Ok(FunctionCode::SendCFC67),
-                    0x44 => Ok(FunctionCode::SendCFC68),
-                    0x45 => Ok(FunctionCode::SendCFC69),
-                    0x46 => Ok(FunctionCode::SendCFC70),
-                    0x47 => Ok(FunctionCode::SendCFC71),
-                    0x48 => Ok(FunctionCode::SendCFC72),
-                    0x64 => Ok(FunctionCode::SendCFC100),
-                    0x65 => Ok(FunctionCode::SendCFC101),
-                    0x66 => Ok(FunctionCode::SendCFC102),
-                    0x67 => Ok(FunctionCode::SendCFC103),
-                    0x68 => Ok(FunctionCode::SendCFC104),
-                    0x69 => Ok(FunctionCode::SendCFC105),
-                    0x6A => Ok(FunctionCode::SendCFC106),
-                    0x6B => Ok(FunctionCode::SendCFC107),
-                    0x6C => Ok(FunctionCode::SendCFC108),
-                    0x6D => Ok(FunctionCode::SendCFC109),
-                    0x6E => Ok(FunctionCode::SendCFC110),
-                    _ => Err(ExceptionCode::IllegalFunction),
-                }
+            RequestDetails::SendCustomFunctionCode(x) => match x.request.function_code() {
+                0x41 => Ok(FunctionCode::SendCFC65),
+                0x42 => Ok(FunctionCode::SendCFC66),
+                0x43 => Ok(FunctionCode::SendCFC67),
+                0x44 => Ok(FunctionCode::SendCFC68),
+                0x45 => Ok(FunctionCode::SendCFC69),
+                0x46 => Ok(FunctionCode::SendCFC70),
+                0x47 => Ok(FunctionCode::SendCFC71),
+                0x48 => Ok(FunctionCode::SendCFC72),
+                0x64 => Ok(FunctionCode::SendCFC100),
+                0x65 => Ok(FunctionCode::SendCFC101),
+                0x66 => Ok(FunctionCode::SendCFC102),
+                0x67 => Ok(FunctionCode::SendCFC103),
+                0x68 => Ok(FunctionCode::SendCFC104),
+                0x69 => Ok(FunctionCode::SendCFC105),
+                0x6A => Ok(FunctionCode::SendCFC106),
+                0x6B => Ok(FunctionCode::SendCFC107),
+                0x6C => Ok(FunctionCode::SendCFC108),
+                0x6D => Ok(FunctionCode::SendCFC109),
+                0x6E => Ok(FunctionCode::SendCFC110),
+                _ => Err(ExceptionCode::IllegalFunction),
             },
         }
     }
@@ -188,7 +186,7 @@ impl RequestDetails {
             RequestDetails::WriteMultipleCoils(x) => x.handle_response(cursor, function, decode),
             RequestDetails::WriteMultipleRegisters(x) => {
                 x.handle_response(cursor, function, decode)
-            },
+            }
             RequestDetails::SendCustomFunctionCode(x) => {
                 x.handle_response(cursor, function, decode)
             }

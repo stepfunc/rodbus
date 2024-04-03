@@ -87,11 +87,25 @@ impl Display for FunctionCode {
             FunctionCode::WriteMultipleRegisters => {
                 write!(f, "WRITE MULTIPLE REGISTERS ({:#04X})", self.get_value())
             }
-            FunctionCode::SendCFC65 | FunctionCode::SendCFC66 | FunctionCode::SendCFC67 | FunctionCode::SendCFC68 | 
-            FunctionCode::SendCFC69 | FunctionCode::SendCFC70 | FunctionCode::SendCFC71 | FunctionCode::SendCFC72 | 
-            FunctionCode::SendCFC100 | FunctionCode::SendCFC101 | FunctionCode::SendCFC102 | FunctionCode::SendCFC103 | 
-            FunctionCode::SendCFC104 | FunctionCode::SendCFC105 | FunctionCode::SendCFC106 | FunctionCode::SendCFC107 | 
-            FunctionCode::SendCFC108 | FunctionCode::SendCFC109 | FunctionCode::SendCFC110 => {
+            FunctionCode::SendCFC65
+            | FunctionCode::SendCFC66
+            | FunctionCode::SendCFC67
+            | FunctionCode::SendCFC68
+            | FunctionCode::SendCFC69
+            | FunctionCode::SendCFC70
+            | FunctionCode::SendCFC71
+            | FunctionCode::SendCFC72
+            | FunctionCode::SendCFC100
+            | FunctionCode::SendCFC101
+            | FunctionCode::SendCFC102
+            | FunctionCode::SendCFC103
+            | FunctionCode::SendCFC104
+            | FunctionCode::SendCFC105
+            | FunctionCode::SendCFC106
+            | FunctionCode::SendCFC107
+            | FunctionCode::SendCFC108
+            | FunctionCode::SendCFC109
+            | FunctionCode::SendCFC110 => {
                 write!(f, "SEND CUSTOM FUNCTION CODE ({:#04X})", self.get_value())
             }
         }

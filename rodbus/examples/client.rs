@@ -277,7 +277,7 @@ async fn run_channel(mut channel: Channel) -> Result<(), Box<dyn std::error::Err
                 let result = channel
                     .send_custom_function_code(
                         params,
-                        CustomFunctionCode::new(fc, byte_count_in, byte_count_out, values)
+                        CustomFunctionCode::new(fc, byte_count_in, byte_count_out, values),
                     )
                     .await;
                 print_write_result(result);

@@ -264,14 +264,9 @@ impl AuthorizationType {
             Request::WriteMultipleRegisters(x) => {
                 handler.write_multiple_registers(unit_id, x.range, role)
             }
-            Request::SendCustomFunctionCode(x) => {
-                match x.function_code() {
-                    0x41 | 0x42 | 0x43 | 0x44 | 0x45 | 0x46 | 0x47 | 0x48 | 0x64 | 0x65 | 0x66 | 0x67 | 0x68 | 0x69 | 0x6A | 0x6B | 0x6C | 0x6D | 0x6E => {
-                        handler.process_cfc(unit_id, x.clone(), role)
-                    },
-                    _ => Authorization::Deny,
-                }
-
+            Request::SendCustomFunctionCode(x) => match x.function_code() {
+                0x41..=0x48 | 0x64..=0x6E => handler.process_cfc(unit_id, x.clone(), role),
+                _ => Authorization::Deny,
             },
         }
     }

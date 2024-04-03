@@ -1,6 +1,6 @@
 use crate::common::traits::Parse;
 use crate::error::*;
-use crate::types::{coil_from_u16, AddressRange, Indexed, CustomFunctionCode};
+use crate::types::{coil_from_u16, AddressRange, CustomFunctionCode, Indexed};
 
 use scursor::ReadCursor;
 
@@ -36,7 +36,9 @@ impl Parse for CustomFunctionCode<u16> {
         let len = byte_count_in as usize;
 
         if len != cursor.remaining() / 2 {
-            return Err(AduParseError::InsufficientBytesForByteCount(len, cursor.remaining() / 2).into());
+            return Err(
+                AduParseError::InsufficientBytesForByteCount(len, cursor.remaining() / 2).into(),
+            );
         }
 
         let mut values = Vec::with_capacity(len);
@@ -45,7 +47,12 @@ impl Parse for CustomFunctionCode<u16> {
         }
         cursor.expect_empty()?;
 
-        Ok(CustomFunctionCode::new(fc, byte_count_in, byte_count_out, values))
+        Ok(CustomFunctionCode::new(
+            fc,
+            byte_count_in,
+            byte_count_out,
+            values,
+        ))
     }
 }
 
@@ -86,7 +93,6 @@ mod coils {
     }
 }
 
-
 #[cfg(test)]
 mod custom_fc {
     use crate::common::traits::Parse;
@@ -113,27 +119,49 @@ mod custom_fc {
     fn parse_succeeds_for_multiple_min_values() {
         let mut cursor = ReadCursor::new(&[0x45, 0x03, 0x3, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
         let result = CustomFunctionCode::parse(&mut cursor);
-        assert_eq!(result, Ok(CustomFunctionCode::new(69, 3, 3, vec![0x0000, 0x0000, 0x0000])));
+        assert_eq!(
+            result,
+            Ok(CustomFunctionCode::new(
+                69,
+                3,
+                3,
+                vec![0x0000, 0x0000, 0x0000]
+            ))
+        );
     }
 
     #[test]
     fn parse_succeeds_for_multiple_max_values() {
         let mut cursor = ReadCursor::new(&[0x45, 0x03, 0x3, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF]);
         let result = CustomFunctionCode::parse(&mut cursor);
-        assert_eq!(result, Ok(CustomFunctionCode::new(69, 3, 3, vec![0xFFFF, 0xFFFF, 0xFFFF])));
+        assert_eq!(
+            result,
+            Ok(CustomFunctionCode::new(
+                69,
+                3,
+                3,
+                vec![0xFFFF, 0xFFFF, 0xFFFF]
+            ))
+        );
     }
 
     #[test]
     fn parse_fails_for_missing_byte_count() {
         let mut cursor = ReadCursor::new(&[0x45, 0x01, 0xFF, 0xFF]);
         let result = CustomFunctionCode::parse(&mut cursor);
-        assert_eq!(result, Err(AduParseError::InsufficientBytesForByteCount(1, 0).into()));
+        assert_eq!(
+            result,
+            Err(AduParseError::InsufficientBytesForByteCount(1, 0).into())
+        );
     }
 
     #[test]
     fn parse_fails_for_missing_data_byte() {
         let mut cursor = ReadCursor::new(&[0x00, 0x01, 0xFF]);
         let result = CustomFunctionCode::parse(&mut cursor);
-        assert_eq!(result, Err(AduParseError::InsufficientBytesForByteCount(1, 0).into()));
+        assert_eq!(
+            result,
+            Err(AduParseError::InsufficientBytesForByteCount(1, 0).into())
+        );
     }
 }

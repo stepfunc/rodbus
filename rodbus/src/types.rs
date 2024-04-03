@@ -379,7 +379,12 @@ impl Default for UnitId {
 impl CustomFunctionCode<u16> {
     /// Create a new custom function code
     pub fn new(fc: u8, byte_count_in: u8, byte_count_out: u8, data: Vec<u16>) -> Self {
-        Self { fc, byte_count_in, byte_count_out, data }
+        Self {
+            fc,
+            byte_count_in,
+            byte_count_out,
+            data,
+        }
     }
 
     /// Get the function code
@@ -400,6 +405,11 @@ impl CustomFunctionCode<u16> {
     /// Get the length of the underlying vector
     pub fn len(&self) -> usize {
         self.data.len()
+    }
+
+    /// Check if the underlying vector is empty
+    pub fn is_empty(&self) -> bool {
+        self.data.is_empty()
     }
 
     /// Iterate over the underlying vector
@@ -504,5 +514,4 @@ mod tests {
         assert!(UnitId::new(255).is_rtu_reserved());
         assert!(!UnitId::new(41).is_rtu_reserved());
     }
-
 }
