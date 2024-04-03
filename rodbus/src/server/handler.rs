@@ -64,7 +64,10 @@ pub trait RequestHandler: Send + 'static {
     }
 
     /// Write the CFC custom function code
-    fn process_cfc(&mut self, _values: CustomFunctionCode<u16>) -> Result<CustomFunctionCode<u16>, ExceptionCode> {
+    fn process_cfc(
+        &mut self,
+        _values: CustomFunctionCode<u16>,
+    ) -> Result<CustomFunctionCode<u16>, ExceptionCode> {
         Err(ExceptionCode::IllegalFunction)
     }
 }
@@ -233,7 +236,12 @@ pub trait AuthorizationHandler: Send + Sync + 'static {
     }
 
     /// Authorize a Send CFC request
-    fn process_cfc(&self, _unit_id: UnitId, _value: CustomFunctionCode<u16>, _role: &str) -> Authorization {
+    fn process_cfc(
+        &self,
+        _unit_id: UnitId,
+        _value: CustomFunctionCode<u16>,
+        _role: &str,
+    ) -> Authorization {
         Authorization::Deny
     }
 }
@@ -316,7 +324,12 @@ impl AuthorizationHandler for ReadOnlyAuthorizationHandler {
     }
 
     /// Authorize a Send CFC request
-    fn process_cfc(&self, _unit_id: UnitId, _value: CustomFunctionCode<u16>, _role: &str) -> Authorization {
+    fn process_cfc(
+        &self,
+        _unit_id: UnitId,
+        _value: CustomFunctionCode<u16>,
+        _role: &str,
+    ) -> Authorization {
         Authorization::Deny
     }
 }
@@ -353,79 +366,174 @@ mod tests {
             Err(ExceptionCode::IllegalFunction)
         );
         assert_eq!(
-            handler.process_cfc(CustomFunctionCode::new(0x41, 4, 4, vec![0x01, 0x02, 0x03, 0x04])),
+            handler.process_cfc(CustomFunctionCode::new(
+                0x41,
+                4,
+                4,
+                vec![0x01, 0x02, 0x03, 0x04]
+            )),
             Err(ExceptionCode::IllegalFunction)
         );
         assert_eq!(
-            handler.process_cfc(CustomFunctionCode::new(0x42, 4, 4, vec![0x01, 0x02, 0x03, 0x04])),
+            handler.process_cfc(CustomFunctionCode::new(
+                0x42,
+                4,
+                4,
+                vec![0x01, 0x02, 0x03, 0x04]
+            )),
             Err(ExceptionCode::IllegalFunction)
         );
         assert_eq!(
-            handler.process_cfc(CustomFunctionCode::new(0x43, 4, 4, vec![0x01, 0x02, 0x03, 0x04])),
+            handler.process_cfc(CustomFunctionCode::new(
+                0x43,
+                4,
+                4,
+                vec![0x01, 0x02, 0x03, 0x04]
+            )),
             Err(ExceptionCode::IllegalFunction)
         );
         assert_eq!(
-            handler.process_cfc(CustomFunctionCode::new(0x44, 4, 4, vec![0x01, 0x02, 0x03, 0x04])),
+            handler.process_cfc(CustomFunctionCode::new(
+                0x44,
+                4,
+                4,
+                vec![0x01, 0x02, 0x03, 0x04]
+            )),
             Err(ExceptionCode::IllegalFunction)
         );
         assert_eq!(
-            handler.process_cfc(CustomFunctionCode::new(0x45, 4, 4, vec![0x01, 0x02, 0x03, 0x04])),
+            handler.process_cfc(CustomFunctionCode::new(
+                0x45,
+                4,
+                4,
+                vec![0x01, 0x02, 0x03, 0x04]
+            )),
             Err(ExceptionCode::IllegalFunction)
         );
         assert_eq!(
-            handler.process_cfc(CustomFunctionCode::new(0x46, 4, 4, vec![0x01, 0x02, 0x03, 0x04])),
+            handler.process_cfc(CustomFunctionCode::new(
+                0x46,
+                4,
+                4,
+                vec![0x01, 0x02, 0x03, 0x04]
+            )),
             Err(ExceptionCode::IllegalFunction)
         );
         assert_eq!(
-            handler.process_cfc(CustomFunctionCode::new(0x47, 4, 4, vec![0x01, 0x02, 0x03, 0x04])),
+            handler.process_cfc(CustomFunctionCode::new(
+                0x47,
+                4,
+                4,
+                vec![0x01, 0x02, 0x03, 0x04]
+            )),
             Err(ExceptionCode::IllegalFunction)
         );
         assert_eq!(
-            handler.process_cfc(CustomFunctionCode::new(0x48, 4, 4, vec![0x01, 0x02, 0x03, 0x04])),
+            handler.process_cfc(CustomFunctionCode::new(
+                0x48,
+                4,
+                4,
+                vec![0x01, 0x02, 0x03, 0x04]
+            )),
             Err(ExceptionCode::IllegalFunction)
         );
         assert_eq!(
-            handler.process_cfc(CustomFunctionCode::new(0x64, 4, 4, vec![0x01, 0x02, 0x03, 0x04])),
+            handler.process_cfc(CustomFunctionCode::new(
+                0x64,
+                4,
+                4,
+                vec![0x01, 0x02, 0x03, 0x04]
+            )),
             Err(ExceptionCode::IllegalFunction)
         );
         assert_eq!(
-            handler.process_cfc(CustomFunctionCode::new(0x65, 4, 4, vec![0x01, 0x02, 0x03, 0x04])),
+            handler.process_cfc(CustomFunctionCode::new(
+                0x65,
+                4,
+                4,
+                vec![0x01, 0x02, 0x03, 0x04]
+            )),
             Err(ExceptionCode::IllegalFunction)
         );
         assert_eq!(
-            handler.process_cfc(CustomFunctionCode::new(0x66, 4, 4, vec![0x01, 0x02, 0x03, 0x04])),
+            handler.process_cfc(CustomFunctionCode::new(
+                0x66,
+                4,
+                4,
+                vec![0x01, 0x02, 0x03, 0x04]
+            )),
             Err(ExceptionCode::IllegalFunction)
         );
         assert_eq!(
-            handler.process_cfc(CustomFunctionCode::new(0x67, 4, 4, vec![0x01, 0x02, 0x03, 0x04])),
+            handler.process_cfc(CustomFunctionCode::new(
+                0x67,
+                4,
+                4,
+                vec![0x01, 0x02, 0x03, 0x04]
+            )),
             Err(ExceptionCode::IllegalFunction)
         );
         assert_eq!(
-            handler.process_cfc(CustomFunctionCode::new(0x68, 4, 4, vec![0x01, 0x02, 0x03, 0x04])),
+            handler.process_cfc(CustomFunctionCode::new(
+                0x68,
+                4,
+                4,
+                vec![0x01, 0x02, 0x03, 0x04]
+            )),
             Err(ExceptionCode::IllegalFunction)
         );
         assert_eq!(
-            handler.process_cfc(CustomFunctionCode::new(0x69, 4, 4, vec![0x01, 0x02, 0x03, 0x04])),
+            handler.process_cfc(CustomFunctionCode::new(
+                0x69,
+                4,
+                4,
+                vec![0x01, 0x02, 0x03, 0x04]
+            )),
             Err(ExceptionCode::IllegalFunction)
         );
         assert_eq!(
-            handler.process_cfc(CustomFunctionCode::new(0x6A, 4, 4, vec![0x01, 0x02, 0x03, 0x04])),
+            handler.process_cfc(CustomFunctionCode::new(
+                0x6A,
+                4,
+                4,
+                vec![0x01, 0x02, 0x03, 0x04]
+            )),
             Err(ExceptionCode::IllegalFunction)
         );
         assert_eq!(
-            handler.process_cfc(CustomFunctionCode::new(0x6B, 4, 4, vec![0x01, 0x02, 0x03, 0x04])),
+            handler.process_cfc(CustomFunctionCode::new(
+                0x6B,
+                4,
+                4,
+                vec![0x01, 0x02, 0x03, 0x04]
+            )),
             Err(ExceptionCode::IllegalFunction)
         );
         assert_eq!(
-            handler.process_cfc(CustomFunctionCode::new(0x6C, 4, 4, vec![0x01, 0x02, 0x03, 0x04])),
+            handler.process_cfc(CustomFunctionCode::new(
+                0x6C,
+                4,
+                4,
+                vec![0x01, 0x02, 0x03, 0x04]
+            )),
             Err(ExceptionCode::IllegalFunction)
         );
         assert_eq!(
-            handler.process_cfc(CustomFunctionCode::new(0x6D, 4, 4, vec![0x01, 0x02, 0x03, 0x04])),
+            handler.process_cfc(CustomFunctionCode::new(
+                0x6D,
+                4,
+                4,
+                vec![0x01, 0x02, 0x03, 0x04]
+            )),
             Err(ExceptionCode::IllegalFunction)
         );
         assert_eq!(
-            handler.process_cfc(CustomFunctionCode::new(0x6E, 4, 4, vec![0x01, 0x02, 0x03, 0x04])),
+            handler.process_cfc(CustomFunctionCode::new(
+                0x6E,
+                4,
+                4,
+                vec![0x01, 0x02, 0x03, 0x04]
+            )),
             Err(ExceptionCode::IllegalFunction)
         );
     }

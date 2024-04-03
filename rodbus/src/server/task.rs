@@ -265,9 +265,7 @@ impl AuthorizationType {
                 handler.write_multiple_registers(unit_id, x.range, role)
             }
             Request::SendCustomFunctionCode(x) => match x.function_code() {
-                0x41..=0x48 | 0x64..=0x6E => {
-                    handler.process_cfc(unit_id, x.clone(), role)
-                }
+                0x41..=0x48 | 0x64..=0x6E => handler.process_cfc(unit_id, x.clone(), role),
                 _ => Authorization::Deny,
             },
         }

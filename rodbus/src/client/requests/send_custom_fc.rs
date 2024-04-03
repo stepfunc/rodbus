@@ -1,11 +1,11 @@
 use std::fmt::Display;
 
-use crate::CustomFunctionCode;
 use crate::client::message::Promise;
 use crate::common::function::FunctionCode;
 use crate::decode::AppDecodeLevel;
 use crate::error::AduParseError;
 use crate::error::RequestError;
+use crate::CustomFunctionCode;
 
 use scursor::{ReadCursor, WriteCursor};
 
@@ -45,7 +45,7 @@ where
         decode: AppDecodeLevel,
     ) -> Result<(), RequestError> {
         let response = self.parse_all(cursor)?;
-        
+
         if decode.data_headers() {
             tracing::info!("PDU RX - {} {}", function, response);
         } else if decode.header() {
@@ -83,7 +83,9 @@ impl CustomFCOperation for CustomFunctionCode<u16> {
         let len = byte_count_out as usize;
 
         if len != cursor.remaining() / 2 {
-            return Err(AduParseError::InsufficientBytesForByteCount(len, cursor.remaining() / 2).into());
+            return Err(
+                AduParseError::InsufficientBytesForByteCount(len, cursor.remaining() / 2).into(),
+            );
         }
 
         let mut values = Vec::with_capacity(len);
@@ -92,6 +94,11 @@ impl CustomFCOperation for CustomFunctionCode<u16> {
         }
         cursor.expect_empty()?;
 
-        Ok(CustomFunctionCode::new(fc, byte_count_in, byte_count_out, values))
+        Ok(CustomFunctionCode::new(
+            fc,
+            byte_count_in,
+            byte_count_out,
+            values,
+        ))
     }
 }

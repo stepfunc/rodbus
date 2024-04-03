@@ -7,8 +7,8 @@ use crate::common::traits::Serialize;
 use crate::error::{InternalError, RequestError};
 use crate::server::response::{BitWriter, RegisterWriter};
 use crate::types::{
-    coil_from_u16, coil_to_u16, AddressRange, BitIterator, BitIteratorDisplay, Indexed,
-    RegisterIterator, RegisterIteratorDisplay, CustomFunctionCode,
+    coil_from_u16, coil_to_u16, AddressRange, BitIterator, BitIteratorDisplay, CustomFunctionCode,
+    Indexed, RegisterIterator, RegisterIteratorDisplay,
 };
 
 use scursor::{ReadCursor, WriteCursor};
@@ -313,7 +313,7 @@ impl Loggable for CustomFunctionCode<u16> {
     ) -> std::fmt::Result {
         if level.data_headers() {
             let mut cursor = ReadCursor::new(payload);
-            
+
             let fc = match cursor.read_u8() {
                 Ok(value) => value,
                 Err(_) => return Ok(()),
@@ -344,7 +344,6 @@ impl Loggable for CustomFunctionCode<u16> {
             let custom_fc = CustomFunctionCode::new(fc, byte_count_in, byte_count_out, data);
 
             write!(f, "{:?}", custom_fc)?;
-
         }
 
         Ok(())
@@ -388,7 +387,10 @@ mod tests {
         let mut buffer = [0u8; 9];
         let mut cursor = WriteCursor::new(&mut buffer);
         custom_fc.serialize(&mut cursor).unwrap();
-        assert_eq!(buffer, [0x45, 0x03, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
+        assert_eq!(
+            buffer,
+            [0x45, 0x03, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]
+        );
     }
 
     #[test]
@@ -397,6 +399,9 @@ mod tests {
         let mut buffer = [0u8; 9];
         let mut cursor = WriteCursor::new(&mut buffer);
         custom_fc.serialize(&mut cursor).unwrap();
-        assert_eq!(buffer, [0x45, 0x03, 0x03, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF]);
+        assert_eq!(
+            buffer,
+            [0x45, 0x03, 0x03, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF]
+        );
     }
 }

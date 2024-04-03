@@ -408,7 +408,9 @@ impl CustomFunctionCode<u16> {
     }
 
     /// Check if the underlying vector is empty
-    pub fn is_empty(&self) -> bool { self.data.is_empty() }
+    pub fn is_empty(&self) -> bool {
+        self.data.is_empty()
+    }
 
     /// Iterate over the underlying vector
     pub fn iter(&self) -> std::slice::Iter<u16> {
