@@ -35,5 +35,6 @@ tracing-subscriber = "0.3"
 
 [features]
 default = ["tls", "serial"]
+ffi = []
 tls = ["rx509", "sfio-rustls-config", "tokio-rustls"]
 serial = ["tokio-serial"]

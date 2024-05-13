@@ -17,7 +17,7 @@ lazy_static = "1.0"
 tracing = "0.1"
 tracing-core = "0.1"
 tracing-subscriber = "0.2"
-rodbus = { path = "../../rodbus", default-features = false }
+rodbus = { path = "../../rodbus", default-features = false, features = ["ffi"] }
 tokio = { version = "1.5", features = ["rt-multi-thread"]}
 num_cpus = "1"
 sfio-promise = "0.2"

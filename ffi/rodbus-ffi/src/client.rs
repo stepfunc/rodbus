@@ -1,5 +1,6 @@
 use crate::ffi;
-use rodbus::client::{ClientState, HostAddr, Listener, WriteMultiple};
+use crate::ffi::ParamError;
+use rodbus::client::{ClientState, FfiSessionError, HostAddr, Listener, WriteMultiple};
 use rodbus::{AddressRange, MaybeAsync};
 use std::net::IpAddr;
 
@@ -156,14 +157,8 @@ pub(crate) unsafe fn client_channel_read_coils(
     let channel = channel.as_ref().ok_or(ffi::ParamError::NullParameter)?;
     let range = AddressRange::try_from(range.start, range.count)?;
     let callback = sfio_promise::wrap(callback);
-
     let mut session = param.build_session(channel);
-    channel.runtime.spawn(async move {
-        session
-            .read_coils(range, |res| callback.complete(res))
-            .await
-    })?;
-
+    session.read_coils(range, |res| callback.complete(res))?;
     Ok(())
 }
 
@@ -176,14 +171,8 @@ pub(crate) unsafe fn client_channel_read_discrete_inputs(
     let channel = channel.as_ref().ok_or(ffi::ParamError::NullParameter)?;
     let range = AddressRange::try_from(range.start, range.count)?;
     let callback = sfio_promise::wrap(callback);
-
     let mut session = param.build_session(channel);
-    channel.runtime.spawn(async move {
-        session
-            .read_discrete_inputs(range, |res| callback.complete(res))
-            .await
-    })?;
-
+    session.read_discrete_inputs(range, |res| callback.complete(res))?;
     Ok(())
 }
 
@@ -196,14 +185,8 @@ pub(crate) unsafe fn client_channel_read_holding_registers(
     let channel = channel.as_ref().ok_or(ffi::ParamError::NullParameter)?;
     let range = AddressRange::try_from(range.start, range.count)?;
     let callback = sfio_promise::wrap(callback);
-
     let mut session = param.build_session(channel);
-    channel.runtime.spawn(async move {
-        session
-            .read_holding_registers(range, |res| callback.complete(res))
-            .await
-    })?;
-
+    session.read_holding_registers(range, |res| callback.complete(res))?;
     Ok(())
 }
 
@@ -216,14 +199,8 @@ pub(crate) unsafe fn client_channel_read_input_registers(
     let channel = channel.as_ref().ok_or(ffi::ParamError::NullParameter)?;
     let range = AddressRange::try_from(range.start, range.count)?;
     let callback = sfio_promise::wrap(callback);
-
     let mut session = param.build_session(channel);
-    channel.runtime.spawn(async move {
-        session
-            .read_input_registers(range, |res| callback.complete(res))
-            .await
-    })?;
-
+    session.read_input_registers(range, |res| callback.complete(res))?;
     Ok(())
 }
 
@@ -235,14 +212,8 @@ pub(crate) unsafe fn client_channel_write_single_coil(
 ) -> Result<(), ffi::ParamError> {
     let channel = channel.as_ref().ok_or(ffi::ParamError::NullParameter)?;
     let callback = sfio_promise::wrap(callback);
-
     let mut session = param.build_session(channel);
-    channel.runtime.spawn(async move {
-        session
-            .write_single_coil(bit.into(), |res| callback.complete(res))
-            .await
-    })?;
-
+    session.write_single_coil(bit.into(), |res| callback.complete(res))?;
     Ok(())
 }
 
@@ -256,11 +227,7 @@ pub(crate) unsafe fn client_channel_write_single_register(
     let callback = sfio_promise::wrap(callback);
 
     let mut session = param.build_session(channel);
-    channel.runtime.spawn(async move {
-        session
-            .write_single_register(register.into(), |res| callback.complete(res))
-            .await
-    })?;
+    session.write_single_register(register.into(), |res| callback.complete(res))?;
 
     Ok(())
 }
@@ -276,14 +243,8 @@ pub(crate) unsafe fn client_channel_write_multiple_coils(
     let items = items.as_ref().ok_or(ffi::ParamError::NullParameter)?;
     let args = WriteMultiple::from(start, items.inner.clone())?;
     let callback = sfio_promise::wrap(callback);
-
     let mut session = param.build_session(channel);
-    channel.runtime.spawn(async move {
-        session
-            .write_multiple_coils(args, |res| callback.complete(res))
-            .await
-    })?;
-
+    session.write_multiple_coils(args, |res| callback.complete(res))?;
     Ok(())
 }
 
@@ -298,14 +259,8 @@ pub(crate) unsafe fn client_channel_write_multiple_registers(
     let items = items.as_ref().ok_or(ffi::ParamError::NullParameter)?;
     let args = WriteMultiple::from(start, items.inner.clone())?;
     let callback = sfio_promise::wrap(callback);
-
     let mut session = param.build_session(channel);
-    channel.runtime.spawn(async move {
-        session
-            .write_multiple_registers(args, |res| callback.complete(res))
-            .await
-    })?;
-
+    session.write_multiple_registers(args, |res| callback.complete(res))?;
     Ok(())
 }
 
@@ -448,5 +403,15 @@ impl TryFrom<ffi::TlsClientConfig> for rodbus::client::TlsClientConfig {
         })?;
 
         Ok(config)
+    }
+}
+
+impl From<FfiSessionError> for ParamError {
+    fn from(err: FfiSessionError) -> Self {
+        match err {
+            FfiSessionError::ChannelFull => ParamError::TooManyRequests,
+            FfiSessionError::ChannelClosed => ParamError::Shutdown,
+            FfiSessionError::BadRange(err) => err.into(),
+        }
     }
 }

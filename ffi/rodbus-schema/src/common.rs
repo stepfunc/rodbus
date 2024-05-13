@@ -126,6 +126,10 @@ fn build_error_type(lib: &mut LibraryBuilder) -> BackTraced<ErrorTypeHandle> {
         .add_error("bad_tls_config", "Bad TLS configuration")?
         .add_error("shutdown", "The task has been shutdown")?
         .add_error("invalid_utf8", "String argument was not valid UTF-8")?
+        .add_error(
+            "too_many_requests",
+            "Number of requests exceeds configured limit",
+        )?
         .doc("Error type that indicates a bad parameter or bad programmer logic")?
         .build()?;
 
