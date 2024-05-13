@@ -119,9 +119,20 @@ impl TcpChannelTask {
         }
     }
 
+    async fn connect(&mut self) -> Result<Result<TcpStream, std::io::Error>, StateChange> {
+        tokio::select! {
+            res = self.host.connect() => {
+                Ok(res)
+            }
+            res = self.client_loop.fail_requests() => {
+                Err(res)
+            }
+        }
+    }
+
     async fn try_connect_and_run(&mut self) -> Result<(), StateChange> {
         self.listener.update(ClientState::Connecting).get().await;
-        match self.host.connect().await {
+        match self.connect().await? {
             Err(err) => {
                 let delay = self.connect_retry.after_failed_connect();
                 tracing::warn!(

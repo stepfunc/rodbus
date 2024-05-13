@@ -137,7 +137,7 @@ impl ClientLoop {
         }
     }
 
-    pub(crate) async fn poll(&mut self, io: &mut PhysLayer) -> Result<(), SessionError> {
+    async fn poll(&mut self, io: &mut PhysLayer) -> Result<(), SessionError> {
         tokio::select! {
             frame = self.reader.next_frame(io, self.decode) => {
                 match frame {
@@ -267,21 +267,26 @@ impl ClientLoop {
         }
     }
 
+    pub(crate) async fn fail_requests(&mut self) -> StateChange {
+        loop {
+            if let Err(err) = self.fail_next_request().await {
+                return err;
+            }
+        }
+    }
+
     pub(crate) async fn fail_requests_for(
         &mut self,
         duration: Duration,
     ) -> Result<(), StateChange> {
         let deadline = Instant::now() + duration;
-
-        loop {
-            tokio::select! {
-                _ = tokio::time::sleep_until(deadline) => {
-                    // Timeout occurred
-                    return Ok(())
-                }
-                x = self.fail_next_request() => {
-                    x?
-                }
+        tokio::select! {
+            _ = tokio::time::sleep_until(deadline) => {
+                // Timeout occurred
+                Ok(())
+            }
+            x = self.fail_requests() => {
+                Err(x)
             }
         }
     }

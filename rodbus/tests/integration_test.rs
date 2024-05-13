@@ -26,6 +26,22 @@ impl Handler {
     }
 }
 
+struct ClientStateListener {
+    tx: tokio::sync::mpsc::Sender<ClientState>,
+}
+
+impl Listener<ClientState> for ClientStateListener {
+    fn update(&mut self, value: ClientState) -> MaybeAsync<()> {
+        let update = {
+            let tx = self.tx.clone();
+            async move {
+                let _ = tx.send(value).await;
+            }
+        };
+        MaybeAsync::asynchronous(update)
+    }
+}
+
 impl RequestHandler for Handler {
     fn read_coil(&self, address: u16) -> Result<bool, ExceptionCode> {
         match self.coils.get(address as usize) {
@@ -110,15 +126,26 @@ async fn test_requests_and_responses() {
     .await
     .unwrap();
 
+    let (tx, mut rx) = tokio::sync::mpsc::channel(8);
+    let listener = ClientStateListener { tx };
+
     let mut channel = spawn_tcp_client_task(
         HostAddr::ip(addr.ip(), addr.port()),
         10,
         default_retry_strategy(),
         DecodeLevel::default(),
-        None,
+        Some(Box::new(listener)),
     );
 
     channel.enable().await.unwrap();
+
+    // wait until we're connected
+    loop {
+        let state = rx.recv().await.unwrap();
+        if state == ClientState::Connected {
+            break;
+        }
+    }
 
     let params = RequestParam::new(UnitId::new(0x01), Duration::from_secs(1));
 

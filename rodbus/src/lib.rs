@@ -121,7 +121,6 @@
     pub_use_of_private_extern_crate,
     unknown_crate_types,
     order_dependent_trait_objects,
-    illegal_floating_point_literal_pattern,
     improper_ctypes,
     late_bound_lifetime_arguments,
     non_camel_case_types,
@@ -129,7 +128,6 @@
     non_snake_case,
     non_upper_case_globals,
     no_mangle_generic_items,
-    private_in_public,
     stable_features,
     type_alias_bounds,
     tyvar_behind_raw_pointer,
@@ -143,7 +141,7 @@
     trivial_casts,
     trivial_numeric_casts,
     unused_import_braces,
-    unused_qualifications,
+    //unused_qualifications,
     clippy::all
 )]
 #![forbid(
