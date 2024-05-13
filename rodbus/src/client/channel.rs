@@ -243,6 +243,7 @@ impl Channel {
 /// This interface removes some allocations when returning results.
 /// Its primary use is for the bindings. Rust users should prefer
 /// interacting with the channel directly.
+#[deprecated(since = "1.4.0", note = "Use Channel. This type will be removed in 2.0")]
 #[derive(Debug, Clone)]
 pub struct CallbackSession {
     tx: tokio::sync::mpsc::Sender<Command>,
