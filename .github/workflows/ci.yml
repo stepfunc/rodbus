@@ -149,7 +149,7 @@ jobs:
       fail-fast: false
       matrix:
         target:
-          - x86_64-apple-darwin # 64-bit macOS (10.7+, Lion+)
+          - aarch64-apple-darwin # ARM64 macOS (11.0+, Big Sur+)
     steps:
       - name: Checkout
         uses: actions/checkout@v3
