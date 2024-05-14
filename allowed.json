@@ -22,6 +22,7 @@
     "heck",
     "io-lifetimes",
     "is-terminal",
+    "is_terminal_polyfill",
     "miniz_oxide",
     "linux-raw-sys",
     "object",
@@ -630,6 +631,23 @@
         }
       ]
     },
+    "getrandom": {
+      "id": "getrandom",
+      "source": "crates.io",
+      "authors": null,
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2018-2024 The rust-random Project Developers",
+                "Copyright (c) 2014 The Rust Project Developers"
+              ]
+            }
+          }
+        }
+      ]
+    },
     "hmac": {
       "id": "hmac",
       "source": "crates.io",
@@ -898,6 +916,22 @@
         }
       ]
     },
+    "nu-ansi-term": {
+      "id": "nu-ansi-term",
+      "source": "crates.io",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2014 Benjamin Sago",
+                "Copyright (c) 2021-2022 The Nushell Project Developers"
+              ]
+            }
+          }
+        }
+      ]
+    },
     "num-integer": {
       "id": "num-integer",
       "source": "crates.io",
@@ -955,6 +989,21 @@
       ]
     },
     "opaque-debug": {
+      "id": "opaque-debug",
+      "source": "crates.io",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2018-2019 The RustCrypto Project Developers"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "overload": {
       "id": "opaque-debug",
       "source": "crates.io",
       "licenses": [
@@ -1196,6 +1245,21 @@
             "copyright": {
               "Lines": [
                 "Copyright (c) 2016 Joseph Birr-Pixton <jpixton@gmail.com>"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "rustls-pki-types": {
+      "id": "rustls-pki-types",
+      "source": "crates.io",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2023 Dirkjan Ochtman <dirkjan@ochtman.nl>"
               ]
             }
           }
