@@ -663,6 +663,21 @@
         }
       ]
     },
+    "io-kit-sys": {
+      "id": "io-kit-sys",
+      "source": "crates.io",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2017-2018 Junji Takakura"
+              ]
+            }
+          }
+        }
+      ]
+    },
     "IOKit-sys": {
       "id": "IOKit-sys",
       "source": "crates.io",
@@ -1721,6 +1736,21 @@
             "copyright": {
               "Lines": [
                 "Copyright (c) 2014 Paho Lurie-Gregg"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "unescaper": {
+      "id": "unescaper",
+      "source": "crates.io",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2023 Hack Ink"
               ]
             }
           }
