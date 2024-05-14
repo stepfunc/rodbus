@@ -250,7 +250,7 @@ jobs:
       - name: Install custom allow-list tool
         run: cargo install --git https://github.com/stepfunc/bom-tools.git
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Download compiled FFI
         uses: actions/download-artifact@v3
         with:
@@ -259,6 +259,7 @@ jobs:
       - name: Create SBOMs
         run: |
           for dir in ffi-modules/*; do
+            echo "processing path: $dir"
             target=`basename "${dir}"`
             cargo cyclonedx -f json --target $target
             mv ./ffi/rodbus-ffi/rodbus-ffi.cdx.json ffi-modules/$target
