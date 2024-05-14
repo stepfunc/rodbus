@@ -1,3 +1,6 @@
+### 1.4.0-M1 ###
+* :wrench: Avoid task spawning in client FFI methods. See [#136](https://github.com/stepfunc/rodbus/pull/136).
+
 ### 1.3.1 ###
 * :bug: Fix issue with master channels not properly exiting and thrashing CPU. See [#120](https://github.com/stepfunc/rodbus/issues/120).
 
