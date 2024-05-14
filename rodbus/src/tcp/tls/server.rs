@@ -1,5 +1,4 @@
-use sfio_rustls_config::NameVerifier;
-
+use sfio_rustls_config::ClientNameVerification;
 use std::path::Path;
 use std::sync::Arc;
 
@@ -37,7 +36,7 @@ impl TlsServerConfig {
             )?,
             CertificateMode::AuthorityBased => sfio_rustls_config::server::authority(
                 min_tls_version.into(),
-                NameVerifier::any(),
+                ClientNameVerification::None,
                 peer_cert_path,
                 local_cert_path,
                 private_key_path,
@@ -70,9 +69,7 @@ impl TlsServerConfig {
                             .1
                             .peer_certificates()
                             .and_then(|x| x.first())
-                            .ok_or_else(|| "No peer certificate".to_string())?
-                            .0
-                            .as_slice();
+                            .ok_or_else(|| "No peer certificate".to_string())?;
 
                         let parsed = rx509::x509::Certificate::parse(peer_cert)
                             .map_err(|err| format!("ASNError: {err}"))?;

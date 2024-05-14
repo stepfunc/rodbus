@@ -249,7 +249,7 @@ impl AddressRange {
             return Err(InvalidRange::CountOfZero);
         }
 
-        let max_start = std::u16::MAX - (count - 1);
+        let max_start = u16::MAX - (count - 1);
 
         if start > max_start {
             return Err(InvalidRange::AddressOverflow(start, count));

@@ -1,12 +1,13 @@
 use std::convert::TryFrom;
 use std::net::Ipv4Addr;
 
-use sfio_rustls_config::NameVerifier;
+use sfio_rustls_config::{ProtocolVersions, ServerNameVerification};
 use std::path::Path;
 use std::sync::Arc;
 
 use tokio::net::TcpStream;
 use tokio_rustls::rustls;
+use tokio_rustls::rustls::pki_types::InvalidDnsNameError;
 use tracing::Instrument;
 
 use crate::client::{Channel, ClientState, HostAddr, Listener, RetryStrategy};
@@ -18,7 +19,7 @@ use crate::DecodeLevel;
 
 /// TLS configuration
 pub struct TlsClientConfig {
-    server_name: rustls::ServerName,
+    server_name: rustls::pki_types::ServerName<'static>,
     config: Arc<rustls::ClientConfig>,
 }
 
@@ -119,12 +120,14 @@ impl TlsClientConfig {
     ) -> Result<Self, TlsError> {
         let (name_verifier, server_name) = match server_subject_name {
             None => (
-                NameVerifier::any(),
-                rustls::ServerName::IpAddress(Ipv4Addr::UNSPECIFIED.into()),
+                ServerNameVerification::DisableNameVerification,
+                rustls::pki_types::ServerName::IpAddress(rustls::pki_types::IpAddr::V4(
+                    Ipv4Addr::UNSPECIFIED.into(),
+                )),
             ),
             Some(x) => {
-                let server_name = rustls::ServerName::try_from(x.as_str())?;
-                (NameVerifier::equal_to(x), server_name)
+                let server_name = rustls::pki_types::ServerName::try_from(x)?;
+                (ServerNameVerification::SanOrCommonName, server_name)
             }
         };
 
@@ -168,7 +171,9 @@ impl TlsClientConfig {
 
         Ok(Self {
             //  it doesn't matter what we put here, it just needs to be an IP so that the client won't send an SNI extension
-            server_name: rustls::ServerName::IpAddress(Ipv4Addr::UNSPECIFIED.into()),
+            server_name: rustls::pki_types::ServerName::IpAddress(rustls::pki_types::IpAddr::V4(
+                Ipv4Addr::UNSPECIFIED.into(),
+            )),
             config: Arc::new(config),
         })
     }
@@ -184,6 +189,21 @@ impl TlsClientConfig {
                 "failed to establish TLS session with {endpoint}: {err}"
             )),
             Ok(stream) => Ok(PhysLayer::new_tls(tokio_rustls::TlsStream::from(stream))),
+        }
+    }
+}
+
+impl From<InvalidDnsNameError> for TlsError {
+    fn from(_: InvalidDnsNameError) -> Self {
+        TlsError::InvalidDnsName
+    }
+}
+
+impl From<MinTlsVersion> for ProtocolVersions {
+    fn from(value: MinTlsVersion) -> Self {
+        match value {
+            MinTlsVersion::V1_2 => ProtocolVersions::v12_only(),
+            MinTlsVersion::V1_3 => ProtocolVersions::new().enable_v12().enable_v13(),
         }
     }
 }

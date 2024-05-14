@@ -80,15 +80,11 @@ class WriteCallback : public rodbus::WriteCallback
 };
 /// ANCHOR_END: write_callback
 
-int run_channel(rodbus::ClientChannel& channel)
+void run_command(rodbus::ClientChannel &channel, const std::string &cmd)
 {
-    // ANCHOR: enable_channel
-    channel.enable();
-    // ANCHOR_END: enable_channel
-
     // request param that we will be reusing
     // ANCHOR: request_param
-    const auto param = rodbus::RequestParam(1, // Unit ID
+    const auto param = rodbus::RequestParam(1,                      // Unit ID
                                             std::chrono::seconds(1) // Timeout
     );
     // ANCHOR_END: request_param
@@ -100,77 +96,90 @@ int run_channel(rodbus::ClientChannel& channel)
     );
     // ANCHOR_END: address_range
 
-    while (true)
-    {
+    if (cmd == "ec") {
+        // enable channel
+        channel.enable();
+    }
+    else if (cmd == "dc") {
+        // disable channel
+        channel.disable();
+    }
+    else if (cmd == "ed") {
+        // enable decoding
+        channel.set_decode_level(rodbus::DecodeLevel(rodbus::AppDecodeLevel::data_values, rodbus::FrameDecodeLevel::header, rodbus::PhysDecodeLevel::length));
+    }
+    else if (cmd == "dd") {
+        // disable decoding
+        channel.set_decode_level(rodbus::DecodeLevel::nothing());
+    }
+    else if (cmd == "rc") {
+        /// ANCHOR: read_coils
+        channel.read_coils(param, range, std::make_unique<BitReadCallback>());
+        /// ANCHOR_END: read_coils
+    }
+    else if (cmd == "rdi") {
+        channel.read_discrete_inputs(param, range, std::make_unique<BitReadCallback>());
+    }
+    else if (cmd == "rhr") {
+        channel.read_holding_registers(param, range, std::make_unique<RegisterReadCallback>());
+    }
+    else if (cmd == "rir") {
+        channel.read_input_registers(param, range, std::make_unique<RegisterReadCallback>());
+    }
+    else if (cmd == "wsc") {
+        const auto bit_value = rodbus::BitValue(0, true);
+        channel.write_single_coil(param, bit_value, std::make_unique<WriteCallback>());
+    }
+    else if (cmd == "wsr") {
+        /// ANCHOR: write_single_coil
+        const auto register_value = rodbus::RegisterValue(0, 76);
+        channel.write_single_register(param, register_value, std::make_unique<WriteCallback>());
+        /// ANCHOR_END: write_single_coil
+    }
+    else if (cmd == "wmc") {
+        // create the bitlist
+        auto bit_list = std::vector<bool>();
+        bit_list.emplace_back(true);
+        bit_list.emplace_back(false);
+
+        // send the request
+        channel.write_multiple_coils(param, 0, bit_list, std::make_unique<WriteCallback>());
+    }
+    else if (cmd == "wmr") {
+        // create the register list
+        // ANCHOR: write_multiple_registers
+        auto register_list = std::vector<uint16_t>();
+        register_list.emplace_back(0xCA);
+        register_list.emplace_back(0xFE);
+
+        // send the request
+        channel.write_multiple_registers(param, 0, register_list, std::make_unique<WriteCallback>());
+        // ANCHOR_END: write_multiple_registers
+    }
+    else {
+        std::cout << "unknown command: " << cmd << std::endl;
+    }
+}
+
+int run_channel(rodbus::ClientChannel& channel)
+{
+    // ANCHOR: enable_channel
+    channel.enable();
+    // ANCHOR_END: enable_channel
+
+    while (true) {
         std::string cmd;
         std::getline(std::cin, cmd);
 
         if (cmd == "x") {
             return 0;
         }
-        else if (cmd == "ec") {
-            // enable channel
-            channel.enable();
-        }
-        else if (cmd == "dc") {
-            // disable channel
-            channel.disable();
-        }
-        else if (cmd == "ed") {
-            // enable decoding
-            channel.set_decode_level(
-                rodbus::DecodeLevel(rodbus::AppDecodeLevel::data_values, rodbus::FrameDecodeLevel::header, rodbus::PhysDecodeLevel::length));
-        }
-        else if (cmd == "dd") {
-            // disable decoding
-            channel.set_decode_level(rodbus::DecodeLevel::nothing());
-        }
-        else if (cmd == "rc") {
-            /// ANCHOR: read_coils
-            channel.read_coils(param, range, std::make_unique<BitReadCallback>());
-            /// ANCHOR_END: read_coils
-        }
-        else if (cmd == "rdi") {
-            channel.read_discrete_inputs(param, range, std::make_unique<BitReadCallback>());
-        }
-        else if (cmd == "rhr") {
-            channel.read_holding_registers(param, range, std::make_unique<RegisterReadCallback>());
-        }
-        else if (cmd == "rir") {
-            channel.read_input_registers(param, range, std::make_unique<RegisterReadCallback>());
-        }
-        else if (cmd == "wsc") {
-            const auto bit_value = rodbus::BitValue(0, true);
-            channel.write_single_coil(param, bit_value, std::make_unique<WriteCallback>());
-        }
-        else if (cmd == "wsr") {
-            /// ANCHOR: write_single_coil
-            const auto register_value = rodbus::RegisterValue(0, 76);
-            channel.write_single_register(param, register_value, std::make_unique<WriteCallback>());
-            /// ANCHOR_END: write_single_coil
-        }
-        else if (cmd == "wmc") {
-            // create the bitlist
-            auto bit_list = std::vector<bool>();
-            bit_list.emplace_back(true);
-            bit_list.emplace_back(false);
 
-            // send the request
-            channel.write_multiple_coils(param, 0, bit_list, std::make_unique<WriteCallback>());
+        try {
+            run_command(channel, cmd);
         }
-        else if (cmd == "wmr") {
-            // create the register list
-            // ANCHOR: write_multiple_registers
-            auto register_list = std::vector<uint16_t>();
-            register_list.emplace_back(0xCA);
-            register_list.emplace_back(0xFE);
-
-            // send the request
-            channel.write_multiple_registers(param, 0, register_list, std::make_unique<WriteCallback>());
-            // ANCHOR_END: write_multiple_registers
-        }
-        else {
-            std::cout << "unknown command: " << cmd << std::endl;
+        catch (rodbus::ParamException ex) {
+            std::cout << ex.what() << std::endl;
         }
     }
 }
@@ -182,7 +191,7 @@ int run_tcp_channel(rodbus::Runtime& runtime)
         runtime,
         "127.0.0.1",
         502,
-        100,
+        16,
         rodbus::RetryStrategy(),
         rodbus::DecodeLevel::nothing(),
         std::make_unique<PrintingClientStateListener>()

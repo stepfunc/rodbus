@@ -1,10 +1,12 @@
 use crate::ffi;
-use rodbus::client::{CallbackSession, RequestParam};
+use rodbus::client::RequestParam;
 use rodbus::{BitIterator, RegisterIterator, RequestError, UnitId};
 
+use rodbus::client::FfiSession;
+
 impl ffi::RequestParam {
-    pub(crate) fn build_session(&self, channel: &crate::ClientChannel) -> CallbackSession {
-        CallbackSession::new(
+    pub(crate) fn build_session(&self, channel: &crate::ClientChannel) -> FfiSession {
+        FfiSession::new(
             channel.inner.clone(),
             RequestParam::new(UnitId::new(self.unit_id()), self.timeout()),
         )

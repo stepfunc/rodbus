@@ -5,11 +5,12 @@ import io.stepfunc.rodbus.ModbusException;
 import io.stepfunc.rodbus.Runtime;
 import org.joou.*;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.parallel.Execution;
 
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutionException;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -66,9 +67,25 @@ class IntegrationTest {
         }
     }
 
-    static class NullClientStateListener implements ClientStateListener {
+    static class BlockingClientStateListener implements ClientStateListener {
+        BlockingQueue<ClientState> states = new ArrayBlockingQueue<>(10);
+        public void waitForState(ClientState state) throws InterruptedException {
+            while(true) {
+                if(this.states.take() == state) {
+                    return;
+                }
+            }
+        }
+
         @Override
-        public void onChange(ClientState state) {}
+        public void onChange(ClientState state) {
+            try {
+                states.put(state);
+            }
+            catch (InterruptedException ignored) {
+
+            }
+        }
     }
 
     @Test
@@ -86,10 +103,15 @@ class IntegrationTest {
             }
         });
 
+        final BlockingClientStateListener listener = new BlockingClientStateListener();
+
         final Server server = Server.createTcp(runtime, ENDPOINT, PORT, AddressFilter.any(), ushort(100), deviceMap, DecodeLevel.nothing());
-        final ClientChannel client = ClientChannel.createTcp(runtime, ENDPOINT, PORT, ushort(10), new RetryStrategy(), DecodeLevel.nothing(), new NullClientStateListener());
+        final ClientChannel client = ClientChannel.createTcp(runtime, ENDPOINT, PORT, ushort(10), new RetryStrategy(), DecodeLevel.nothing(), listener);
 
         client.enable();
+
+        // wait for connection
+        listener.waitForState(ClientState.CONNECTED);
 
         // Set a unique pattern to test reads
         server.updateDatabase(UNIT_ID, db -> {
