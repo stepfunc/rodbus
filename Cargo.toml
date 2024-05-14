@@ -10,5 +10,14 @@ members = [
   "ffi/rodbus-schema",
 ]
 
+[workspace.dependencies]
+oo-bindgen = "0.8.6"
+sfio-tokio-ffi = "0.9.0"
+sfio-tracing-ffi = "0.9.0"
+tokio = "1.37.0"
+tracing = "0.1.40"
+tracing-subscriber = {  version = "0.3.18" }
+
+
 [profile.release]
 lto=true

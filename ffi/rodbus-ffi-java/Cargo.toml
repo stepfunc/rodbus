@@ -19,4 +19,4 @@ tls = ["rodbus-ffi/tls"]
 
 [build-dependencies]
 rodbus-schema = { path = "../rodbus-schema" }
-oo-bindgen = "0.8"
+oo-bindgen = { workspace = true }

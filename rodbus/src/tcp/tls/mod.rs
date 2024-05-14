@@ -3,7 +3,6 @@ pub(crate) mod server;
 
 pub(crate) use client::*;
 pub(crate) use server::*;
-use tokio_rustls::rustls::client::InvalidDnsNameError;
 
 /// Determines how the certificate(s) presented by the peer are validated
 ///
@@ -76,6 +75,7 @@ pub enum MinTlsVersion {
     V1_3,
 }
 
+/*
 impl From<MinTlsVersion> for sfio_rustls_config::MinProtocolVersion {
     fn from(value: MinTlsVersion) -> Self {
         match value {
@@ -90,3 +90,4 @@ impl From<InvalidDnsNameError> for TlsError {
         Self::InvalidDnsName
     }
 }
+*/

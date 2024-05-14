@@ -13,14 +13,14 @@ readme = "README.md"
 
 [dependencies]
 crc = "3.0"
-scursor = "0.1"
-tokio = { version = "1", features = ["net", "sync", "io-util", "io-std", "time", "rt", "rt-multi-thread", "macros"] }
-tracing = "0.1"
+scursor = "0.2.0"
+tokio = { workspace = true, features = ["net", "sync", "io-util", "io-std", "time", "rt", "rt-multi-thread", "macros"] }
+tracing = { workspace = true }
 
 # TLS dependencies
 rx509 = { version = "^0.2", optional = true }
-sfio-rustls-config = { version = "0.1.0", optional = true }
-tokio-rustls = { version = "0.24", features = ["tls12"], default-features = false, optional = true }
+sfio-rustls-config = { version = "0.3.2", optional = true }
+tokio-rustls = { version = "0.26.0", features = ["tls12"], default-features = false, optional = true }
 
 # serial dependencies
 tokio-serial = { version = "5.4", default-features = false, optional = true }
@@ -31,7 +31,7 @@ tokio-stream = "0.1"
 tokio-util = { version = "0.7", features = ["codec"] }
 tokio-test = "0.4.2"
 sfio-tokio-mock-io = "0.2"
-tracing-subscriber = "0.3"
+tracing-subscriber = { workspace = true }
 
 [features]
 default = ["tls", "serial"]
