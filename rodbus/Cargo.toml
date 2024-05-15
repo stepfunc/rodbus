@@ -1,6 +1,6 @@
 [package]
 name = "rodbus"
-version = "1.4.0-M1"
+version = "1.4.0-RC1"
 description = "A high-performance async implementation of the Modbus protocol using tokio"
 readme = "README.md"
 
