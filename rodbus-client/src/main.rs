@@ -1,3 +1,5 @@
+//! Command-line Modbus client
+
 use std::fmt::Formatter;
 use std::net::{AddrParseError, SocketAddr};
 use std::num::ParseIntError;

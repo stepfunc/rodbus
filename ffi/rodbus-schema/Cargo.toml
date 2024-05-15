@@ -2,13 +2,21 @@
 name = "rodbus-schema"
 # this is the version that all the FFI libraries get, since it's in their schema
 version = "1.4.0-M1"
-authors = ["Step Function I/O LLC <info@stepfunc.io>"]
-edition = "2021"
 description = "oobindgen schema for Rodbus"
-keywords = ["ffi", "c", "modbus", "industrial", "plc"]
-categories = ["network-programming"]
-repository = "https://github.com/stepfunc/rodbus"
 readme = "../README.md"
+
+# inherit from workspace
+authors.workspace = true
+rust-version.workspace = true
+edition.workspace = true
+license-file.workspace = true
+homepage.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[lints]
+workspace = true
 
 [dependencies]
 oo-bindgen = { workspace = true }

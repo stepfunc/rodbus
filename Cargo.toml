@@ -18,6 +18,24 @@ tokio = "1.37.0"
 tracing = "0.1.40"
 tracing-subscriber = {  version = "0.3.18" }
 
+[workspace.package]
+authors = ["Step Function I/O LLC <info@stepfunc.io>>"]
+rust-version = "1.75"
+edition = "2021"
+license-file = "LICENSE.txt"
+homepage = "https://stepfunc.io/products/libraries/modbus/"
+repository = "https://github.com/stepfunc/rodbus"
+keywords = ["dnp3", "ics", "scada", "security"]
+categories = ["network-programming"]
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+non_ascii_idents = "deny"
+unreachable_pub = "deny"
+trivial_casts = "deny"
+missing_docs = "deny"
+unused = "deny"
+missing_copy_implementations = "deny"
 
 [profile.release]
 lto=true
