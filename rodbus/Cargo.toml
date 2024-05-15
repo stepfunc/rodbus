@@ -1,15 +1,21 @@
 [package]
 name = "rodbus"
 version = "1.4.0-M1"
-authors = ["Step Function I/O LLC <info@stepfunc.io>"]
-edition = "2021"
 description = "A high-performance async implementation of the Modbus protocol using tokio"
-homepage = "https://stepfunc.io/products/libraries/modbus"
-repository = "https://github.com/stepfunc/rodbus"
-license-file = "../LICENSE.txt"
-keywords = ["modbus", "ics", "industrial", "security", "sunspec"]
-categories = ["network-programming"]
 readme = "README.md"
+
+# inherit from workspace
+authors.workspace = true
+rust-version.workspace = true
+edition.workspace = true
+license-file.workspace = true
+homepage.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[lints]
+workspace = true
 
 [dependencies]
 crc = "3.0"

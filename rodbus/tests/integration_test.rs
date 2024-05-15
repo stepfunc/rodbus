@@ -9,10 +9,10 @@ use rodbus::*;
 use tokio::runtime::Runtime;
 
 struct Handler {
-    pub coils: [bool; 10],
-    pub discrete_inputs: [bool; 10],
-    pub holding_registers: [u16; 10],
-    pub input_registers: [u16; 10],
+    coils: [bool; 10],
+    discrete_inputs: [bool; 10],
+    holding_registers: [u16; 10],
+    input_registers: [u16; 10],
 }
 
 impl Handler {

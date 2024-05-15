@@ -1,13 +1,21 @@
 [package]
 name = "rodbus-client"
 version = "1.4.0-M1"
-authors = ["Step Function I/O LLC <info@stepfunc.io>>"]
-edition = "2021"
 description = "A command line program for making Modbus client requests using the Rodbus crate"
-keywords = ["modbus", "ics", "industrial", "plc", "security"]
-categories = ["network-programming"]
-repository = "https://github.com/stepfunc/rodbus"
 readme = "README.md"
+
+# inherit from workspace
+authors.workspace = true
+rust-version.workspace = true
+edition.workspace = true
+license-file.workspace = true
+homepage.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[lints]
+workspace = true
 
 [[bin]]
 name = "rodbus-client"

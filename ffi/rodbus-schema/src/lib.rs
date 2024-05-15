@@ -1,3 +1,5 @@
+//! FFI oo-bindgen schema for Rodbus
+
 use std::path::PathBuf;
 
 use crate::common::CommonDefinitions;
@@ -11,6 +13,7 @@ mod server;
 // derived from Cargo.toml
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
+/// Build the library schema
 pub fn build_lib() -> BackTraced<Library> {
     let info = LibraryInfo {
         description: "Safe and fast Modbus library".to_string(),
