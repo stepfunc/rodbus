@@ -1,3 +1,5 @@
+//! Client example for Rodbus library
+
 use std::error::Error;
 use std::net::{IpAddr, Ipv4Addr};
 use std::process::exit;

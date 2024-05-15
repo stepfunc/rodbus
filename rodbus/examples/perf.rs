@@ -1,3 +1,5 @@
+//! Coarse performance test for Rodbus
+
 use std::net::{IpAddr, SocketAddr};
 use std::str::FromStr;
 use std::time::Duration;

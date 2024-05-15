@@ -1,3 +1,5 @@
+//! Server example for Rodbus library
+
 use std::process::exit;
 
 use tokio_stream::StreamExt;
