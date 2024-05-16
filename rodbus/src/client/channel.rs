@@ -243,12 +243,17 @@ impl Channel {
 /// This interface removes some allocations when returning results.
 /// Its primary use is for the bindings. Rust users should prefer
 /// interacting with the channel directly.
+#[deprecated(
+    since = "1.4.0",
+    note = "Use Channel. This type will be removed in 2.0"
+)]
 #[derive(Debug, Clone)]
 pub struct CallbackSession {
     tx: tokio::sync::mpsc::Sender<Command>,
     param: RequestParam,
 }
 
+#[allow(deprecated)]
 impl CallbackSession {
     /// Create a [CallbackSession] from a [Channel] and the specified [RequestParam]
     pub fn new(channel: Channel, param: RequestParam) -> Self {
@@ -385,6 +390,6 @@ impl CallbackSession {
     }
 }
 
-fn wrap(param: RequestParam, details: RequestDetails) -> Command {
+pub(crate) fn wrap(param: RequestParam, details: RequestDetails) -> Command {
     Command::Request(Request::new(param.id, param.response_timeout, details))
 }

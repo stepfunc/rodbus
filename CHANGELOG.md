@@ -1,3 +1,7 @@
+### 1.4.0-RC1 ###
+* :wrench: Avoid task spawning in client FFI methods. See [#136](https://github.com/stepfunc/rodbus/pull/136).
+* :wrench: Requests in the client API now fail immediately while the client is connecting.
+
 ### 1.3.1 ###
 * :bug: Fix issue with master channels not properly exiting and thrashing CPU. See [#120](https://github.com/stepfunc/rodbus/issues/120).
 

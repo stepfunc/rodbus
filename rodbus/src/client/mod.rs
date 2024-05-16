@@ -9,10 +9,17 @@ pub(crate) mod message;
 pub(crate) mod requests;
 pub(crate) mod task;
 
+#[cfg(feature = "ffi")]
+/// Only enabled for FFI builds
+mod ffi_channel;
+
 pub use crate::client::channel::*;
 pub use crate::client::listener::*;
 pub use crate::client::requests::write_multiple::WriteMultiple;
 pub use crate::retry::*;
+
+#[cfg(feature = "ffi")]
+pub use ffi_channel::*;
 
 #[cfg(feature = "tls")]
 pub use crate::tcp::tls::client::TlsClientConfig;

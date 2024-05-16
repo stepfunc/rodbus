@@ -1,15 +1,5 @@
 use crate::ffi;
-use rodbus::client::{CallbackSession, RequestParam};
-use rodbus::{BitIterator, RegisterIterator, RequestError, UnitId};
-
-impl ffi::RequestParam {
-    pub(crate) fn build_session(&self, channel: &crate::ClientChannel) -> CallbackSession {
-        CallbackSession::new(
-            channel.inner.clone(),
-            RequestParam::new(UnitId::new(self.unit_id()), self.timeout()),
-        )
-    }
-}
+use rodbus::{BitIterator, RegisterIterator, RequestError};
 
 impl<'a> sfio_promise::FutureType<Result<BitIterator<'a>, rodbus::RequestError>>
     for ffi::BitReadCallback

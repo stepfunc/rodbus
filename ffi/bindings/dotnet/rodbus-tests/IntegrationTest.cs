@@ -2,6 +2,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 using rodbus;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -62,9 +63,22 @@ namespace rodbus_tests
 
     class ClientStateListener : IClientStateListener
     {
+        private readonly BlockingCollection<ClientState> states = new();
+
+        public void WaitForState(ClientState state)
+        {
+            while(true)
+            {
+                if(states.Take() == state)
+                {
+                    return;
+                }
+            }
+        }
+
         public void OnChange(ClientState state)
         {
-            
+            states.Add(state);
         }
     }
 
@@ -190,10 +204,12 @@ namespace rodbus_tests
                 }
             });
 
+            var listener = new ClientStateListener();
             var server = Server.CreateTcp(runtime, ENDPOINT, PORT, AddressFilter.Any(), 100, map, DecodeLevel.Nothing());
-            var client = ClientChannel.CreateTcp(runtime, ENDPOINT, PORT, 10, new RetryStrategy(), DecodeLevel.Nothing(), new ClientStateListener());
+            var client = ClientChannel.CreateTcp(runtime, ENDPOINT, PORT, 10, new RetryStrategy(), DecodeLevel.Nothing(), listener);
 
             client.Enable();
+            listener.WaitForState(ClientState.Connected);
 
             // set a unique pattern to test reads
             server.UpdateDatabase(UNIT_ID, db =>
