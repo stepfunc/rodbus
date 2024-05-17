@@ -193,7 +193,7 @@ impl ClientLoop {
     ) -> Result<(), RequestError> {
         let bytes = self.writer.format_request(
             FrameHeader::new_tcp_header(request.id, tx_id),
-            request.details.function(),
+            request.details.function()?,
             &request.details,
             self.decode,
         )?;

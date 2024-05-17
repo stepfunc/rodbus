@@ -1,5 +1,3 @@
-//! Client example for Rodbus library
-
 use std::error::Error;
 use std::net::{IpAddr, Ipv4Addr};
 use std::process::exit;
@@ -63,7 +61,7 @@ where
 async fn run_tcp() -> Result<(), Box<dyn std::error::Error>> {
     // ANCHOR: create_tcp_channel
     let channel = spawn_tcp_client_task(
-        HostAddr::ip(IpAddr::V4(Ipv4Addr::LOCALHOST), 10502),
+        HostAddr::ip(IpAddr::V4(Ipv4Addr::LOCALHOST), 11502),
         1,
         default_retry_strategy(),
         DecodeLevel::default(),
@@ -98,7 +96,7 @@ async fn run_rtu() -> Result<(), Box<dyn std::error::Error>> {
 async fn run_tls(tls_config: TlsClientConfig) -> Result<(), Box<dyn std::error::Error>> {
     // ANCHOR: create_tls_channel
     let channel = spawn_tls_client_task(
-        HostAddr::ip(IpAddr::V4(Ipv4Addr::LOCALHOST), 10802),
+        HostAddr::ip(IpAddr::V4(Ipv4Addr::LOCALHOST), 11802),
         1,
         default_retry_strategy(),
         tls_config,
@@ -147,14 +145,14 @@ fn get_ca_chain_config() -> Result<TlsClientConfig, Box<dyn std::error::Error>> 
     Ok(tls_config)
 }
 
-fn print_read_result<T>(result: Result<Vec<Indexed<T>>, RequestError>)
+/*fn print_read_result<T>(result: Result<Vec<Indexed<T>>, RequestError>)
 where
     T: std::fmt::Display,
 {
     match result {
-        Ok(coils) => {
-            for bit in coils {
-                println!("index: {} value: {}", bit.index, bit.value);
+        Ok(registers) => {
+            for register in registers {
+                println!("index: {} value: {}", register.index, register.value);
             }
         }
         Err(rodbus::RequestError::Exception(exception)) => {
@@ -162,7 +160,7 @@ where
         }
         Err(err) => println!("read error: {err}"),
     }
-}
+}*/
 
 fn print_write_result<T>(result: Result<T, RequestError>) {
     match result {
@@ -184,108 +182,54 @@ async fn run_channel(mut channel: Channel) -> Result<(), Box<dyn std::error::Err
     // ANCHOR_END: request_param
 
     let mut reader = FramedRead::new(tokio::io::stdin(), LinesCodec::new());
-    loop {
-        match reader.next().await.unwrap()?.as_str() {
-            "x" => return Ok(()),
-            "ec" => {
-                // enable channel
+    while let Some(line) = reader.next().await {
+        let line = line?; // This handles the Some(Err(e)) case by returning Err(e)
+        let parts = line.split_whitespace().collect::<Vec<&str>>();
+        match parts.as_slice() {
+            ["x"] => return Ok(()),
+            ["ec"] => {
                 channel.enable().await?;
             }
-            "dc" => {
-                // disable channel
+            ["dc"] => {
                 channel.disable().await?;
             }
-            "ed" => {
-                // enable decoding
+            ["ed"] => {
                 channel
                     .set_decode_level(DecodeLevel::new(
                         AppDecodeLevel::DataValues,
-                        FrameDecodeLevel::Header,
-                        PhysDecodeLevel::Length,
+                        FrameDecodeLevel::Payload,
+                        PhysDecodeLevel::Data,
                     ))
                     .await?;
             }
-            "dd" => {
-                // disable decoded
+            ["dd"] => {
                 channel.set_decode_level(DecodeLevel::nothing()).await?;
             }
-            "rc" => {
-                // ANCHOR: read_coils
-                let result = channel
-                    .read_coils(params, AddressRange::try_from(0, 5).unwrap())
-                    .await;
-                // ANCHOR_END: read_coils
-                print_read_result(result);
-            }
-            "rdi" => {
-                let result = channel
-                    .read_discrete_inputs(params, AddressRange::try_from(0, 5).unwrap())
-                    .await;
-                print_read_result(result);
-            }
-            "rhr" => {
-                let result = channel
-                    .read_holding_registers(params, AddressRange::try_from(0, 5).unwrap())
-                    .await;
-                print_read_result(result);
-            }
-            "rir" => {
-                let result = channel
-                    .read_input_registers(params, AddressRange::try_from(0, 5).unwrap())
-                    .await;
-                print_read_result(result);
-            }
-            "wsc" => {
-                // ANCHOR: write_single_coil
-                let result = channel
-                    .write_single_coil(params, Indexed::new(0, true))
-                    .await;
-                // ANCHOR_END: write_single_coil
-                print_write_result(result);
-            }
-            "wsr" => {
-                let result = channel
-                    .write_single_register(params, Indexed::new(0, 76))
-                    .await;
-                print_write_result(result);
-            }
-            "wmc" => {
-                let result = channel
-                    .write_multiple_coils(
-                        params,
-                        WriteMultiple::from(0, vec![true, false]).unwrap(),
-                    )
-                    .await;
-                print_write_result(result);
-            }
-            "wmr" => {
-                // ANCHOR: write_multiple_registers
-                let result = channel
-                    .write_multiple_registers(
-                        params,
-                        WriteMultiple::from(0, vec![0xCA, 0xFE]).unwrap(),
-                    )
-                    .await;
-                print_write_result(result);
-                // ANCHOR_END: write_multiple_registers
-            }
-            "scfc" => {
-                // ANCHOR: send_custom_function_code
-                let fc = 0x45 as u8;
-                let byte_count_in = 0x04 as u8;
-                let byte_count_out = 0x04 as u8;
-                let values = vec![0xC0DE, 0xCAFE, 0xC0DE, 0xCAFE]; // i.e.: Voltage Hi = 0xC0 / Voltage Lo = 0xDE / Current Hi = 0xCA / Current Lo = 0xFE
+            ["scfc", fc_str, bytes_in_str, bytes_out_str, values @ ..] => {
+                let fc = u8::from_str_radix(fc_str.trim_start_matches("0x"), 16).unwrap();
+                let byte_count_in =
+                    u8::from_str_radix(bytes_in_str.trim_start_matches("0x"), 16).unwrap();
+                let byte_count_out =
+                    u8::from_str_radix(bytes_out_str.trim_start_matches("0x"), 16).unwrap();
+                let values: Vec<u16> = values
+                    .iter()
+                    .filter_map(|&v| u16::from_str_radix(v.trim_start_matches("0x"), 16).ok())
+                    .collect();
 
-                let result = channel
-                    .send_custom_function_code(
-                        params,
-                        CustomFunctionCode::new(fc, byte_count_in, byte_count_out, values),
-                    )
-                    .await;
-                print_write_result(result);
-                // ANCHOR_END: send_custom_function_code
+                if (fc >= 65 && fc <= 72) || (fc >= 100 && fc <= 110) {
+                    let result = channel
+                        .send_custom_function_code(
+                            params,
+                            CustomFunctionCode::new(fc, byte_count_in, byte_count_out, values),
+                        )
+                        .await;
+                    print_write_result(result);
+                } else {
+                    println!("Error: CFC number is not inside the range of 65-72 or 100-110.");
+                }
             }
             _ => println!("unknown command"),
         }
     }
+    Ok(())
 }

@@ -85,6 +85,15 @@ pub(crate) struct RegisterIteratorDisplay<'a> {
     level: AppDecodeLevel,
 }
 
+/// Custom Function Code
+#[derive(Clone, Debug, PartialEq)]
+pub struct CustomFunctionCode<T> {
+    fc: u8,
+    byte_count_in: u8,
+    byte_count_out: u8,
+    data: Vec<T>,
+}
+
 impl std::fmt::Display for UnitId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:#04X}", self.value)
@@ -364,6 +373,72 @@ impl UnitId {
 impl Default for UnitId {
     fn default() -> Self {
         Self { value: 0xFF }
+    }
+}
+
+impl CustomFunctionCode<u16> {
+    /// Create a new custom function code
+    pub fn new(fc: u8, byte_count_in: u8, byte_count_out: u8, data: Vec<u16>) -> Self {
+        Self {
+            fc,
+            byte_count_in,
+            byte_count_out,
+            data,
+        }
+    }
+
+    /// Get the function code
+    pub fn function_code(&self) -> u8 {
+        self.fc
+    }
+
+    /// Get the function code
+    pub fn byte_count_in(&self) -> u8 {
+        self.byte_count_in
+    }
+
+    /// Get the function code
+    pub fn byte_count_out(&self) -> u8 {
+        self.byte_count_out
+    }
+
+    /// Get the length of the underlying vector
+    pub fn len(&self) -> usize {
+        self.data.len()
+    }
+
+    /// Check if the underlying vector is empty
+    pub fn is_empty(&self) -> bool {
+        self.data.is_empty()
+    }
+
+    /// Iterate over the underlying vector
+    pub fn iter(&self) -> std::slice::Iter<u16> {
+        self.data.iter()
+    }
+}
+
+impl std::fmt::Display for CustomFunctionCode<u16> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "fc: {:#X}, ", self.fc)?;
+        write!(f, "bytes in: {}, ", self.byte_count_in)?;
+        write!(f, "bytes out: {}, ", self.byte_count_out)?;
+        write!(f, "values: [")?;
+        for (i, val) in self.data.iter().enumerate() {
+            if i != 0 {
+                write!(f, ", ")?;
+            }
+            write!(f, "{}", val)?;
+        }
+        write!(f, "], ")?;
+        write!(f, "hex: [")?;
+        for (i, val) in self.data.iter().enumerate() {
+            if i != 0 {
+                write!(f, ", ")?;
+            }
+            write!(f, "{:#X}", val)?;
+        }
+        write!(f, "]")
     }
 }
 
