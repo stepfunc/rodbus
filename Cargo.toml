@@ -11,7 +11,7 @@ members = [
 ]
 
 [workspace.dependencies]
-oo-bindgen = "0.8.6"
+oo-bindgen = "0.8.7"
 sfio-tokio-ffi = "0.9.0"
 sfio-tracing-ffi = "0.9.0"
 tokio = "1.37.0"
