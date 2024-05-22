@@ -14,9 +14,9 @@ use crate::client::requests::write_single::SingleWrite;
 use crate::common::traits::Serialize;
 use crate::types::{Indexed, UnitId};
 
+use crate::common::frame::FrameRecords;
 use scursor::{ReadCursor, WriteCursor};
 use std::time::Duration;
-use crate::common::frame::FrameRecords;
 
 pub(crate) enum Setting {
     DecodeLevel(DecodeLevel),
@@ -175,7 +175,11 @@ impl RequestDetails {
 }
 
 impl Serialize for RequestDetails {
-    fn serialize(&self, cursor: &mut WriteCursor, records: Option<&mut FrameRecords>) -> Result<(), RequestError> {
+    fn serialize(
+        &self,
+        cursor: &mut WriteCursor,
+        _: Option<&mut FrameRecords>,
+    ) -> Result<(), RequestError> {
         match self {
             RequestDetails::ReadCoils(x) => x.serialize(cursor),
             RequestDetails::ReadDiscreteInputs(x) => x.serialize(cursor),
