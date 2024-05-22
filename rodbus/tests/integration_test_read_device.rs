@@ -85,9 +85,9 @@ impl Handler {
 
         let (min_range, max_range) = match read_dev_id {
             ReadDeviceCode::BasicStreaming => (0x00, 0x03),
-            ReadDeviceCode::RegularStreaming => (0x04, 0x06),
-            ReadDeviceCode::ExtendedStreaming => (0x07, 0x7F),
-            ReadDeviceCode::Specific => (0x80, 0xFF),
+            ReadDeviceCode::RegularStreaming => (0x03, 0x7F),
+            ReadDeviceCode::ExtendedStreaming => (0x80, 0xFF),
+            ReadDeviceCode::Specific => (0x00, 0xFF),
         };
         let data = match read_dev_id {
             ReadDeviceCode::BasicStreaming => self.read_basic_device_info()?,
@@ -113,16 +113,27 @@ impl Handler {
 
         let length = Handler::message_count_from_area_slice(data) as u8;
 
+        let next_object_id = if (object_id + 1) >= max_range {
+            None
+        } else {
+            if data[(object_id + 1) as usize].is_some() {
+                Some(object_id + 1)
+            } else {
+                None
+            }
+        };
+
         //let mut device_info_response =
         //    DeviceInfo::new(mei_code, read_dev_id, self.device_conformity_level, length);
 
         let mut server = ServerDeviceInfo {
             read_device_code: read_dev_id,
             conformity_level: ExtendedIdentificationIndividual,
+            current_object_id: object_id,
             //TODO(Kay): This is not checking it's boundaries ! It could easily read data that is not part of basic streaming...
-            next_object_id: if data.get(object_id as usize + 1).is_some() && object_id >= min_range && object_id <= max_range { Some(object_id + 1) } else { None },
+            next_object_id,
             //TODO(Kay): Remove the unwrap ?
-            object_data: data[object_id as usize].unwrap().as_bytes(),
+            object_data: data[(object_id as usize)].unwrap().as_bytes(),
         };
 
         Ok(server)
@@ -134,25 +145,19 @@ impl Handler {
         read_dev_id: ReadDeviceCode,
         object_id: u8,
     ) -> Result<ServerDeviceInfo, ExceptionCode> {
-        let server = ServerDeviceInfo {
-            read_device_code: read_dev_id,
-            conformity_level: ExtendedIdentificationIndividual,
-            next_object_id: None,
-            object_data: &[0x00,0x04,0x41,0x41,0x41,0x41],
-        };
-        /*let data = self.read_specific_device_info(object_id)?;
-        let string = RawModbusInfoObject::new(
-            read_dev_id,
-            object_id,
-            data[0].unwrap().len() as u8,
-            data[0].unwrap().as_bytes(),
-        );
+        if self.device_info[object_id as usize].is_some() {
+            let data = self.device_info[object_id as usize].unwrap().as_bytes();
 
-        let mut device_info =
-            DeviceInfo::new(mei_code, read_dev_id, self.device_conformity_level, 1);
-        device_info.storage.push(string);*/
-
-        Ok(server)
+            Ok(ServerDeviceInfo {
+                read_device_code: read_dev_id,
+                conformity_level: ExtendedIdentificationIndividual,
+                current_object_id: object_id,
+                next_object_id: None,
+                object_data: data,
+            })
+        } else {
+            return Err(ExceptionCode::IllegalDataAddress)
+        }
     }
 }
 
@@ -216,7 +221,7 @@ async fn test_read_device_info_request_response() {
     );
 
     channel.enable().await.unwrap();
-    let params = RequestParam::new(UnitId::new(0x01), Duration::from_secs(5));
+    let params = RequestParam::new(UnitId::new(0x01), Duration::from_secs(3600));
 
     //TEST Basic Device Reading Information
     let result = channel
