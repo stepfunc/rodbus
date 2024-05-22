@@ -1,5 +1,5 @@
-use std::collections::{HashMap, HashSet};
 use crate::common::phys::PhysLayer;
+use std::collections::HashMap;
 use std::ops::Range;
 
 use crate::common::buffer::ReadBuffer;
@@ -252,8 +252,6 @@ impl FormatType {
     }
 }
 
-
-
 pub(crate) struct FrameRecords {
     records: HashMap<&'static str, usize>,
     //records: HashSet<usize>,
@@ -298,9 +296,13 @@ impl FrameRecords {
 
     ///Record a offset to fill in the value at a later point, but before it's send.
     /// NOTE: Currently only works with byte values.
-    pub(crate) fn record(&mut self, key: &'static str, cursor: &mut WriteCursor) -> Result<(), crate::InternalError> {
+    pub(crate) fn record(
+        &mut self,
+        key: &'static str,
+        cursor: &mut WriteCursor,
+    ) -> Result<(), crate::InternalError> {
         if self.records.contains_key(key) {
-            return Err(RecorderError::RecordKeyExists(key.clone()).into());
+            return Err(RecorderError::RecordKeyExists(key).into());
         }
 
         //Insert our new key and advance the cursor position to the next byte.
@@ -312,7 +314,12 @@ impl FrameRecords {
 
     ///Tries to fill in the value at the recorded offset, returns an error if there is no corresponding
     /// record found
-    pub(crate) fn fill_record(&mut self, cursor: &mut WriteCursor, key: &'static str, value: u8) -> Result<(), crate::InternalError> {
+    pub(crate) fn fill_record(
+        &mut self,
+        cursor: &mut WriteCursor,
+        key: &'static str,
+        value: u8,
+    ) -> Result<(), crate::InternalError> {
         if let Some(position) = self.records.remove(key) {
             let current_position = cursor.position();
 
@@ -331,7 +338,6 @@ impl FrameRecords {
     pub(crate) fn records_empty(&self) -> bool {
         self.records.is_empty()
     }
-
 }
 
 impl FunctionField {
