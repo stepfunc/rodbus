@@ -1,5 +1,7 @@
 use crate::common::buffer::ReadBuffer;
-use crate::common::frame::{Frame, FrameHeader, FrameInfo, FrameRecords, FrameType, FunctionField, TxId};
+use crate::common::frame::{
+    Frame, FrameHeader, FrameInfo, FrameRecords, FrameType, FunctionField, TxId,
+};
 use crate::common::traits::Serialize;
 use crate::decode::FrameDecodeLevel;
 use crate::error::{FrameParseError, RequestError};
@@ -150,7 +152,7 @@ pub(crate) fn format_mbap(
     msg.serialize(cursor, Some(&mut records))?;
 
     if !records.records_empty() {
-        return Err(RequestError::FrameRecorderNotEmpty)
+        return Err(RequestError::FrameRecorderNotEmpty);
     }
     let end_pdu = cursor.position();
 
@@ -225,7 +227,11 @@ mod tests {
     }
 
     impl Serialize for MockBody {
-        fn serialize(&self, cursor: &mut WriteCursor, records: Option<&mut FrameRecords>) -> Result<(), RequestError> {
+        fn serialize(
+            &self,
+            cursor: &mut WriteCursor,
+            records: Option<&mut FrameRecords>,
+        ) -> Result<(), RequestError> {
             for b in self.body {
                 cursor.write_u8(*b)?;
             }
