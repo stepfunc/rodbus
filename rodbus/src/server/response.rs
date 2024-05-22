@@ -1,7 +1,6 @@
 use crate::exception::ExceptionCode;
-use crate::types::{ReadBitsRange, ReadRegistersRange};
-use crate::DeviceInfo;
 use crate::server::ServerDeviceInfo;
+use crate::types::{ReadBitsRange, ReadRegistersRange};
 
 pub(crate) struct BitWriter<T>
 where
