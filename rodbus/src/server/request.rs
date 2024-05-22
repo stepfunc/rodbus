@@ -140,15 +140,10 @@ impl<'a> Request<'a> {
                 //
                 // And then write them AFTER writing the info objects
 
-                //TODO(Kay): Remove the unwrap this is just for learning purposes !
                 let device_information = DeviceIdentificationResponse::new(|object_id| {
-                    let next_id = match (read.obj_id, object_id) {
-                        (None, None) => Some(0),
-                        (None, Some(x)) => Some(x),
-                        (Some(x), None) => Some(x),
-                        (Some(x), Some(y)) => Some(x + y),
-                    };
-                    handler.read_device_info(read.mei_code, read.dev_id, next_id)
+                    let base_id = if read.obj_id.is_some() { read.obj_id.unwrap() } else { 0 };
+                    let request_offset = if object_id.is_some() { object_id.unwrap() } else { 0 };
+                    handler.read_device_info(read.mei_code, read.dev_id, Some(base_id + request_offset))
                 });
 
                 writer.format_reply(header, function, &device_information, level)
