@@ -7,8 +7,8 @@ use rodbus::client::*;
 use rodbus::server::*;
 use rodbus::*;
 
-use tokio::runtime::Runtime;
 use rodbus::DeviceConformityLevel::ExtendedIdentificationIndividual;
+use tokio::runtime::Runtime;
 
 struct Handler {
     pub device_conformity_level: DeviceConformityLevel,
@@ -81,9 +81,7 @@ impl Handler {
         read_dev_id: ReadDeviceCode,
         object_id: u8,
     ) -> Result<ServerDeviceInfo, ExceptionCode> {
-
-
-        let (min_range, max_range) = match read_dev_id {
+        let (_, max_range) = match read_dev_id {
             ReadDeviceCode::BasicStreaming => (0x00, 0x03),
             ReadDeviceCode::RegularStreaming => (0x03, 0x7F),
             ReadDeviceCode::ExtendedStreaming => (0x80, 0xFF),
@@ -96,23 +94,6 @@ impl Handler {
             _ => unreachable!(),
         };
 
-        /*let mut modbus_response: Vec<u8> = vec![];
-        for (idx, info_object) in data.iter().skip(object_id as usize).enumerate() {
-            let modbus_object = match info_object {
-                Some(value) => value.as_bytes(), /*RawModbusInfoObject::new(
-                    read_dev_id,
-                    object_id + idx as u8,
-                    value.len() as u8,
-                    value.as_bytes(),
-                ),*/
-                None => continue,
-            };
-
-            modbus_response.extend_from_slice(modbus_object);
-        }*/
-
-        let length = Handler::message_count_from_area_slice(data) as u8;
-
         let next_object_id = if (object_id + 1) >= max_range {
             None
         } else {
@@ -123,10 +104,7 @@ impl Handler {
             }
         };
 
-        //let mut device_info_response =
-        //    DeviceInfo::new(mei_code, read_dev_id, self.device_conformity_level, length);
-
-        let mut server = ServerDeviceInfo {
+        let server = ServerDeviceInfo {
             read_device_code: read_dev_id,
             conformity_level: ExtendedIdentificationIndividual,
             current_object_id: object_id,
@@ -156,7 +134,7 @@ impl Handler {
                 object_data: data,
             })
         } else {
-            return Err(ExceptionCode::IllegalDataAddress)
+            return Err(ExceptionCode::IllegalDataAddress);
         }
     }
 }
