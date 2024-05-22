@@ -40,6 +40,7 @@ impl From<rodbus::RequestError> for ffi::RequestError {
             rodbus::RequestError::Exception(ex) => ex.into(),
             rodbus::RequestError::Io(_) => ffi::RequestError::IoError,
             rodbus::RequestError::BadResponse(_) => ffi::RequestError::BadResponse,
+            rodbus::RequestError::FrameRecorderNotEmpty => ffi::RequestError::InternalError,
         }
     }
 }
