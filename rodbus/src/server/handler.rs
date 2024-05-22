@@ -12,6 +12,9 @@ pub struct ServerDeviceInfo<'a> {
     pub read_device_code: ReadDeviceCode,
     /// Conformity level the server is willing to grant
     pub conformity_level: DeviceConformityLevel,
+    /// The ID of the current object, necessary to generate a valid response
+    /// but not part of the response!
+    pub current_object_id: u8,
     /// The ID of the next object, if available This will
     pub next_object_id: Option<u8>,
     /// The raw data for this object
