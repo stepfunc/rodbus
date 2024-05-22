@@ -1,5 +1,4 @@
 use scursor::WriteError;
-use tracing::span::Record;
 
 /// The task processing requests has terminated
 #[derive(Clone, Copy, Debug)]
@@ -55,7 +54,9 @@ impl std::fmt::Display for RequestError {
             RequestError::NoConnection => f.write_str("no connection to server"),
             RequestError::Shutdown => f.write_str("channel shutdown"),
             //TODO(Kay): We could give the user more information where they forgot to write the necessary data!
-            RequestError::FrameRecorderNotEmpty => f.write_str("frame recorder needs to be empty in order to send the message.")
+            RequestError::FrameRecorderNotEmpty => {
+                f.write_str("frame recorder needs to be empty in order to send the message.")
+            }
         }
     }
 }
@@ -194,7 +195,6 @@ pub enum InternalError {
     RecordWriteOverflow,
     /// Attempted to seek to a Position larger than the length of the underlying buffer.
     RecordBadSeek,
-
 }
 
 impl From<WriteError> for InternalError {
@@ -241,16 +241,22 @@ impl std::fmt::Display for InternalError {
             }
             InternalError::RecordKeyExists(key) => {
                 write!(f, "The key \"{key}\" is already stored inside the recorder")
-            },
+            }
             InternalError::RecordDoesNotExist(key) => {
                 write!(f, "The position with the key \"{key}\" was never recorded")
-            },
+            }
             InternalError::RecordNumericOverflow => {
-                write!(f, "Attempted to write a  recorded value that would result in a Numeric overflow")
-            },
+                write!(
+                    f,
+                    "Attempted to write a  recorded value that would result in a Numeric overflow"
+                )
+            }
             InternalError::RecordWriteOverflow => {
-                write!(f, "Attempted to write a record beyond the range of the underlying buffer.")
-            },
+                write!(
+                    f,
+                    "Attempted to write a record beyond the range of the underlying buffer."
+                )
+            }
             InternalError::RecordBadSeek => {
                 write!(f, "Attempted to seek to a Position larger than the length of the underlying buffer.")
             }
