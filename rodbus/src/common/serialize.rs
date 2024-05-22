@@ -13,7 +13,7 @@ use crate::types::{
     coil_from_u16, coil_to_u16, AddressRange, BitIterator, BitIteratorDisplay, Indexed,
     RegisterIterator, RegisterIteratorDisplay,
 };
-use crate::{DeviceInfo, MeiCode};
+use crate::{DeviceInfo, MeiCode, ReadDeviceCode};
 use crate::ReadDeviceRequest;
 
 use scursor::{ReadCursor, WriteCursor};
@@ -334,34 +334,36 @@ where
         if let Some(recorder) = records.as_mut() {
             //STORE:
             //  MORE_FOLLOWS_INDICATOR
-            //  MORE_FOLLOWS_VALUE
+            //  MORE_FOLLOWS_ID
             //  OBJECT_COUNT
             recorder.record("MORE_FOLLOWS_INDICATOR", cursor)?;
-            recorder.record("MORE_FOLLOWS_VALUE", cursor)?;
+            recorder.record("MORE_FOLLOWS_ID", cursor)?;
             recorder.record("NUMBER_OF_OBJECTS", cursor)?;
         }
 
 
         const SAFETY_MARGIN: u8 = 7;
 
-        let mut position = 0;
-        let mut id = 0; //Start with the id at the position our read starts !
+        let mut position = if device_data.next_object_id.is_some() { device_data.next_object_id.unwrap() } else { 0 };
+        let mut id = device_data.current_object_id; //Start with the id at the position our read starts !
+
         while position < (MAX_ADU_LENGTH as u8 - SAFETY_MARGIN) {
 
-            if device_data.object_data.len() >= ((MAX_ADU_LENGTH as u8 - SAFETY_MARGIN)).into() {
+            if (position as usize) + device_data.object_data.len() >= ((MAX_ADU_LENGTH as u8 - SAFETY_MARGIN)).into() {
                 //TODO(Kay): We need to store that id and make the next read at that address !
+                device_data.next_object_id = Some(id);
                 break;
             }
             cursor.write_u8(id)?; //ID
             cursor.write_u8(device_data.object_data.len() as u8)?;
             cursor.write_bytes(device_data.object_data)?;
 
-            id +=1;
-            position += device_data.object_data.len() as u8;
-
             if device_data.next_object_id.is_none() {
                 break;
             }
+
+            id +=1;
+            position += device_data.object_data.len() as u8;
 
             device_data = (self.getter)(device_data.next_object_id)?;
         }
@@ -369,31 +371,19 @@ where
         if let Some(recorder) = records {
             if device_data.next_object_id.is_some() {
                 recorder.fill_record(cursor, "MORE_FOLLOWS_INDICATOR", 0xFF)?;
+                recorder.fill_record(cursor, "MORE_FOLLOWS_ID", id)?;
             } else {
-                recorder.fill_record(cursor, "MORE_FOLLOWS_VALUE", 0x00)?;
+                recorder.fill_record(cursor, "MORE_FOLLOWS_INDICATOR", 0x00)?;
+                recorder.fill_record(cursor, "MORE_FOLLOWS_ID", 0x00)?;
             }
+            //TODO(Kay): This feels hacky...the whole example section in FC43 spec feels wrong...
 
-            recorder.fill_record(cursor, "NUMBER_OF_OBJECTS", id)?;
+            if device_data.read_device_code == ReadDeviceCode::Specific {
+                recorder.fill_record(cursor, "NUMBER_OF_OBJECTS", 0x01)?;
+            } else {
+                recorder.fill_record(cursor, "NUMBER_OF_OBJECTS", id + 1)?;
+            }
         }
-
-
-        /*for object in device_data.object_data {
-            let id = device_data.object_data[position];
-
-            cursor.write_u8(device_data.object_data.len() as u8)?;
-            cursor.write_bytes(device_data.object_data)?;
-
-        }*/
-
-
-        //for message in device_data.object_data[range].iter() {
-            //let [id, length, data @ ..] = message;
-            //cursor.write_u8(message.index)?;
-
-            //let data = message.get_data();
-            //cursor.write_u8(data.len() as u8)?;
-            //cursor.write_bytes(data)?;
-        //}
 
         Ok(())
     }
