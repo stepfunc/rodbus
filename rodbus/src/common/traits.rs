@@ -2,11 +2,15 @@ use crate::decode::AppDecodeLevel;
 use crate::error::*;
 use crate::ExceptionCode;
 
-use scursor::{ReadCursor, WriteCursor};
 use crate::common::frame::FrameRecords;
+use scursor::{ReadCursor, WriteCursor};
 
 pub(crate) trait Serialize {
-    fn serialize(&self, cursor: &mut WriteCursor, records: Option<&mut FrameRecords>) -> Result<(), RequestError>;
+    fn serialize(
+        &self,
+        cursor: &mut WriteCursor,
+        records: Option<&mut FrameRecords>,
+    ) -> Result<(), RequestError>;
 }
 
 pub(crate) trait Loggable {
