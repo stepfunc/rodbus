@@ -317,9 +317,9 @@ impl FrameRecords {
             let current_position = cursor.position();
 
             //TODO(Kay): Handle possible errors of the cursor !
-            cursor.seek_to(position).unwrap();
-            cursor.write_u8(value).unwrap();
-            cursor.seek_to(current_position).unwrap();
+            cursor.seek_to(position)?;
+            cursor.write_u8(value)?;
+            cursor.seek_to(current_position)?;
 
             return Ok(());
         }
