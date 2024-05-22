@@ -150,7 +150,7 @@ pub(crate) fn format_mbap(
     msg.serialize(cursor, Some(&mut records))?;
 
     if !records.records_empty() {
-        //TODO(Kay): Again we need to pass this error up !
+        return Err(RequestError::FrameRecorderNotEmpty)
     }
     let end_pdu = cursor.position();
 

@@ -221,7 +221,7 @@ pub(crate) fn format_rtu_pdu(
     msg.serialize(cursor, Some(&mut records))?;
 
     if !records.records_empty() {
-        //TODO(Kay): We need to inform the user about a forgotten empty lonely byte :( (NOTE: Only user of this API is probably me but whatever :) )
+        return Err(RequestError::FrameRecorderNotEmpty)
     }
     let end_pdu_body = cursor.position();
     // Write the CRC
