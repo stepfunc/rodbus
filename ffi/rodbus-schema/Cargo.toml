@@ -1,7 +1,7 @@
 [package]
 name = "rodbus-schema"
 # this is the version that all the FFI libraries get, since it's in their schema
-version = "1.4.0-RC1"
+version = "1.4.0"
 description = "oobindgen schema for Rodbus"
 readme = "../README.md"
 
