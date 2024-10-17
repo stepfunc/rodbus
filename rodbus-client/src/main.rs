@@ -42,6 +42,27 @@ struct Args {
     period: Option<Duration>,
 }
 
+struct ConnectionListener {
+    tx: tokio::sync::mpsc::Sender<ClientState>,
+}
+
+impl ConnectionListener {
+    fn create() -> (Self, tokio::sync::mpsc::Receiver<ClientState>) {
+        let (tx, rx) = tokio::sync::mpsc::channel(32);
+        (Self { tx }, rx)
+    }
+}
+
+impl Listener<ClientState> for ConnectionListener {
+    fn update(&mut self, state: ClientState) -> MaybeAsync<()> {
+        let tx = self.tx.clone();
+        let future = async move {
+            let _ = tx.try_send(state);
+        };
+        MaybeAsync::asynchronous(future)
+    }
+}
+
 impl Args {
     fn new(address: SocketAddr, id: UnitId, command: Command, period: Option<Duration>) -> Self {
         Self {
@@ -68,16 +89,30 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-async fn run() -> Result<(), Error> {
+async fn run() -> Result<(), Box<dyn std::error::Error>> {
     let args = parse_args()?;
+
+    let (listener, mut rx) = ConnectionListener::create();
+
     let mut channel = spawn_tcp_client_task(
         HostAddr::ip(args.address.ip(), args.address.port()),
         1,
         default_retry_strategy(),
         AppDecodeLevel::DataValues.into(),
-        None,
+        Some(Box::new(listener)),
     );
     channel.enable().await?;
+
+    'connect: loop {
+        let state = rx.recv().await.expect("should never be empty");
+        tracing::info!("state: {state:?}");
+        match state {
+            ClientState::Disabled | ClientState::Connecting => {}
+            ClientState::Connected => break 'connect,
+            _ => return Err("unable to connect".into()),
+        }
+    }
+
     let params = RequestParam::new(args.id, Duration::from_secs(1));
 
     match args.period {
@@ -93,7 +128,7 @@ async fn run_command(
     command: &Command,
     channel: &mut Channel,
     params: RequestParam,
-) -> Result<(), Error> {
+) -> Result<(), Box<dyn std::error::Error>> {
     match command {
         Command::ReadCoils(range) => {
             for x in channel.read_coils(params, *range).await? {
