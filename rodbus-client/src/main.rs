@@ -75,7 +75,12 @@ enum Mode {
 /// Settings for initializing a serial connection
 #[derive(Clone, Args, Copy)]
 struct ModeSerialSettings {
-    #[arg(short = 'b', long, default_value = "9600", help = "baud rate of the device")]
+    #[arg(
+        short = 'b',
+        long,
+        default_value = "9600",
+        help = "baud rate of the device"
+    )]
     baud_rate: u32,
     #[arg(short = 'd', long, default_value = "8", help = "data bits of the device", value_parser = parse_data_bits )]
     data_bits: DataBits,
@@ -224,15 +229,15 @@ struct StateListener<T> {
 }
 
 impl<T> StateListener<T> {
-       fn create() -> (Self, tokio::sync::mpsc::Receiver<T>) {
+    fn create() -> (Self, tokio::sync::mpsc::Receiver<T>) {
         let (tx, rx) = tokio::sync::mpsc::channel(CHANNEL_BUFFER_SIZE);
         (Self { tx }, rx)
     }
 }
 
 impl<T> Listener<T> for StateListener<T>
-where 
-    T: Send + 'static
+where
+    T: Send + 'static,
 {
     fn update(&mut self, state: T) -> MaybeAsync<()> {
         let tx = self.tx.clone();
@@ -279,8 +284,7 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
     }
 }
 
-
-async fn setup_channel( mode: Mode ) -> Result<(Channel, Command), Box<dyn std::error::Error>> {
+async fn setup_channel(mode: Mode) -> Result<(Channel, Command), Box<dyn std::error::Error>> {
     let (channel, command) = match mode {
         Mode::Tcp { host, command } => {
             let (listener, mut rx) = StateListener::create();
@@ -305,7 +309,11 @@ async fn setup_channel( mode: Mode ) -> Result<(Channel, Command), Box<dyn std::
             }
             (channel, command)
         }
-        Mode::Serial { path, settings, command } => {
+        Mode::Serial {
+            path,
+            settings,
+            command,
+        } => {
             let settings: SerialSettings = settings.into();
             let (listener, mut rx) = StateListener::create();
             let channel = spawn_rtu_client_task(
