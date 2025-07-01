@@ -23,7 +23,7 @@ path = "src/main.rs"
 
 [dependencies]
 rodbus = { path = "../rodbus", default-features = false }
-clap = "2.33"
+clap = { version = "4.0", features = ["derive"] }
 tokio = { workspace = true, features = ["macros", "time"] }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
