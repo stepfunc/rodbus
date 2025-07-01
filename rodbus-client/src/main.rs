@@ -12,6 +12,10 @@ use rodbus::client::*;
 use rodbus::*;
 use rodbus::{InvalidRange, InvalidRequest, Shutdown};
 
+const CHANNEL_BUFFER_SIZE: usize = 32;
+const REQUEST_TIMEOUT: Duration = Duration::from_secs(1);
+const MAX_QUEUED_REQUESTS: usize = 1;
+
 #[derive(Debug)]
 enum Error {
     BadRange(InvalidRange),
@@ -221,7 +225,7 @@ struct StateListener<T> {
 
 impl<T> StateListener<T> {
        fn create() -> (Self, tokio::sync::mpsc::Receiver<T>) {
-        let (tx, rx) = tokio::sync::mpsc::channel(32);
+        let (tx, rx) = tokio::sync::mpsc::channel(CHANNEL_BUFFER_SIZE);
         (Self { tx }, rx)
     }
 }
@@ -259,7 +263,7 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
 
     let (mut channel, command) = setup_channel(cli.mode).await?;
 
-    let params = RequestParam::new(UnitId::new(cli.id), Duration::from_secs(1));
+    let params = RequestParam::new(UnitId::new(cli.id), REQUEST_TIMEOUT);
 
     match cli.period {
         None => run_command(&command, &mut channel, params)
@@ -282,7 +286,7 @@ async fn setup_channel( mode: Mode ) -> Result<(Channel, Command), Box<dyn std::
             let (listener, mut rx) = StateListener::create();
             let channel = spawn_tcp_client_task(
                 HostAddr::ip(host.ip(), host.port()),
-                1,
+                MAX_QUEUED_REQUESTS,
                 default_retry_strategy(),
                 AppDecodeLevel::DataValues.into(),
                 Some(Box::new(listener)),
@@ -307,7 +311,7 @@ async fn setup_channel( mode: Mode ) -> Result<(Channel, Command), Box<dyn std::
             let channel = spawn_rtu_client_task(
                 &path,
                 settings,
-                1,
+                MAX_QUEUED_REQUESTS,
                 default_retry_strategy(),
                 DecodeLevel {
                     app: AppDecodeLevel::DataValues,
