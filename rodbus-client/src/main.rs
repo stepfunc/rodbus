@@ -25,45 +25,139 @@ enum Error {
 
 #[derive(Parser)]
 #[command(name = "rodbus-client")]
-#[command(about = "A command line program for making Modbus client requests using the Rodbus crate")]
+#[command(
+    about = "A command line program for making Modbus client requests using the Rodbus crate"
+)]
 #[command(version = "1.4.0")]
 struct Cli {
-    #[arg(long, default_value = "127.0.0.1:502", help = "A socket address")]
-    host: SocketAddr,
-    
-    #[arg(short = 'i', long, default_value = "1", help = "The unit id of Modbus server")]
+    #[arg(
+        short = 'i',
+        long,
+        default_value = "1",
+        help = "The unit id of Modbus server"
+    )]
     id: u8,
-    
+
     #[arg(short = 'p', long, help = "Optional polling period in milliseconds")]
     period: Option<u64>,
-    
+
     #[command(subcommand)]
-    command: Command,
+    mode: Mode,
+}
+
+#[derive(Subcommand)]
+enum Mode {
+    #[command(name = "tcp", about = "use the TCP protocol")]
+    Tcp {
+        #[arg(long, default_value = "127.0.0.1:502", help = "address of the socket")]
+        host: SocketAddr,
+
+        #[command(subcommand)]
+        command: Command,
+    },
+    #[command(name = "serial", about = "use the serial protocol")]
+    Serial {
+        #[command(flatten)]
+        settings: ModeSerialSettings,
+
+        #[arg(short = 'p', long, help = "the serial port path")]
+        path: String,
+
+        #[command(subcommand)]
+        command: Command,
+    },
+}
+
+/// Settings for initializing a serial connection
+#[derive(Clone, Args, Copy)]
+struct ModeSerialSettings {
+    #[arg(short = 'b', long, default_value = "9600", help = "baud rate of the device")]
+    baud_rate: u32,
+    #[arg(short = 'd', long, default_value = "8", help = "data bits of the device", value_parser = parse_data_bits )]
+    data_bits: DataBits,
+    #[arg(short = 'f', long, default_value = "none", help = "flow control of the device", value_parser = parse_flow_control)]
+    flow_control: FlowControl,
+    #[arg(short = 's', long, default_value = "1", help = "stop bits of the device", value_parser = parse_stop_bits)]
+    stop_bits: StopBits,
+    #[arg(long, default_value = "none", help = "parity of the device", value_parser = parse_parity)]
+    parity: Parity,
+}
+
+impl From<ModeSerialSettings> for SerialSettings {
+    fn from(settings: ModeSerialSettings) -> Self {
+        Self {
+            baud_rate: settings.baud_rate,
+            data_bits: settings.data_bits,
+            flow_control: settings.flow_control,
+            stop_bits: settings.stop_bits,
+            parity: settings.parity,
+        }
+    }
+}
+
+fn parse_data_bits(s: &str) -> Result<DataBits, String> {
+    match s {
+        "5" => Ok(DataBits::Five),
+        "6" => Ok(DataBits::Six),
+        "7" => Ok(DataBits::Seven),
+        "8" => Ok(DataBits::Eight),
+        _ => Err(format!("invalid data bits: {s}")),
+    }
+}
+
+fn parse_flow_control(s: &str) -> Result<FlowControl, String> {
+    match s {
+        "none" => Ok(FlowControl::None),
+        "software" => Ok(FlowControl::Software),
+        "hardware" => Ok(FlowControl::Hardware),
+        _ => Err(format!(
+            "invalid flow control: {s}, expected one of: none, software, hardware"
+        )),
+    }
+}
+
+fn parse_stop_bits(s: &str) -> Result<StopBits, String> {
+    match s {
+        "1" => Ok(StopBits::One),
+        "2" => Ok(StopBits::Two),
+        _ => Err(format!("invalid stop bits: {s}, expected one of: 1, 2")),
+    }
+}
+
+fn parse_parity(s: &str) -> Result<Parity, String> {
+    match s {
+        "none" => Ok(Parity::None),
+        "odd" => Ok(Parity::Odd),
+        "even" => Ok(Parity::Even),
+        _ => Err(format!(
+            "invalid parity: {s}, expected one of: none, odd, even"
+        )),
+    }
 }
 
 #[derive(Subcommand)]
 enum Command {
     #[command(name = "rc", about = "read coils")]
     ReadCoils(ReadArgs),
-    
+
     #[command(name = "rdi", about = "read discrete inputs")]
     ReadDiscreteInputs(ReadArgs),
-    
+
     #[command(name = "rhr", about = "read holding registers")]
     ReadHoldingRegisters(ReadArgs),
-    
+
     #[command(name = "rir", about = "read input registers")]
     ReadInputRegisters(ReadArgs),
-    
+
     #[command(name = "wsc", about = "write single coil")]
     WriteSingleCoil(WriteSingleCoilArgs),
-    
+
     #[command(name = "wsr", about = "write single register")]
     WriteSingleRegister(WriteSingleRegisterArgs),
-    
+
     #[command(name = "wmc", about = "write multiple coils")]
     WriteMultipleCoils(WriteMultipleCoilsArgs),
-    
+
     #[command(name = "wmr", about = "write multiple registers")]
     WriteMultipleRegisters(WriteMultipleRegistersArgs),
 }
@@ -72,7 +166,7 @@ enum Command {
 struct ReadArgs {
     #[arg(short = 's', long, help = "the starting address")]
     start: u16,
-    
+
     #[arg(short = 'q', long, help = "quantity of values")]
     quantity: u16,
 }
@@ -81,7 +175,7 @@ struct ReadArgs {
 struct WriteSingleCoilArgs {
     #[arg(short = 'i', long, help = "the address of the coil")]
     index: u16,
-    
+
     #[arg(short = 'v', long, help = "the value of the coil (ON or OFF)")]
     value: bool,
 }
@@ -90,7 +184,7 @@ struct WriteSingleCoilArgs {
 struct WriteSingleRegisterArgs {
     #[arg(short = 'i', long, help = "the address of the register")]
     index: u16,
-    
+
     #[arg(short = 'v', long, help = "the value of the register")]
     value: u16,
 }
@@ -99,8 +193,12 @@ struct WriteSingleRegisterArgs {
 struct WriteMultipleCoilsArgs {
     #[arg(short = 's', long, help = "the starting address of the coils")]
     start: u16,
-    
-    #[arg(short = 'v', long, help = "the values of the coils specified as a string of 1 and 0 (e.g. 10100011)")]
+
+    #[arg(
+        short = 'v',
+        long,
+        help = "the values of the coils specified as a string of 1 and 0 (e.g. 10100011)"
+    )]
     values: String,
 }
 
@@ -108,24 +206,31 @@ struct WriteMultipleCoilsArgs {
 struct WriteMultipleRegistersArgs {
     #[arg(short = 's', long, help = "the starting address of the registers")]
     start: u16,
-    
-    #[arg(short = 'v', long, help = "the values of the registers specified as a comma delimited list (e.g. 1,4,7)")]
+
+    #[arg(
+        short = 'v',
+        long,
+        help = "the values of the registers specified as a comma delimited list (e.g. 1,4,7)"
+    )]
     values: String,
 }
 
-struct ConnectionListener {
-    tx: tokio::sync::mpsc::Sender<ClientState>,
+struct StateListener<T> {
+    tx: tokio::sync::mpsc::Sender<T>,
 }
 
-impl ConnectionListener {
-    fn create() -> (Self, tokio::sync::mpsc::Receiver<ClientState>) {
+impl<T> StateListener<T> {
+       fn create() -> (Self, tokio::sync::mpsc::Receiver<T>) {
         let (tx, rx) = tokio::sync::mpsc::channel(32);
         (Self { tx }, rx)
     }
 }
 
-impl Listener<ClientState> for ConnectionListener {
-    fn update(&mut self, state: ClientState) -> MaybeAsync<()> {
+impl<T> Listener<T> for StateListener<T>
+where 
+    T: Send + 'static
+{
+    fn update(&mut self, state: T) -> MaybeAsync<()> {
         let tx = self.tx.clone();
         let future = async move {
             let _ = tx.try_send(state);
@@ -133,7 +238,6 @@ impl Listener<ClientState> for ConnectionListener {
         MaybeAsync::asynchronous(future)
     }
 }
-
 
 #[tokio::main(flavor = "multi_thread")]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -153,39 +257,83 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 async fn run() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
 
-    let (listener, mut rx) = ConnectionListener::create();
-
-    let mut channel = spawn_tcp_client_task(
-        HostAddr::ip(cli.host.ip(), cli.host.port()),
-        1,
-        default_retry_strategy(),
-        AppDecodeLevel::DataValues.into(),
-        Some(Box::new(listener)),
-    );
-    channel.enable().await?;
-
-    'connect: loop {
-        let state = rx.recv().await.expect("should never be empty");
-        tracing::info!("state: {state:?}");
-        match state {
-            ClientState::Disabled | ClientState::Connecting => {}
-            ClientState::Connected => break 'connect,
-            _ => return Err("unable to connect".into()),
-        }
-    }
+    let (mut channel, command) = setup_channel(cli.mode).await?;
 
     let params = RequestParam::new(UnitId::new(cli.id), Duration::from_secs(1));
 
     match cli.period {
-        None => run_command(&cli.command, &mut channel, params).await.map_err(Into::into),
+        None => run_command(&command, &mut channel, params)
+            .await
+            .map_err(Into::into),
         Some(period_ms) => {
             let period = Duration::from_millis(period_ms);
             loop {
-                run_command(&cli.command, &mut channel, params).await?;
+                run_command(&command, &mut channel, params).await?;
                 tokio::time::sleep(period).await
             }
-        },
+        }
     }
+}
+
+
+async fn setup_channel( mode: Mode ) -> Result<(Channel, Command), Box<dyn std::error::Error>> {
+    let (channel, command) = match mode {
+        Mode::Tcp { host, command } => {
+            let (listener, mut rx) = StateListener::create();
+            let channel = spawn_tcp_client_task(
+                HostAddr::ip(host.ip(), host.port()),
+                1,
+                default_retry_strategy(),
+                AppDecodeLevel::DataValues.into(),
+                Some(Box::new(listener)),
+            );
+
+            channel.enable().await?;
+
+            'connect: loop {
+                let state = rx.recv().await.expect("should never be empty");
+                tracing::info!("state: {state:?}");
+                match state {
+                    ClientState::Disabled | ClientState::Connecting => {}
+                    ClientState::Connected => break 'connect,
+                    _ => return Err("unable to connect".into()),
+                }
+            }
+            (channel, command)
+        }
+        Mode::Serial { path, settings, command } => {
+            let settings: SerialSettings = settings.into();
+            let (listener, mut rx) = StateListener::create();
+            let channel = spawn_rtu_client_task(
+                &path,
+                settings,
+                1,
+                default_retry_strategy(),
+                DecodeLevel {
+                    app: AppDecodeLevel::DataValues,
+                    frame: FrameDecodeLevel::Payload,
+                    physical: PhysDecodeLevel::Nothing,
+                },
+                Some(Box::new(listener)),
+            );
+
+            channel.enable().await?;
+
+            'connect: loop {
+                let state = rx.recv().await.expect("should never be empty");
+                tracing::info!("state: {state:?}");
+                match state {
+                    PortState::Disabled | PortState::Wait(_) => {}
+                    PortState::Open => break 'connect,
+                    PortState::Shutdown => return Err("unable to connect".into()),
+                }
+            }
+
+            (channel, command)
+        }
+    };
+
+    Ok((channel, command))
 }
 
 async fn run_command(
@@ -234,7 +382,9 @@ async fn run_command(
         Command::WriteMultipleRegisters(args) => {
             let values = parse_register_values(&args.values)?;
             let write_multiple = WriteMultiple::from(args.start, values)?;
-            channel.write_multiple_registers(params, write_multiple).await?;
+            channel
+                .write_multiple_registers(params, write_multiple)
+                .await?;
         }
     }
     Ok(())

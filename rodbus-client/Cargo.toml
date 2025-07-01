@@ -22,7 +22,7 @@ name = "rodbus-client"
 path = "src/main.rs"
 
 [dependencies]
-rodbus = { path = "../rodbus", default-features = false }
+rodbus = { path = "../rodbus", features = ['serial']}
 clap = { version = "4.0", features = ["derive"] }
 tokio = { workspace = true, features = ["macros", "time"] }
 tracing = { workspace = true }
