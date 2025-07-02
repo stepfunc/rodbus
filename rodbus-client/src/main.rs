@@ -1,6 +1,5 @@
 //! Command-line Modbus client
 
-use std::fmt::Formatter;
 use std::net::{AddrParseError, SocketAddr};
 use std::num::ParseIntError;
 use std::str::{FromStr, ParseBoolError};
@@ -11,20 +10,30 @@ use clap::{Args, Parser, Subcommand};
 use rodbus::client::*;
 use rodbus::*;
 use rodbus::{InvalidRange, InvalidRequest, Shutdown};
+use thiserror::Error;
 
 const CHANNEL_BUFFER_SIZE: usize = 32;
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(1);
 const MAX_QUEUED_REQUESTS: usize = 1;
 
-#[derive(Debug)]
+#[derive(Debug, Error)]
 enum Error {
+    #[error("Errors that can be produced when validating start/count")]
     BadRange(InvalidRange),
+    #[error("The provided string cannot be parsed into a address: {0}")]
     BadAddr(std::net::AddrParseError),
+    #[error("Cannot parse this value as an integer")]
     BadInt(std::num::ParseIntError),
+    #[error("An error returned when parsing a bool using [from_str] fails")]
     BadBool(std::str::ParseBoolError),
+    #[error("Bad character in bit string: {0}")]
     BadCharInBitString(char),
+    #[error("Request error: {0}")]
     Request(rodbus::RequestError),
+    #[error("Channel was shutdown")]
     Shutdown,
+    #[error("{0}")]
+    Message(String),
 }
 
 #[derive(Parser)]
@@ -249,7 +258,7 @@ where
 }
 
 #[tokio::main(flavor = "multi_thread")]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn main() -> Result<(), Error> {
     // Initialize logging
     tracing_subscriber::fmt()
         .with_max_level(tracing::Level::INFO)
@@ -263,7 +272,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-async fn run() -> Result<(), Box<dyn std::error::Error>> {
+async fn run() -> Result<(), Error> {
     let cli = Cli::parse();
 
     let (mut channel, command) = setup_channel(cli.mode).await?;
@@ -272,8 +281,7 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
 
     match cli.period {
         None => run_command(&command, &mut channel, params)
-            .await
-            .map_err(Into::into),
+            .await,
         Some(period_ms) => {
             let period = Duration::from_millis(period_ms);
             loop {
@@ -284,7 +292,7 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
     }
 }
 
-async fn setup_channel(mode: Mode) -> Result<(Channel, Command), Box<dyn std::error::Error>> {
+async fn setup_channel(mode: Mode) -> Result<(Channel, Command), Error> {
     let (channel, command) = match mode {
         Mode::Tcp { host, command } => {
             let (listener, mut rx) = StateListener::create();
@@ -422,22 +430,6 @@ fn parse_register_values(values_str: &str) -> Result<Vec<u16>, ParseIntError> {
     Ok(values)
 }
 
-impl std::error::Error for Error {}
-
-impl std::fmt::Display for Error {
-    fn fmt(&self, f: &mut Formatter) -> Result<(), std::fmt::Error> {
-        match self {
-            Error::BadRange(err) => write!(f, "{err}"),
-            Error::BadAddr(err) => write!(f, "{err}"),
-            Error::BadInt(err) => err.fmt(f),
-            Error::BadBool(err) => err.fmt(f),
-            Error::BadCharInBitString(char) => write!(f, "Bad character in bit string: {char}"),
-            Error::Request(err) => err.fmt(f),
-            Error::Shutdown => f.write_str("channel was shut down"),
-        }
-    }
-}
-
 impl From<rodbus::RequestError> for Error {
     fn from(err: rodbus::RequestError) -> Self {
         Error::Request(err)
@@ -477,5 +469,11 @@ impl From<InvalidRequest> for Error {
 impl From<Shutdown> for Error {
     fn from(_: Shutdown) -> Self {
         Self::Shutdown
+    }
+}
+
+impl From<&str> for Error {
+    fn from(msg: &str) -> Self {
+        Self::Message(msg.to_string())
     }
 }
