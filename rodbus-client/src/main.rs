@@ -280,8 +280,7 @@ async fn run() -> Result<(), Error> {
     let params = RequestParam::new(UnitId::new(cli.id), REQUEST_TIMEOUT);
 
     match cli.period {
-        None => run_command(&command, &mut channel, params)
-            .await,
+        None => run_command(&command, &mut channel, params).await,
         Some(period_ms) => {
             let period = Duration::from_millis(period_ms);
             loop {
