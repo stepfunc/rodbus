@@ -32,8 +32,8 @@ enum Error {
     Request(rodbus::RequestError),
     #[error("Channel was shutdown")]
     Shutdown,
-    #[error("{0}")]
-    Message(String),
+    #[error("Unable to connect: {0}")]
+    UnableToConnect(String),
 }
 
 #[derive(Parser)]
@@ -473,6 +473,6 @@ impl From<Shutdown> for Error {
 
 impl From<&str> for Error {
     fn from(msg: &str) -> Self {
-        Self::Message(msg.to_string())
+        Self::UnableToConnect(msg.to_string())
     }
 }
