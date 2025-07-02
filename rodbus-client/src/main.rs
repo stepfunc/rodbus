@@ -329,8 +329,8 @@ async fn setup_channel(mode: Mode) -> Result<(Channel, Command), Error> {
                 MAX_QUEUED_REQUESTS,
                 default_retry_strategy(),
                 DecodeLevel {
-                    app: AppDecodeLevel::DataValues,
-                    frame: FrameDecodeLevel::Payload,
+                    app: AppDecodeLevel::DataHeaders,
+                    frame: FrameDecodeLevel::Nothing,
                     physical: PhysDecodeLevel::Nothing,
                 },
                 Some(Box::new(listener)),
