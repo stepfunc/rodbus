@@ -97,7 +97,7 @@ jobs:
       - name: Upload documentation
         uses: actions/upload-artifact@v4
         with:
-          name: doc
+          name: doc-api
           path: ~/doc
   # Build bindings on Windows x64 [64-bit MSVC (Windows 7+) (x86_64-pc-windows-msvc)] and x86 [32-bit MSVC (Windows 7+) (i686-pc-windows-msvc)]
   bindings-windows:
@@ -130,7 +130,7 @@ jobs:
       - name: Upload compiled FFI modules
         uses: actions/upload-artifact@v4
         with:
-          name: ffi-modules
+          name: ffi-modules-{{ matrix.target }}
           path: ffi-modules
       - name: C Bindings Tests
         if: ${{ matrix.test }}
@@ -170,7 +170,7 @@ jobs:
       - name: Upload compiled FFI modules
         uses: actions/upload-artifact@v4
         with:
-          name: ffi-modules
+          name: ffi-modules-{{ matrix.target }}
           path: ffi-modules
       - name: Test .NET bindings
         run: cargo run --bin rodbus-bindings -- --dotnet
@@ -216,7 +216,7 @@ jobs:
       - name: Upload compiled FFI modules
         uses: actions/upload-artifact@v4
         with:
-          name: ffi-modules
+          name: ffi-modules-{{ matrix.target }}
           path: ffi-modules
   guide:
     runs-on: ubuntu-latest
@@ -235,7 +235,7 @@ jobs:
       - name: Upload guide
         uses: actions/upload-artifact@v4
         with:
-          name: doc
+          name: doc-guide
           path: ~/doc
   # Package all the generated bindings
   packaging:
@@ -253,7 +253,7 @@ jobs:
       - name: Download compiled FFI
         uses: actions/download-artifact@v3
         with:
-          name: ffi-modules
+          name: ffi-modules-{{ matrix.target }}
           path: ffi-modules
       - name: Create SBOMs
         run: |
@@ -287,12 +287,12 @@ jobs:
       - name: Upload Java bindings
         uses: actions/upload-artifact@v4
         with:
-          name: java-bindings
+          name: java-bindings-jar
           path: ffi/bindings/java/rodbus/target/*.jar
       - name: Upload Java pom.xml
         uses: actions/upload-artifact@v4
         with:
-          name: java-bindings
+          name: java-bindings-pom
           path: ffi/bindings/java/rodbus/pom.xml
   release:
     needs: [packaging, guide]
