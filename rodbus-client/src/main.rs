@@ -293,18 +293,24 @@ async fn run() -> Result<(), Error> {
 
 async fn setup_channel(mode: Mode) -> Result<(Channel, Command), Error> {
     let (channel, command) = match mode {
-        Mode::Tcp { host, command } => setup_tcp(host, command).await?,
+        Mode::Tcp { host, command } => {
+            let channel = setup_tcp(host).await?;
+            (channel, command)
+        }
         Mode::Serial {
             path,
             settings,
             command,
-        } => setup_serial(path, settings, command).await?,
+        } => {
+            let channel = setup_serial(path, settings).await?;
+            (channel, command)
+        }
     };
 
     Ok((channel, command))
 }
 
-async fn setup_tcp(host: SocketAddr, command: Command) -> Result<(Channel, Command), Error> {
+async fn setup_tcp(host: SocketAddr) -> Result<Channel, Error> {
     let (listener, mut rx) = StateListener::create();
     let channel = spawn_tcp_client_task(
         HostAddr::ip(host.ip(), host.port()),
@@ -325,14 +331,10 @@ async fn setup_tcp(host: SocketAddr, command: Command) -> Result<(Channel, Comma
             _ => return Err("unable to connect".into()),
         }
     }
-    Ok((channel, command))
+    Ok(channel)
 }
 
-async fn setup_serial(
-    path: String,
-    settings: ModeSerialSettings,
-    command: Command,
-) -> Result<(Channel, Command), Error> {
+async fn setup_serial(path: String, settings: ModeSerialSettings) -> Result<Channel, Error> {
     let settings: SerialSettings = settings.into();
     let (listener, mut rx) = StateListener::create();
     let channel = spawn_rtu_client_task(
@@ -360,7 +362,7 @@ async fn setup_serial(
         }
     }
 
-    Ok((channel, command))
+    Ok(channel)
 }
 
 async fn run_command(
