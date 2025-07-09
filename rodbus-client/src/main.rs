@@ -293,64 +293,72 @@ async fn run() -> Result<(), Error> {
 
 async fn setup_channel(mode: Mode) -> Result<(Channel, Command), Error> {
     let (channel, command) = match mode {
-        Mode::Tcp { host, command } => {
-            let (listener, mut rx) = StateListener::create();
-            let channel = spawn_tcp_client_task(
-                HostAddr::ip(host.ip(), host.port()),
-                MAX_QUEUED_REQUESTS,
-                default_retry_strategy(),
-                AppDecodeLevel::DataValues.into(),
-                Some(Box::new(listener)),
-            );
-
-            channel.enable().await?;
-
-            'connect: loop {
-                let state = rx.recv().await.expect("should never be empty");
-                tracing::info!("state: {state:?}");
-                match state {
-                    ClientState::Disabled | ClientState::Connecting => {}
-                    ClientState::Connected => break 'connect,
-                    _ => return Err("unable to connect".into()),
-                }
-            }
-            (channel, command)
-        }
+        Mode::Tcp { host, command } => setup_tcp(host, command).await?,
         Mode::Serial {
             path,
             settings,
             command,
-        } => {
-            let settings: SerialSettings = settings.into();
-            let (listener, mut rx) = StateListener::create();
-            let channel = spawn_rtu_client_task(
-                &path,
-                settings,
-                MAX_QUEUED_REQUESTS,
-                default_retry_strategy(),
-                DecodeLevel {
-                    app: AppDecodeLevel::DataHeaders,
-                    frame: FrameDecodeLevel::Nothing,
-                    physical: PhysDecodeLevel::Nothing,
-                },
-                Some(Box::new(listener)),
-            );
-
-            channel.enable().await?;
-
-            'connect: loop {
-                let state = rx.recv().await.expect("should never be empty");
-                tracing::info!("state: {state:?}");
-                match state {
-                    PortState::Disabled | PortState::Wait(_) => {}
-                    PortState::Open => break 'connect,
-                    PortState::Shutdown => return Err("unable to connect".into()),
-                }
-            }
-
-            (channel, command)
-        }
+        } => setup_serial(path, settings, command).await?,
     };
+
+    Ok((channel, command))
+}
+
+async fn setup_tcp(host: SocketAddr, command: Command) -> Result<(Channel, Command), Error> {
+    let (listener, mut rx) = StateListener::create();
+    let channel = spawn_tcp_client_task(
+        HostAddr::ip(host.ip(), host.port()),
+        MAX_QUEUED_REQUESTS,
+        default_retry_strategy(),
+        AppDecodeLevel::DataValues.into(),
+        Some(Box::new(listener)),
+    );
+
+    channel.enable().await?;
+
+    'connect: loop {
+        let state = rx.recv().await.expect("should never be empty");
+        tracing::info!("state: {state:?}");
+        match state {
+            ClientState::Disabled | ClientState::Connecting => {}
+            ClientState::Connected => break 'connect,
+            _ => return Err("unable to connect".into()),
+        }
+    }
+    Ok((channel, command))
+}
+
+async fn setup_serial(
+    path: String,
+    settings: ModeSerialSettings,
+    command: Command,
+) -> Result<(Channel, Command), Error> {
+    let settings: SerialSettings = settings.into();
+    let (listener, mut rx) = StateListener::create();
+    let channel = spawn_rtu_client_task(
+        &path,
+        settings,
+        MAX_QUEUED_REQUESTS,
+        default_retry_strategy(),
+        DecodeLevel {
+            app: AppDecodeLevel::DataHeaders,
+            frame: FrameDecodeLevel::Nothing,
+            physical: PhysDecodeLevel::Nothing,
+        },
+        Some(Box::new(listener)),
+    );
+
+    channel.enable().await?;
+
+    'connect: loop {
+        let state = rx.recv().await.expect("should never be empty");
+        tracing::info!("state: {state:?}");
+        match state {
+            PortState::Disabled | PortState::Wait(_) => {}
+            PortState::Open => break 'connect,
+            PortState::Shutdown => return Err("unable to connect".into()),
+        }
+    }
 
     Ok((channel, command))
 }
