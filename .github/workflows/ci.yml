@@ -253,8 +253,9 @@ jobs:
       - name: Download compiled FFI
         uses: actions/download-artifact@v4
         with:
-          name: ffi-modules-${{ matrix.target }}
+          pattern: ffi-modules-*
           path: ffi-modules
+          merge-multiple: true
       - name: Create SBOMs
         run: |
           for dir in ffi-modules/*; do
