@@ -17,7 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Install Rust ${{ matrix.rust }}
         uses: dtolnay/rust-toolchain@master
         with:
@@ -39,7 +39,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Install Rust ${{ matrix.rust }}
         uses: dtolnay/rust-toolchain@stable
       - name: Build the workspace with the features
@@ -58,7 +58,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Install Rust ${{ matrix.rust }}
         uses: dtolnay/rust-toolchain@master
         with:
@@ -70,7 +70,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
       - name: Install doxygen 1.9.5
@@ -112,7 +112,7 @@ jobs:
             test: false
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
       - name: Create the FFI modules dir
@@ -130,7 +130,7 @@ jobs:
       - name: Upload compiled FFI modules
         uses: actions/upload-artifact@v4
         with:
-          name: ffi-modules-{{ matrix.target }}
+          name: ffi-modules-${{ matrix.target }}
           path: ffi-modules
       - name: C Bindings Tests
         if: ${{ matrix.test }}
@@ -154,7 +154,7 @@ jobs:
     runs-on: ${{ matrix.runner }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
       - name: Create FFI modules dir
@@ -170,7 +170,7 @@ jobs:
       - name: Upload compiled FFI modules
         uses: actions/upload-artifact@v4
         with:
-          name: ffi-modules-{{ matrix.target }}
+          name: ffi-modules-${{ matrix.target }}
           path: ffi-modules
       - name: Test .NET bindings
         run: cargo run --bin rodbus-bindings -- --dotnet
@@ -198,7 +198,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
       - name: Install Rust Cross
@@ -216,13 +216,13 @@ jobs:
       - name: Upload compiled FFI modules
         uses: actions/upload-artifact@v4
         with:
-          name: ffi-modules-{{ matrix.target }}
+          name: ffi-modules-${{ matrix.target }}
           path: ffi-modules
   guide:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Install dependencies
         working-directory: guide
         run: yarn install
@@ -253,7 +253,7 @@ jobs:
       - name: Download compiled FFI
         uses: actions/download-artifact@v3
         with:
-          name: ffi-modules-{{ matrix.target }}
+          name: ffi-modules-${{ matrix.target }}
           path: ffi-modules
       - name: Create SBOMs
         run: |
@@ -309,7 +309,7 @@ jobs:
           cd artifacts/c-bindings
           zip -r ../../release/rodbus-${GITHUB_REF##*/}.zip .
       - name: Checkout stepfunc/docs
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           repository: stepfunc/docs
           ssh-key: ${{ secrets.SFIO_DOCS_SSH_KEY }}
