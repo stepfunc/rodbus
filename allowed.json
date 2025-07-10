@@ -29,6 +29,7 @@
     "linux-raw-sys",
     "object",
     "oo-bindgen",
+    "once_cell_polyfill",
     "os_str_bytes",
     "pathdiff",
     "pest",
@@ -333,6 +334,21 @@
             "copyright": {
               "Lines": [
                 "Copyright (c) 2020-2022 The RustCrypto Project Developers"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "core-foundation": {
+      "id": "core-foundation",
+      "source": "crates.io",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) 2012-2013 Mozilla Foundation"
               ]
             }
           }
@@ -1796,6 +1812,21 @@
             "copyright": {
               "Lines": [
                 "Copyright (c) 2015-2018 The winapi-rs Developers"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "windows-link": {
+      "id": "windows-link",
+      "source": "crates.io",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) Microsoft Corporation"
               ]
             }
           }
