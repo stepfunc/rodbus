@@ -8,10 +8,11 @@ use crate::DecodeLevel;
 
 use crate::client::requests::read_bits::ReadBits;
 use crate::client::requests::read_registers::ReadRegisters;
+use crate::client::requests::send_custom_fc::CustomFCRequest;
 use crate::client::requests::write_multiple::MultipleWriteRequest;
 use crate::client::requests::write_single::SingleWrite;
 use crate::common::traits::Serialize;
-use crate::types::{Indexed, UnitId};
+use crate::types::{CustomFunctionCode, Indexed, UnitId};
 
 use scursor::{ReadCursor, WriteCursor};
 use std::time::Duration;
@@ -45,6 +46,7 @@ pub(crate) enum RequestDetails {
     WriteSingleRegister(SingleWrite<Indexed<u16>>),
     WriteMultipleCoils(MultipleWriteRequest<bool>),
     WriteMultipleRegisters(MultipleWriteRequest<u16>),
+    SendCustomFunctionCode(CustomFCRequest<CustomFunctionCode<u16>>),
 }
 
 impl Request {
@@ -61,7 +63,7 @@ impl Request {
         payload: &[u8],
         decode: AppDecodeLevel,
     ) -> Result<(), RequestError> {
-        let expected_function = self.details.function();
+        let expected_function = self.details.function()?;
         let mut cursor = ReadCursor::new(payload);
         let function = match cursor.read_u8() {
             Ok(x) => x,
@@ -119,16 +121,38 @@ impl Request {
 }
 
 impl RequestDetails {
-    pub(crate) fn function(&self) -> FunctionCode {
+    pub(crate) fn function(&self) -> Result<FunctionCode, ExceptionCode> {
         match self {
-            RequestDetails::ReadCoils(_) => FunctionCode::ReadCoils,
-            RequestDetails::ReadDiscreteInputs(_) => FunctionCode::ReadDiscreteInputs,
-            RequestDetails::ReadHoldingRegisters(_) => FunctionCode::ReadHoldingRegisters,
-            RequestDetails::ReadInputRegisters(_) => FunctionCode::ReadInputRegisters,
-            RequestDetails::WriteSingleCoil(_) => FunctionCode::WriteSingleCoil,
-            RequestDetails::WriteSingleRegister(_) => FunctionCode::WriteSingleRegister,
-            RequestDetails::WriteMultipleCoils(_) => FunctionCode::WriteMultipleCoils,
-            RequestDetails::WriteMultipleRegisters(_) => FunctionCode::WriteMultipleRegisters,
+            RequestDetails::ReadCoils(_) => Ok(FunctionCode::ReadCoils),
+            RequestDetails::ReadDiscreteInputs(_) => Ok(FunctionCode::ReadDiscreteInputs),
+            RequestDetails::ReadHoldingRegisters(_) => Ok(FunctionCode::ReadHoldingRegisters),
+            RequestDetails::ReadInputRegisters(_) => Ok(FunctionCode::ReadInputRegisters),
+            RequestDetails::WriteSingleCoil(_) => Ok(FunctionCode::WriteSingleCoil),
+            RequestDetails::WriteSingleRegister(_) => Ok(FunctionCode::WriteSingleRegister),
+            RequestDetails::WriteMultipleCoils(_) => Ok(FunctionCode::WriteMultipleCoils),
+            RequestDetails::WriteMultipleRegisters(_) => Ok(FunctionCode::WriteMultipleRegisters),
+            RequestDetails::SendCustomFunctionCode(x) => match x.request.function_code() {
+                0x41 => Ok(FunctionCode::SendCFC65),
+                0x42 => Ok(FunctionCode::SendCFC66),
+                0x43 => Ok(FunctionCode::SendCFC67),
+                0x44 => Ok(FunctionCode::SendCFC68),
+                0x45 => Ok(FunctionCode::SendCFC69),
+                0x46 => Ok(FunctionCode::SendCFC70),
+                0x47 => Ok(FunctionCode::SendCFC71),
+                0x48 => Ok(FunctionCode::SendCFC72),
+                0x64 => Ok(FunctionCode::SendCFC100),
+                0x65 => Ok(FunctionCode::SendCFC101),
+                0x66 => Ok(FunctionCode::SendCFC102),
+                0x67 => Ok(FunctionCode::SendCFC103),
+                0x68 => Ok(FunctionCode::SendCFC104),
+                0x69 => Ok(FunctionCode::SendCFC105),
+                0x6A => Ok(FunctionCode::SendCFC106),
+                0x6B => Ok(FunctionCode::SendCFC107),
+                0x6C => Ok(FunctionCode::SendCFC108),
+                0x6D => Ok(FunctionCode::SendCFC109),
+                0x6E => Ok(FunctionCode::SendCFC110),
+                _ => Err(ExceptionCode::IllegalFunction),
+            },
         }
     }
 
@@ -142,6 +166,7 @@ impl RequestDetails {
             RequestDetails::WriteSingleRegister(x) => x.failure(err),
             RequestDetails::WriteMultipleCoils(x) => x.failure(err),
             RequestDetails::WriteMultipleRegisters(x) => x.failure(err),
+            RequestDetails::SendCustomFunctionCode(x) => x.failure(err),
         }
     }
 
@@ -150,7 +175,7 @@ impl RequestDetails {
         cursor: ReadCursor,
         decode: AppDecodeLevel,
     ) -> Result<(), RequestError> {
-        let function = self.function();
+        let function = self.function()?;
         match self {
             RequestDetails::ReadCoils(x) => x.handle_response(cursor, function, decode),
             RequestDetails::ReadDiscreteInputs(x) => x.handle_response(cursor, function, decode),
@@ -160,6 +185,9 @@ impl RequestDetails {
             RequestDetails::WriteSingleRegister(x) => x.handle_response(cursor, function, decode),
             RequestDetails::WriteMultipleCoils(x) => x.handle_response(cursor, function, decode),
             RequestDetails::WriteMultipleRegisters(x) => {
+                x.handle_response(cursor, function, decode)
+            }
+            RequestDetails::SendCustomFunctionCode(x) => {
                 x.handle_response(cursor, function, decode)
             }
         }
@@ -177,6 +205,7 @@ impl Serialize for RequestDetails {
             RequestDetails::WriteSingleRegister(x) => x.serialize(cursor),
             RequestDetails::WriteMultipleCoils(x) => x.serialize(cursor),
             RequestDetails::WriteMultipleRegisters(x) => x.serialize(cursor),
+            RequestDetails::SendCustomFunctionCode(x) => x.serialize(cursor),
         }
     }
 }
@@ -240,6 +269,9 @@ impl std::fmt::Display for RequestDetailsDisplay<'_> {
                             write!(f, "\n{x}")?;
                         }
                     }
+                }
+                RequestDetails::SendCustomFunctionCode(details) => {
+                    write!(f, "{}", details.request)?;
                 }
             }
         }
