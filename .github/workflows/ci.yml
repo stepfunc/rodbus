@@ -170,7 +170,7 @@ jobs:
       - name: Upload compiled FFI modules
         uses: actions/upload-artifact@v4
         with:
-          name: ffi-modules-${{ matrix.runner }}
+          name: ffi-modules-${{ matrix.target }}
           path: ffi-modules
       - name: Test .NET bindings
         run: cargo run --bin rodbus-bindings -- --dotnet
