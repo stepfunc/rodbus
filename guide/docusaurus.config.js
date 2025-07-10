@@ -1,6 +1,5 @@
 const path = require('path');
 const samplePlugin = require('./plugins/sample');
-const mermaidPlugin = require('./plugins/mermaid');
 const sitedata = require('./sitedata.json');
 
 const {themes} = require('prism-react-renderer');
@@ -87,7 +86,6 @@ module.exports = {
           sidebarPath: require.resolve('./sidebars.js'),
           remarkPlugins: [
             samplePlugin,
-            mermaidPlugin,
           ],
         },
         theme: {
@@ -97,4 +95,8 @@ module.exports = {
     ],
   ],
   plugins: [path.resolve(__dirname, './plugins/changelog')],
+  themes: ['@docusaurus/theme-mermaid'],
+  markdown: {
+    mermaid: true,
+  },
 };
