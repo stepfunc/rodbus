@@ -16,6 +16,7 @@ pub struct UnitId {
 /// Start and count tuple used when making various requests
 /// Cannot be constructed with invalid start/count
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 pub struct AddressRange {
     /// Starting address of the range
     pub start: u16,

@@ -3,10 +3,13 @@
 #[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 pub struct DecodeLevel {
     /// Controls decoding of the application layer (PDU)
+    #[cfg_attr(feature = "serialize", serde(default))]
     pub app: AppDecodeLevel,
     /// Controls decoding of frames (MBAP / Serial PDU)
+    #[cfg_attr(feature = "serialize", serde(default))]
     pub frame: FrameDecodeLevel,
     /// Controls the logging of physical layer read/write
+    #[cfg_attr(feature = "serialize", serde(default))]
     pub physical: PhysDecodeLevel,
 }
 
@@ -110,6 +113,7 @@ impl From<AppDecodeLevel> for DecodeLevel {
 }
 
 impl AppDecodeLevel {
+
     pub(crate) fn enabled(&self) -> bool {
         self.header()
     }
@@ -142,6 +146,12 @@ impl AppDecodeLevel {
     }
 }
 
+impl Default for AppDecodeLevel {
+    fn default() -> Self {
+        Self::Nothing
+    }
+}
+
 impl FrameDecodeLevel {
     pub(crate) fn enabled(&self) -> bool {
         self.header_enabled()
@@ -164,6 +174,12 @@ impl FrameDecodeLevel {
     }
 }
 
+impl Default for FrameDecodeLevel {
+    fn default() -> Self {
+        Self::Nothing
+    }
+}
+
 impl PhysDecodeLevel {
     pub(crate) fn enabled(&self) -> bool {
         self.length_enabled()
@@ -183,5 +199,11 @@ impl PhysDecodeLevel {
             PhysDecodeLevel::Length => false,
             PhysDecodeLevel::Data => true,
         }
+    }
+}
+
+impl Default for PhysDecodeLevel {
+    fn default() -> Self {
+        Self::Nothing
     }
 }
