@@ -60,7 +60,7 @@ pub struct Indexed<T> {
 }
 
 /// Zero-copy type used to iterate over a collection of bits
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone)]
 pub struct BitIterator<'a> {
     bytes: &'a [u8],
     range: AddressRange,
@@ -73,7 +73,7 @@ pub(crate) struct BitIteratorDisplay<'a> {
 }
 
 /// Zero-copy type used to iterate over a collection of registers
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone)]
 pub struct RegisterIterator<'a> {
     bytes: &'a [u8],
     range: AddressRange,
