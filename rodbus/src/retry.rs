@@ -12,7 +12,7 @@ pub trait RetryStrategy: Send {
 
 /// Return the default [`RetryStrategy`]
 pub fn default_retry_strategy() -> Box<dyn RetryStrategy> {
-    doubling_retry_strategy(Duration::from_millis(1000), Duration::from_millis(60000))
+    doubling_retry_strategy(Duration::from_secs(1), Duration::from_secs(60))
 }
 
 /// Return a [`RetryStrategy`] that doubles on failure up to a maximum value
