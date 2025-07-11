@@ -231,6 +231,7 @@ pub trait AuthorizationHandler: Send + Sync + 'static {
 /// Read-only authorization handler that blindly accepts
 /// all read requests.
 #[derive(Debug, Clone, Copy)]
+#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 pub struct ReadOnlyAuthorizationHandler;
 
 impl ReadOnlyAuthorizationHandler {

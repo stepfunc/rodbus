@@ -1,5 +1,6 @@
 /// Controls the decoding of transmitted and received data at the application, frame, and physical layer
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 pub struct DecodeLevel {
     /// Controls decoding of the application layer (PDU)
     pub app: AppDecodeLevel,
@@ -13,6 +14,7 @@ pub struct DecodeLevel {
 ///
 /// Application-layer messages are referred to as Protocol Data Units (PDUs) in the specification.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 pub enum AppDecodeLevel {
     /// Decode nothing
     Nothing,
@@ -31,6 +33,7 @@ pub enum AppDecodeLevel {
 ///
 /// On TCP, this is the MBAP decoding. On serial, this controls the serial line PDU.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 pub enum FrameDecodeLevel {
     /// Decode nothing
     Nothing,
@@ -42,6 +45,7 @@ pub enum FrameDecodeLevel {
 
 /// Controls how data transmitted at the physical layer (TCP, serial, etc) is logged
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 pub enum PhysDecodeLevel {
     /// Log nothing
     Nothing,
