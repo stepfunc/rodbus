@@ -18,7 +18,7 @@ pub struct FfiChannel {
 }
 
 /// Errors returned on methods of the FfiSession
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum FfiChannelError {
     /// Channel is full
     ChannelFull,

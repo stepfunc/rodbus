@@ -230,7 +230,7 @@ pub trait AuthorizationHandler: Send + Sync + 'static {
 
 /// Read-only authorization handler that blindly accepts
 /// all read requests.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ReadOnlyAuthorizationHandler;
 
 impl ReadOnlyAuthorizationHandler {

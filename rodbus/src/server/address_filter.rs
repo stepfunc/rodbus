@@ -64,7 +64,7 @@ impl WildcardIPv4 {
 ///
 /// Note: User code cannot exhaustively match against this enum as new variants may be added in the future.
 #[non_exhaustive]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum AddressFilter {
     /// Allow any address
     Any,

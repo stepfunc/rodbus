@@ -1,7 +1,7 @@
 use crate::types::{AddressRange, BitIterator, RegisterIterator};
 
 /// Request to write coils received by the server
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub struct WriteCoils<'a> {
     /// address range of the request
     pub range: AddressRange,
@@ -16,7 +16,7 @@ impl<'a> WriteCoils<'a> {
 }
 
 /// Request to write registers received by the server
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub struct WriteRegisters<'a> {
     /// address range of the request
     pub range: AddressRange,

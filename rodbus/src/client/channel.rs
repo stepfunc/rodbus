@@ -16,7 +16,7 @@ pub struct Channel {
 }
 
 /// Request parameters to dispatch the request to the proper device
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct RequestParam {
     /// Unit ID of the target device
     pub id: UnitId,

@@ -27,7 +27,7 @@ pub use crate::tcp::tls::client::TlsClientConfig;
 pub use crate::tcp::tls::*;
 
 /// Represents the address of a remote host
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct HostAddr {
     addr: HostType,
     port: u16,
@@ -48,7 +48,7 @@ impl std::fmt::Display for HostAddr {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 enum HostType {
     Dns(String),
     IpAddr(IpAddr),

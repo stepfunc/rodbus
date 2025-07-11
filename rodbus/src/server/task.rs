@@ -15,7 +15,7 @@ use scursor::ReadCursor;
 use std::sync::Arc;
 
 /// Messages that can be sent to change server settings dynamically
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum ServerSetting {
     ChangeDecoding(DecodeLevel),
 }
