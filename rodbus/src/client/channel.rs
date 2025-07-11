@@ -17,6 +17,7 @@ pub struct Channel {
 
 /// Request parameters to dispatch the request to the proper device
 #[derive(Debug, Clone, Copy)]
+#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 pub struct RequestParam {
     /// Unit ID of the target device
     pub id: UnitId,

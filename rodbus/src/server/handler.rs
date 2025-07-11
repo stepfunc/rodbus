@@ -144,6 +144,7 @@ where
 
 /// Authorization result
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 pub enum Authorization {
     /// Client is authorized to perform the operation
     Allow,

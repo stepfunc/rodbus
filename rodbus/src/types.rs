@@ -7,6 +7,7 @@ use crate::error::RequestError;
 
 /// Modbus unit identifier, just a type-safe wrapper around `u8`
 #[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Ord, Eq)]
+#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 pub struct UnitId {
     /// underlying raw value
     pub value: u8,
