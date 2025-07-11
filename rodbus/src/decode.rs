@@ -113,7 +113,6 @@ impl From<AppDecodeLevel> for DecodeLevel {
 }
 
 impl AppDecodeLevel {
-
     pub(crate) fn enabled(&self) -> bool {
         self.header()
     }
