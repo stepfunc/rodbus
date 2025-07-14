@@ -13,7 +13,7 @@ use std::convert::TryFrom;
 ///
 /// Used when making write multiple coil/register requests
 #[derive(Debug, Clone)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serialization", derive(serde::Serialize, serde::Deserialize))]
 pub struct WriteMultiple<T> {
     /// starting address
     pub(crate) range: AddressRange,

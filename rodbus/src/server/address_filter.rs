@@ -2,7 +2,7 @@ use std::str::FromStr;
 
 /// Represents IPv4 addresses which may contain "*" wildcards
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serialization", derive(serde::Serialize, serde::Deserialize))]
 pub struct WildcardIPv4 {
     pub(crate) b3: Option<u8>,
     pub(crate) b2: Option<u8>,
@@ -66,7 +66,7 @@ impl WildcardIPv4 {
 /// Note: User code cannot exhaustively match against this enum as new variants may be added in the future.
 #[non_exhaustive]
 #[derive(Clone, Debug)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serialization", derive(serde::Serialize, serde::Deserialize))]
 pub enum AddressFilter {
     /// Allow any address
     Any,

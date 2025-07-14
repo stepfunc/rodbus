@@ -7,7 +7,7 @@ use crate::error::RequestError;
 
 /// Modbus unit identifier, just a type-safe wrapper around `u8`
 #[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Ord, Eq)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serialization", derive(serde::Serialize, serde::Deserialize))]
 pub struct UnitId {
     /// underlying raw value
     pub value: u8,
@@ -16,7 +16,7 @@ pub struct UnitId {
 /// Start and count tuple used when making various requests
 /// Cannot be constructed with invalid start/count
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serialization", derive(serde::Serialize, serde::Deserialize))]
 pub struct AddressRange {
     /// Starting address of the range
     pub start: u16,
@@ -54,7 +54,7 @@ impl ReadRegistersRange {
 
 /// Value and its address
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serialization", derive(serde::Serialize, serde::Deserialize))]
 pub struct Indexed<T> {
     /// Address of the value
     pub index: u16,
