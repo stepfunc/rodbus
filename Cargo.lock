@@ -946,6 +946,7 @@ dependencies = [
  "crc",
  "rx509",
  "scursor",
+ "serde",
  "sfio-rustls-config",
  "sfio-tokio-mock-io",
  "tokio",
