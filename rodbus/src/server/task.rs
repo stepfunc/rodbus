@@ -16,10 +16,6 @@ use std::sync::Arc;
 
 /// Messages that can be sent to change server settings dynamically
 #[derive(Copy, Clone)]
-#[cfg_attr(
-    feature = "serialization",
-    derive(serde::Serialize, serde::Deserialize)
-)]
 pub enum ServerSetting {
     ChangeDecoding(DecodeLevel),
 }

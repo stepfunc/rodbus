@@ -60,10 +60,6 @@ impl ReadRegistersRange {
 
 /// Value and its address
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-#[cfg_attr(
-    feature = "serialization",
-    derive(serde::Serialize, serde::Deserialize)
-)]
 pub struct Indexed<T> {
     /// Address of the value
     pub index: u16,

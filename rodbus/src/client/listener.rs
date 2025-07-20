@@ -27,10 +27,6 @@ impl<T> Listener<T> for NullListener {
 
 /// State of TCP/TLS client connection
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
-#[cfg_attr(
-    feature = "serialization",
-    derive(serde::Serialize, serde::Deserialize)
-)]
 pub enum ClientState {
     /// Client is disabled
     Disabled,
@@ -49,10 +45,6 @@ pub enum ClientState {
 /// State of the serial port
 #[cfg(feature = "serial")]
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
-#[cfg_attr(
-    feature = "serialization",
-    derive(serde::Serialize, serde::Deserialize)
-)]
 pub enum PortState {
     /// Disabled and idle until enabled
     Disabled,
