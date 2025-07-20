@@ -28,7 +28,10 @@ pub use crate::tcp::tls::*;
 
 /// Represents the address of a remote host
 #[derive(Clone, Debug)]
-#[cfg_attr(feature = "serialization", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(
+    feature = "serialization",
+    derive(serde::Serialize, serde::Deserialize)
+)]
 pub struct HostAddr {
     addr: HostType,
     port: u16,
@@ -50,7 +53,10 @@ impl std::fmt::Display for HostAddr {
 }
 
 #[derive(Clone, Debug)]
-#[cfg_attr(feature = "serialization", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(
+    feature = "serialization",
+    derive(serde::Serialize, serde::Deserialize)
+)]
 enum HostType {
     Dns(String),
     IpAddr(IpAddr),
