@@ -1,7 +1,9 @@
 const path = require('path');
 const samplePlugin = require('./plugins/sample');
-const mermaidPlugin = require('./plugins/mermaid');
 const sitedata = require('./sitedata.json');
+
+const {themes} = require('prism-react-renderer');
+const vsLight = themes.vsLight; 
 
 module.exports = {
   title: `Rodbus ${sitedata.version}`,
@@ -15,7 +17,7 @@ module.exports = {
   projectName: 'rodbus', // Usually your repo name.
   themeConfig: {
     prism: {
-      theme: require('prism-react-renderer/themes/vsLight'),
+      theme: vsLight,
       additionalLanguages: ['rust', 'java', 'csharp', 'cmake'],
     },
     colorMode: {
@@ -84,7 +86,6 @@ module.exports = {
           sidebarPath: require.resolve('./sidebars.js'),
           remarkPlugins: [
             samplePlugin,
-            mermaidPlugin,
           ],
         },
         theme: {
@@ -94,4 +95,8 @@ module.exports = {
     ],
   ],
   plugins: [path.resolve(__dirname, './plugins/changelog')],
+  themes: ['@docusaurus/theme-mermaid'],
+  markdown: {
+    mermaid: true,
+  },
 };
