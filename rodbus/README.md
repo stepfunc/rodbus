@@ -53,8 +53,7 @@ Please inquire about commercial licensing on our website:
 Default features can be disabled at compile time:
 * `tls` - Build the library with support for TLS (secure Modbus)
 * `serial` - Build the library with support for Modbus RTU and serial ports
-
-## Bindings
+* `serialize` - Add [serde](https://docs.rs/crate/serde/latest) de(serialization) support for public configuration types.
 
 Bindings in C, C++, java, and .NET Core are available for this library. See the
 [documentation](https://stepfunc.io/products/libraries/modbus/) for more details.

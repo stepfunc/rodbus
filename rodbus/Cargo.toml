@@ -31,6 +31,9 @@ tokio-rustls = { version = "0.26.0", features = ["tls12"], default-features = fa
 # serial dependencies
 tokio-serial = { version = "5.4", default-features = false, optional = true }
 
+# serialize dependencies
+serde = { version = "1.0.2", default-features = false, features = ["derive"], optional = true}
+
 [dev-dependencies]
 clap = { version = "4.1.8", features = ["derive"] }
 tokio-stream = "0.1"
@@ -44,3 +47,4 @@ default = ["tls", "serial"]
 ffi = []
 tls = ["rx509", "sfio-rustls-config", "tokio-rustls"]
 serial = ["tokio-serial"]
+serialization = ["serde"]
