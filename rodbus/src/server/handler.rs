@@ -144,6 +144,10 @@ where
 
 /// Authorization result
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(
+    feature = "serialization",
+    derive(serde::Serialize, serde::Deserialize)
+)]
 pub enum Authorization {
     /// Client is authorized to perform the operation
     Allow,
@@ -231,6 +235,10 @@ pub trait AuthorizationHandler: Send + Sync + 'static {
 /// Read-only authorization handler that blindly accepts
 /// all read requests.
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[cfg_attr(
+    feature = "serialization",
+    derive(serde::Serialize, serde::Deserialize)
+)]
 pub struct ReadOnlyAuthorizationHandler;
 
 impl ReadOnlyAuthorizationHandler {

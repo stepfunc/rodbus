@@ -14,11 +14,10 @@ jobs:
       matrix:
         rust:
           - stable
-          - beta
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Install Rust ${{ matrix.rust }}
         uses: dtolnay/rust-toolchain@master
         with:
@@ -37,10 +36,11 @@ jobs:
           - "--no-default-features"
           - "--no-default-features --features serial"
           - "--no-default-features --features tls"
+          - "--no-default-features --features serialization"
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Install Rust ${{ matrix.rust }}
         uses: dtolnay/rust-toolchain@stable
       - name: Build the workspace with the features
@@ -59,7 +59,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Install Rust ${{ matrix.rust }}
         uses: dtolnay/rust-toolchain@master
         with:
@@ -71,7 +71,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
       - name: Install doxygen 1.9.5
@@ -96,9 +96,9 @@ jobs:
           cp -a ffi/bindings/java/rodbus/target/apidocs ~/doc/java
           rm ffi/bindings/c/generated/logo.png ffi/bindings/c/generated/doxygen-awesome.css
       - name: Upload documentation
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
-          name: doc
+          name: doc-api
           path: ~/doc
   # Build bindings on Windows x64 [64-bit MSVC (Windows 7+) (x86_64-pc-windows-msvc)] and x86 [32-bit MSVC (Windows 7+) (i686-pc-windows-msvc)]
   bindings-windows:
@@ -113,7 +113,7 @@ jobs:
             test: false
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
       - name: Create the FFI modules dir
@@ -129,9 +129,9 @@ jobs:
           Copy-Item -Path ./target/${{ matrix.target }}/release/rodbus_ffi.dll.lib -Destination ffi-modules/${{ matrix.target }}
           Copy-Item -Path ./target/${{ matrix.target }}/release/rodbus_ffi_java.dll -Destination ffi-modules/${{ matrix.target }}
       - name: Upload compiled FFI modules
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
-          name: ffi-modules
+          name: ffi-modules-${{ matrix.target }}
           path: ffi-modules
       - name: C Bindings Tests
         if: ${{ matrix.test }}
@@ -155,7 +155,7 @@ jobs:
     runs-on: ${{ matrix.runner }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
       - name: Create FFI modules dir
@@ -169,9 +169,9 @@ jobs:
           cp ./target/release/librodbus_ffi.dylib ./ffi-modules/${{ matrix.target }}
           cp ./target/release/librodbus_ffi_java.dylib ./ffi-modules/${{ matrix.target }}
       - name: Upload compiled FFI modules
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
-          name: ffi-modules
+          name: ffi-modules-${{ matrix.target }}
           path: ffi-modules
       - name: Test .NET bindings
         run: cargo run --bin rodbus-bindings -- --dotnet
@@ -199,7 +199,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
       - name: Install Rust Cross
@@ -215,28 +215,28 @@ jobs:
           cp ./target/${{ matrix.target }}/release/librodbus_ffi.so ./ffi-modules/${{ matrix.target }}
           cp ./target/${{ matrix.target }}/release/librodbus_ffi_java.so ./ffi-modules/${{ matrix.target }}
       - name: Upload compiled FFI modules
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
-          name: ffi-modules
+          name: ffi-modules-${{ matrix.target }}
           path: ffi-modules
   guide:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Install dependencies
         working-directory: guide
-        run: yarn install
+        run: npm install
       - name: Build guide
         working-directory: guide
         run: |
-         yarn build
+         npm run build
          mkdir -p ~/doc/guide
          mv build/* ~/doc/guide
       - name: Upload guide
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
-          name: doc
+          name: doc-guide
           path: ~/doc
   # Package all the generated bindings
   packaging:
@@ -252,10 +252,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
       - name: Download compiled FFI
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
-          name: ffi-modules
+          pattern: ffi-modules-*
           path: ffi-modules
+          merge-multiple: true
       - name: Create SBOMs
         run: |
           for dir in ffi-modules/*; do
@@ -276,32 +277,29 @@ jobs:
       - name: Package Java bindings
         run: cargo run --bin rodbus-bindings -- --java --package ./ffi-modules --options ./packaging.json -f third-party-licenses-java.txt
       - name: Upload C/C++ bindings
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: c-bindings
           path: ffi/bindings/c/generated/*
       - name: Upload .NET bindings
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: dotnet-bindings
           path: ffi/bindings/dotnet/nupkg/*
       - name: Upload Java bindings
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: java-bindings
-          path: ffi/bindings/java/rodbus/target/*.jar
-      - name: Upload Java pom.xml
-        uses: actions/upload-artifact@v3
-        with:
-          name: java-bindings
-          path: ffi/bindings/java/rodbus/pom.xml
+          path: |
+            ffi/bindings/java/rodbus/target/*.jar
+            ffi/bindings/java/rodbus/pom.xml
   release:
     needs: [packaging, guide]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
     steps:
       - name: Download all artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           path: artifacts
       - name: Package C Bindings
@@ -310,7 +308,7 @@ jobs:
           cd artifacts/c-bindings
           zip -r ../../release/rodbus-${GITHUB_REF##*/}.zip .
       - name: Checkout stepfunc/docs
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           repository: stepfunc/docs
           ssh-key: ${{ secrets.SFIO_DOCS_SSH_KEY }}
