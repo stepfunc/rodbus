@@ -16,7 +16,7 @@ pub struct Channel {
 }
 
 /// Request parameters to dispatch the request to the proper device
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(
     feature = "serialization",
     derive(serde::Serialize, serde::Deserialize)

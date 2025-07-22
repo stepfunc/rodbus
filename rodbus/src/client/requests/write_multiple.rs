@@ -12,7 +12,7 @@ use std::convert::TryFrom;
 /// Collection of values and starting address
 ///
 /// Used when making write multiple coil/register requests
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WriteMultiple<T> {
     /// starting address
     pub(crate) range: AddressRange,
