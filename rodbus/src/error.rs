@@ -1,7 +1,7 @@
 use scursor::WriteError;
 
 /// The task processing requests has terminated
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug)]
 pub struct Shutdown;
 
 impl std::error::Error for Shutdown {}

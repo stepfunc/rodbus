@@ -9,7 +9,7 @@ pub trait Listener<T>: Send {
 }
 
 /// Listener that does nothing
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone)]
 pub(crate) struct NullListener;
 
 impl NullListener {

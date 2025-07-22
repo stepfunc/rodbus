@@ -27,7 +27,7 @@ pub use crate::tcp::tls::client::TlsClientConfig;
 pub use crate::tcp::tls::*;
 
 /// Represents the address of a remote host
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 #[cfg_attr(
     feature = "serialization",
     derive(serde::Serialize, serde::Deserialize)
@@ -52,7 +52,7 @@ impl std::fmt::Display for HostAddr {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 #[cfg_attr(
     feature = "serialization",
     derive(serde::Serialize, serde::Deserialize)
