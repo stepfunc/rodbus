@@ -24,6 +24,31 @@ module.exports = {
       defaultMode: 'light',
       disableSwitch: true,
     },
+    mermaid: {
+      theme: {
+        light: 'base',
+        dark: 'dark',
+      },
+      options: {
+        themeVariables: {
+          primaryColor: '#e4f3ff',
+          primaryTextColor: '#004e98',
+          primaryBorderColor: '#004e98',
+          lineColor: '#0056a7',
+          background: '#ffffff',
+          mainBkg: '#e4f3ff',
+          secondBkg: '#f5f6f7',
+          nodeBkg: '#e4f3ff',
+          nodeTextColor: '#004e98',
+          edgeLabelBackground: '#ffffff',
+          actorBkg: '#e4f3ff',
+          actorBorder: '#004e98',
+          actorTextColor: '#004e98',
+          signalColor: '#004e98',
+          signalTextColor: '#004e98',
+        },
+      },
+    },
     navbar: {
       title: `Rodbus ${sitedata.version}`,
       logo: {

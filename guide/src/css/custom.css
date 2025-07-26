@@ -24,6 +24,29 @@
   --ifm-navbar-link-hover-color: rgba(255, 255, 255, 0.9);
 
   --ifm-footer-background-color: #fff;
+
+  /* Mermaid diagram colors */
+  --mermaid-primary: #004e98;
+  --mermaid-primary-dark: #004689;
+  --mermaid-primary-darker: #004281;
+  --mermaid-primary-darkest: #00376a;
+  --mermaid-primary-light: #0056a7;
+  --mermaid-primary-lighter: #005aaf;
+  --mermaid-primary-lightest: #0065c6;
+  --mermaid-secondary: #3da9fc;
+  --mermaid-tertiary: #094067;
+  --mermaid-background: #f5f6f7;
+  --mermaid-node-background: #e4f3ff;
+  --mermaid-node-border: #004e98;
+  --mermaid-secondary-background: #d6e9f3;
+  --mermaid-secondary-border: #3da9fc;
+  --mermaid-tertiary-background: #f0f4f8;
+  --mermaid-tertiary-border: #094067;
+  --mermaid-cluster-background: #fffde7;
+  --mermaid-cluster-border: #aaaa33;
+  --mermaid-note-background: #fff5ad;
+  --mermaid-note-border: #aaaa33;
+  --mermaid-line: #333;
 }
 
 .navbar__link--active {
