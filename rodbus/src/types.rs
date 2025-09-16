@@ -383,7 +383,7 @@ mod tests {
 
     #[test]
     fn address_start_max_count_of_one_is_allowed() {
-        AddressRange::try_from(std::u16::MAX, 1).unwrap();
+        AddressRange::try_from(u16::MAX, 1).unwrap();
     }
 
     #[test]
