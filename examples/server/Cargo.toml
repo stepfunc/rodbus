@@ -1,5 +1,5 @@
 [package]
-name = "server"
+name = "example-server"
 version = "1.4.0"
 
 # inherit from workspace

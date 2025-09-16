@@ -1,5 +1,5 @@
 [package]
-name = "client"
+name = "example-client"
 version = "1.4.0"
 
 # inherit from workspace

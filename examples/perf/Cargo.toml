@@ -1,5 +1,5 @@
 [package]
-name = "perf"
+name = "example-perf"
 version = "1.4.0"
 
 # inherit from workspace

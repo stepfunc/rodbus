@@ -298,19 +298,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b94f61472cee1439c0b966b47e3aca9ae07e45d070759512cd390ea2bebc6675"
 
 [[package]]
-name = "client"
-version = "1.4.0"
-dependencies = [
- "clap",
- "rodbus",
- "tokio",
- "tokio-stream",
- "tokio-util",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
 name = "colorchoice"
 version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -409,6 +396,45 @@ name = "dunce"
 version = "1.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "92773504d58c093f6de2459af4af33faa518c13451eb8f2b5698ed3d36e7c813"
+
+[[package]]
+name = "example-client"
+version = "1.4.0"
+dependencies = [
+ "clap",
+ "rodbus",
+ "tokio",
+ "tokio-stream",
+ "tokio-util",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "example-perf"
+version = "1.4.0"
+dependencies = [
+ "clap",
+ "rodbus",
+ "tokio",
+ "tokio-stream",
+ "tokio-util",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "example-server"
+version = "1.4.0"
+dependencies = [
+ "clap",
+ "rodbus",
+ "tokio",
+ "tokio-stream",
+ "tokio-util",
+ "tracing",
+ "tracing-subscriber",
+]
 
 [[package]]
 name = "futures"
@@ -873,19 +899,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "perf"
-version = "1.4.0"
-dependencies = [
- "clap",
- "rodbus",
- "tokio",
- "tokio-stream",
- "tokio-util",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
 name = "pin-project-lite"
 version = "0.2.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1251,19 +1264,6 @@ dependencies = [
  "scopeguard",
  "unescaper",
  "winapi",
-]
-
-[[package]]
-name = "server"
-version = "1.4.0"
-dependencies = [
- "clap",
- "rodbus",
- "tokio",
- "tokio-stream",
- "tokio-util",
- "tracing",
- "tracing-subscriber",
 ]
 
 [[package]]
