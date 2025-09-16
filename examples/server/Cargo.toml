@@ -1,0 +1,27 @@
+[package]
+name = "server"
+version = "1.4.0"
+
+# inherit from workspace
+authors.workspace = true
+rust-version.workspace = true
+edition.workspace = true
+license-file.workspace = true
+homepage.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+rodbus = { path = "../../rodbus", features = ["tls", "serial"] }
+clap = { version = "4.1.8", features = ["derive"] }
+tokio = { version = "1.0", features = ["full"] }
+tokio-stream = "0.1"
+tokio-util = { version = "0.7", features = ["codec"] }
+tracing = "0.1"
+tracing-subscriber = "0.3"
+
+[features]
+default = ["tls", "serial"]
+tls = []
+serial = []

@@ -4,6 +4,11 @@ resolver = "2"
 members = [
   "rodbus",
   "rodbus-client",
+  # example binaries
+  "examples/client",
+  "examples/server",
+  "examples/perf",
+  # FFI crates
   "ffi/rodbus-bindings",
   "ffi/rodbus-ffi",
   "ffi/rodbus-ffi-java",
