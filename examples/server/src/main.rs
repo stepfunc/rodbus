@@ -169,7 +169,7 @@ async fn run_tcp() -> Result<(), Box<dyn std::error::Error>> {
     // ANCHOR: tcp_server_create
     let server = rodbus::server::spawn_tcp_server_task(
         1,
-        "127.0.0.1:2002".parse()?,
+        "127.0.0.1:2000".parse()?,
         map,
         AddressFilter::Any,
         DecodeLevel::default(),
@@ -208,7 +208,7 @@ async fn run_tls(tls_config: TlsServerConfig) -> Result<(), Box<dyn std::error::
     // ANCHOR: tls_server_create
     let server = rodbus::server::spawn_tls_server_task_with_authz(
         1,
-        "127.0.0.1:2003".parse()?,
+        "127.0.0.1:2000".parse()?,
         map,
         ReadOnlyAuthorizationHandler::create(),
         tls_config,
