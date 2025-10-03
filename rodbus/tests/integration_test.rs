@@ -41,6 +41,11 @@ impl Listener<ClientState> for ClientStateListener {
         };
         MaybeAsync::asynchronous(update)
     }
+    
+    fn get_value(&self) -> Option<&ClientState> {
+        self.as_ref()
+    }
+
 }
 
 impl RequestHandler for Handler {

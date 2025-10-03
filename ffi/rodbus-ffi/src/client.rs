@@ -331,6 +331,12 @@ impl Listener<ClientState> for ClientStateListener {
         self.inner.on_change(value.into());
         MaybeAsync::ready(())
     }
+    
+    fn get_value(&self) -> Option<&ClientState> {
+        Some(self.inner.into())
+    }
+
+    
 }
 
 impl From<ffi::ClientStateListener> for Box<dyn Listener<ClientState>> {
@@ -349,6 +355,10 @@ impl Listener<rodbus::client::PortState> for PortStateListener {
     fn update(&mut self, value: rodbus::client::PortState) -> MaybeAsync<()> {
         self.inner.on_change(value.into());
         MaybeAsync::ready(())
+    }
+    
+    fn get_value(&self) -> Option<&rodbus::client::PortState> {
+        None
     }
 }
 

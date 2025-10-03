@@ -255,6 +255,10 @@ where
         };
         MaybeAsync::asynchronous(future)
     }
+
+    fn get_value(&self) -> Option<&T> {
+        None
+    }
 }
 
 #[tokio::main(flavor = "multi_thread")]

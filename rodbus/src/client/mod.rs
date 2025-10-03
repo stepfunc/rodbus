@@ -17,6 +17,7 @@ pub use crate::client::channel::*;
 pub use crate::client::listener::*;
 pub use crate::client::requests::write_multiple::WriteMultiple;
 pub use crate::retry::*;
+use crate::LoggingStrategy;
 
 #[cfg(feature = "ffi")]
 pub use ffi_channel::*;
@@ -112,6 +113,39 @@ pub fn spawn_tcp_client_task(
         retry,
         decode,
         listener.unwrap_or_else(|| NullListener::create()),
+        LoggingStrategy::All
+    )
+}
+
+
+/// Spawns a channel task onto the runtime that maintains a TCP connection and processes
+/// requests. The task completes when the returned channel handle is dropped.
+///
+/// The channel uses the provided [`RetryStrategy`] to pause between failed connection attempts
+///
+/// * `host` - Address/port of the remote server. Can be a IP address or name on which to perform DNS resolution.
+/// * `max_queued_requests` - The maximum size of the request queue
+/// * `retry` - A boxed trait object that controls when the connection is retried on failure
+/// * `decode` - Decode log level
+/// * `listener` - Optional callback to monitor the TCP connection state
+/// * `logging_strategy` - An optional
+///
+/// `WARNING`: This function must be called from with the context of the Tokio runtime or it will panic.
+pub fn spawn_tcp_client_task_2(
+    host: HostAddr,
+    max_queued_requests: usize,
+    retry: Box<dyn RetryStrategy>,
+    decode: DecodeLevel,
+    listener: Option<Box<dyn Listener<ClientState>>>,
+    logging_strategy: LoggingStrategy,
+) -> Channel {
+    crate::tcp::client::spawn_tcp_channel(
+        host,
+        max_queued_requests,
+        retry,
+        decode,
+        listener.unwrap_or_else(|| NullListener::create()),
+        logging_strategy,
     )
 }
 

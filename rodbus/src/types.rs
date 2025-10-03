@@ -375,6 +375,21 @@ impl Default for UnitId {
     }
 }
 
+/// How verbose to make the logging for connects & disconnects
+#[derive(Clone, Copy)]
+pub enum LoggingStrategy {
+    /// Log it all
+    All,
+    /// Only log State changes
+    StateDriven,
+}
+
+impl Default for LoggingStrategy {
+    fn default() -> Self {
+        Self::All
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::error::*;
