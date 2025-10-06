@@ -107,7 +107,9 @@ pub fn spawn_tcp_client_task(
     decode: DecodeLevel,
     listener: Option<Box<dyn Listener<ClientState>>>,
 ) -> Channel {
-    let options = ClientOptions::default().decode(decode).max_queued_requests(max_queued_requests);
+    let options = ClientOptions::default()
+        .decode(decode)
+        .max_queued_requests(max_queued_requests);
     crate::tcp::client::spawn_tcp_channel(
         host,
         retry,

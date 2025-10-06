@@ -15,7 +15,7 @@ use crate::common::phys::PhysLayer;
 use crate::tcp::client::{TcpChannelTask, TcpTaskConnectionHandler};
 use crate::tcp::tls::{CertificateMode, MinTlsVersion, TlsError};
 
-use crate::{DecodeLevel, ConnectionLoggingStrategy};
+use crate::{ConnectionLoggingStrategy, DecodeLevel};
 
 /// TLS configuration
 pub struct TlsClientConfig {

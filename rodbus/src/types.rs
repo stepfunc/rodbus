@@ -401,7 +401,10 @@ pub struct ClientOptions {
 
 impl ClientOptions {
     /// Builder function for the connection_logging_strategy field.
-    pub fn connection_logging(self, connection_logging_strategy: ConnectionLoggingStrategy) -> Self {
+    pub fn connection_logging(
+        self,
+        connection_logging_strategy: ConnectionLoggingStrategy,
+    ) -> Self {
         Self {
             connection_logging_strategy,
             ..self
@@ -410,7 +413,7 @@ impl ClientOptions {
 
     /// builder function for the max queued requests field
     pub fn max_queued_requests(self, max_queued_requests: usize) -> Self {
-         Self {
+        Self {
             max_queued_requests,
             ..self
         }
@@ -418,10 +421,7 @@ impl ClientOptions {
 
     /// builder function for the decode level field
     pub fn decode(self, decode: DecodeLevel) -> Self {
-        Self {
-            decode,
-            ..self
-        }
+        Self { decode, ..self }
     }
 }
 
@@ -443,7 +443,7 @@ mod tests {
 
     #[test]
     fn address_start_max_count_of_one_is_allowed() {
-        AddressRange::try_from(std::u16::MAX, 1).unwrap();
+        AddressRange::try_from(u16::MAX, 1).unwrap();
     }
 
     #[test]

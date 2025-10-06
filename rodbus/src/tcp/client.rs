@@ -19,12 +19,7 @@ pub(crate) fn spawn_tcp_channel(
     listener: Box<dyn Listener<ClientState>>,
     client_options: ClientOptions,
 ) -> Channel {
-    let (handle, task) = create_tcp_channel(
-        host,
-        connect_retry,
-        listener,
-        client_options,
-    );
+    let (handle, task) = create_tcp_channel(host, connect_retry, listener, client_options);
     tokio::spawn(task);
     handle
 }
@@ -81,7 +76,6 @@ pub(crate) struct TcpChannelTask {
     listener: Box<dyn Listener<ClientState>>,
     _logging_strategy: ConnectionLoggingStrategy,
 }
-
 
 impl TcpChannelTask {
     pub(crate) fn new(
