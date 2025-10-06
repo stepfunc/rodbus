@@ -113,10 +113,9 @@ pub fn spawn_tcp_client_task(
         retry,
         decode,
         listener.unwrap_or_else(|| NullListener::create()),
-        LoggingStrategy::All
+        LoggingStrategy::All,
     )
 }
-
 
 /// Spawns a channel task onto the runtime that maintains a TCP connection and processes
 /// requests. The task completes when the returned channel handle is dropped.

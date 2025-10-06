@@ -6,9 +6,6 @@ pub trait Listener<T>: Send {
     fn update(&mut self, _value: T) -> MaybeAsync<()> {
         MaybeAsync::ready(())
     }
-
-    /// Get the value of T
-    fn get_value(&self) -> Option<&T>;
 }
 
 /// Listener that does nothing
@@ -25,10 +22,6 @@ impl NullListener {
 impl<T> Listener<T> for NullListener {
     fn update(&mut self, _value: T) -> MaybeAsync<()> {
         MaybeAsync::ready(())
-    }
-
-    fn get_value(&self) -> Option<&T> {
-        None
     }
 }
 

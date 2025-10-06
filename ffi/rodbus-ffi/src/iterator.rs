@@ -30,7 +30,7 @@ impl<'a> RegisterValueIterator<'a> {
 }
 
 pub(crate) unsafe fn bit_value_iterator_next(
-    it: *mut crate::BitValueIterator,
+    it: *mut crate::BitValueIterator<'_>,
 ) -> Option<&crate::ffi::BitValue> {
     match it.as_mut() {
         Some(it) => match it.inner.next() {
@@ -46,7 +46,7 @@ pub(crate) unsafe fn bit_value_iterator_next(
 }
 
 pub(crate) unsafe fn register_value_iterator_next(
-    it: *mut crate::RegisterValueIterator,
+    it: *mut crate::RegisterValueIterator<'_>,
 ) -> Option<&crate::ffi::RegisterValue> {
     match it.as_mut() {
         Some(it) => match it.inner.next() {

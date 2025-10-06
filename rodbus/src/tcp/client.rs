@@ -21,8 +21,14 @@ pub(crate) fn spawn_tcp_channel(
     listener: Box<dyn Listener<ClientState>>,
     logging_strategy: LoggingStrategy,
 ) -> Channel {
-    let (handle, task) =
-        create_tcp_channel(host, max_queued_requests, connect_retry, decode, listener, logging_strategy);
+    let (handle, task) = create_tcp_channel(
+        host,
+        max_queued_requests,
+        connect_retry,
+        decode,
+        listener,
+        logging_strategy,
+    );
     tokio::spawn(task);
     handle
 }
@@ -33,7 +39,7 @@ pub(crate) fn create_tcp_channel(
     connect_retry: Box<dyn RetryStrategy>,
     decode: DecodeLevel,
     listener: Box<dyn Listener<ClientState>>,
-    logging_strategy: LoggingStrategy
+    logging_strategy: LoggingStrategy,
 ) -> (Channel, impl std::future::Future<Output = ()>) {
     let (tx, rx) = tokio::sync::mpsc::channel(max_queued_requests);
     let task = async move {
@@ -44,7 +50,7 @@ pub(crate) fn create_tcp_channel(
             connect_retry,
             decode,
             listener,
-            logging_strategy
+            logging_strategy,
         )
         .run()
         .instrument(tracing::info_span!("Modbus-Client-TCP", endpoint = ?host))
@@ -79,7 +85,7 @@ pub(crate) struct TcpChannelTask {
     connection_handler: TcpTaskConnectionHandler,
     client_loop: ClientLoop,
     listener: Box<dyn Listener<ClientState>>,
-    logging_strategy: LoggingStrategy,
+    _logging_strategy: LoggingStrategy,
 }
 
 impl TcpChannelTask {
@@ -90,7 +96,7 @@ impl TcpChannelTask {
         connect_retry: Box<dyn RetryStrategy>,
         decode: DecodeLevel,
         listener: Box<dyn Listener<ClientState>>,
-        logging_strategy: LoggingStrategy,
+        _logging_strategy: LoggingStrategy,
     ) -> Self {
         Self {
             host,
@@ -98,7 +104,7 @@ impl TcpChannelTask {
             connection_handler,
             client_loop: ClientLoop::new(rx, FrameWriter::tcp(), FramedReader::tcp(), decode),
             listener,
-            logging_strategy
+            _logging_strategy,
         }
     }
 
@@ -144,30 +150,13 @@ impl TcpChannelTask {
         match self.connect().await? {
             Err(err) => {
                 let delay = self.connect_retry.after_failed_connect();
-                // * we could do a listener.state == connected, then we log "move from connected to disconnected"
-                match self.logging_strategy {
-                    LoggingStrategy::All => {
-                        tracing::warn!(
-                            "failed to connect to {}: {} - waiting {} ms before next attempt",
-                            self.host,
-                            err,
-                            delay.as_millis()
-                        );
-                    },
-                    LoggingStrategy::StateDriven => {
-                        // match state {
-                        //     Some(x) => match x {
-                        //         ClientState::Disabled => todo!(),
-                        //         ClientState::Connecting => todo!(),
-                        //         ClientState::Connected => todo!(),
-                        //         ClientState::WaitAfterFailedConnect(_) => todo!(),
-                        //         ClientState::WaitAfterDisconnect(_) => todo!(),
-                        //         ClientState::Shutdown => todo!(),
-                        //     },
-                        //     None => todo!(),
-                        // }
-                    },
-                }
+                tracing::warn!(
+                    "failed to connect to {}: {} - waiting {} ms before next attempt",
+                    self.host,
+                    err,
+                    delay.as_millis()
+                );
+
                 self.listener
                     .update(ClientState::WaitAfterFailedConnect(delay))
                     .get()

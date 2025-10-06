@@ -60,7 +60,7 @@ pub(crate) fn create_tls_channel(
             connect_retry,
             decode,
             listener,
-            LoggingStrategy::All
+            LoggingStrategy::All,
         )
         .run()
         .instrument(tracing::info_span!("Modbus-Client-TCP", endpoint = ?host))
