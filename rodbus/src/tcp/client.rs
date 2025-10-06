@@ -1,3 +1,5 @@
+use std::error::Error;
+
 use tracing::Instrument;
 
 use crate::client::{Channel, ClientState, HostAddr, Listener};
@@ -136,18 +138,7 @@ impl TcpChannelTask {
         self.listener.update(ClientState::Connecting).get().await;
         match self.connect().await? {
             Err(err) => {
-                let delay = self.connect_retry.after_failed_connect();
-                tracing::warn!(
-                    "failed to connect to {}: {} - waiting {} ms before next attempt",
-                    self.host,
-                    err,
-                    delay.as_millis()
-                );
-                self.listener
-                    .update(ClientState::WaitAfterFailedConnect(delay))
-                    .get()
-                    .await;
-                self.client_loop.fail_requests_for(delay).await
+                self.failed_tcp_stream_connection(err).await
             }
             Ok(socket) => {
                 if let Ok(addr) = socket.peer_addr() {
@@ -192,6 +183,21 @@ impl TcpChannelTask {
         let delay = self.connect_retry.after_failed_connect();
         tracing::warn!(
             "{} - waiting {} ms before next attempt",
+            err,
+            delay.as_millis()
+        );
+        self.listener
+            .update(ClientState::WaitAfterFailedConnect(delay))
+            .get()
+            .await;
+        self.client_loop.fail_requests_for(delay).await
+    }
+
+    async fn failed_tcp_stream_connection<T: Error>(&mut self, err: T) -> Result<(), Error> {
+        let delay = self.connect_retry.after_failed_connect();
+        tracing::warn!(
+            "failed to connect to {}: {} - waiting {} ms before next attempt",
+            self.host,
             err,
             delay.as_millis()
         );
