@@ -144,8 +144,6 @@ impl TcpChannelTask {
     }
 
     async fn try_connect_and_run(&mut self) -> Result<(), StateChange> {
-        // let state = self.listener.get_value().clone();
-
         self.listener.update(ClientState::Connecting).get().await;
         match self.connect().await? {
             Err(err) => {
@@ -156,7 +154,6 @@ impl TcpChannelTask {
                     err,
                     delay.as_millis()
                 );
-
                 self.listener
                     .update(ClientState::WaitAfterFailedConnect(delay))
                     .get()
@@ -165,7 +162,6 @@ impl TcpChannelTask {
             }
             Ok(socket) => {
                 if let Ok(addr) = socket.peer_addr() {
-                    // * if disconnected before, then state "connected"
                     tracing::info!("connected to: {}", addr);
                 }
                 if let Err(err) = socket.set_nodelay(true) {
@@ -174,9 +170,6 @@ impl TcpChannelTask {
                 match self.connection_handler.handle(socket, &self.host).await {
                     Err(err) => {
                         let delay = self.connect_retry.after_failed_connect();
-
-                        // match state {}
-
                         tracing::warn!(
                             "{} - waiting {} ms before next attempt",
                             err,
