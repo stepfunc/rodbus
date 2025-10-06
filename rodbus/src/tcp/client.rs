@@ -9,25 +9,21 @@ use crate::client::task::{ClientLoop, SessionError, StateChange};
 use crate::common::frame::{FrameWriter, FramedReader};
 use crate::error::Shutdown;
 use crate::retry::RetryStrategy;
-use crate::LoggingStrategy;
+use crate::{ClientOptions, ConnectionLoggingStrategy};
 
 use tokio::net::TcpStream;
 
 pub(crate) fn spawn_tcp_channel(
     host: HostAddr,
-    max_queued_requests: usize,
     connect_retry: Box<dyn RetryStrategy>,
-    decode: DecodeLevel,
     listener: Box<dyn Listener<ClientState>>,
-    logging_strategy: LoggingStrategy,
+    client_options: ClientOptions,
 ) -> Channel {
     let (handle, task) = create_tcp_channel(
         host,
-        max_queued_requests,
         connect_retry,
-        decode,
         listener,
-        logging_strategy,
+        client_options,
     );
     tokio::spawn(task);
     handle
@@ -35,22 +31,20 @@ pub(crate) fn spawn_tcp_channel(
 
 pub(crate) fn create_tcp_channel(
     host: HostAddr,
-    max_queued_requests: usize,
     connect_retry: Box<dyn RetryStrategy>,
-    decode: DecodeLevel,
     listener: Box<dyn Listener<ClientState>>,
-    logging_strategy: LoggingStrategy,
+    options: ClientOptions,
 ) -> (Channel, impl std::future::Future<Output = ()>) {
-    let (tx, rx) = tokio::sync::mpsc::channel(max_queued_requests);
+    let (tx, rx) = tokio::sync::mpsc::channel(options.max_queued_requests);
     let task = async move {
         TcpChannelTask::new(
             host.clone(),
             rx.into(),
             TcpTaskConnectionHandler::Tcp,
             connect_retry,
-            decode,
+            options.decode,
             listener,
-            logging_strategy,
+            options.connection_logging_strategy,
         )
         .run()
         .instrument(tracing::info_span!("Modbus-Client-TCP", endpoint = ?host))
@@ -85,8 +79,9 @@ pub(crate) struct TcpChannelTask {
     connection_handler: TcpTaskConnectionHandler,
     client_loop: ClientLoop,
     listener: Box<dyn Listener<ClientState>>,
-    _logging_strategy: LoggingStrategy,
+    _logging_strategy: ConnectionLoggingStrategy,
 }
+
 
 impl TcpChannelTask {
     pub(crate) fn new(
@@ -96,7 +91,7 @@ impl TcpChannelTask {
         connect_retry: Box<dyn RetryStrategy>,
         decode: DecodeLevel,
         listener: Box<dyn Listener<ClientState>>,
-        _logging_strategy: LoggingStrategy,
+        _logging_strategy: ConnectionLoggingStrategy,
     ) -> Self {
         Self {
             host,

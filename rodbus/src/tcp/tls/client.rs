@@ -15,7 +15,7 @@ use crate::common::phys::PhysLayer;
 use crate::tcp::client::{TcpChannelTask, TcpTaskConnectionHandler};
 use crate::tcp::tls::{CertificateMode, MinTlsVersion, TlsError};
 
-use crate::{DecodeLevel, LoggingStrategy};
+use crate::{DecodeLevel, ConnectionLoggingStrategy};
 
 /// TLS configuration
 pub struct TlsClientConfig {
@@ -60,7 +60,7 @@ pub(crate) fn create_tls_channel(
             connect_retry,
             decode,
             listener,
-            LoggingStrategy::All,
+            ConnectionLoggingStrategy::All,
         )
         .run()
         .instrument(tracing::info_span!("Modbus-Client-TCP", endpoint = ?host))

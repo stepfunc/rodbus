@@ -17,7 +17,7 @@ pub use crate::client::channel::*;
 pub use crate::client::listener::*;
 pub use crate::client::requests::write_multiple::WriteMultiple;
 pub use crate::retry::*;
-use crate::LoggingStrategy;
+use crate::ClientOptions;
 
 #[cfg(feature = "ffi")]
 pub use ffi_channel::*;
@@ -107,13 +107,12 @@ pub fn spawn_tcp_client_task(
     decode: DecodeLevel,
     listener: Option<Box<dyn Listener<ClientState>>>,
 ) -> Channel {
+    let options = ClientOptions::default().decode(decode).max_queued_requests(max_queued_requests);
     crate::tcp::client::spawn_tcp_channel(
         host,
-        max_queued_requests,
         retry,
-        decode,
         listener.unwrap_or_else(|| NullListener::create()),
-        LoggingStrategy::All,
+        options,
     )
 }
 
@@ -123,28 +122,22 @@ pub fn spawn_tcp_client_task(
 /// The channel uses the provided [`RetryStrategy`] to pause between failed connection attempts
 ///
 /// * `host` - Address/port of the remote server. Can be a IP address or name on which to perform DNS resolution.
-/// * `max_queued_requests` - The maximum size of the request queue
 /// * `retry` - A boxed trait object that controls when the connection is retried on failure
-/// * `decode` - Decode log level
 /// * `listener` - Optional callback to monitor the TCP connection state
-/// * `logging_strategy` - An optional parameter for logging verbosity, `All` is default behavior, `StateDriven` is used for logging when changes in state occurs, like `Connected` to `WaitAfterDisconnect`
+/// * `client_options` - A builder that contains various client options.
 ///
 /// `WARNING`: This function must be called from with the context of the Tokio runtime or it will panic.
 pub fn spawn_tcp_client_task_2(
     host: HostAddr,
-    max_queued_requests: usize,
     retry: Box<dyn RetryStrategy>,
-    decode: DecodeLevel,
     listener: Option<Box<dyn Listener<ClientState>>>,
-    logging_strategy: LoggingStrategy,
+    client_options: ClientOptions,
 ) -> Channel {
     crate::tcp::client::spawn_tcp_channel(
         host,
-        max_queued_requests,
         retry,
-        decode,
         listener.unwrap_or_else(|| NullListener::create()),
-        logging_strategy,
+        client_options,
     )
 }
 

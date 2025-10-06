@@ -1,5 +1,6 @@
 use crate::decode::AppDecodeLevel;
 use crate::error::{AduParseError, InvalidRange};
+use crate::DecodeLevel;
 
 use scursor::ReadCursor;
 
@@ -377,16 +378,60 @@ impl Default for UnitId {
 
 /// How verbose to make the logging for connects & disconnects
 #[derive(Clone, Copy)]
-pub enum LoggingStrategy {
+pub enum ConnectionLoggingStrategy {
     /// Log it all
     All,
     /// Only log State changes
     StateDriven,
 }
 
-impl Default for LoggingStrategy {
+impl Default for ConnectionLoggingStrategy {
     fn default() -> Self {
         Self::All
+    }
+}
+
+/// A ClientOptions builder
+#[derive(Copy, Clone)]
+pub struct ClientOptions {
+    pub(crate) connection_logging_strategy: ConnectionLoggingStrategy,
+    pub(crate) max_queued_requests: usize,
+    pub(crate) decode: DecodeLevel,
+}
+
+impl ClientOptions {
+    /// Builder function for the connection_logging_strategy field.
+    pub fn connection_logging(self, connection_logging_strategy: ConnectionLoggingStrategy) -> Self {
+        Self {
+            connection_logging_strategy,
+            ..self
+        }
+    }
+
+    /// builder function for the max queued requests field
+    pub fn max_queued_requests(self, max_queued_requests: usize) -> Self {
+         Self {
+            max_queued_requests,
+            ..self
+        }
+    }
+
+    /// builder function for the decode level field
+    pub fn decode(self, decode: DecodeLevel) -> Self {
+        Self {
+            decode,
+            ..self
+        }
+    }
+}
+
+impl Default for ClientOptions {
+    fn default() -> Self {
+        Self {
+            connection_logging_strategy: ConnectionLoggingStrategy::default(),
+            max_queued_requests: 16,
+            decode: DecodeLevel::default(),
+        }
     }
 }
 
