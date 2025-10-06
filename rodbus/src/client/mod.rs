@@ -127,7 +127,7 @@ pub fn spawn_tcp_client_task(
 /// * `retry` - A boxed trait object that controls when the connection is retried on failure
 /// * `decode` - Decode log level
 /// * `listener` - Optional callback to monitor the TCP connection state
-/// * `logging_strategy` - An optional
+/// * `logging_strategy` - An optional parameter for logging verbosity, `All` is default behavior, `StateDriven` is used for logging when changes in state occurs, like `Connected` to `WaitAfterDisconnect`
 ///
 /// `WARNING`: This function must be called from with the context of the Tokio runtime or it will panic.
 pub fn spawn_tcp_client_task_2(
