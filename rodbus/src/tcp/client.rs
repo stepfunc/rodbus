@@ -137,9 +137,7 @@ impl TcpChannelTask {
     async fn try_connect_and_run(&mut self) -> Result<(), StateChange> {
         self.listener.update(ClientState::Connecting).get().await;
         match self.connect().await? {
-            Err(err) => {
-                self.failed_tcp_stream_connection(err).await
-            }
+            Err(err) => self.failed_tcp_stream_connection(err).await,
             Ok(socket) => {
                 if let Ok(addr) = socket.peer_addr() {
                     tracing::info!("connected to: {}", addr);
@@ -148,33 +146,31 @@ impl TcpChannelTask {
                     tracing::warn!("unable to enable TCP_NODELAY: {}", err);
                 }
                 match self.connection_handler.handle(socket, &self.host).await {
-                    Err(err) => {
-                        self.failed_tcp_connection(err).await
-                    }
-                    Ok(mut phys) => {
-                        self.listener.update(ClientState::Connected).get().await;
-                        // reset the retry strategy now that we have a successful connection
-                        // we do this here so that the reset happens after a TLS handshake
-                        self.connect_retry.reset();
-                        // run the physical layer independent processing loop
-                        match self.client_loop.run(&mut phys).await {
-                            // the mpsc was closed, end the task
-                            SessionError::Shutdown => Err(StateChange::Shutdown),
-                            // re-establish the connection
-                            SessionError::Disabled
-                            | SessionError::IoError(_)
-                            | SessionError::BadFrame => {
-                                let delay = self.connect_retry.after_disconnect();
-                                tracing::warn!("waiting {:?} to reconnect", delay);
-                                self.listener
-                                    .update(ClientState::WaitAfterDisconnect(delay))
-                                    .get()
-                                    .await;
-                                self.client_loop.fail_requests_for(delay).await
-                            }
-                        }
-                    }
+                    Err(err) => self.failed_tcp_connection(err).await,
+                    Ok(phys) => self.connected(phys).await,
                 }
+            }
+        }
+    }
+
+    async fn connected(&mut self, mut phys: PhysLayer) -> Result<(), StateChange> {
+        self.listener.update(ClientState::Connected).get().await;
+        // reset the retry strategy now that we have a successful connection
+        // we do this here so that the reset happens after a TLS handshake
+        self.connect_retry.reset();
+        // run the physical layer independent processing loop
+        match self.client_loop.run(&mut phys).await {
+            // the mpsc was closed, end the task
+            SessionError::Shutdown => Err(StateChange::Shutdown),
+            // re-establish the connection
+            SessionError::Disabled | SessionError::IoError(_) | SessionError::BadFrame => {
+                let delay = self.connect_retry.after_disconnect();
+                tracing::warn!("waiting {:?} to reconnect", delay);
+                self.listener
+                    .update(ClientState::WaitAfterDisconnect(delay))
+                    .get()
+                    .await;
+                self.client_loop.fail_requests_for(delay).await
             }
         }
     }
@@ -193,7 +189,7 @@ impl TcpChannelTask {
         self.client_loop.fail_requests_for(delay).await
     }
 
-    async fn failed_tcp_stream_connection<T: Error>(&mut self, err: T) -> Result<(), Error> {
+    async fn failed_tcp_stream_connection<T: Error>(&mut self, err: T) -> Result<(), StateChange> {
         let delay = self.connect_retry.after_failed_connect();
         tracing::warn!(
             "failed to connect to {}: {} - waiting {} ms before next attempt",
