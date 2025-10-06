@@ -158,17 +158,7 @@ impl TcpChannelTask {
                 }
                 match self.connection_handler.handle(socket, &self.host).await {
                     Err(err) => {
-                        let delay = self.connect_retry.after_failed_connect();
-                        tracing::warn!(
-                            "{} - waiting {} ms before next attempt",
-                            err,
-                            delay.as_millis()
-                        );
-                        self.listener
-                            .update(ClientState::WaitAfterFailedConnect(delay))
-                            .get()
-                            .await;
-                        self.client_loop.fail_requests_for(delay).await
+                        self.failed_tcp_connection(err).await
                     }
                     Ok(mut phys) => {
                         self.listener.update(ClientState::Connected).get().await;
@@ -196,5 +186,19 @@ impl TcpChannelTask {
                 }
             }
         }
+    }
+
+    async fn failed_tcp_connection(&mut self, err: String) -> Result<(), StateChange> {
+        let delay = self.connect_retry.after_failed_connect();
+        tracing::warn!(
+            "{} - waiting {} ms before next attempt",
+            err,
+            delay.as_millis()
+        );
+        self.listener
+            .update(ClientState::WaitAfterFailedConnect(delay))
+            .get()
+            .await;
+        self.client_loop.fail_requests_for(delay).await
     }
 }
