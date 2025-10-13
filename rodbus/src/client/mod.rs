@@ -104,11 +104,11 @@ pub fn spawn_tcp_client_task(
     host: HostAddr,
     max_queued_requests: usize,
     retry: Box<dyn RetryStrategy>,
-    decode: DecodeLevel,
+    decode_level: DecodeLevel,
     listener: Option<Box<dyn Listener<ClientState>>>,
 ) -> Channel {
     let options = ClientOptions::default()
-        .decode(decode)
+        .decode_level(decode_level)
         .max_queued_requests(max_queued_requests);
     crate::tcp::client::spawn_tcp_channel(
         host,
@@ -129,7 +129,7 @@ pub fn spawn_tcp_client_task(
 /// * `client_options` - A builder that contains various client options.
 ///
 /// `WARNING`: This function must be called from with the context of the Tokio runtime or it will panic.
-pub fn spawn_tcp_client_task_2(
+pub fn spawn_tcp_client_task_with_options(
     host: HostAddr,
     retry: Box<dyn RetryStrategy>,
     listener: Option<Box<dyn Listener<ClientState>>>,
@@ -197,15 +197,18 @@ pub fn spawn_tls_client_task(
     max_queued_requests: usize,
     retry: Box<dyn RetryStrategy>,
     tls_config: TlsClientConfig,
-    decode: DecodeLevel,
+    decode_level: DecodeLevel,
     listener: Option<Box<dyn Listener<ClientState>>>,
 ) -> Channel {
+    let options = ClientOptions::default()
+        .decode_level(decode_level)
+        .max_queued_requests(max_queued_requests);
+
     spawn_tls_channel(
         host,
-        max_queued_requests,
         retry,
         tls_config,
-        decode,
+        options,
         listener.unwrap_or_else(|| NullListener::create()),
     )
 }

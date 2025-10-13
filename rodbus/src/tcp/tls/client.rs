@@ -15,7 +15,7 @@ use crate::common::phys::PhysLayer;
 use crate::tcp::client::{TcpChannelTask, TcpTaskConnectionHandler};
 use crate::tcp::tls::{CertificateMode, MinTlsVersion, TlsError};
 
-use crate::{ConnectionLoggingStrategy, DecodeLevel};
+use crate::ClientOptions;
 
 /// TLS configuration
 pub struct TlsClientConfig {
@@ -25,42 +25,32 @@ pub struct TlsClientConfig {
 
 pub(crate) fn spawn_tls_channel(
     host: HostAddr,
-    max_queued_requests: usize,
     connect_retry: Box<dyn RetryStrategy>,
     tls_config: TlsClientConfig,
-    decode: DecodeLevel,
+    options: ClientOptions,
     listener: Box<dyn Listener<ClientState>>,
 ) -> Channel {
-    let (handle, task) = create_tls_channel(
-        host,
-        max_queued_requests,
-        connect_retry,
-        tls_config,
-        decode,
-        listener,
-    );
+    let (handle, task) = create_tls_channel(host, connect_retry, tls_config, options, listener);
     tokio::spawn(task);
     handle
 }
 
 pub(crate) fn create_tls_channel(
     host: HostAddr,
-    max_queued_requests: usize,
     connect_retry: Box<dyn RetryStrategy>,
     tls_config: TlsClientConfig,
-    decode: DecodeLevel,
+    options: ClientOptions,
     listener: Box<dyn Listener<ClientState>>,
 ) -> (Channel, impl std::future::Future<Output = ()>) {
-    let (tx, rx) = tokio::sync::mpsc::channel(max_queued_requests);
+    let (tx, rx) = tokio::sync::mpsc::channel(options.max_queued_requests);
     let task = async move {
         TcpChannelTask::new(
             host.clone(),
             rx.into(),
             TcpTaskConnectionHandler::Tls(tls_config),
             connect_retry,
-            decode,
+            options,
             listener,
-            ConnectionLoggingStrategy::All,
         )
         .run()
         .instrument(tracing::info_span!("Modbus-Client-TCP", endpoint = ?host))

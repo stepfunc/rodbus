@@ -2,14 +2,13 @@ use tracing::Instrument;
 
 use crate::client::{Channel, ClientState, HostAddr, Listener};
 use crate::common::phys::PhysLayer;
-use crate::decode::DecodeLevel;
 
 use crate::client::message::Command;
 use crate::client::task::{ClientLoop, SessionError, StateChange};
 use crate::common::frame::{FrameWriter, FramedReader};
 use crate::error::Shutdown;
 use crate::retry::RetryStrategy;
-use crate::{ClientOptions, ConnectionLoggingStrategy};
+use crate::{ChannelLoggingType, ClientOptions};
 
 use tokio::net::TcpStream;
 
@@ -37,9 +36,8 @@ pub(crate) fn create_tcp_channel(
             rx.into(),
             TcpTaskConnectionHandler::Tcp,
             connect_retry,
-            options.decode,
+            options,
             listener,
-            options.connection_logging_strategy,
         )
         .run()
         .instrument(tracing::info_span!("Modbus-Client-TCP", endpoint = ?host))
@@ -74,7 +72,7 @@ pub(crate) struct TcpChannelTask {
     connection_handler: TcpTaskConnectionHandler,
     client_loop: ClientLoop,
     listener: Box<dyn Listener<ClientState>>,
-    _logging_strategy: ConnectionLoggingStrategy,
+    _channel_logging: ChannelLoggingType,
 }
 
 impl TcpChannelTask {
@@ -83,17 +81,21 @@ impl TcpChannelTask {
         rx: crate::channel::Receiver<Command>,
         connection_handler: TcpTaskConnectionHandler,
         connect_retry: Box<dyn RetryStrategy>,
-        decode: DecodeLevel,
+        options: ClientOptions,
         listener: Box<dyn Listener<ClientState>>,
-        _logging_strategy: ConnectionLoggingStrategy,
     ) -> Self {
         Self {
             host,
             connect_retry,
             connection_handler,
-            client_loop: ClientLoop::new(rx, FrameWriter::tcp(), FramedReader::tcp(), decode),
+            client_loop: ClientLoop::new(
+                rx,
+                FrameWriter::tcp(),
+                FramedReader::tcp(),
+                options.decode_level,
+            ),
             listener,
-            _logging_strategy,
+            _channel_logging: options.channel_logging,
         }
     }
 
