@@ -1,5 +1,6 @@
 use crate::decode::AppDecodeLevel;
 use crate::error::{AduParseError, InvalidRange};
+use crate::DecodeLevel;
 
 use scursor::ReadCursor;
 
@@ -375,6 +376,66 @@ impl Default for UnitId {
     }
 }
 
+/// How verbose to make the logging of events of communication channel itself
+#[derive(Default, Clone, Copy)]
+pub enum ChannelLoggingType {
+    /// Log every event, e.g. even failed connections when the client is already disconnected
+    ///
+    /// This is the default, but can get noisy if connection attempts are repeatedly failing
+    /// depending on how the backoff is configured.
+    #[default]
+    Verbose,
+    /// Log only state changes, e.g. transitions from "connected" to "disconnected"
+    ///
+    /// This can greatly reduce verbosity of logging during disrupted communication, but comes
+    /// with a loss of visibility
+    StateChanges,
+}
+
+/// A ClientOptions builder
+#[derive(Copy, Clone)]
+pub struct ClientOptions {
+    pub(crate) channel_logging: ChannelLoggingType,
+    pub(crate) max_queued_requests: usize,
+    pub(crate) decode_level: DecodeLevel,
+}
+
+impl ClientOptions {
+    /// Set the channel logging type
+    pub fn channel_logging(self, channel_logging: ChannelLoggingType) -> Self {
+        Self {
+            channel_logging,
+            ..self
+        }
+    }
+
+    /// Set the maximum number of queued requests
+    pub fn max_queued_requests(self, max_queued_requests: usize) -> Self {
+        Self {
+            max_queued_requests,
+            ..self
+        }
+    }
+
+    /// Set the decode level
+    pub fn decode_level(self, decode_level: DecodeLevel) -> Self {
+        Self {
+            decode_level,
+            ..self
+        }
+    }
+}
+
+impl Default for ClientOptions {
+    fn default() -> Self {
+        Self {
+            channel_logging: ChannelLoggingType::default(),
+            max_queued_requests: 16,
+            decode_level: DecodeLevel::default(),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::error::*;
@@ -383,7 +444,7 @@ mod tests {
 
     #[test]
     fn address_start_max_count_of_one_is_allowed() {
-        AddressRange::try_from(std::u16::MAX, 1).unwrap();
+        AddressRange::try_from(u16::MAX, 1).unwrap();
     }
 
     #[test]

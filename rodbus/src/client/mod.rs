@@ -17,6 +17,7 @@ pub use crate::client::channel::*;
 pub use crate::client::listener::*;
 pub use crate::client::requests::write_multiple::WriteMultiple;
 pub use crate::retry::*;
+use crate::ClientOptions;
 
 #[cfg(feature = "ffi")]
 pub use ffi_channel::*;
@@ -103,15 +104,42 @@ pub fn spawn_tcp_client_task(
     host: HostAddr,
     max_queued_requests: usize,
     retry: Box<dyn RetryStrategy>,
-    decode: DecodeLevel,
+    decode_level: DecodeLevel,
     listener: Option<Box<dyn Listener<ClientState>>>,
+) -> Channel {
+    let options = ClientOptions::default()
+        .decode_level(decode_level)
+        .max_queued_requests(max_queued_requests);
+    crate::tcp::client::spawn_tcp_channel(
+        host,
+        retry,
+        listener.unwrap_or_else(|| NullListener::create()),
+        options,
+    )
+}
+
+/// Spawns a channel task onto the runtime that maintains a TCP connection and processes
+/// requests. The task completes when the returned channel handle is dropped.
+///
+/// The channel uses the provided [`RetryStrategy`] to pause between failed connection attempts
+///
+/// * `host` - Address/port of the remote server. Can be a IP address or name on which to perform DNS resolution.
+/// * `retry` - A boxed trait object that controls when the connection is retried on failure
+/// * `listener` - Optional callback to monitor the TCP connection state
+/// * `client_options` - A builder that contains various client options.
+///
+/// `WARNING`: This function must be called from with the context of the Tokio runtime or it will panic.
+pub fn spawn_tcp_client_task_with_options(
+    host: HostAddr,
+    retry: Box<dyn RetryStrategy>,
+    listener: Option<Box<dyn Listener<ClientState>>>,
+    client_options: ClientOptions,
 ) -> Channel {
     crate::tcp::client::spawn_tcp_channel(
         host,
-        max_queued_requests,
         retry,
-        decode,
         listener.unwrap_or_else(|| NullListener::create()),
+        client_options,
     )
 }
 
@@ -169,15 +197,18 @@ pub fn spawn_tls_client_task(
     max_queued_requests: usize,
     retry: Box<dyn RetryStrategy>,
     tls_config: TlsClientConfig,
-    decode: DecodeLevel,
+    decode_level: DecodeLevel,
     listener: Option<Box<dyn Listener<ClientState>>>,
 ) -> Channel {
+    let options = ClientOptions::default()
+        .decode_level(decode_level)
+        .max_queued_requests(max_queued_requests);
+
     spawn_tls_channel(
         host,
-        max_queued_requests,
         retry,
         tls_config,
-        decode,
+        options,
         listener.unwrap_or_else(|| NullListener::create()),
     )
 }
