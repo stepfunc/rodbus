@@ -12,6 +12,19 @@ use crate::{ChannelLoggingType, ClientOptions};
 
 use tokio::net::TcpStream;
 
+macro_rules! log_channel_event {
+    ($channel_logging:expr, $($arg:tt)*) => {
+        match $channel_logging {
+            ChannelLoggingType::Verbose => {
+                tracing::info!($($arg)*);
+            }
+            ChannelLoggingType::StateChanges => {
+                tracing::debug!($($arg)*);
+            }
+        }
+    };
+}
+
 pub(crate) fn spawn_tcp_channel(
     host: HostAddr,
     connect_retry: Box<dyn RetryStrategy>,
@@ -72,7 +85,7 @@ pub(crate) struct TcpChannelTask {
     connection_handler: TcpTaskConnectionHandler,
     client_loop: ClientLoop,
     listener: Box<dyn Listener<ClientState>>,
-    _channel_logging: ChannelLoggingType,
+    channel_logging: ChannelLoggingType,
 }
 
 impl TcpChannelTask {
@@ -95,7 +108,7 @@ impl TcpChannelTask {
                 options.decode_level,
             ),
             listener,
-            _channel_logging: options.channel_logging,
+            channel_logging: options.channel_logging,
         }
     }
 
@@ -140,7 +153,7 @@ impl TcpChannelTask {
             Err(err) => self.handle_failed_connection(err).await,
             Ok(stream) => {
                 if let Ok(addr) = stream.peer_addr() {
-                    tracing::info!("connected to: {}", addr);
+                    log_channel_event!(self.channel_logging, "connected to: {}", addr);
                 }
                 if let Err(err) = stream.set_nodelay(true) {
                     tracing::warn!("unable to enable TCP_NODELAY: {}", err);
@@ -164,7 +177,7 @@ impl TcpChannelTask {
             // re-establish the connection
             SessionError::Disabled | SessionError::IoError(_) | SessionError::BadFrame => {
                 let delay = self.connect_retry.after_disconnect();
-                tracing::warn!("waiting {:?} to reconnect", delay);
+                log_channel_event!(self.channel_logging, "waiting {:?} to reconnect", delay);
                 self.listener
                     .update(ClientState::WaitAfterDisconnect(delay))
                     .get()
@@ -176,11 +189,14 @@ impl TcpChannelTask {
 
     async fn handle_failed_connection(&mut self, err: std::io::Error) -> Result<(), StateChange> {
         let delay = self.connect_retry.after_failed_connect();
-        tracing::warn!(
+
+        log_channel_event!(
+            self.channel_logging,
             "failed to connect: {} - waiting {} ms before next attempt",
             err,
             delay.as_millis()
         );
+
         self.listener
             .update(ClientState::WaitAfterFailedConnect(delay))
             .get()

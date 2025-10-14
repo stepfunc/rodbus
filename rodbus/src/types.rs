@@ -377,18 +377,20 @@ impl Default for UnitId {
 }
 
 /// How verbose to make the logging of events of communication channel itself
-#[derive(Default, Clone, Copy)]
+#[derive(Default, Clone, Copy, PartialEq, Eq)]
 pub enum ChannelLoggingType {
-    /// Log every event, e.g. even failed connections when the client is already disconnected
+    /// Log every event at the INFO level, e.g. even failed connections when the client is
+    /// already disconnected
     ///
     /// This is the default, but can get noisy if connection attempts are repeatedly failing
     /// depending on how the backoff is configured.
     #[default]
     Verbose,
-    /// Log only state changes, e.g. transitions from "connected" to "disconnected"
+    /// Channel events that are normally at the INFO level are instead logged at the DEBUG level
     ///
-    /// This can greatly reduce verbosity of logging during disrupted communication, but comes
-    /// with a loss of visibility
+    /// State transitions (e.g. CONNECTED -> DISCONNECTED) are logged at INFO level. This can
+    /// greatly reduce verbosity of logging during disrupted communication, but comes with a loss
+    /// of visibility
     StateChanges,
 }
 
