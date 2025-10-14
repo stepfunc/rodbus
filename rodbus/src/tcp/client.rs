@@ -8,9 +8,22 @@ use crate::client::task::{ClientLoop, SessionError, StateChange};
 use crate::common::frame::{FrameWriter, FramedReader};
 use crate::error::Shutdown;
 use crate::retry::RetryStrategy;
-use crate::{ChannelLoggingType, ClientOptions};
+use crate::{ChannelLoggingMode, ClientOptions};
 
 use tokio::net::TcpStream;
+
+macro_rules! log_channel_event {
+    ($channel_logging:expr, $($arg:tt)*) => {
+        match $channel_logging {
+            ChannelLoggingMode::Verbose => {
+                tracing::info!($($arg)*);
+            }
+            ChannelLoggingMode::StateChanges => {
+                tracing::debug!($($arg)*);
+            }
+        }
+    };
+}
 
 pub(crate) fn spawn_tcp_channel(
     host: HostAddr,
@@ -57,7 +70,7 @@ impl TcpTaskConnectionHandler {
         &mut self,
         socket: TcpStream,
         _endpoint: &HostAddr,
-    ) -> Result<PhysLayer, String> {
+    ) -> std::io::Result<PhysLayer> {
         match self {
             Self::Tcp => Ok(PhysLayer::new_tcp(socket)),
             #[cfg(feature = "tls")]
@@ -72,7 +85,7 @@ pub(crate) struct TcpChannelTask {
     connection_handler: TcpTaskConnectionHandler,
     client_loop: ClientLoop,
     listener: Box<dyn Listener<ClientState>>,
-    _channel_logging: ChannelLoggingType,
+    channel_logging: ChannelLoggingMode,
 }
 
 impl TcpChannelTask {
@@ -95,7 +108,7 @@ impl TcpChannelTask {
                 options.decode_level,
             ),
             listener,
-            _channel_logging: options.channel_logging,
+            channel_logging: options.channel_logging,
         }
     }
 
@@ -137,66 +150,58 @@ impl TcpChannelTask {
     async fn try_connect_and_run(&mut self) -> Result<(), StateChange> {
         self.listener.update(ClientState::Connecting).get().await;
         match self.connect().await? {
-            Err(err) => {
-                let delay = self.connect_retry.after_failed_connect();
-                tracing::warn!(
-                    "failed to connect to {}: {} - waiting {} ms before next attempt",
-                    self.host,
-                    err,
-                    delay.as_millis()
-                );
+            Err(err) => self.handle_failed_connection(err).await,
+            Ok(stream) => {
+                if let Ok(addr) = stream.peer_addr() {
+                    // State transition from DISCONNECTED -> CONNECTED so we always log it at INFO
+                    tracing::info!("connected to: {}", addr);
+                }
+                if let Err(err) = stream.set_nodelay(true) {
+                    tracing::warn!("unable to enable TCP_NODELAY: {}", err);
+                }
+                match self.connection_handler.handle(stream, &self.host).await {
+                    Err(err) => self.handle_failed_connection(err).await,
+                    Ok(phys) => self.run_connection(phys).await,
+                }
+            }
+        }
+    }
+    async fn run_connection(&mut self, mut phys: PhysLayer) -> Result<(), StateChange> {
+        self.listener.update(ClientState::Connected).get().await;
+        // reset the retry strategy now that we have a successful connection
+        // we do this here so that the reset happens after a TLS handshake
+        self.connect_retry.reset();
+
+        match self.client_loop.run(&mut phys).await {
+            // the mpsc was closed, end the task
+            SessionError::Shutdown => Err(StateChange::Shutdown),
+            // re-establish the connection
+            SessionError::Disabled | SessionError::IoError(_) | SessionError::BadFrame => {
+                let delay = self.connect_retry.after_disconnect();
+                log_channel_event!(self.channel_logging, "waiting {:?} to reconnect", delay);
                 self.listener
-                    .update(ClientState::WaitAfterFailedConnect(delay))
+                    .update(ClientState::WaitAfterDisconnect(delay))
                     .get()
                     .await;
                 self.client_loop.fail_requests_for(delay).await
             }
-            Ok(socket) => {
-                if let Ok(addr) = socket.peer_addr() {
-                    tracing::info!("connected to: {}", addr);
-                }
-                if let Err(err) = socket.set_nodelay(true) {
-                    tracing::warn!("unable to enable TCP_NODELAY: {}", err);
-                }
-                match self.connection_handler.handle(socket, &self.host).await {
-                    Err(err) => {
-                        let delay = self.connect_retry.after_failed_connect();
-                        tracing::warn!(
-                            "{} - waiting {} ms before next attempt",
-                            err,
-                            delay.as_millis()
-                        );
-                        self.listener
-                            .update(ClientState::WaitAfterFailedConnect(delay))
-                            .get()
-                            .await;
-                        self.client_loop.fail_requests_for(delay).await
-                    }
-                    Ok(mut phys) => {
-                        self.listener.update(ClientState::Connected).get().await;
-                        // reset the retry strategy now that we have a successful connection
-                        // we do this here so that the reset happens after a TLS handshake
-                        self.connect_retry.reset();
-                        // run the physical layer independent processing loop
-                        match self.client_loop.run(&mut phys).await {
-                            // the mpsc was closed, end the task
-                            SessionError::Shutdown => Err(StateChange::Shutdown),
-                            // re-establish the connection
-                            SessionError::Disabled
-                            | SessionError::IoError(_)
-                            | SessionError::BadFrame => {
-                                let delay = self.connect_retry.after_disconnect();
-                                tracing::warn!("waiting {:?} to reconnect", delay);
-                                self.listener
-                                    .update(ClientState::WaitAfterDisconnect(delay))
-                                    .get()
-                                    .await;
-                                self.client_loop.fail_requests_for(delay).await
-                            }
-                        }
-                    }
-                }
-            }
         }
+    }
+
+    async fn handle_failed_connection(&mut self, err: std::io::Error) -> Result<(), StateChange> {
+        let delay = self.connect_retry.after_failed_connect();
+
+        log_channel_event!(
+            self.channel_logging,
+            "failed to connect: {} - waiting {} ms before next attempt",
+            err,
+            delay.as_millis()
+        );
+
+        self.listener
+            .update(ClientState::WaitAfterFailedConnect(delay))
+            .get()
+            .await;
+        self.client_loop.fail_requests_for(delay).await
     }
 }
