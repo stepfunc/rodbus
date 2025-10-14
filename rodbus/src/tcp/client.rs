@@ -134,23 +134,24 @@ impl TcpChannelTask {
         }
     }
 
+    async fn handle_failed_connection(&mut self, err: std::io::Error) -> Result<(), StateChange> {
+        let delay = self.connect_retry.after_failed_connect();
+        tracing::warn!(
+            "{} - waiting {} ms before next attempt",
+            err,
+            delay.as_millis()
+        );
+        self.listener
+            .update(ClientState::WaitAfterFailedConnect(delay))
+            .get()
+            .await;
+        self.client_loop.fail_requests_for(delay).await
+    }
+
     async fn try_connect_and_run(&mut self) -> Result<(), StateChange> {
         self.listener.update(ClientState::Connecting).get().await;
         match self.connect().await? {
-            Err(err) => {
-                let delay = self.connect_retry.after_failed_connect();
-                tracing::warn!(
-                    "failed to connect to {}: {} - waiting {} ms before next attempt",
-                    self.host,
-                    err,
-                    delay.as_millis()
-                );
-                self.listener
-                    .update(ClientState::WaitAfterFailedConnect(delay))
-                    .get()
-                    .await;
-                self.client_loop.fail_requests_for(delay).await
-            }
+            Err(err) => self.handle_failed_connection(err).await,
             Ok(socket) => {
                 if let Ok(addr) = socket.peer_addr() {
                     tracing::info!("connected to: {}", addr);
