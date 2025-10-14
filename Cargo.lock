@@ -604,6 +604,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "integration"
+version = "1.4.0"
+dependencies = [
+ "rodbus",
+ "tokio",
+]
+
+[[package]]
 name = "io-kit-sys"
 version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"

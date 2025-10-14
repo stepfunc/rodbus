@@ -8,6 +8,8 @@ members = [
   "examples/client",
   "examples/server",
   "examples/perf",
+  # integration tests
+  "integration",
   # FFI crates
   "ffi/rodbus-bindings",
   "ffi/rodbus-ffi",
