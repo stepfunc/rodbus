@@ -72,11 +72,14 @@ impl SerialChannelTask {
                 self.client_loop.fail_requests_for(delay).await
             }
             Ok(serial) => {
+                tracing::info!("serial port open");
                 self.retry.reset();
                 self.listener.update(PortState::Open).get().await;
                 let mut phys = PhysLayer::new_serial(serial);
-                tracing::info!("serial port open");
-                match self.client_loop.run(&mut phys).await {
+                let err = self.client_loop.run(&mut phys).await;
+                tracing::info!("ending serial session: {err}");
+
+                match err {
                     // the mpsc was closed, end the task
                     SessionError::Shutdown => Err(StateChange::Shutdown),
                     // don't wait, we're disabled

@@ -153,7 +153,8 @@ impl TcpChannelTask {
             Err(err) => self.handle_failed_connection(err).await,
             Ok(stream) => {
                 if let Ok(addr) = stream.peer_addr() {
-                    log_channel_event!(self.channel_logging, "connected to: {}", addr);
+                    // State transition from DISCONNECTED -> CONNECTED so we always log it at INFO
+                    tracing::info!("connected to: {}", addr);
                 }
                 if let Err(err) = stream.set_nodelay(true) {
                     tracing::warn!("unable to enable TCP_NODELAY: {}", err);
@@ -170,8 +171,14 @@ impl TcpChannelTask {
         // reset the retry strategy now that we have a successful connection
         // we do this here so that the reset happens after a TLS handshake
         self.connect_retry.reset();
-        // run the physical layer independent processing loop
-        match self.client_loop.run(&mut phys).await {
+
+        // run the physical layer independent processing loop until an error occurs
+        let err = self.client_loop.run(&mut phys).await;
+
+        // State transition from CONNECTED -> DISCONNECTED so we always log it at INFO
+        tracing::info!("disconnected: {err}");
+
+        match err {
             // the mpsc was closed, end the task
             SessionError::Shutdown => Err(StateChange::Shutdown),
             // re-establish the connection
