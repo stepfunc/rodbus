@@ -131,6 +131,7 @@ impl ClientLoop {
     pub(crate) async fn run(&mut self, io: &mut PhysLayer) -> SessionError {
         loop {
             if let Err(err) = self.poll(io).await {
+                tracing::info!("ending session: {err}");
                 return err;
             }
         }

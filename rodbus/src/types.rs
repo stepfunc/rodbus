@@ -376,19 +376,20 @@ impl Default for UnitId {
     }
 }
 
-/// How verbose to make the logging of events of communication channel itself
+/// How verbose to make the event logging of the communication channel itself
 #[derive(Default, Clone, Copy, PartialEq, Eq)]
-pub enum ChannelLoggingType {
+pub enum ChannelLoggingMode {
     /// Log every event at the INFO level, e.g. even failed connections when the client is
-    /// already disconnected
+    /// already disconnected.
     ///
     /// This is the default, but can get noisy if connection attempts are repeatedly failing
     /// depending on how the backoff is configured.
     #[default]
     Verbose,
-    /// Channel events that are normally at the INFO level are instead logged at the DEBUG level
+    /// Non-state transitions events that are normally at the INFO level are instead logged at the
+    /// DEBUG level
     ///
-    /// State transitions (e.g. CONNECTED -> DISCONNECTED) are logged at INFO level. This can
+    /// State transitions (e.g. CONNECTED -> DISCONNECTED) are still logged at INFO level. This can
     /// greatly reduce verbosity of logging during disrupted communication, but comes with a loss
     /// of visibility
     StateChanges,
@@ -397,14 +398,14 @@ pub enum ChannelLoggingType {
 /// A ClientOptions builder
 #[derive(Copy, Clone)]
 pub struct ClientOptions {
-    pub(crate) channel_logging: ChannelLoggingType,
+    pub(crate) channel_logging: ChannelLoggingMode,
     pub(crate) max_queued_requests: usize,
     pub(crate) decode_level: DecodeLevel,
 }
 
 impl ClientOptions {
     /// Set the channel logging type
-    pub fn channel_logging(self, channel_logging: ChannelLoggingType) -> Self {
+    pub fn channel_logging(self, channel_logging: ChannelLoggingMode) -> Self {
         Self {
             channel_logging,
             ..self
@@ -431,7 +432,7 @@ impl ClientOptions {
 impl Default for ClientOptions {
     fn default() -> Self {
         Self {
-            channel_logging: ChannelLoggingType::default(),
+            channel_logging: ChannelLoggingMode::default(),
             max_queued_requests: 16,
             decode_level: DecodeLevel::default(),
         }

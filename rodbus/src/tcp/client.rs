@@ -8,17 +8,17 @@ use crate::client::task::{ClientLoop, SessionError, StateChange};
 use crate::common::frame::{FrameWriter, FramedReader};
 use crate::error::Shutdown;
 use crate::retry::RetryStrategy;
-use crate::{ChannelLoggingType, ClientOptions};
+use crate::{ChannelLoggingMode, ClientOptions};
 
 use tokio::net::TcpStream;
 
 macro_rules! log_channel_event {
     ($channel_logging:expr, $($arg:tt)*) => {
         match $channel_logging {
-            ChannelLoggingType::Verbose => {
+            ChannelLoggingMode::Verbose => {
                 tracing::info!($($arg)*);
             }
-            ChannelLoggingType::StateChanges => {
+            ChannelLoggingMode::StateChanges => {
                 tracing::debug!($($arg)*);
             }
         }
@@ -85,7 +85,7 @@ pub(crate) struct TcpChannelTask {
     connection_handler: TcpTaskConnectionHandler,
     client_loop: ClientLoop,
     listener: Box<dyn Listener<ClientState>>,
-    channel_logging: ChannelLoggingType,
+    channel_logging: ChannelLoggingMode,
 }
 
 impl TcpChannelTask {
@@ -172,13 +172,7 @@ impl TcpChannelTask {
         // we do this here so that the reset happens after a TLS handshake
         self.connect_retry.reset();
 
-        // run the physical layer independent processing loop until an error occurs
-        let err = self.client_loop.run(&mut phys).await;
-
-        // State transition from CONNECTED -> DISCONNECTED so we always log it at INFO
-        tracing::info!("disconnected: {err}");
-
-        match err {
+        match self.client_loop.run(&mut phys).await {
             // the mpsc was closed, end the task
             SessionError::Shutdown => Err(StateChange::Shutdown),
             // re-establish the connection
