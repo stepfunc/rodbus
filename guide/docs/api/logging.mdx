@@ -38,7 +38,7 @@ values={[
 <TabItem value="Rust">
 
 ```rust
-{{#include ../rodbus/examples/client.rs:logging}}
+{{#include ../examples/client/src/main.rs:logging}}
 ```
 
 </TabItem>
@@ -125,5 +125,4 @@ Refer to the language-specific API documentation for the meaning of each enumera
 Protocol decoding is always output at the *Info* log level. If left enabled, it can be too verbose in a production system. When you're debugging a communication issue,
 try adjusting the application-layer decoding first to gain visibility into the messages being exchanged on one channel at a time.
 :::
-
 

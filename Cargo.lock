@@ -398,6 +398,41 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "92773504d58c093f6de2459af4af33faa518c13451eb8f2b5698ed3d36e7c813"
 
 [[package]]
+name = "example-client"
+version = "1.4.0"
+dependencies = [
+ "rodbus",
+ "tokio",
+ "tokio-stream",
+ "tokio-util",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "example-perf"
+version = "1.4.0"
+dependencies = [
+ "clap",
+ "rodbus",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "example-server"
+version = "1.4.0"
+dependencies = [
+ "rodbus",
+ "tokio",
+ "tokio-stream",
+ "tokio-util",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "futures"
 version = "0.3.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -566,6 +601,14 @@ checksum = "879f10e63c20629ecabbb64a8010319738c66a5cd0c29b02d63d272b03751d01"
 dependencies = [
  "block-padding",
  "generic-array",
+]
+
+[[package]]
+name = "integration"
+version = "1.4.0"
+dependencies = [
+ "rodbus",
+ "tokio",
 ]
 
 [[package]]
@@ -942,7 +985,6 @@ dependencies = [
 name = "rodbus"
 version = "1.4.0"
 dependencies = [
- "clap",
  "crc",
  "rx509",
  "scursor",
@@ -952,11 +994,8 @@ dependencies = [
  "tokio",
  "tokio-rustls",
  "tokio-serial",
- "tokio-stream",
  "tokio-test",
- "tokio-util",
  "tracing",
- "tracing-subscriber",
 ]
 
 [[package]]

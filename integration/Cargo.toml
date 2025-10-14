@@ -1,0 +1,28 @@
+[package]
+name = "integration"
+version = "1.4.0"
+autobins = false
+autotests = false
+autobenches = false
+autoexamples = false
+
+# inherit from workspace
+authors.workspace = true
+rust-version.workspace = true
+edition.workspace = true
+license-file.workspace = true
+homepage.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[lints]
+workspace = true
+
+[[test]]
+name = "integration_test"
+path = "tests/integration_test.rs"
+
+[dependencies]
+rodbus = { path = "../rodbus" }
+tokio = { workspace = true, features = ["net", "sync", "io-util", "io-std", "time", "rt", "rt-multi-thread", "macros"] }

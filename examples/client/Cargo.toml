@@ -1,0 +1,29 @@
+[package]
+name = "example-client"
+version = "1.4.0"
+
+# inherit from workspace
+authors.workspace = true
+rust-version.workspace = true
+edition.workspace = true
+license-file.workspace = true
+homepage.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+rodbus = { path = "../../rodbus", features = ["tls", "serial"] }
+tokio = { workspace = true, features = ["net", "sync", "io-util", "io-std", "time", "rt", "rt-multi-thread", "macros"] }
+tokio-stream = { workspace = true }
+tokio-util = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+[features]
+default = ["tls", "serial"]
+tls = []
+serial = []

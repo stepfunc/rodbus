@@ -18,13 +18,13 @@ categories.workspace = true
 workspace = true
 
 [dependencies]
-crc = "3.0"
+crc = "3"
 scursor = "0.2.0"
 tokio = { workspace = true, features = ["net", "sync", "io-util", "io-std", "time", "rt", "rt-multi-thread", "macros"] }
 tracing = { workspace = true }
 
 # TLS dependencies
-rx509 = { version = "^0.2", optional = true }
+rx509 = { version = "0.2", optional = true }
 sfio-rustls-config = { version = "0.3.2", optional = true }
 tokio-rustls = { version = "0.26.0", features = ["tls12"], default-features = false, optional = true }
 
@@ -32,15 +32,11 @@ tokio-rustls = { version = "0.26.0", features = ["tls12"], default-features = fa
 tokio-serial = { version = "5.4", default-features = false, optional = true }
 
 # serialize dependencies
-serde = { version = "1.0.2", default-features = false, features = ["derive"], optional = true}
+serde = { version = "1.0", default-features = false, features = ["derive"], optional = true}
 
 [dev-dependencies]
-clap = { version = "4.1.8", features = ["derive"] }
-tokio-stream = "0.1"
-tokio-util = { version = "0.7", features = ["codec"] }
-tokio-test = "0.4.2"
+tokio-test = "0.4"
 sfio-tokio-mock-io = "0.2"
-tracing-subscriber = { workspace = true }
 
 [features]
 default = ["tls", "serial"]
