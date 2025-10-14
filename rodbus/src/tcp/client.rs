@@ -57,7 +57,7 @@ impl TcpTaskConnectionHandler {
         &mut self,
         socket: TcpStream,
         _endpoint: &HostAddr,
-    ) -> Result<PhysLayer, String> {
+    ) -> std::io::Result<PhysLayer> {
         match self {
             Self::Tcp => Ok(PhysLayer::new_tcp(socket)),
             #[cfg(feature = "tls")]
@@ -134,10 +134,64 @@ impl TcpChannelTask {
         }
     }
 
+    async fn try_connect_and_run(&mut self) -> Result<(), StateChange> {
+        self.listener.update(ClientState::Connecting).get().await;
+        match self.connect().await? {
+            Err(err) => self.handle_failed_connection(err).await,
+            Ok(stream) => self.handle_tcp_stream(stream).await,
+        }
+    }
+
+    async fn handle_tcp_stream(&mut self, stream: TcpStream) -> Result<(), StateChange> {
+        if let Ok(addr) = stream.peer_addr() {
+            tracing::info!("connected to: {}", addr);
+        }
+        if let Err(err) = stream.set_nodelay(true) {
+            tracing::warn!("unable to enable TCP_NODELAY: {}", err);
+        }
+        match self.connection_handler.handle(stream, &self.host).await {
+            Err(err) => {
+                let delay = self.connect_retry.after_failed_connect();
+                tracing::warn!(
+                    "{} - waiting {} ms before next attempt",
+                    err,
+                    delay.as_millis()
+                );
+                self.listener
+                    .update(ClientState::WaitAfterFailedConnect(delay))
+                    .get()
+                    .await;
+                self.client_loop.fail_requests_for(delay).await
+            }
+            Ok(mut phys) => {
+                self.listener.update(ClientState::Connected).get().await;
+                // reset the retry strategy now that we have a successful connection
+                // we do this here so that the reset happens after a TLS handshake
+                self.connect_retry.reset();
+                // run the physical layer independent processing loop
+                match self.client_loop.run(&mut phys).await {
+                    // the mpsc was closed, end the task
+                    SessionError::Shutdown => Err(StateChange::Shutdown),
+                    // re-establish the connection
+                    SessionError::Disabled | SessionError::IoError(_) | SessionError::BadFrame => {
+                        let delay = self.connect_retry.after_disconnect();
+                        tracing::warn!("waiting {:?} to reconnect", delay);
+                        self.listener
+                            .update(ClientState::WaitAfterDisconnect(delay))
+                            .get()
+                            .await;
+                        self.client_loop.fail_requests_for(delay).await
+                    }
+                }
+            }
+        }
+    }
+
     async fn handle_failed_connection(&mut self, err: std::io::Error) -> Result<(), StateChange> {
         let delay = self.connect_retry.after_failed_connect();
         tracing::warn!(
-            "{} - waiting {} ms before next attempt",
+            "failed to connect to {}: {} - waiting {} ms before next attempt",
+            self.host,
             err,
             delay.as_millis()
         );
@@ -146,58 +200,5 @@ impl TcpChannelTask {
             .get()
             .await;
         self.client_loop.fail_requests_for(delay).await
-    }
-
-    async fn try_connect_and_run(&mut self) -> Result<(), StateChange> {
-        self.listener.update(ClientState::Connecting).get().await;
-        match self.connect().await? {
-            Err(err) => self.handle_failed_connection(err).await,
-            Ok(socket) => {
-                if let Ok(addr) = socket.peer_addr() {
-                    tracing::info!("connected to: {}", addr);
-                }
-                if let Err(err) = socket.set_nodelay(true) {
-                    tracing::warn!("unable to enable TCP_NODELAY: {}", err);
-                }
-                match self.connection_handler.handle(socket, &self.host).await {
-                    Err(err) => {
-                        let delay = self.connect_retry.after_failed_connect();
-                        tracing::warn!(
-                            "{} - waiting {} ms before next attempt",
-                            err,
-                            delay.as_millis()
-                        );
-                        self.listener
-                            .update(ClientState::WaitAfterFailedConnect(delay))
-                            .get()
-                            .await;
-                        self.client_loop.fail_requests_for(delay).await
-                    }
-                    Ok(mut phys) => {
-                        self.listener.update(ClientState::Connected).get().await;
-                        // reset the retry strategy now that we have a successful connection
-                        // we do this here so that the reset happens after a TLS handshake
-                        self.connect_retry.reset();
-                        // run the physical layer independent processing loop
-                        match self.client_loop.run(&mut phys).await {
-                            // the mpsc was closed, end the task
-                            SessionError::Shutdown => Err(StateChange::Shutdown),
-                            // re-establish the connection
-                            SessionError::Disabled
-                            | SessionError::IoError(_)
-                            | SessionError::BadFrame => {
-                                let delay = self.connect_retry.after_disconnect();
-                                tracing::warn!("waiting {:?} to reconnect", delay);
-                                self.listener
-                                    .update(ClientState::WaitAfterDisconnect(delay))
-                                    .get()
-                                    .await;
-                                self.client_loop.fail_requests_for(delay).await
-                            }
-                        }
-                    }
-                }
-            }
-        }
     }
 }
