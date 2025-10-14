@@ -16,7 +16,7 @@ pub(crate) enum PhysLayerImpl {
         Option<tokio::time::Instant>,
     ),
     // TLS type is boxed because its size is huge
-    #[cfg(feature = "tls")]
+    #[cfg(feature = "enable-tls")]
     Tls(Box<tokio_rustls::TlsStream<tokio::net::TcpStream>>),
     #[cfg(test)]
     Mock(sfio_tokio_mock_io::Mock),
@@ -28,7 +28,7 @@ impl std::fmt::Debug for PhysLayer {
             PhysLayerImpl::Tcp(_) => f.write_str("Tcp"),
             #[cfg(feature = "serial")]
             PhysLayerImpl::Serial(_, _, _) => f.write_str("Serial"),
-            #[cfg(feature = "tls")]
+            #[cfg(feature = "enable-tls")]
             PhysLayerImpl::Tls(_) => f.write_str("Tls"),
             #[cfg(test)]
             PhysLayerImpl::Mock(_) => f.write_str("Mock"),
@@ -51,7 +51,7 @@ impl PhysLayer {
         }
     }
 
-    #[cfg(feature = "tls")]
+    #[cfg(feature = "enable-tls")]
     pub(crate) fn new_tls(socket: tokio_rustls::TlsStream<tokio::net::TcpStream>) -> Self {
         Self {
             layer: PhysLayerImpl::Tls(Box::new(socket)),
@@ -74,7 +74,7 @@ impl PhysLayer {
             PhysLayerImpl::Tcp(x) => x.read(buffer).await?,
             #[cfg(feature = "serial")]
             PhysLayerImpl::Serial(x, _, _) => x.read(buffer).await?,
-            #[cfg(feature = "tls")]
+            #[cfg(feature = "enable-tls")]
             PhysLayerImpl::Tls(x) => x.read(buffer).await?,
             #[cfg(test)]
             PhysLayerImpl::Mock(x) => x.read(buffer).await?,
@@ -110,7 +110,7 @@ impl PhysLayer {
 
                 x.write_all(data).await
             }
-            #[cfg(feature = "tls")]
+            #[cfg(feature = "enable-tls")]
             PhysLayerImpl::Tls(x) => x.write_all(data).await,
             #[cfg(test)]
             PhysLayerImpl::Mock(x) => x.write_all(data).await,

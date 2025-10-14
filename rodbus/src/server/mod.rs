@@ -24,9 +24,9 @@ pub use handler::*;
 pub use types::*;
 
 // re-export to the public API
-#[cfg(feature = "tls")]
+#[cfg(feature = "enable-tls")]
 pub use crate::tcp::tls::server::TlsServerConfig;
-#[cfg(feature = "tls")]
+#[cfg(feature = "enable-tls")]
 pub use crate::tcp::tls::*;
 
 /// Handle to the server async task. The task is shutdown when the handle is dropped.
@@ -153,7 +153,7 @@ pub fn spawn_rtu_server_task<T: RequestHandler>(
 /// * `decode` - Decode log level
 ///
 /// `WARNING`: This function must be called from with the context of the Tokio runtime or it will panic.
-#[cfg(feature = "tls")]
+#[cfg(feature = "enable-tls")]
 pub async fn spawn_tls_server_task<T: RequestHandler>(
     max_sessions: usize,
     addr: SocketAddr,
@@ -190,7 +190,7 @@ pub async fn spawn_tls_server_task<T: RequestHandler>(
 /// * `decode` - Decode log level
 ///
 /// `WARNING`: This function must be called from with the context of the Tokio runtime or it will panic.
-#[cfg(feature = "tls")]
+#[cfg(feature = "enable-tls")]
 pub async fn spawn_tls_server_task_with_authz<T: RequestHandler>(
     max_sessions: usize,
     addr: SocketAddr,
@@ -212,7 +212,7 @@ pub async fn spawn_tls_server_task_with_authz<T: RequestHandler>(
     .await
 }
 
-#[cfg(feature = "tls")]
+#[cfg(feature = "enable-tls")]
 async fn spawn_tls_server_task_impl<T: RequestHandler>(
     max_sessions: usize,
     addr: SocketAddr,

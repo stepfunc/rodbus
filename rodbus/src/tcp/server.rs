@@ -12,7 +12,7 @@ use crate::server::AddressFilter;
 use std::net::SocketAddr;
 use tokio::net::TcpListener;
 
-#[cfg(feature = "tls")]
+#[cfg(feature = "enable-tls")]
 use crate::server::AuthorizationHandler;
 
 /// event sent back to the server task when a session ends
@@ -71,7 +71,7 @@ impl SessionTracker {
 #[derive(Clone)]
 pub(crate) enum TcpServerConnectionHandler {
     Tcp,
-    #[cfg(feature = "tls")]
+    #[cfg(feature = "enable-tls")]
     Tls(
         crate::tcp::tls::TlsServerConfig,
         Option<std::sync::Arc<dyn AuthorizationHandler>>,
@@ -85,7 +85,7 @@ impl TcpServerConnectionHandler {
     ) -> Result<(PhysLayer, AuthorizationType), String> {
         match self {
             Self::Tcp => Ok((PhysLayer::new_tcp(socket), AuthorizationType::None)),
-            #[cfg(feature = "tls")]
+            #[cfg(feature = "enable-tls")]
             Self::Tls(config, auth_handler) => {
                 let res = config.handle_connection(socket, auth_handler.clone()).await;
                 if res.is_ok() {
