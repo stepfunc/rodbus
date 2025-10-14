@@ -19,9 +19,11 @@ members = [
 oo-bindgen = "0.8.7"
 sfio-tokio-ffi = "0.9.0"
 sfio-tracing-ffi = "0.9.0"
-tokio = "1.37.0"
-tracing = "0.1.40"
-tracing-subscriber = {  version = "0.3.18" }
+tokio = "1.37"
+tokio-util = "0.7"
+tokio-stream = "0.1"
+tracing = "0.1"
+tracing-subscriber = "0.3"
 
 [workspace.package]
 authors = ["Step Function I/O LLC <info@stepfunc.io>>"]
@@ -41,6 +43,7 @@ trivial_casts = "deny"
 missing_docs = "deny"
 unused = { level = "deny", priority = -1 }
 missing_copy_implementations = "deny"
+unused_crate_dependencies = "deny"
 
 [profile.release]
 lto=true
