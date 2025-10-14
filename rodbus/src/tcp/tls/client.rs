@@ -177,7 +177,7 @@ impl TlsClientConfig {
         let connector = tokio_rustls::TlsConnector::from(self.config.clone());
         match connector.connect(self.server_name.clone(), socket).await {
             Err(err) => {
-                let msg = format!("failed to establish TLS session with {endpoint}: {err}");
+                let msg = format!("TLS error ({endpoint}): {err}");
                 Err(std::io::Error::new(err.kind(), msg))
             }
             Ok(stream) => Ok(PhysLayer::new_tls(tokio_rustls::TlsStream::from(stream))),

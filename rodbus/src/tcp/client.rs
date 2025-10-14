@@ -138,39 +138,38 @@ impl TcpChannelTask {
         self.listener.update(ClientState::Connecting).get().await;
         match self.connect().await? {
             Err(err) => self.handle_failed_connection(err).await,
-            Ok(stream) => self.handle_tcp_stream(stream).await,
+            Ok(stream) => {
+                if let Ok(addr) = stream.peer_addr() {
+                    tracing::info!("connected to: {}", addr);
+                }
+                if let Err(err) = stream.set_nodelay(true) {
+                    tracing::warn!("unable to enable TCP_NODELAY: {}", err);
+                }
+                match self.connection_handler.handle(stream, &self.host).await {
+                    Err(err) => self.handle_failed_connection(err).await,
+                    Ok(phys) => self.run_connection(phys).await,
+                }
+            }
         }
     }
-
-    async fn handle_tcp_stream(&mut self, stream: TcpStream) -> Result<(), StateChange> {
-        if let Ok(addr) = stream.peer_addr() {
-            tracing::info!("connected to: {}", addr);
-        }
-        if let Err(err) = stream.set_nodelay(true) {
-            tracing::warn!("unable to enable TCP_NODELAY: {}", err);
-        }
-        match self.connection_handler.handle(stream, &self.host).await {
-            Err(err) => self.handle_failed_connection(err).await,
-            Ok(mut phys) => {
-                self.listener.update(ClientState::Connected).get().await;
-                // reset the retry strategy now that we have a successful connection
-                // we do this here so that the reset happens after a TLS handshake
-                self.connect_retry.reset();
-                // run the physical layer independent processing loop
-                match self.client_loop.run(&mut phys).await {
-                    // the mpsc was closed, end the task
-                    SessionError::Shutdown => Err(StateChange::Shutdown),
-                    // re-establish the connection
-                    SessionError::Disabled | SessionError::IoError(_) | SessionError::BadFrame => {
-                        let delay = self.connect_retry.after_disconnect();
-                        tracing::warn!("waiting {:?} to reconnect", delay);
-                        self.listener
-                            .update(ClientState::WaitAfterDisconnect(delay))
-                            .get()
-                            .await;
-                        self.client_loop.fail_requests_for(delay).await
-                    }
-                }
+    async fn run_connection(&mut self, mut phys: PhysLayer) -> Result<(), StateChange> {
+        self.listener.update(ClientState::Connected).get().await;
+        // reset the retry strategy now that we have a successful connection
+        // we do this here so that the reset happens after a TLS handshake
+        self.connect_retry.reset();
+        // run the physical layer independent processing loop
+        match self.client_loop.run(&mut phys).await {
+            // the mpsc was closed, end the task
+            SessionError::Shutdown => Err(StateChange::Shutdown),
+            // re-establish the connection
+            SessionError::Disabled | SessionError::IoError(_) | SessionError::BadFrame => {
+                let delay = self.connect_retry.after_disconnect();
+                tracing::warn!("waiting {:?} to reconnect", delay);
+                self.listener
+                    .update(ClientState::WaitAfterDisconnect(delay))
+                    .get()
+                    .await;
+                self.client_loop.fail_requests_for(delay).await
             }
         }
     }
@@ -178,8 +177,7 @@ impl TcpChannelTask {
     async fn handle_failed_connection(&mut self, err: std::io::Error) -> Result<(), StateChange> {
         let delay = self.connect_retry.after_failed_connect();
         tracing::warn!(
-            "failed to connect to {}: {} - waiting {} ms before next attempt",
-            self.host,
+            "failed to connect: {} - waiting {} ms before next attempt",
             err,
             delay.as_millis()
         );
