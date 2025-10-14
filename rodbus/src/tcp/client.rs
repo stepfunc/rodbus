@@ -150,19 +150,7 @@ impl TcpChannelTask {
             tracing::warn!("unable to enable TCP_NODELAY: {}", err);
         }
         match self.connection_handler.handle(stream, &self.host).await {
-            Err(err) => {
-                let delay = self.connect_retry.after_failed_connect();
-                tracing::warn!(
-                    "{} - waiting {} ms before next attempt",
-                    err,
-                    delay.as_millis()
-                );
-                self.listener
-                    .update(ClientState::WaitAfterFailedConnect(delay))
-                    .get()
-                    .await;
-                self.client_loop.fail_requests_for(delay).await
-            }
+            Err(err) => self.handle_failed_connection(err).await,
             Ok(mut phys) => {
                 self.listener.update(ClientState::Connected).get().await;
                 // reset the retry strategy now that we have a successful connection
