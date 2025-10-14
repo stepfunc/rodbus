@@ -119,19 +119,19 @@ impl RequestHandler for RequestHandlerWrapper {
     }
 }
 
-#[cfg(feature = "tls")]
+#[cfg(feature = "enable-tls")]
 struct AuthorizationHandlerWrapper {
     inner: ffi::AuthorizationHandler,
 }
 
-#[cfg(feature = "tls")]
+#[cfg(feature = "enable-tls")]
 impl AuthorizationHandlerWrapper {
     fn new(inner: ffi::AuthorizationHandler) -> Self {
         Self { inner }
     }
 }
 
-#[cfg(feature = "tls")]
+#[cfg(feature = "enable-tls")]
 impl AuthorizationHandler for AuthorizationHandlerWrapper {
     fn read_coils(
         &self,
@@ -407,7 +407,7 @@ pub(crate) unsafe fn server_create_tls_with_authz(
     )
 }
 
-#[cfg(not(feature = "tls"))]
+#[cfg(not(feature = "enable-tls"))]
 #[allow(clippy::too_many_arguments)]
 pub(crate) unsafe fn server_create_tls_impl(
     _runtime: *mut crate::Runtime,
@@ -423,7 +423,7 @@ pub(crate) unsafe fn server_create_tls_impl(
     Err(ffi::ParamError::NoSupport)
 }
 
-#[cfg(feature = "tls")]
+#[cfg(feature = "enable-tls")]
 #[allow(clippy::too_many_arguments)]
 pub(crate) unsafe fn server_create_tls_impl(
     runtime: *mut crate::Runtime,

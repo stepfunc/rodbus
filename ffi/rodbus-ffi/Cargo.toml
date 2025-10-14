@@ -32,4 +32,6 @@ sfio-tracing-ffi = { workspace = true }
 [features]
 default = ["serial", "tls"]
 serial = ["rodbus/serial"]
-tls = ["rodbus/tls"]
+enable-tls = []
+tls = ["enable-tls", "rodbus/tls"]
+tls-aws-lc = ["enable-tls", "rodbus/tls-aws-lc"]

@@ -136,7 +136,7 @@ impl From<ffi::Authorization> for Authorization {
     }
 }
 
-#[cfg(feature = "tls")]
+#[cfg(feature = "enable-tls")]
 impl From<rodbus::client::TlsError> for ffi::ParamError {
     fn from(error: rodbus::client::TlsError) -> Self {
         match error {
@@ -153,7 +153,7 @@ impl From<rodbus::client::TlsError> for ffi::ParamError {
     }
 }
 
-#[cfg(feature = "tls")]
+#[cfg(feature = "enable-tls")]
 impl From<ffi::MinTlsVersion> for rodbus::client::MinTlsVersion {
     fn from(from: ffi::MinTlsVersion) -> Self {
         match from {
@@ -163,7 +163,7 @@ impl From<ffi::MinTlsVersion> for rodbus::client::MinTlsVersion {
     }
 }
 
-#[cfg(feature = "tls")]
+#[cfg(feature = "enable-tls")]
 impl From<ffi::CertificateMode> for rodbus::client::CertificateMode {
     fn from(from: ffi::CertificateMode) -> Self {
         match from {
