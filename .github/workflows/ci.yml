@@ -120,9 +120,9 @@ jobs:
       - name: Create the FFI modules dir
         run: mkdir ffi-modules\${{ matrix.target }}
       - name: Build FFI
-        run: cargo build -p rodbus-ffi --release --target ${{ matrix.target }}
+        run: cargo build -p rodbus-ffi --release --target ${{ matrix.target }} --no-default-features --features tls-aws-lc,serial
       - name: Build JNI
-        run: cargo build -p rodbus-ffi-java --release --target ${{ matrix.target }}
+        run: cargo build -p rodbus-ffi-java --release --target ${{ matrix.target }} --no-default-features --features tls-aws-lc,serial
       - name: Copy the FFI and JNI libs
         shell: pwsh
         run: |
@@ -162,9 +162,9 @@ jobs:
       - name: Create FFI modules dir
         run: mkdir -p ffi-modules/${{ matrix.target }}
       - name: Build FFI
-        run: cargo build -p rodbus-ffi --release
+        run: cargo build -p rodbus-ffi --release --no-default-features --features tls-aws-lc,serial
       - name: Build JNI
-        run: cargo build -p rodbus-ffi-java --release
+        run: cargo build -p rodbus-ffi-java --release --no-default-features --features tls-aws-lc,serial
       - name: Copy the FFI and JNI libs
         run: |
           cp ./target/release/librodbus_ffi.dylib ./ffi-modules/${{ matrix.target }}
@@ -188,15 +188,23 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        target:
-          - x86_64-unknown-linux-gnu # 64-bit Linux (kernel 2.6.32+, glibc 2.11+)
-          - x86_64-unknown-linux-musl # 64-bit Linux with MUSL
-          - arm-unknown-linux-gnueabihf # ARMv6 Linux, hardfloat (kernel 3.2, glibc 2.17)
-          - arm-unknown-linux-musleabihf # ARMv6 Linux with MUSL, hardfloat
-          - aarch64-unknown-linux-gnu # ARM64 Linux (kernel 4.2, glibc 2.17+)
-          - aarch64-unknown-linux-musl # ARM64 Linux with MUSL
-          - armv7-unknown-linux-gnueabihf # ARMv7 Linux, hardfloat (kernel 3.2, glibc 2.17)
-          - arm-unknown-linux-gnueabi # ARMv6 Linux (kernel 3.2, glibc 2.17)
+        include:
+          - target: x86_64-unknown-linux-gnu # 64-bit Linux (kernel 2.6.32+, glibc 2.11+)
+            features: tls-aws-lc,serial
+          - target: x86_64-unknown-linux-musl # 64-bit Linux with MUSL
+            features: tls,serial
+          - target: arm-unknown-linux-gnueabihf # ARMv6 Linux, hardfloat (kernel 3.2, glibc 2.17)
+            features: tls,serial
+          - target: arm-unknown-linux-musleabihf # ARMv6 Linux with MUSL, hardfloat
+            features: tls,serial
+          - target: aarch64-unknown-linux-gnu # ARM64 Linux (kernel 4.2, glibc 2.17+)
+            features: tls-aws-lc,serial
+          - target: aarch64-unknown-linux-musl # ARM64 Linux with MUSL
+            features: tls,serial
+          - target: armv7-unknown-linux-gnueabihf # ARMv7 Linux, hardfloat (kernel 3.2, glibc 2.17)
+            features: tls,serial
+          - target: arm-unknown-linux-gnueabi # ARMv6 Linux (kernel 3.2, glibc 2.17)
+            features: tls,serial
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -208,9 +216,9 @@ jobs:
       - name: Create ffi-modules dir
         run: mkdir -p ffi-modules/${{ matrix.target }}
       - name: Build FFI
-        run: cross build -p rodbus-ffi --release --target ${{ matrix.target }}
+        run: cross build -p rodbus-ffi --release --target ${{ matrix.target }} --no-default-features --features ${{ matrix.features }}
       - name: Build JNI
-        run: cross build -p rodbus-ffi-java --release --target ${{ matrix.target }}
+        run: cross build -p rodbus-ffi-java --release --target ${{ matrix.target }} --no-default-features --features ${{ matrix.features }}
       - name: Copy the FFI and JNI libs
         run: |
           cp ./target/${{ matrix.target }}/release/librodbus_ffi.so ./ffi-modules/${{ matrix.target }}
