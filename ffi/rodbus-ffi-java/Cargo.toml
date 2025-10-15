@@ -15,7 +15,9 @@ rodbus-ffi = { path = "../rodbus-ffi", default-features = false }
 [features]
 default = ["serial", "tls"]
 serial = ["rodbus-ffi/serial"]
-tls = ["rodbus-ffi/tls"]
+enable-tls = []
+tls = ["enable-tls", "rodbus-ffi/tls"]
+tls-aws-lc = ["enable-tls", "rodbus-ffi/tls-aws-lc"]
 
 [build-dependencies]
 rodbus-schema = { path = "../rodbus-schema" }

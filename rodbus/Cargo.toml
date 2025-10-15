@@ -18,15 +18,15 @@ categories.workspace = true
 workspace = true
 
 [dependencies]
-crc = "3"
+crc = { version = "3", optional = true }
 scursor = "0.2.0"
 tokio = { workspace = true, features = ["net", "sync", "io-util", "io-std", "time", "rt", "rt-multi-thread", "macros"] }
 tracing = { workspace = true }
 
 # TLS dependencies
 rx509 = { version = "0.2", optional = true }
-sfio-rustls-config = { version = "0.3.2", optional = true }
-tokio-rustls = { version = "0.26.0", features = ["tls12"], default-features = false, optional = true }
+sfio-rustls-config = { version = "0.4", default-features = false, optional = true }
+tokio-rustls = { version = "0.26", features = ["tls12"], default-features = false, optional = true }
 
 # serial dependencies
 tokio-serial = { version = "5.4", default-features = false, optional = true }
@@ -41,6 +41,8 @@ sfio-tokio-mock-io = "0.2"
 [features]
 default = ["tls", "serial"]
 ffi = []
-tls = ["rx509", "sfio-rustls-config", "tokio-rustls"]
-serial = ["tokio-serial"]
+enable-tls = ["rx509", "tokio-rustls"]
+tls = ["enable-tls", "sfio-rustls-config/crypto-ring"]
+tls-aws-lc = ["enable-tls", "sfio-rustls-config/crypto-aws-lc"]
+serial = ["crc", "tokio-serial"]
 serialization = ["serde"]

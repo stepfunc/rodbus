@@ -22,9 +22,9 @@ use crate::ClientOptions;
 #[cfg(feature = "ffi")]
 pub use ffi_channel::*;
 
-#[cfg(feature = "tls")]
+#[cfg(feature = "enable-tls")]
 pub use crate::tcp::tls::client::TlsClientConfig;
-#[cfg(feature = "tls")]
+#[cfg(feature = "enable-tls")]
 pub use crate::tcp::tls::*;
 
 /// Represents the address of a remote host
@@ -191,7 +191,7 @@ pub fn spawn_rtu_client_task(
 /// * `listener` - Optional callback to monitor the TLS connection state
 ///
 /// `WARNING`: This function must be called from with the context of the Tokio runtime or it will panic.
-#[cfg(feature = "tls")]
+#[cfg(feature = "enable-tls")]
 pub fn spawn_tls_client_task(
     host: HostAddr,
     max_queued_requests: usize,

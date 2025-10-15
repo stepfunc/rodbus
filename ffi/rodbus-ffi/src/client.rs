@@ -95,7 +95,7 @@ pub(crate) unsafe fn client_channel_create_rtu(
     })))
 }
 
-#[cfg(not(feature = "tls"))]
+#[cfg(not(feature = "enable-tls"))]
 pub(crate) unsafe fn client_channel_create_tls(
     _runtime: *mut crate::Runtime,
     _host: &std::ffi::CStr,
@@ -109,7 +109,7 @@ pub(crate) unsafe fn client_channel_create_tls(
     Err(ffi::ParamError::NoSupport)
 }
 
-#[cfg(feature = "tls")]
+#[cfg(feature = "enable-tls")]
 pub(crate) unsafe fn client_channel_create_tls(
     runtime: *mut crate::Runtime,
     host: &std::ffi::CStr,
@@ -359,7 +359,7 @@ impl From<ffi::PortStateListener> for Box<dyn Listener<rodbus::client::PortState
     }
 }
 
-#[cfg(feature = "tls")]
+#[cfg(feature = "enable-tls")]
 impl TryFrom<ffi::TlsClientConfig> for rodbus::client::TlsClientConfig {
     type Error = ffi::ParamError;
 

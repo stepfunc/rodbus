@@ -61,7 +61,7 @@ pub(crate) fn create_tcp_channel(
 
 pub(crate) enum TcpTaskConnectionHandler {
     Tcp,
-    #[cfg(feature = "tls")]
+    #[cfg(feature = "enable-tls")]
     Tls(crate::tcp::tls::TlsClientConfig),
 }
 
@@ -73,7 +73,7 @@ impl TcpTaskConnectionHandler {
     ) -> std::io::Result<PhysLayer> {
         match self {
             Self::Tcp => Ok(PhysLayer::new_tcp(socket)),
-            #[cfg(feature = "tls")]
+            #[cfg(feature = "enable-tls")]
             Self::Tls(config) => config.handle_connection(socket, _endpoint).await,
         }
     }
