@@ -28,6 +28,7 @@ else()
     FetchContent_Declare(
         rodbus
         URL https://github.com/stepfunc/rodbus/releases/download/${RODBUS_BACKUP_VERSION}/rodbus-${RODBUS_BACKUP_VERSION}.zip
+        DOWNLOAD_EXTRACT_TIMESTAMP TRUE
     )
 
     FetchContent_GetProperties(rodbus)
