@@ -76,7 +76,7 @@ rodbus_port_state_listener_t get_port_listener(){
 }
 
 
-run_channel(rodbus_client_channel_t* channel)
+int run_channel(rodbus_client_channel_t* channel)
 {
     // ANCHOR: enable_channel
     rodbus_client_channel_enable(channel);
