@@ -25,7 +25,7 @@ tracing = { workspace = true }
 
 # TLS dependencies
 rx509 = { version = "0.2", optional = true }
-sfio-rustls-config = { version = "0.4", optional = true }
+sfio-rustls-config = { version = "0.4", default-features = false, optional = true }
 tokio-rustls = { version = "0.26", features = ["tls12"], default-features = false, optional = true }
 
 # serial dependencies
@@ -41,8 +41,8 @@ sfio-tokio-mock-io = "0.2"
 [features]
 default = ["tls", "serial"]
 ffi = []
-enable-tls = []
-tls = ["enable-tls", "rx509", "sfio-rustls-config/crypto-ring", "tokio-rustls"]
-tls-aws-lc = ["enable-tls", "rx509", "sfio-rustls-config/crypto-aws-lc", "tokio-rustls"]
+enable-tls = ["rx509", "tokio-rustls"]
+tls = ["enable-tls", "sfio-rustls-config/crypto-ring"]
+tls-aws-lc = ["enable-tls", "sfio-rustls-config/crypto-aws-lc"]
 serial = ["crc", "tokio-serial"]
 serialization = ["serde"]

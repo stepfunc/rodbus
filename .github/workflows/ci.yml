@@ -45,7 +45,7 @@ jobs:
       - name: Install Rust ${{ matrix.rust }}
         uses: dtolnay/rust-toolchain@stable
       - name: Build the workspace with the features
-        run: cargo build --release ${{ matrix.feature-args }}
+        run: cargo build --release -p rodbus -p rodbus-ffi -p rodbus-ffi-java ${{ matrix.feature-args }}
   # Run the unit tests on Windows and Linux
   test:
     strategy:
