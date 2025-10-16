@@ -438,6 +438,10 @@ impl ClientOptions {
 
     /// Set the maximum number of consecutive response timeouts before forcing a reconnect
     ///
+    /// Useful for detecting dead TCP connections where the remote device stops responding
+    /// but doesn't send a proper FIN/RST (e.g., due to network issues or third-party interference).
+    /// The counter resets on any successful request.
+    ///
     /// Defaults to `None` (no limit)
     pub fn max_response_timeouts(self, max_timeouts: Option<NonZeroUsize>) -> Self {
         Self {
