@@ -114,7 +114,7 @@ impl TimeoutCounter {
         match &mut self.state {
             TimeoutCounterState::Disabled => Ok(()),
             TimeoutCounterState::Enabled { current, max } => {
-                *current = current.wrapping_add(1);
+                *current = current.saturating_add(1);
                 if current >= max {
                     Err(SessionError::MaxTimeouts(*max))
                 } else {
