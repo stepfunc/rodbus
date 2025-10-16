@@ -1,6 +1,7 @@
 use crate::decode::AppDecodeLevel;
 use crate::error::{AduParseError, InvalidRange};
 use crate::DecodeLevel;
+use std::num::NonZeroUsize;
 
 use scursor::ReadCursor;
 
@@ -401,10 +402,13 @@ pub struct ClientOptions {
     pub(crate) channel_logging: ChannelLoggingMode,
     pub(crate) max_queued_requests: usize,
     pub(crate) decode_level: DecodeLevel,
+    pub(crate) max_failed_requests: Option<NonZeroUsize>,
 }
 
 impl ClientOptions {
     /// Set the channel logging type
+    ///
+    /// Note: defaults to [`ChannelLoggingMode::Verbose`]
     pub fn channel_logging(self, channel_logging: ChannelLoggingMode) -> Self {
         Self {
             channel_logging,
@@ -413,6 +417,8 @@ impl ClientOptions {
     }
 
     /// Set the maximum number of queued requests
+    ///
+    /// Note: defaults to 16
     pub fn max_queued_requests(self, max_queued_requests: usize) -> Self {
         Self {
             max_queued_requests,
@@ -421,9 +427,21 @@ impl ClientOptions {
     }
 
     /// Set the decode level
+    ///
+    /// Note: defaults to [`DecodeLevel::default()`]
     pub fn decode_level(self, decode_level: DecodeLevel) -> Self {
         Self {
             decode_level,
+            ..self
+        }
+    }
+
+    /// Set the maximum number of failed requests after which the channel is closed and re-opened
+    ///
+    /// Note: defaults to None meaning that there is no limit
+    pub fn max_failed_requests(self, max_failed_requests: Option<NonZeroUsize>) -> Self {
+        Self {
+            max_failed_requests,
             ..self
         }
     }
@@ -435,6 +453,7 @@ impl Default for ClientOptions {
             channel_logging: ChannelLoggingMode::default(),
             max_queued_requests: 16,
             decode_level: DecodeLevel::default(),
+            max_failed_requests: None,
         }
     }
 }
