@@ -106,6 +106,7 @@ impl TcpChannelTask {
                 FrameWriter::tcp(),
                 FramedReader::tcp(),
                 options.decode_level,
+                options.max_failed_requests,
             ),
             listener,
             channel_logging: options.channel_logging,
@@ -175,8 +176,11 @@ impl TcpChannelTask {
         match self.client_loop.run(&mut phys).await {
             // the mpsc was closed, end the task
             SessionError::Shutdown => Err(StateChange::Shutdown),
+            // don't wait, we're disabled
+            SessionError::Disabled => Ok(()),
             // re-establish the connection
-            SessionError::Disabled | SessionError::IoError(_) | SessionError::BadFrame => {
+            SessionError::IoError(_) | SessionError::BadFrame | SessionError::MaxFailedRequests(_) => {
+                drop(phys);
                 let delay = self.connect_retry.after_disconnect();
                 log_channel_event!(self.channel_logging, "waiting {:?} to reconnect", delay);
                 self.listener

@@ -1,3 +1,4 @@
+use std::num::NonZeroUsize;
 use std::time::Duration;
 
 use tracing::Instrument;
@@ -21,6 +22,8 @@ pub(crate) enum SessionError {
     BadFrame,
     /// channel was disabled
     Disabled,
+    /// maximum number of sequential failed requests reached
+    MaxFailedRequests(usize),
     /// the mpsc is closed (dropped) on the sender side
     Shutdown,
 }
@@ -58,6 +61,9 @@ impl std::fmt::Display for SessionError {
             SessionError::Shutdown => {
                 write!(f, "Shutdown was requested")
             }
+            SessionError::MaxFailedRequests(max) => {
+                write!(f, "Maximum number ({max}) of sequential failed requests reached")
+            }
         }
     }
 }
@@ -73,11 +79,58 @@ impl SessionError {
     }
 }
 
+enum FailedRequestState {
+    Disabled,
+    Enabled { current: usize, max: usize }
+}
+
+struct FailedRequestTracker {
+    state: FailedRequestState,
+}
+
+impl FailedRequestTracker {
+    fn new(max_failed_requests: Option<NonZeroUsize>) -> Self {
+        Self {
+            state: match max_failed_requests {
+                None => FailedRequestState::Disabled,
+                Some(max) => FailedRequestState::Enabled {
+                    current: 0,
+                    max: max.get(),
+                }
+            }
+        }
+    }
+
+    fn reset(&mut self) {
+        match &mut self.state {
+            FailedRequestState::Disabled => {}
+            FailedRequestState::Enabled { current,  .. } => {
+                *current = 0;
+            }
+        }
+    }
+
+    fn increment(&mut self) -> Result<(), SessionError> {
+        match &mut self.state {
+            FailedRequestState::Disabled => Ok(()),
+            FailedRequestState::Enabled { current, max } => {
+                if current >= max {
+                    Err(SessionError::MaxFailedRequests(*max))
+                } else {
+                    *current += 1;
+                    Ok(())
+                }
+            }
+        }
+    }
+}
+
 pub(crate) struct ClientLoop {
     rx: crate::channel::Receiver<Command>,
     writer: FrameWriter,
     reader: FramedReader,
     tx_id: TxId,
+    failed_requests: FailedRequestTracker,
     decode: DecodeLevel,
     enabled: bool,
 }
@@ -88,12 +141,14 @@ impl ClientLoop {
         writer: FrameWriter,
         reader: FramedReader,
         decode: DecodeLevel,
+        max_failed_requests: Option<NonZeroUsize>,
     ) -> Self {
         Self {
             rx,
             writer,
             reader,
             tx_id: TxId::default(),
+            failed_requests: FailedRequestTracker::new(max_failed_requests),
             decode,
             enabled: false,
         }
@@ -129,6 +184,7 @@ impl ClientLoop {
     }
 
     pub(crate) async fn run(&mut self, io: &mut PhysLayer) -> SessionError {
+        self.failed_requests.reset();
         loop {
             if let Err(err) = self.poll(io).await {
                 tracing::warn!("ending session: {err}");
@@ -169,16 +225,23 @@ impl ClientLoop {
             .instrument(tracing::info_span!("Transaction", tx_id = %tx_id))
             .await;
 
-        if let Err(err) = result {
-            // Fail the request in ONE place. If the whole future
-            // gets dropped, then the request gets failed with Shutdown
-            tracing::warn!("request error: {}", err);
-            request.details.fail(err);
+        match result {
+            Ok(()) => self.failed_requests.reset(),
+            Err(err) => {
+                // Fail the request in ONE place. If the whole future
+                // gets dropped, then the request gets failed with Shutdown
+                tracing::warn!("request error: {}", err);
+                request.details.fail(err);
 
-            // some request errors are a session error that will
-            // bubble up and close the session
-            if let Some(err) = SessionError::from_request_err(err) {
-                return Err(err);
+                // some request errors are a session error that will
+                // bubble up and close the session
+                if let Some(err) = SessionError::from_request_err(err) {
+                    return Err(err);
+                }
+
+                // if we reach the maximum number of failed requests, this
+                // can also terminate the session
+                self.failed_requests.increment()?;
             }
         }
 
@@ -319,6 +382,7 @@ mod tests {
             FrameWriter::tcp(),
             FramedReader::tcp(),
             DecodeLevel::default().application(AppDecodeLevel::DataValues),
+            None,
         );
         let join_handle = tokio::spawn(async move {
             let mut phys = PhysLayer::new_mock(mock);
