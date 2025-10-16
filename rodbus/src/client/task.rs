@@ -239,11 +239,13 @@ impl ClientLoop {
                     return Err(err);
                 }
 
-                // if we reach the maximum number of consecutive timeouts,
-                // this can also terminate the session
                 if err == RequestError::ResponseTimeout {
+                    // if we reach the maximum number of consecutive timeouts,
+                    // this can also terminate the session
                     self.timeout_counter.increment()?;
                 } else {
+                    // all other errors reset the response timeout counter,
+                    // e.g. a Modbus exception
                     self.timeout_counter.reset();
                 }
             }
@@ -687,5 +689,4 @@ mod tests {
         // Task should still be running (only 2 consecutive timeouts, not 3)
         assert!(!task.is_finished());
     }
-
 }
