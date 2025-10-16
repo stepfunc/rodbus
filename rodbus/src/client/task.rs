@@ -599,4 +599,90 @@ mod tests {
         // task should still be running
         assert!(!task.is_finished());
     }
+
+    #[tokio::test]
+    async fn counter_resets_on_successful_request() {
+        let (channel, task, mut io) = spawn_client_loop_with_max_timeouts(NonZeroUsize::new(3));
+
+        tokio::time::pause();
+
+        let range = AddressRange::try_from(7, 2).unwrap();
+
+        // Pattern: timeout -> timeout -> success -> timeout -> timeout
+        // With max=3, this should NOT terminate because the success resets the counter
+
+        // First two timeouts
+        for _ in 0..2 {
+            let mut ch = channel.clone();
+            tokio::spawn(async move {
+                ch.read_coils(
+                    RequestParam::new(UnitId::new(1), Duration::from_secs(1)),
+                    range,
+                )
+                .await
+            });
+            match io.next_event().await {
+                Event::Write(_) => {}
+                other => panic!("Expected Write, got {:?}", other),
+            }
+        }
+
+        // Successful request
+        let success_task = tokio::spawn({
+            let mut ch = channel.clone();
+            async move {
+                ch.read_coils(
+                    RequestParam::new(UnitId::new(1), Duration::from_secs(1)),
+                    range,
+                )
+                .await
+            }
+        });
+
+        // Get the request and respond with matching tx_id
+        let request_bytes = match io.next_event().await {
+            Event::Write(bytes) => bytes,
+            other => panic!("Expected Write, got {:?}", other),
+        };
+
+        let mut response = get_framed_adu(
+            FunctionCode::ReadCoils,
+            &BitWriter::new(ReadBitsRange { inner: range }, |idx| match idx {
+                7 => Ok(true),
+                8 => Ok(false),
+                _ => Err(ExceptionCode::IllegalDataAddress),
+            }),
+        );
+        response[0] = request_bytes[0];
+        response[1] = request_bytes[1];
+
+        io.read(&response);
+
+        // The response will be read by the client loop
+        match io.next_event().await {
+            Event::Read => {} // Expected - client loop reads our response
+            other => panic!("Expected Read after providing response, got {:?}", other),
+        }
+
+        assert!(success_task.await.unwrap().is_ok());
+
+        // Two more timeouts - should NOT terminate since counter was reset
+        for _ in 0..2 {
+            let mut ch = channel.clone();
+            tokio::spawn(async move {
+                ch.read_coils(
+                    RequestParam::new(UnitId::new(1), Duration::from_secs(1)),
+                    range,
+                )
+                .await
+            });
+            match io.next_event().await {
+                Event::Write(_) => {}
+                other => panic!("Expected Write, got {:?}", other),
+            }
+        }
+
+        // Task should still be running (only 2 consecutive timeouts, not 3)
+        assert!(!task.is_finished());
+    }
 }
