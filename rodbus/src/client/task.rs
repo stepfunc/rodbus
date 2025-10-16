@@ -372,7 +372,9 @@ mod tests {
 
     use sfio_tokio_mock_io::Event;
 
-    fn spawn_client_loop() -> (
+    fn spawn_client_loop_with_max_timeouts(
+        max_timeouts: Option<NonZeroUsize>,
+    ) -> (
         Channel,
         tokio::task::JoinHandle<SessionError>,
         sfio_tokio_mock_io::Handle,
@@ -384,7 +386,7 @@ mod tests {
             FrameWriter::tcp(),
             FramedReader::tcp(),
             DecodeLevel::default().application(AppDecodeLevel::DataValues),
-            None,
+            max_timeouts,
         );
         let join_handle = tokio::spawn(async move {
             let mut phys = PhysLayer::new_mock(mock);
@@ -392,6 +394,14 @@ mod tests {
         });
         let channel = Channel { tx };
         (channel, join_handle, io_handle)
+    }
+
+    fn spawn_client_loop() -> (
+        Channel,
+        tokio::task::JoinHandle<SessionError>,
+        sfio_tokio_mock_io::Handle,
+    ) {
+        spawn_client_loop_with_max_timeouts(None)
     }
 
     fn get_framed_adu<T>(function: FunctionCode, payload: &T) -> Vec<u8>
@@ -529,5 +539,64 @@ mod tests {
             coils.await.unwrap().unwrap(),
             vec![Indexed::new(7, true), Indexed::new(8, false)]
         );
+    }
+
+    #[tokio::test]
+    async fn terminates_after_max_consecutive_timeouts() {
+        let (channel, task, mut io) = spawn_client_loop_with_max_timeouts(NonZeroUsize::new(3));
+
+        tokio::time::pause();
+
+        let range = AddressRange::try_from(7, 2).unwrap();
+
+        // spawn 3 requests that will all timeout
+        for _ in 0..3 {
+            let mut ch = channel.clone();
+            tokio::spawn(async move {
+                ch.read_coils(
+                    RequestParam::new(UnitId::new(1), Duration::from_secs(1)),
+                    range,
+                )
+                .await
+            });
+
+            // wait for write, don't care about exact tx_id
+            match io.next_event().await {
+                Event::Write(_) => {}
+                other => panic!("Expected Write, got {:?}", other),
+            }
+        }
+
+        // session should terminate with MaxTimeouts(3)
+        assert_eq!(task.await.unwrap(), SessionError::MaxTimeouts(3));
+    }
+
+    #[tokio::test]
+    async fn disabled_when_none_allows_unlimited_timeouts() {
+        let (channel, task, mut io) = spawn_client_loop_with_max_timeouts(None);
+
+        tokio::time::pause();
+
+        let range = AddressRange::try_from(7, 2).unwrap();
+
+        // send 10 requests that all timeout
+        for _ in 0..10 {
+            let mut ch = channel.clone();
+            tokio::spawn(async move {
+                ch.read_coils(
+                    RequestParam::new(UnitId::new(1), Duration::from_secs(1)),
+                    range,
+                )
+                .await
+            });
+
+            match io.next_event().await {
+                Event::Write(_) => {}
+                other => panic!("Expected Write, got {:?}", other),
+            }
+        }
+
+        // task should still be running
+        assert!(!task.is_finished());
     }
 }
