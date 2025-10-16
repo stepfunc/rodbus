@@ -22,8 +22,8 @@ pub(crate) enum SessionError {
     BadFrame,
     /// channel was disabled
     Disabled,
-    /// maximum number of sequential failed requests reached
-    MaxFailedRequests(usize),
+    /// maximum number of consecutive response timeouts reached
+    MaxTimeouts(usize),
     /// the mpsc is closed (dropped) on the sender side
     Shutdown,
 }
@@ -61,11 +61,8 @@ impl std::fmt::Display for SessionError {
             SessionError::Shutdown => {
                 write!(f, "Shutdown was requested")
             }
-            SessionError::MaxFailedRequests(max) => {
-                write!(
-                    f,
-                    "Maximum number ({max}) of sequential failed requests reached"
-                )
+            SessionError::MaxTimeouts(max) => {
+                write!(f, "Maximum number ({max}) of consecutive timeouts reached")
             }
         }
     }
@@ -82,21 +79,21 @@ impl SessionError {
     }
 }
 
-enum FailedRequestState {
+enum TimeoutCounterState {
     Disabled,
     Enabled { current: usize, max: usize },
 }
 
-struct FailedRequestTracker {
-    state: FailedRequestState,
+struct TimeoutCounter {
+    state: TimeoutCounterState,
 }
 
-impl FailedRequestTracker {
-    fn new(max_failed_requests: Option<NonZeroUsize>) -> Self {
+impl TimeoutCounter {
+    fn new(max_timeouts: Option<NonZeroUsize>) -> Self {
         Self {
-            state: match max_failed_requests {
-                None => FailedRequestState::Disabled,
-                Some(max) => FailedRequestState::Enabled {
+            state: match max_timeouts {
+                None => TimeoutCounterState::Disabled,
+                Some(max) => TimeoutCounterState::Enabled {
                     current: 0,
                     max: max.get(),
                 },
@@ -106,8 +103,8 @@ impl FailedRequestTracker {
 
     fn reset(&mut self) {
         match &mut self.state {
-            FailedRequestState::Disabled => {}
-            FailedRequestState::Enabled { current, .. } => {
+            TimeoutCounterState::Disabled => {}
+            TimeoutCounterState::Enabled { current, .. } => {
                 *current = 0;
             }
         }
@@ -115,11 +112,11 @@ impl FailedRequestTracker {
 
     fn increment(&mut self) -> Result<(), SessionError> {
         match &mut self.state {
-            FailedRequestState::Disabled => Ok(()),
-            FailedRequestState::Enabled { current, max } => {
+            TimeoutCounterState::Disabled => Ok(()),
+            TimeoutCounterState::Enabled { current, max } => {
                 *current = current.wrapping_add(1);
                 if current >= max {
-                    Err(SessionError::MaxFailedRequests(*max))
+                    Err(SessionError::MaxTimeouts(*max))
                 } else {
                     Ok(())
                 }
@@ -133,7 +130,7 @@ pub(crate) struct ClientLoop {
     writer: FrameWriter,
     reader: FramedReader,
     tx_id: TxId,
-    failed_requests: FailedRequestTracker,
+    timeout_counter: TimeoutCounter,
     decode: DecodeLevel,
     enabled: bool,
 }
@@ -144,14 +141,14 @@ impl ClientLoop {
         writer: FrameWriter,
         reader: FramedReader,
         decode: DecodeLevel,
-        max_failed_requests: Option<NonZeroUsize>,
+        max_timeouts: Option<NonZeroUsize>,
     ) -> Self {
         Self {
             rx,
             writer,
             reader,
             tx_id: TxId::default(),
-            failed_requests: FailedRequestTracker::new(max_failed_requests),
+            timeout_counter: TimeoutCounter::new(max_timeouts),
             decode,
             enabled: false,
         }
@@ -187,7 +184,7 @@ impl ClientLoop {
     }
 
     pub(crate) async fn run(&mut self, io: &mut PhysLayer) -> SessionError {
-        self.failed_requests.reset();
+        self.timeout_counter.reset();
         loop {
             if let Err(err) = self.poll(io).await {
                 tracing::warn!("ending session: {err}");
@@ -229,7 +226,7 @@ impl ClientLoop {
             .await;
 
         match result {
-            Ok(()) => self.failed_requests.reset(),
+            Ok(()) => self.timeout_counter.reset(),
             Err(err) => {
                 // Fail the request in ONE place. If the whole future
                 // gets dropped, then the request gets failed with Shutdown
@@ -242,9 +239,11 @@ impl ClientLoop {
                     return Err(err);
                 }
 
-                // if we reach the maximum number of failed requests, this
-                // can also terminate the session
-                self.failed_requests.increment()?;
+                // if we reach the maximum number of consecutive timeouts,
+                // this can also terminate the session
+                if err == RequestError::ResponseTimeout {
+                    self.timeout_counter.increment()?;
+                }
             }
         }
 

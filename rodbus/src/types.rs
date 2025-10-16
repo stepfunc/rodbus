@@ -402,7 +402,7 @@ pub struct ClientOptions {
     pub(crate) channel_logging: ChannelLoggingMode,
     pub(crate) max_queued_requests: usize,
     pub(crate) decode_level: DecodeLevel,
-    pub(crate) max_failed_requests: Option<NonZeroUsize>,
+    pub(crate) max_timeouts: Option<NonZeroUsize>,
 }
 
 impl ClientOptions {
@@ -436,12 +436,12 @@ impl ClientOptions {
         }
     }
 
-    /// Set the maximum number of failed requests after which the channel is closed and re-opened
+    /// Set the maximum number of consecutive response timeouts before forcing a reconnect
     ///
-    /// Note: defaults to None meaning that there is no limit
-    pub fn max_failed_requests(self, max_failed_requests: Option<NonZeroUsize>) -> Self {
+    /// Defaults to `None` (no limit)
+    pub fn max_response_timeouts(self, max_timeouts: Option<NonZeroUsize>) -> Self {
         Self {
-            max_failed_requests,
+            max_timeouts,
             ..self
         }
     }
@@ -453,7 +453,7 @@ impl Default for ClientOptions {
             channel_logging: ChannelLoggingMode::default(),
             max_queued_requests: 16,
             decode_level: DecodeLevel::default(),
-            max_failed_requests: None,
+            max_timeouts: None,
         }
     }
 }

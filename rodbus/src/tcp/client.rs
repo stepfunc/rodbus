@@ -106,7 +106,7 @@ impl TcpChannelTask {
                 FrameWriter::tcp(),
                 FramedReader::tcp(),
                 options.decode_level,
-                options.max_failed_requests,
+                options.max_timeouts,
             ),
             listener,
             channel_logging: options.channel_logging,
@@ -181,7 +181,7 @@ impl TcpChannelTask {
             // re-establish the connection
             SessionError::IoError(_)
             | SessionError::BadFrame
-            | SessionError::MaxFailedRequests(_) => {
+            | SessionError::MaxTimeouts(_) => {
                 drop(phys);
                 let delay = self.connect_retry.after_disconnect();
                 log_channel_event!(self.channel_logging, "waiting {:?} to reconnect", delay);

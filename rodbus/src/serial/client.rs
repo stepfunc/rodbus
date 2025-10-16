@@ -86,7 +86,7 @@ impl SerialChannelTask {
                     // wait before retrying
                     SessionError::IoError(_)
                     | SessionError::BadFrame
-                    | SessionError::MaxFailedRequests(_) => {
+                    | SessionError::MaxTimeouts(_) => {
                         drop(phys);
                         let delay = self.retry.after_disconnect();
                         self.listener.update(PortState::Wait(delay)).get().await;
