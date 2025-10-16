@@ -34,7 +34,7 @@ impl SerialChannelTask {
                 FrameWriter::rtu(),
                 FramedReader::rtu_response(),
                 decode,
-                None
+                None,
             ),
             listener,
         }
@@ -84,7 +84,9 @@ impl SerialChannelTask {
                     // don't wait, we're disabled
                     SessionError::Disabled => Ok(()),
                     // wait before retrying
-                    SessionError::IoError(_) | SessionError::BadFrame | SessionError::MaxFailedRequests(_) => {
+                    SessionError::IoError(_)
+                    | SessionError::BadFrame
+                    | SessionError::MaxFailedRequests(_) => {
                         drop(phys);
                         let delay = self.retry.after_disconnect();
                         self.listener.update(PortState::Wait(delay)).get().await;

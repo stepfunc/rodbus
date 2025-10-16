@@ -62,7 +62,10 @@ impl std::fmt::Display for SessionError {
                 write!(f, "Shutdown was requested")
             }
             SessionError::MaxFailedRequests(max) => {
-                write!(f, "Maximum number ({max}) of sequential failed requests reached")
+                write!(
+                    f,
+                    "Maximum number ({max}) of sequential failed requests reached"
+                )
             }
         }
     }
@@ -81,7 +84,7 @@ impl SessionError {
 
 enum FailedRequestState {
     Disabled,
-    Enabled { current: usize, max: usize }
+    Enabled { current: usize, max: usize },
 }
 
 struct FailedRequestTracker {
@@ -96,15 +99,15 @@ impl FailedRequestTracker {
                 Some(max) => FailedRequestState::Enabled {
                     current: 0,
                     max: max.get(),
-                }
-            }
+                },
+            },
         }
     }
 
     fn reset(&mut self) {
         match &mut self.state {
             FailedRequestState::Disabled => {}
-            FailedRequestState::Enabled { current,  .. } => {
+            FailedRequestState::Enabled { current, .. } => {
                 *current = 0;
             }
         }
@@ -114,10 +117,10 @@ impl FailedRequestTracker {
         match &mut self.state {
             FailedRequestState::Disabled => Ok(()),
             FailedRequestState::Enabled { current, max } => {
+                *current = current.wrapping_add(1);
                 if current >= max {
                     Err(SessionError::MaxFailedRequests(*max))
                 } else {
-                    *current += 1;
                     Ok(())
                 }
             }

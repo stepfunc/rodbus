@@ -179,7 +179,9 @@ impl TcpChannelTask {
             // don't wait, we're disabled
             SessionError::Disabled => Ok(()),
             // re-establish the connection
-            SessionError::IoError(_) | SessionError::BadFrame | SessionError::MaxFailedRequests(_) => {
+            SessionError::IoError(_)
+            | SessionError::BadFrame
+            | SessionError::MaxFailedRequests(_) => {
                 drop(phys);
                 let delay = self.connect_retry.after_disconnect();
                 log_channel_event!(self.channel_logging, "waiting {:?} to reconnect", delay);
