@@ -311,20 +311,17 @@ jobs:
       - name: Quality checks passed
         run: echo "✅ All quality checks passed successfully"
 
-  release:
-    needs: [packaging, guide]
+  # Release jobs - each can run independently and is idempotent
+  release-docs:
+    needs: [packaging, guide, quality-gate]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
     steps:
-      - name: Download all artifacts
+      - name: Download documentation artifacts
         uses: actions/download-artifact@v4
         with:
           path: artifacts
-      - name: Package C Bindings
-        run: |
-          mkdir release
-          cd artifacts/c-bindings
-          zip -r ../../release/rodbus-${GITHUB_REF##*/}.zip .
+          pattern: doc-*
       - name: Checkout stepfunc/docs
         uses: actions/checkout@v4
         with:
@@ -336,32 +333,144 @@ jobs:
         run: |
           git config user.name github-actions
           git config user.email github-actions@github.com
-          rm -rf ./rodbus/${GITHUB_REF##*/}
-          mkdir -p ./rodbus/${GITHUB_REF##*/}
-          cp -a ../artifacts/doc/* ./rodbus/${GITHUB_REF##*/}
+          # Pull latest changes to avoid conflicts
+          git pull
+          # Remove and recreate docs directory
+          rm -rf ./rodbus/${{github.ref_name}}
+          mkdir -p ./rodbus/${{github.ref_name}}
+          cp -a ../artifacts/doc-api/* ./rodbus/${{github.ref_name}}
+          cp -a ../artifacts/doc-guide/* ./rodbus/${{github.ref_name}}
+          # Check if there are actual changes to commit
           git add -A
-          git commit -m "[rodbus] Release ${GITHUB_REF##*/}"
-          git push
+          if git diff --staged --quiet; then
+            echo "No changes to commit - docs already up to date"
+          else
+            git commit -m "[rodbus] release ${{github.ref_name}}"
+            git push
+          fi
+
+  release-maven:
+    needs: [packaging, quality-gate]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - name: Download Java artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          pattern: java-bindings-*
       - name: Import PGP key
-        uses: crazy-max/ghaction-import-gpg@v5
+        uses: crazy-max/ghaction-import-gpg@v3
         with:
-          gpg_private_key: ${{ secrets.SFIO_PGP_PRIVATE_KEY }}
+          gpg-private-key: ${{ secrets.SFIO_PGP_PRIVATE_KEY }}
           passphrase: ${{ secrets.SFIO_PGP_PRIVATE_KEY_PASSPHRASE }}
-      - name: Login to OSSRH
-        uses: whelk-io/maven-settings-xml-action@v21
-        with:
-          servers: '[{ "id": "ossrh", "username": "${{ secrets.SFIO_OSSRH_USERNAME }}", "password": "${{ secrets.SFIO_OSSRH_PASSWORD }}" }]'
-      - name: Deploy Java
+      - name: Deploy Java to Maven Central
         shell: bash
-        working-directory: artifacts/java-bindings
-        run: >
-          shopt -s extglob &&
-          mvn gpg:sign-and-deploy-file -Durl=https://oss.sonatype.org/service/local/staging/deploy/maven2 -DrepositoryId=ossrh -DpomFile=pom.xml -Dfile=rodbus-${{github.ref_name}}.jar &&
-          mvn gpg:sign-and-deploy-file -Durl=https://oss.sonatype.org/service/local/staging/deploy/maven2 -DrepositoryId=ossrh -DpomFile=pom.xml -Dfile=rodbus-${{github.ref_name}}-sources.jar -Dclassifier=sources &&
-          mvn gpg:sign-and-deploy-file -Durl=https://oss.sonatype.org/service/local/staging/deploy/maven2 -DrepositoryId=ossrh -DpomFile=pom.xml -Dfile=rodbus-${{github.ref_name}}-javadoc.jar -Dclassifier=javadoc
+        working-directory: artifacts
+        run: |
+          # Check if artifact already exists or is being published
+          if curl -f -s -o /dev/null "https://repo1.maven.org/maven2/io/stepfunc/rodbus/${{github.ref_name}}/rodbus-${{github.ref_name}}.jar"; then
+            echo "✅ Artifact io.stepfunc:rodbus:${{github.ref_name}} already exists in Maven Central - skipping deployment"
+          else
+            echo "Artifact not found in Maven Central - checking if deployment is in progress..."
+
+            # Create base64 encoded token for Authorization header
+            AUTH_TOKEN=$(echo -n "${{ secrets.MAVEN_CENTRAL_USERNAME }}:${{ secrets.MAVEN_CENTRAL_TOKEN }}" | base64 -w 0)
+
+            # Try to upload - if it fails due to duplicate, that means it's already being processed
+            echo "Attempting to upload to Central Portal..."
+
+            # Create Maven repository structure (starting from groupId)
+            mkdir -p io/stepfunc/rodbus/${{github.ref_name}}
+
+            # Copy artifacts to bundle directory
+            cp java-bindings-pom/pom.xml io/stepfunc/rodbus/${{github.ref_name}}/rodbus-${{github.ref_name}}.pom
+            cp java-bindings-jar/rodbus-${{github.ref_name}}.jar io/stepfunc/rodbus/${{github.ref_name}}/
+            cp java-bindings-jar/rodbus-${{github.ref_name}}-sources.jar io/stepfunc/rodbus/${{github.ref_name}}/
+            cp java-bindings-jar/rodbus-${{github.ref_name}}-javadoc.jar io/stepfunc/rodbus/${{github.ref_name}}/
+
+            # Sign all files
+            cd io/stepfunc/rodbus/${{github.ref_name}}
+            for file in *.jar *.pom; do
+              gpg --batch --yes --pinentry-mode loopback --passphrase "${{ secrets.SFIO_PGP_PRIVATE_KEY_PASSPHRASE }}" --armor --detach-sign "$file"
+            done
+
+            # Generate checksums
+            for file in *.jar *.pom; do
+              md5sum "$file" | cut -d' ' -f1 > "$file.md5"
+              sha1sum "$file" | cut -d' ' -f1 > "$file.sha1"
+            done
+
+            # Create bundle zip
+            cd ../../../..
+            zip -r bundle.zip io/
+
+            # Upload bundle to Central Portal
+            echo "Uploading bundle to Central Portal..."
+            RESPONSE=$(curl -X POST \
+              https://central.sonatype.com/api/v1/publisher/upload \
+              -H "Authorization: Bearer $AUTH_TOKEN" \
+              -H "Content-Type: multipart/form-data" \
+              -F "bundle=@bundle.zip;type=application/octet-stream" \
+              -F "publishingType=AUTOMATIC" \
+              -w "\nHTTP_STATUS:%{http_code}" \
+              -s)
+
+            # Extract HTTP status code
+            HTTP_STATUS=$(echo "$RESPONSE" | grep "HTTP_STATUS:" | cut -d: -f2)
+            BODY=$(echo "$RESPONSE" | sed '$d')  # Remove last line with status code
+
+            echo "Response: $BODY"
+            echo "HTTP Status: $HTTP_STATUS"
+
+            # Handle response
+            if [[ $HTTP_STATUS -ge 200 && $HTTP_STATUS -lt 300 ]]; then
+              # The API returns the deployment ID as plain text, not JSON
+              DEPLOYMENT_ID=$(echo "$BODY" | tr -d '[:space:]')
+              echo "✅ Upload successful! Deployment ID: $DEPLOYMENT_ID"
+              echo "The deployment will be automatically published to Maven Central after validation."
+            elif [[ $HTTP_STATUS -eq 400 ]] && [[ "$BODY" =~ "duplicate" || "$BODY" =~ "already exists" || "$BODY" =~ "PUBLISHED" ]]; then
+              echo "✅ Version ${{github.ref_name}} is already uploaded or being processed - skipping deployment"
+            else
+              echo "❌ Upload failed with status $HTTP_STATUS"
+              echo "Error details: $BODY"
+              exit 1
+            fi
+          fi
+
+  release-nuget:
+    needs: [packaging, quality-gate]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - name: Download .NET artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dotnet-bindings
+          path: artifacts/dotnet-bindings
       - name: Publish NuGet package
         shell: bash
-        run: dotnet nuget push $(find artifacts/dotnet-bindings/rodbus*.nupkg) -s https://api.nuget.org/v3/index.json -k ${{ secrets.SFIO_NUGET_KEY }}
+        run: |
+          # Use --skip-duplicate to make this idempotent
+          dotnet nuget push $(find artifacts/dotnet-bindings/rodbus*.nupkg) \
+            -s https://api.nuget.org/v3/index.json \
+            -k ${{ secrets.SFIO_NUGET_KEY }} \
+            --skip-duplicate
+
+  create-github-release:
+    needs: [release-docs, release-maven, release-nuget]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - name: Download all release artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Package C Bindings
+        run: |
+          mkdir release
+          cd artifacts/c-bindings
+          zip -r ../../release/rodbus-${{github.ref_name}}.zip .
       - name: Create GitHub release
         uses: softprops/action-gh-release@v1
         with:
@@ -369,6 +478,6 @@ jobs:
           files: |
             release/*.zip
             artifacts/dotnet-bindings/rodbus*
-            artifacts/java-bindings/*.jar
+            artifacts/java-bindings-jar/*.jar
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
