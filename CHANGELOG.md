@@ -1,3 +1,13 @@
+### 1.5.0-RC1 ###
+* :star: Add configurable limit on consecutive client response timeouts. See [#166](https://github.com/stepfunc/rodbus/pull/166).
+* :wrench: Use aws-lc-rs crypto provider for TLS on most platforms. See [#164](https://github.com/stepfunc/rodbus/pull/164).
+* :wrench: Tunable connection logging to reduce verbosity during disrupted communication. See [#163](https://github.com/stepfunc/rodbus/pull/163).
+* :star: Add `spawn_tcp_client_task_with_options()` with extensible `ClientOptions` builder API. See [#161](https://github.com/stepfunc/rodbus/pull/161).
+* :bug: Fix default retry strategy bug. See [#158](https://github.com/stepfunc/rodbus/pull/158).
+* :wrench: PartialEq and Debug consistently applied to public API. See [#157](https://github.com/stepfunc/rodbus/pull/157).
+* :star: Support serde on configuration types with new `serialization` feature. See [#156](https://github.com/stepfunc/rodbus/pull/156).
+* :wrench: rodbus-client modernization with serial support and improved error handling. See [#152](https://github.com/stepfunc/rodbus/pull/152).
+
 ### 1.4.0 ###
 * :wrench: Avoid task spawning in client FFI methods. See [#136](https://github.com/stepfunc/rodbus/pull/136).
 * :wrench: Requests in the client API now fail immediately while the client is connecting.

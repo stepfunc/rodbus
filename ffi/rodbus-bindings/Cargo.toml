@@ -1,6 +1,6 @@
 [package]
 name = "rodbus-bindings"
-version = "1.4.0"
+version = "1.5.0-RC1"
 description = "application to generate bindings for Rodbus"
 readme = "../README.md"
 
