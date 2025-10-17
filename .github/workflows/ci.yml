@@ -175,8 +175,8 @@ jobs:
         run: cargo run --bin rodbus-bindings -- --dotnet
       - name: Test Java bindings
         run: cargo run --bin rodbus-bindings -- --java
-  # Cross-compilation for various Linux architectures
-  ffi-cross:
+  # Cross-compilation for Linux to produce portable C and JNI libraries
+  bindings-linux:
     env:
       # By default, MUSL will not produce a cdylib with dynamic linkage to MUSL LIB C
       CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_RUSTFLAGS: "-C target-feature=-crt-static"
@@ -185,7 +185,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
+        cases:
           - target: x86_64-unknown-linux-gnu # 64-bit Linux (kernel 2.6.32+, glibc 2.11+)
             features: tls-aws-lc,serial
           - target: x86_64-unknown-linux-musl # 64-bit Linux with MUSL
@@ -210,20 +210,20 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
       - name: Install Rust Cross
         run: cargo install cross
-      - name: Create ffi-modules dir
-        run: mkdir -p ffi-modules/${{ matrix.target }}
+      - name: Create FFI modules dir
+        run: mkdir -p ffi-modules/${{ matrix.cases.target }}
       - name: Build FFI
-        run: cross build -p rodbus-ffi --release --target ${{ matrix.target }} --no-default-features --features ${{ matrix.features }}
+        run: cross build -p rodbus-ffi --release --target ${{ matrix.cases.target }} --no-default-features --features ${{ matrix.cases.features }}
       - name: Build JNI
-        run: cross build -p rodbus-ffi-java --release --target ${{ matrix.target }} --no-default-features --features ${{ matrix.features }}
+        run: cross build -p rodbus-ffi-java --release --target ${{ matrix.cases.target }} --no-default-features --features ${{ matrix.cases.features }}
       - name: Copy the FFI and JNI libs
         run: |
-          cp ./target/${{ matrix.target }}/release/librodbus_ffi.so ./ffi-modules/${{ matrix.target }}
-          cp ./target/${{ matrix.target }}/release/librodbus_ffi_java.so ./ffi-modules/${{ matrix.target }}
+          cp ./target/${{ matrix.cases.target }}/release/librodbus_ffi.so ./ffi-modules/${{ matrix.cases.target }}
+          cp ./target/${{ matrix.cases.target }}/release/librodbus_ffi_java.so ./ffi-modules/${{ matrix.cases.target }}
       - name: Upload compiled FFI modules
         uses: actions/upload-artifact@v4
         with:
-          name: ffi-modules-${{ matrix.target }}
+          name: ffi-modules-${{ matrix.cases.target }}
           path: ffi-modules
   guide:
     runs-on: ubuntu-latest
@@ -246,7 +246,7 @@ jobs:
           path: ~/doc
   # Package all the generated bindings
   packaging:
-    needs: [documentation, bindings-windows, bindings-macos, ffi-cross]
+    needs: [documentation, bindings-windows, bindings-macos, bindings-linux]
     runs-on: ubuntu-latest
     steps:
       - name: Install Rust
