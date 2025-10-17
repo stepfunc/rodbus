@@ -295,10 +295,13 @@ jobs:
       - name: Upload Java bindings
         uses: actions/upload-artifact@v4
         with:
-          name: java-bindings
-          path: |
-            ffi/bindings/java/rodbus/target/*.jar
-            ffi/bindings/java/rodbus/pom.xml
+          name: java-bindings-jar
+          path: ffi/bindings/java/rodbus/target/*.jar
+      - name: Upload Java pom.xml
+        uses: actions/upload-artifact@v4
+        with:
+          name: java-bindings-pom
+          path: ffi/bindings/java/rodbus/pom.xml
   release:
     needs: [packaging, guide]
     runs-on: ubuntu-latest
