@@ -20,6 +20,7 @@
     "colorchoice",
     "dunce",
     "errno",
+    "find-msvc-tools",
     "gimli",
     "heck",
     "io-lifetimes",
@@ -1384,6 +1385,17 @@
     },
     "serde": {
       "id": "serde",
+      "source": "crates.io",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": "NotPresent"
+          }
+        }
+      ]
+    },
+    "serde_core": {
+      "id": "serde_core",
       "source": "crates.io",
       "licenses": [
         {
