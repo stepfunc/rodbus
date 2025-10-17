@@ -3,7 +3,7 @@
 * :wrench: Use aws-lc-rs crypto provider for TLS on most platforms. See [#164](https://github.com/stepfunc/rodbus/pull/164).
 * :wrench: Tunable connection logging to reduce verbosity during disrupted communication. See [#163](https://github.com/stepfunc/rodbus/pull/163).
 * :star: Add `spawn_tcp_client_task_with_options()` with extensible `ClientOptions` builder API. See [#161](https://github.com/stepfunc/rodbus/pull/161).
-* :bug: Fix default retry strategy bug. See [#158](https://github.com/stepfunc/rodbus/pull/158).
+* :bug: Fix bad default upper limit in retry strategy. See [#158](https://github.com/stepfunc/rodbus/pull/158).
 * :wrench: PartialEq and Debug consistently applied to public API. See [#157](https://github.com/stepfunc/rodbus/pull/157).
 * :star: Support serde on configuration types with new `serialization` feature. See [#156](https://github.com/stepfunc/rodbus/pull/156).
 * :wrench: rodbus-client modernization with serial support and improved error handling. See [#152](https://github.com/stepfunc/rodbus/pull/152).
