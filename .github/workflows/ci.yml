@@ -457,8 +457,30 @@ jobs:
             -k ${{ secrets.SFIO_NUGET_KEY }} \
             --skip-duplicate
 
+  release-crates-io:
+    needs: [quality-gate]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Publish to crates.io
+        shell: bash
+        run: |
+          # Check if version already exists on crates.io
+          VERSION=${{github.ref_name}}
+          if curl -f -s "https://crates.io/api/v1/crates/rodbus/$VERSION" > /dev/null 2>&1; then
+            echo "✅ rodbus $VERSION already published to crates.io - skipping"
+          else
+            echo "Publishing rodbus $VERSION to crates.io..."
+            cargo publish -p rodbus --token ${{ secrets.CRATES_PUBLISH_TOKEN }}
+            echo "✅ Successfully published rodbus $VERSION to crates.io"
+          fi
+
   create-github-release:
-    needs: [release-docs, release-maven, release-nuget]
+    needs: [release-docs, release-maven, release-nuget, release-crates-io]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
     steps:
