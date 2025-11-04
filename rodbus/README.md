@@ -22,7 +22,7 @@ A high-performance implementation of the [Modbus](http://modbus.org/) protocol u
 
 ## Function Codes
 
-The [`client`](https://github.com/stepfunc/rodbus/blob/main/rodbus/examples/client.rs) and [`server`](https://github.com/stepfunc/rodbus/blob/main/rodbus/examples/server.rs) examples demonstrate simple
+The [`client`](https://github.com/stepfunc/rodbus/blob/main/examples/client/src/main.rs) and [`server`](https://github.com/stepfunc/rodbus/blob/main/examples/server/src/main.rs) examples demonstrate simple
 usage of the API.
 
 The following function codes are supported:
