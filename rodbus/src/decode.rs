@@ -1,5 +1,5 @@
 /// Controls the decoding of transmitted and received data at the application, frame, and physical layer
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Default)]
 #[cfg_attr(
     feature = "serialization",
     derive(serde::Serialize, serde::Deserialize)
@@ -19,13 +19,14 @@ pub struct DecodeLevel {
 /// Controls how transmitted and received message at the application layer are decoded at the INFO log level
 ///
 /// Application-layer messages are referred to as Protocol Data Units (PDUs) in the specification.
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Default)]
 #[cfg_attr(
     feature = "serialization",
     derive(serde::Serialize, serde::Deserialize)
 )]
 pub enum AppDecodeLevel {
     /// Decode nothing
+    #[default]
     Nothing,
     /// Decode the function code only
     FunctionCode,
@@ -41,13 +42,14 @@ pub enum AppDecodeLevel {
 /// called "ADUs" in the Modbus specification.
 ///
 /// On TCP, this is the MBAP decoding. On serial, this controls the serial line PDU.
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Default)]
 #[cfg_attr(
     feature = "serialization",
     derive(serde::Serialize, serde::Deserialize)
 )]
 pub enum FrameDecodeLevel {
     /// Decode nothing
+    #[default]
     Nothing,
     /// Decode the header
     Header,
@@ -56,13 +58,14 @@ pub enum FrameDecodeLevel {
 }
 
 /// Controls how data transmitted at the physical layer (TCP, serial, etc) is logged
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Default)]
 #[cfg_attr(
     feature = "serialization",
     derive(serde::Serialize, serde::Deserialize)
 )]
 pub enum PhysDecodeLevel {
     /// Log nothing
+    #[default]
     Nothing,
     /// Log only the length of data that is sent and received
     Length,
@@ -101,16 +104,6 @@ impl DecodeLevel {
     pub fn physical(mut self, level: PhysDecodeLevel) -> Self {
         self.physical = level;
         self
-    }
-}
-
-impl Default for DecodeLevel {
-    fn default() -> Self {
-        Self {
-            app: AppDecodeLevel::Nothing,
-            frame: FrameDecodeLevel::Nothing,
-            physical: PhysDecodeLevel::Nothing,
-        }
     }
 }
 
@@ -157,12 +150,6 @@ impl AppDecodeLevel {
     }
 }
 
-impl Default for AppDecodeLevel {
-    fn default() -> Self {
-        Self::Nothing
-    }
-}
-
 impl FrameDecodeLevel {
     pub(crate) fn enabled(&self) -> bool {
         self.header_enabled()
@@ -185,12 +172,6 @@ impl FrameDecodeLevel {
     }
 }
 
-impl Default for FrameDecodeLevel {
-    fn default() -> Self {
-        Self::Nothing
-    }
-}
-
 impl PhysDecodeLevel {
     pub(crate) fn enabled(&self) -> bool {
         self.length_enabled()
@@ -210,11 +191,5 @@ impl PhysDecodeLevel {
             PhysDecodeLevel::Length => false,
             PhysDecodeLevel::Data => true,
         }
-    }
-}
-
-impl Default for PhysDecodeLevel {
-    fn default() -> Self {
-        Self::Nothing
     }
 }
