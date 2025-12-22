@@ -32,8 +32,7 @@ Server->>Client: Illegal function code exception
 end
 ```
 
-This library uses [rustls](https://github.com/rustls/rustls), a modern TLS library written in safe Rust. It does
-**not** depend on OpenSSL or other system libraries, but will interoperate seamlessly with other implementations.
+This library uses [rustls](https://github.com/rustls/rustls), a modern TLS library written in safe Rust. It does **not** depend on OpenSSL or other system libraries and interoperates seamlessly with other implementations.
 
 Rustls has been [reviewed](https://github.com/rustls/rustls/raw/main/audit/TLS-01-report.pdf) by a third party and is production ready. It
 [outperforms](https://jbp.io/2019/07/01/rustls-vs-openssl-performance.html) OpenSSL in almost every aspect and has the backing of the
@@ -76,8 +75,7 @@ Rustls has been [reviewed](https://github.com/rustls/rustls/raw/main/audit/TLS-0
 TLS configuration is configured using the `TlsClientConfig` or `TlsServerConfig` structures. They are very similar and contain the following fields:
 
 - `name` (client only):
-  * The client verifies that the certificate presented by the server is valid for this name. Check out the next section for the technical details on
-  name validation.
+  * The client verifies that the certificate presented by the server is valid for this name. See the next section for technical details on name validation.
   * The client will advertise this name through a Server Name Indication (SNI) extension in the `Client Hello`.
 - `peer_cert_path`:
   * Path to the unencrypted PEM file containing the trusted root certificate(s) or the peer self-signed certificate.
@@ -117,7 +115,7 @@ If the SAN extension is present, the name is validated against it. The SAN may c
 The comparison is case-insensitive.
 
 If the SAN is absent, then the `Common Name` from the certificate's `Subject` is extracted and compared. The Common Name cannot contain a wildcard character
-and the comparison is case-sensitive. It is effectively compared byte-for-byte with the expected name.
+and the comparison is case-sensitive. The comparison is byte-for-byte with the expected name.
 
 :::tip
 New certificates should always include the SAN extension. Performing name verification using the `Common Name`
@@ -157,8 +155,7 @@ The OpenSSL [pkcs8 command](https://www.openssl.org/docs/man1.1.1/man1/openssl-p
 encrypt keys or convert private key formats.
 
 :::tip
-Encrypting private keys for use with TLS rarely addresses a meaningful threat model. Encrypting a private key and storing the password in a configuration file
-is equivalent to locking your doors and leaving the key under the doormat.
+Encrypting private keys provides minimal security benefit. Storing the password in a configuration file is equivalent to locking your doors and leaving the key under the doormat.
 :::
 
 ### Certificate Mode
@@ -182,7 +179,7 @@ The `SelfSigned` mode validates that:
 * `NotBefore` and `NotAfter` time fields are valid for the current time
 
 :::note
-Name validation is performed *indirectly* in self-signed mode, since the byte-for-byte comparison also compares the internal name fields.
+In self-signed mode, name validation occurs indirectly through byte-for-byte comparison of the entire certificate, including internal name fields.
 :::
 
 ### `AuthorizationHandler`

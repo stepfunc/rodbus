@@ -70,12 +70,12 @@ Most of the abstract concepts in the binding generator map directly to C++.
 
 ### Errors
 
-All C API errors are transformed into a C++ exceptions containing the error enum. All exceptions derive from `std::logic_error`.
+The code generator transforms all C API errors into C++ exceptions containing the error enum. All exceptions derive from `std::logic_error`.
 
-Other validations (e.g. checking that a moved class isn't used after the move) also throw `std::logic_error`.
+Additional validations, such as detecting use-after-move, throw `std::logic_error`.
 
 :::warning
-Uncaught exceptions thrown in callbacks will terminate the program. Always wrap your callback logic using `try/catch` syntax if there is a possibility the callback will throw.
+Uncaught callback exceptions terminate the program. Always wrap callback logic with `try/catch` syntax to prevent uncaught exceptions.
 :::
 
 ### Iterators
@@ -88,17 +88,16 @@ while(iter.next()) {
 }
 ```
 
-The `next()` advances the iterator and returns `true` if a value is available. The `get()` returns the current value pointed, or throws
+The `next()` method advances the iterator and returns `true` if a value exists. The `get()` method returns the current value, or throws
 `std::logic_error` if the end was reached.
 
 :::warning
-The iterator wrapper does **not** copy and accumulate the values like in C# or Java. Therefore, an iterator should **never** be used outside of the callback.
-Frequently, the iterator points to memory on the stack and will result in undefined behavior if it is used after the callback is complete.
+The iterator wrapper does **not** copy and accumulate values like in C# or Java. Never use an iterator outside its callback. The iterator typically references stack memory, causing undefined behavior if used after callback completion.
 :::
 
 ### Collections
 
-Collections are taken through a constant reference to a `std::vector`. The elements will be copied internally.
+Collections pass by constant reference to `std::vector`. Elements are copied internally.
 
 ### Classes
 
@@ -118,8 +117,7 @@ function as an argument available in the `dnp3::functional` namespace.
 
 ### Async methods
 
-C++ doesn't have a robust model for asynchronous computations in the standard library (yet). You can only extract a value
-from a C++ `std::future` using the blocking `get` method and there is no way to chain asynchronously chain futures.
+The C++ standard library lacks comprehensive asynchronous computation support. You can only extract a value from `std::future` using the blocking `get` method, with no way to chain futures asynchronously.
 
 Asynchronous methods are mapped to callback interfaces with two methods:
 

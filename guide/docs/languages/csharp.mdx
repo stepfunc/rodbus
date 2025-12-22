@@ -12,14 +12,14 @@ The bindings are .NET Standard 2.0 compatible and include platform-specific shar
 
 ## Mapping
 
-C# is an object-oriented language that supports all the abstract patterns modeled in the code generator. Here's what you need to know.
+C# is an object-oriented language supporting all abstract patterns the code generator defines.
 
 ### Errors
 
 C API errors are transformed into exceptions that contain the error `enum`.
 
 :::warning
-Uncaught exceptions thrown in callbacks will terminate the program. Your code should always wrap callback logic with `try/catch` syntax if there is a chance that the callback will throw.
+Uncaught callback exceptions terminate the program. Always wrap callback logic with `try/catch` syntax to prevent uncaught exceptions.
 :::
 
 ### Iterators

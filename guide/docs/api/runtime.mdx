@@ -8,17 +8,17 @@ slug: /api/runtime
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
-Rust's asynchronous programming model is a form of [cooperative multitasking](https://docs.rs/tokio/1.0.2/tokio/task/index.html). Once a task gets to a point where it would typically block, such as reading from a socket, execution is instead released back to an executor so that another task may run. This lets a pool of worker threads inside the executor efficiently execute thousands of asynchronous tasks concurrently without the overhead of per-task call stacks or thread context-switching.
+Rust's asynchronous programming model is a form of [cooperative multitasking](https://docs.rs/tokio/1.0.2/tokio/task/index.html). When a task encounters blocking operations like socket reads, execution transfers to an executor, allowing worker threads to efficiently execute thousands of concurrent tasks without per-task call stacks or thread context-switching overhead.
 
 Rust supports asynchronous programming using 'async' functions and 'async/await' syntax. The Rust compiler transforms synchronous-looking code into state machines that are just as efficient as what can be written by hand. Although Rust has this capability built into the compiler, it doesn't include a default runtime to execute the asynchronous programs. Instead, you are free to pick the runtime as an external library.
 
 The rodbus library runs on top of the [Tokio](https://tokio.rs/) runtime, providing a state-of-the-art scheduler and platform-agnostic networking APIs. The OS-specific mechanisms vary by platform, for example, *epoll* on Linux and *IOCP* on Windows.
 
-Tokio is a modern evolution of libraries like [libuv (C)](https://libuv.org/) and [ASIO (C++)](https://think-async.com/Asio/). It leverages Rust's thread and memory safety to deliver asynchronous programs that are not only incredibly fast, but also correct. This is extremely important since it is quite difficult to write correct asynchronous software in C/C++ due to the need to manually reason object lifetimes in callbacks.
+Tokio is a modern evolution of libraries like [libuv (C)](https://libuv.org/) and [ASIO (C++)](https://think-async.com/Asio/). It leverages Rust's thread and memory safety to deliver asynchronous programs that are both fast and correct. Writing correct asynchronous C/C++ code requires careful manual management of object lifetimes in callbacks.
 
 ## Lifetime
 
-You must create a `Runtime` before any communication can take place. It is a shared resource for multiple communication sessions that is typically created just after initializing logging. It is also the last component to shut down; see below for more details about runtime shutdown.
+Create a `Runtime` before any communication can take place. The runtime is a shared resource for multiple communication sessions, typically created just after initializing logging. It should be the last component to shut down; see below for details.
 
 :::note
 Rust users can share the runtime with other libraries that also use Tokio. The bindings don't currently support sharing a runtime, but this will be possible in a future release.
@@ -81,12 +81,11 @@ Set the number of runtime threads to `0` to default to the number of system core
 
 ## Callbacks
 
-The runtime's thread pool invokes callbacks from the library to user code. If you block during a callback, an entire thread is made unavailable for task execution. If all threads in a thread pool are blocked, no communication sessions will execute until
-a thread becomes unblocked.
+The runtime's thread pool invokes callbacks from the library to user code. Blocking during a callback removes an entire thread from task execution. If all threads in a thread pool are blocked, no communication sessions execute until a thread unblocks.
 
 For example, when you receive a log message via a callback, a synchronous call to write the message to a file will block a thread. If this frequently occurs on all your pool threads, it can cause poor throughput or even task starvation.
 
-For best results, avoid blocking whenever possible in your applications. Instead, you should defer blocking calls to dedicated worker threads, such as a user-managed thread that write log messages to file.
+Avoid blocking in callbacks. Defer blocking calls to dedicated worker threads, such as a user-managed thread that writes log messages to file.
 
 :::tip
 If you have a case where some blocking is unavoidable, set the number of worker threads to a multiple of the number of system cores, such as 2x or 3x.
@@ -102,11 +101,10 @@ worker threads have been joined.
 A blocked worker thread can cause shutdown to deadlock. For example, if a communication channel makes a callback to user code
 that permanently blocks, `shutdown` will cause a deadlock.
 
-If you cannot ensure a clean shutdown, you can use `Runtime.set_shutdown_timeout(..)` to put an upper
-time limit on the eventual shut down. You would call this method immediately after creating the Runtime.
+If you cannot ensure a clean shutdown, use `Runtime.set_shutdown_timeout(..)` to set an upper
+time limit on shutdown. Call this method immediately after creating the Runtime.
 
-**Shutting down the runtime using a timeout can leak memory as worker threads are be aborted if the timeout occurs. Only
-use this method if you are exiting the process anyway.**
+**A shutdown timeout can leak memory because the system aborts worker threads. Only use this method when exiting the process.**
 :::
 
 ### Logging

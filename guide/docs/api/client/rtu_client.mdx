@@ -8,7 +8,7 @@ slug: /api/client/rtu_client
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
-You can create a RTU client channel using the `create_rtu_client` method. It will immediately try to open the serial port.
+Create an RTU client channel using the `create_rtu_client` method. The client immediately attempts to open the serial port.
 
 :::note
 In Rust, you can use the `spawn_rtu_client_task` to create a channel and spawn the async task in the context of the current runtime.
@@ -88,8 +88,7 @@ Each channel sends one request at a time and has a fixed-length buffer of reques
 
 ## Retry Delay
 
-A serial channel tries to open the serial port as soon as it is created. If the serial port cannot be opened, the library
-automatically waits `retry_delay` before retrying to open the port.
+The serial channel attempts to open the port immediately upon creation. If the port cannot be opened, the library waits `retry_delay` before retrying.
 
 ## Decode Level
 
