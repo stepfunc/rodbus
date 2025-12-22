@@ -75,7 +75,7 @@ All C API errors are transformed into a C++ exceptions containing the error enum
 Other validations (e.g. checking that a moved class isn't used after the move) also throw `std::logic_error`.
 
 :::warning
-Uncaught exceptions thrown in callbacks will terminate the program. Always wrap your callback logic using `try/catch` syntax if there's a possibility the callback will throw.
+Uncaught exceptions thrown in callbacks will terminate the program. Always wrap your callback logic using `try/catch` syntax if there is a possibility the callback will throw.
 :::
 
 ### Iterators
@@ -102,8 +102,8 @@ Collections are taken through a constant reference to a `std::vector`. The eleme
 
 ### Classes
 
-Classes have a opaque pointer inside and therefore cannot be copied. They can be moved around with `std::move`. If a method
-is called on a moved class it throw a `std::logic_error`.
+Classes have an opaque pointer inside and therefore cannot be copied. They can be moved around with `std::move`. If a method
+is called on a moved class it throws a `std::logic_error`.
 
 The class destructor will call the underlying C destructor automatically.
 

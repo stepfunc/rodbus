@@ -31,7 +31,7 @@ The created server will start listening on the port immediately.
 The `Server.CreateTcp` method takes the following arguments:
 
 - `runtime`: tokio runtime used to drive the async process. See [Runtime](../runtime.mdx) for more details.
-- `address`: IP address of the adapter on which to listen. It may be any specified as any valid IPv4 or IPv6 local endpoint, such as:
+- `address`: IP address of the adapter on which to listen. Specify any valid IPv4 or IPv6 local endpoint, such as:
     - `127.0.0.1` for localhost only
     - `0.0.0.0` for all adapters
     - The IP address for a particular adapter

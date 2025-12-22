@@ -76,7 +76,7 @@ Rustls has been [reviewed](https://github.com/rustls/rustls/raw/main/audit/TLS-0
 TLS configuration is configured using the `TlsClientConfig` or `TlsServerConfig` structures. They are very similar and contain the following fields:
 
 - `name` (client only):
-  * The client verifies that the certificate presented by the server is valid for this name. Check out the next section for the gory details on
+  * The client verifies that the certificate presented by the server is valid for this name. Check out the next section for the technical details on
   name validation.
   * The client will advertise this name through a Server Name Indication (SNI) extension in the `Client Hello`.
 - `peer_cert_path`:
@@ -188,7 +188,7 @@ Name validation is performed *indirectly* in self-signed mode, since the byte-fo
 ### `AuthorizationHandler`
 
 When creating a Modbus Security server, you also need to provide an `AuthorizationHandler`.
-It is use to validate that the client has the authorization to perform the operation. There's
+It is used to validate that the client has the authorization to perform the operation. There is
 a callback for each function code. You get the unit ID of the destination, information about
 what points are requested (either as an `AddressRange` or a 16-bit unsigned integer) as well as
 the Role ID that was extracted from the presented certificate.
