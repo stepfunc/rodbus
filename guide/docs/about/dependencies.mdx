@@ -13,12 +13,12 @@ and libraries tend to have many dependencies.
 
 Our library directly depends on only a few third-party libraries, though those libraries have many transitive dependencies.
 
-## Dependency Whitelisting
+## Dependency Allowlisting
 
-We use a dependency whitelist to ensure that we never incorporate unapproved dependencies. During each CI build, we perform the following
+We use a dependency allowlist to ensure that we never incorporate unapproved dependencies. During each CI build, we perform the following
 checks:
 
-* Check every dependency against the whitelist. Our CI packaging will fail if add a dependency is added with a license that has not been pre-approved.
+* Check every dependency against the allowlist. Our CI packaging will fail if a dependency is added with a license that has not been pre-approved.
 * Produce a license report called `third-party-licenses.txt` that consolidates all the dependency and license information. We include this document in all of
 our binary distributions.
 * Ignore projects wholly owned by Step Function I/O, e.g. the library itself and dependencies shared with our other protocol libraries.
