@@ -8,7 +8,7 @@ slug: /api/server/tcp_server
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
-Each TCP server instance is capable of processing requests for one or more unit IDs from multiple external clients.
+Each TCP server processes requests for one or more unit IDs from multiple external clients.
 
 ```mermaid
 graph TD
@@ -25,20 +25,19 @@ The `DeviceMap` class is used to build the association between unit IDs and the 
 
 ## Creating a server
 
-To create a server, first build a `DeviceMap` for each unit ID that the server will answer. Then use the `create_tcp_server` static method of the `Server` class.
-The created server will start listening on the port immediately.
+To create a server, first build a `DeviceMap` for each unit ID the server must support. Then use the `create_tcp_server` static method of the `Server` class.
+The server starts listening on the port immediately.
 
 The `Server.CreateTcp` method takes the following arguments:
 
 - `runtime`: tokio runtime used to drive the async process. See [Runtime](../runtime.mdx) for more details.
-- `address`: IP address of the adapter on which to listen. It may be any specified as any valid IPv4 or IPv6 local endpoint, such as:
+- `address`: IP address of the adapter on which to listen. Specify any valid IPv4 or IPv6 local endpoint, such as:
     - `127.0.0.1` for localhost only
     - `0.0.0.0` for all adapters
     - The IP address for a particular adapter
 - `port`: port on which to listen for connection
 - `filter`: `AddressFilter` which can be used to limit which external IPs may connect.
-- `max_sessions`: maximum concurrent sessions allowed by the server. When the maximum number of sessions is reached, a new connection will end the oldest session
-in order to limit resource usage.
+- `max_sessions`: maximum concurrent sessions allowed by the server. When the server reaches maximum sessions, new connections terminate the oldest session to limit resource usage.
 - `map`: Map of unit ids and their corresponding callback handlers.
 
 <Tabs

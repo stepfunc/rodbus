@@ -25,7 +25,7 @@ Release artifacts are published to Maven central. Add this dependency to incorpo
 
 ## Dependencies
 
-In addition to the Rust dependencies, the Java bindings depend on this open source project:
+Besides Rust dependencies, the Java bindings require this open source project:
 
 * [joou-java-6](https://github.com/jOOQ/jOOU) - Apache 2.0 - Java Object Oriented Unsigned (JOOU) integer classes
 
@@ -33,7 +33,7 @@ This library is not distributed by Step Function I/O directly. It is only declar
 
 ## Unsigned Integers
 
-Java doesn't support unsigned integers as part of the core language. Instead, the Java code generator uses classes from the `JOOU` library. This ensures that numeric types crossing the Java/JNI boundary are pre-validated within the correct range. User code that creates unsigned integers will need to import symbols from the `JOOU` library.
+Java lacks native unsigned integer types. Instead, the Java code generator uses classes from the `JOOU` library. This ensures that numeric types crossing the Java/JNI boundary are pre-validated within the correct range. User code that creates unsigned integers will need to import symbols from the `JOOU` library.
 
 It is particularly helpful to statically import the factory methods on `Unsigned` class:
 
@@ -57,7 +57,7 @@ Java is an object-oriented language that supports all the abstract patterns mode
 C API errors are transformed into exceptions containing the error enum. The exception class inherits from `RuntimeException`.
 
 :::warning
-Uncaught exceptions thrown in callbacks will terminate the program. Always wrap your callback logic using `try/catch` syntax if there's a possibility the callback will throw.
+Uncaught callback exceptions terminate the program. Always wrap callback logic with `try/catch` syntax to prevent uncaught exceptions.
 :::
 
 

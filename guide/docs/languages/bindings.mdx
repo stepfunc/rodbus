@@ -7,13 +7,11 @@ slug: /bindings
 
 import useBaseUrl from '@docusaurus/useBaseUrl';
 
-We wrote our core library in idiomatic Rust without any concern for how it would be bound into other languages. Consequently, keep in mind that the Rust API won't always
-correlate 100% with the various binding APIs. This guide is still helpful for Rust users, but you should be aware that the guide is primarily written from
-the perspective of the bindings.
+We developed the core library in idiomatic Rust without considering how to bind it to other languages. The Rust API may not directly correspond to the binding APIs. This guide is still helpful for Rust users but is primarily written from the perspective of the bindings.
 
 ## Generic Terminology
 
-The guide use generic terms like `struct`, `interface`, and `class`. Because these terms don't map directly to all languages, please refer to our language-specific pages for how these abstract concepts map to language-specific implementations.
+This guide uses generic terms like `struct`, `interface`, and `class`. Because these terms don't map directly to all languages, refer to the language-specific pages for how these abstract concepts map to language-specific implementations.
 
 :::note
 For example, Rust doesn't support inheritance, which means it lacks an interface concept like C# and Java. Rust users can assume that we're talking about a boxed trait object whenever we talk about an interface.

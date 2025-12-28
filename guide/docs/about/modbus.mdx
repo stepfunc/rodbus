@@ -7,8 +7,8 @@ slug: /modbus
 
 import useBaseUrl from '@docusaurus/useBaseUrl';
 
-Modbus is a ubiquitous communication protocol used to communicate with various industrial devices, most notably PLCs. Its simplicity and versatility makes
-it very popular in numerous applications. The standard itself is freely available from the [Modbus Organization](https://modbus.org/). It supports both TCP/IP
+Modbus is a ubiquitous communication protocol used to communicate with various industrial devices, most notably PLCs. Its simplicity and versatility make
+it popular in numerous applications. The standard itself is freely available from the [Modbus Organization](https://modbus.org/). It supports both TCP/IP
 and serial communication, and more recently, has been defined for secure operation over TLS. Modbus is sometimes referred to as "Modicon Modbus" or just
 "Modicon" for historical reasons.
 
@@ -55,7 +55,7 @@ remove the leading entity type and subtract 1.
 
 ### Point interpretation
 
-Due to the limited point types available in Modbus, the data model is often extended to represent more complex values. You will need to read device
+Because Modbus has limited point types, applications often extend the data model to represent more complex values. You will need to read device
 documentation to interpret the data appropriately. For example, applications often use multiple registers to represent a single physical value.
 
 Here are some examples of common point interpretations:
@@ -85,11 +85,10 @@ The following table lists the functions currently supported by our library:
 | 0x15 | Write multiple coils          | ✔️    |
 | 0x16 | Write multiple registers      | ✔️    |
 
-These functions are all that is required for the vast majority of applications using Modbus. We would consider adding support for additional
-functions codes if requested by a potential customer.
+These functions are all that is required for the vast majority of applications using Modbus. Additional function codes can be added upon request.
 
-Modbus also allows user-defined function codes in the range 65 to 72 and 100 to 110. This library does not support adding user defined functions at this time,
-but could be added if desired.
+Modbus also allows user-defined function codes in the range 65 to 72 and 100 to 110. This library does not currently support user-defined functions,
+but support can be added upon request.
 
 ## Exceptions
 

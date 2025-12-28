@@ -8,16 +8,15 @@ slug: /api/outstation/write_handler
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
-The `WriteHandler` interface allows you to process write requests in your application code. Each callback receives a `Database`
-object on which changes can be applied. Generally, when a value is written, it should be reflected back in
-the internal database.
+The `WriteHandler` interface processes write requests in your application code. Each callback receives a `Database`
+object for applying changes. Typically, update the internal database when values are written.
 
 :::note
 In Rust, the `WriteHandler` does not exist, it is merged with the `RequestHandler` trait.
 :::
 
 :::warning
-The callback functions **should never block** as they are being made from a `Runtime` thread.
+Never block in callback functions; they execute on the Runtime thread.
 :::
 
 ## Return value
@@ -31,9 +30,7 @@ The return value of each callback function determines what is returned by the se
 The library automatically responds to improperly formatted requests such as ones containing invalid start/count combinations. Such invalid
 requests are never forwarded to your application code.
 
-To return an exception, the `WriteResult` value is used. It has three static methods to help build results. The `success_init`
-methods is used to create a success result. The `exception_init` is used to write a standard Modbus exception. The `raw_exception_init`
-is used to create a non-standard Modbus exception.
+Use the `WriteResult` value to return exceptions. It has three static methods: `success_init` creates a success result, `exception_init` creates a standard Modbus exception, and `raw_exception_init` creates a non-standard Modbus exception.
 
 ## Example
 

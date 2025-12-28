@@ -8,8 +8,7 @@ slug: /api/client/tcp_client
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
-The `ClientChannel` class represents a communication channel on which you can make requests to server device. `Channel` presents the same interface once you create it,
-regardless of the underlying transport. You can create a TCP client channel using `create_tcp` method.
+The `ClientChannel` class represents a communication channel for making requests to server devices. The channel presents the same interface regardless of underlying transport. Create a TCP client channel using the `create_tcp` method.
 
 :::note
 In Rust, you can use the `spawn_tcp_client_task` to create a channel and spawn the runner task in the current runtime.
@@ -77,10 +76,9 @@ The argument for the remote endpoint is a string in format the `<host>:<port>` w
 
 ## Retry Strategy
 
-A TCP channel tries to establish and maintain a connection as soon as it is created. To avoid flooding, reconnection delays are applied.
+A TCP channel establishes and maintains a connection immediately upon creation. The client applies reconnection delays to avoid flooding.
 
-The `RetryStrategy` controls the rate at which the client retries failed connection attempts. The client uses exponential backoff when attempting to establish
-a connection. The delay between attempts doubles from `min_delay` up to `max_delay`.
+The `RetryStrategy` determines how quickly the client retries failed connections. The client uses exponential backoff: the delay between attempts doubles from `min_delay` up to `max_delay`.
 
 ## Decode Level
 

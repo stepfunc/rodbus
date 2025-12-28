@@ -33,7 +33,7 @@ The library supports four read requests:
 | `read_holding_registers` | 16-bit registers |
 | `read_input_registers`   | 16-bit registers |
 
-Each read request takes an `AddressRange` parameter to specify what values are requested.
+Each read request takes an `AddressRange` parameter specifying which values to retrieve.
 It has a 16-bit `start` index and a 16-bit `count` value.
 
 :::warning
@@ -41,7 +41,7 @@ The sum of the `start` and `count` fields **cannot exceed 65,536**. The library 
 returning an error.
 :::
 
-The asynchronous response will contain an iterator with the received values. If an error occurs, the iterator will be empty.
+The asynchronous response contains an iterator over the retrieved values. If an error occurs, the iterator is empty.
 
 The following example demonstrates reading the first 5 coils from a device:
 
@@ -127,12 +127,10 @@ The registers that are written using the `write_single_register` and `write_mult
 are *holding registers*.
 :::
 
-The "single" requests, as their name suggests, writes a single point at a time.
+Single requests write one point at a time.
 The "multiple" requests write multiple **contiguous** points of the same type in a single message.
 
-In order to write a set of discontinuous points, you must perform multiple requests. Modbus does
-not have a transaction mechanism. Therefore, you must keep in mind that the device state
-might change in between requests.
+To write discontinuous points, perform multiple requests. Modbus lacks a transaction mechanism, so device state may change between requests.
 
 The following example demonstrates how to write a coil:
 

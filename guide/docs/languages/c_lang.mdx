@@ -7,7 +7,7 @@ slug: /c_bindings
 
 import useBaseUrl from '@docusaurus/useBaseUrl';
 
-The C bindings are a simple single header/library distribution which makes application integration extremely straightforward:
+The C bindings feature a simple single-header design that simplifies application integration:
 
 ```mermaid
 graph TD
@@ -26,8 +26,8 @@ The distribution contains:
 * CMake find package script in `/cmake/`
 
 :::tip
-The CMake script is just a recipe for how you might integrate the library. You don't have to use it. Our distribution contains a single header file
-and a shared library that can be easily linked. Assuming that you've installed the shared library in /usr/lib, linking a program could be as simple
+The CMake script shows how to integrate the library; you don't have to use it. The distribution contains a single header file
+and a shared library that link easily. Assuming that you've installed the shared library in /usr/lib, linking a program could be as simple
 as:
 
 ```
@@ -138,7 +138,7 @@ typedef struct dnp3_logger_t
 * `on_destroy` is the destructor that cleans up the `ctx`.
 * `on_message` is a function pointer used to dispatch a log message.
 
-Keep in mind that this example only contains a single method. Other interfaces will contain several methods.
+This example contains only a single method; other interfaces contain several methods.
 
 :::tip
 If your implementation of an interface is stateless, you can initialize `ctx` and `on_destroy` to NULL. C99 struct initialization syntax
@@ -147,7 +147,7 @@ will do this by default if you don't specify a value for these fields.
 
 ### Iterators
 
-Collections in the C bindings are always implemented as an opaque iterator type. Think of them as a class with a single "next" method. For example, let's look at an iterator over bool values:
+The C bindings implement collections as opaque iterator types. Think of them as a class with a single "next" method. For example, let's look at an iterator over bool values:
 
 ```c
 // opaque iterator
@@ -170,12 +170,12 @@ void my_callback(bool_iterator_t* iter, void* ctx)
 ```
 
 :::warning
-Never use an iterator outside the callback. Frequently, the iterator points to memory on the stack and will result in undefined behavior if it is used after the callback is complete.
+Never use an iterator outside its callback. Iterators typically reference stack memory, causing undefined behavior if used after callback completion.
 :::
 
 ### Error Handling
 
-C API error handling is performed using error codes. An error code is always an enum value where the first value is equal to zero, indicating success.
+The C API uses error codes for error handling. Error codes are enum values where the first value equals zero, indicating success.
 
 Consider an error enum and a function that parses a string as an `int` that can fail:
 

@@ -11,8 +11,7 @@ import TabItem from '@theme/TabItem';
 The library supports serial communication using the RTU transmission mode. RTU uses a similar Modbus addressing scheme but adds
 a CRC to each transmitted frame.
 
-Multi-drop communications may be implemented by having a single client communicating with multiple servers sharing the same serial channel. Broadcasts
-messages may be used to write requests simultaneously to all server on a channel.
+Multi-drop communications allow a single client to communicate with multiple servers sharing the same serial channel. Use broadcast messages to write requests simultaneously to all servers on a channel.
 
 ## Special addresses
 
@@ -23,12 +22,11 @@ handlers. No response will be returned.
 
 ### Reserved addresses
 
-Addresses 248 (`0xF8`) to 255 (`0xFF`) (inclusive) are reserved in the specification and **should not be used**. The library does not
-enforce this requirement, but a warning message is generated as a reminder that it may not be interoperable.
+Do not use addresses 248 (`0xF8`) to 255 (`0xFF`), which are reserved by the specification. The library does not enforce this requirement but generates a warning as a reminder of potential interoperability issues.
 
 ## Creating a server
 
-To create a RTU server, first build a `DeviceMap` for each unit ID to which the server will respond. The is similar to how it's done in the [TCP server](./tcp_server).
+To create a RTU server, first build a `DeviceMap` for each unit ID to which the server will respond. This is similar to how it is done in the [TCP server](./tcp_server).
 Then use the `Server.CreateRtu` factory method to create the background task.
 
 The `Server.CreateRtu` method takes the following arguments:
@@ -49,7 +47,7 @@ The `Server.CreateRtu` method takes the following arguments:
 - `level`: Initial decoding level for the port which can be adjusted later via the returned Channel.
 
 :::tip
-The task handling the port is tolerant to the hardware device being added and removed from the system as might occur with USB to serial adapters.
+The task handles dynamic hardware changes, such as USB-to-serial adapter insertion and removal.
 :::
 
 <Tabs
