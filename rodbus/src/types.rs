@@ -192,12 +192,13 @@ impl<'a> Iterator for BitIterator<'a> {
         }
     }
 
-    /// implementing this allows collect to optimize the vector capacity
     fn size_hint(&self) -> (usize, Option<usize>) {
         let remaining = (self.range.count - self.pos) as usize;
         (remaining, Some(remaining))
     }
 }
+
+impl ExactSizeIterator for BitIterator<'_> {}
 
 impl<'a> Iterator for RegisterIterator<'a> {
     type Item = Indexed<u16>;
@@ -219,12 +220,13 @@ impl<'a> Iterator for RegisterIterator<'a> {
         }
     }
 
-    // implementing this allows collect to optimize the vector capacity
     fn size_hint(&self) -> (usize, Option<usize>) {
         let remaining = (self.range.count - self.pos) as usize;
         (remaining, Some(remaining))
     }
 }
+
+impl ExactSizeIterator for RegisterIterator<'_> {}
 
 impl<T> From<(u16, T)> for Indexed<T>
 where
