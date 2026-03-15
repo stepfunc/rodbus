@@ -39,9 +39,7 @@ impl Promise {
         }
     }
 
-    fn oneshot(
-        tx: tokio::sync::oneshot::Sender<Result<Vec<Indexed<bool>>, RequestError>>,
-    ) -> Self {
+    fn oneshot(tx: tokio::sync::oneshot::Sender<Result<Vec<Indexed<bool>>, RequestError>>) -> Self {
         Self {
             inner: Some(PromiseInner::Oneshot(tx)),
         }

@@ -1308,9 +1308,9 @@ dependencies = [
 
 [[package]]
 name = "scursor"
-version = "0.2.0"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "49e9e097d5ccc66dd9a88d94c7ddad0833b13a35ed8f30d6ea28a8d5269cbd58"
+checksum = "44cc835e9c5bfc9833d698556fc56bfeb8f6c672d96f1a02319b68c8e9be9d50"
 
 [[package]]
 name = "semver"
