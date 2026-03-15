@@ -77,7 +77,8 @@ impl Request {
 
         // If we made it this far, then everything's alright
         // call the request-specific response handler
-        self.details.handle_response(cursor, decode)
+        self.details
+            .handle_response(cursor, expected_function, decode)
     }
 
     fn get_error_for(
@@ -148,9 +149,9 @@ impl RequestDetails {
     fn handle_response(
         &mut self,
         cursor: ReadCursor,
+        function: FunctionCode,
         decode: AppDecodeLevel,
     ) -> Result<(), RequestError> {
-        let function = self.function();
         match self {
             RequestDetails::ReadCoils(x) => x.handle_response(cursor, function, decode),
             RequestDetails::ReadDiscreteInputs(x) => x.handle_response(cursor, function, decode),
