@@ -89,32 +89,33 @@ impl MbapParser {
         cursor: &mut ReadBuffer,
         decode_level: FrameDecodeLevel,
     ) -> Result<Option<Frame>, RequestError> {
-        match self.state {
-            ParseState::Header(header, adu_length) => {
-                if cursor.len() < adu_length {
-                    return Ok(None);
+        loop {
+            match self.state {
+                ParseState::Header(header, adu_length) => {
+                    if cursor.len() < adu_length {
+                        return Ok(None);
+                    }
+
+                    let frame = Self::parse_body(&header, adu_length, cursor)?;
+                    self.state = ParseState::Begin;
+
+                    if decode_level.enabled() {
+                        tracing::info!(
+                            "MBAP RX - {}",
+                            MbapDisplay::new(decode_level, header, frame.payload())
+                        );
+                    }
+
+                    return Ok(Some(frame));
                 }
+                ParseState::Begin => {
+                    if cursor.len() < constants::HEADER_LENGTH {
+                        return Ok(None);
+                    }
 
-                let frame = Self::parse_body(&header, adu_length, cursor)?;
-                self.state = ParseState::Begin;
-
-                if decode_level.enabled() {
-                    tracing::info!(
-                        "MBAP RX - {}",
-                        MbapDisplay::new(decode_level, header, frame.payload())
-                    );
+                    let (header, adu_len) = Self::parse_header(cursor)?;
+                    self.state = ParseState::Header(header, adu_len);
                 }
-
-                Ok(Some(frame))
-            }
-            ParseState::Begin => {
-                if cursor.len() < constants::HEADER_LENGTH {
-                    return Ok(None);
-                }
-
-                let (header, adu_len) = Self::parse_header(cursor)?;
-                self.state = ParseState::Header(header, adu_len);
-                self.parse(cursor, decode_level)
             }
         }
     }
