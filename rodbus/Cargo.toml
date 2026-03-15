@@ -19,7 +19,7 @@ workspace = true
 
 [dependencies]
 crc = { version = "3", optional = true }
-scursor = "0.2.0"
+scursor = "0.5.0"
 tokio = { workspace = true, features = ["net", "sync", "io-util", "io-std", "time", "rt", "rt-multi-thread", "macros"] }
 tracing = { workspace = true }
 

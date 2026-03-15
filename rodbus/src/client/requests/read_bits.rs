@@ -14,8 +14,13 @@ pub(crate) trait BitsCallback:
 impl<T> BitsCallback for T where T: FnOnce(Result<BitIterator, RequestError>) + Send + Sync + 'static
 {}
 
+enum PromiseInner {
+    Oneshot(tokio::sync::oneshot::Sender<Result<Vec<Indexed<bool>>, RequestError>>),
+    Boxed(Box<dyn BitsCallback>),
+}
+
 pub(crate) struct Promise {
-    callback: Option<Box<dyn BitsCallback>>,
+    inner: Option<PromiseInner>,
 }
 
 impl Drop for Promise {
@@ -30,21 +35,35 @@ impl Promise {
         T: BitsCallback,
     {
         Self {
-            callback: Some(Box::new(callback)),
+            inner: Some(PromiseInner::Boxed(Box::new(callback))),
+        }
+    }
+
+    fn oneshot(tx: tokio::sync::oneshot::Sender<Result<Vec<Indexed<bool>>, RequestError>>) -> Self {
+        Self {
+            inner: Some(PromiseInner::Oneshot(tx)),
         }
     }
 
     pub(crate) fn failure(&mut self, err: RequestError) {
-        self.complete(Err(err))
+        if let Some(inner) = self.inner.take() {
+            match inner {
+                PromiseInner::Oneshot(tx) => {
+                    let _ = tx.send(Err(err));
+                }
+                PromiseInner::Boxed(callback) => callback(Err(err)),
+            }
+        }
     }
 
     pub(crate) fn success(&mut self, iter: BitIterator) {
-        self.complete(Ok(iter))
-    }
-
-    fn complete(&mut self, result: Result<BitIterator, RequestError>) {
-        if let Some(callback) = self.callback.take() {
-            callback(result)
+        if let Some(inner) = self.inner.take() {
+            match inner {
+                PromiseInner::Oneshot(tx) => {
+                    let _ = tx.send(Ok(iter.collect()));
+                }
+                PromiseInner::Boxed(callback) => callback(Ok(iter)),
+            }
         }
     }
 }
@@ -63,12 +82,7 @@ impl ReadBits {
         request: ReadBitsRange,
         tx: tokio::sync::oneshot::Sender<Result<Vec<Indexed<bool>>, RequestError>>,
     ) -> Self {
-        Self::new(
-            request,
-            Promise::new(|x: Result<BitIterator, RequestError>| {
-                let _ = tx.send(x.map(|x| x.collect()));
-            }),
-        )
+        Self::new(request, Promise::oneshot(tx))
     }
 
     pub(crate) fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError> {

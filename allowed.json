@@ -1919,6 +1919,21 @@
           }
         }
       ]
+    },
+    "zmij": {
+      "id": "zmij",
+      "source": "crates.io",
+      "licenses": [
+        {
+          "MIT": {
+            "copyright": {
+              "Lines": [
+                "Copyright (c) David Tolnay"
+              ]
+            }
+          }
+        }
+      ]
     }
   }
 }

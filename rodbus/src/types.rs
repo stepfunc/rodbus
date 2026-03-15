@@ -149,6 +149,19 @@ impl<'a> RegisterIterator<'a> {
             pos: 0,
         })
     }
+
+    /// Collect into a Vec using `as_chunks` to avoid per-element bounds checking
+    pub(crate) fn collect_vec(self) -> Vec<Indexed<u16>> {
+        let (chunks, _) = self.bytes.as_chunks::<2>();
+        let mut result = Vec::with_capacity(chunks.len());
+        for (i, &chunk) in chunks.iter().enumerate() {
+            result.push(Indexed::new(
+                self.range.start + (i as u16),
+                u16::from_be_bytes(chunk),
+            ));
+        }
+        result
+    }
 }
 
 impl<'a> RegisterIteratorDisplay<'a> {
@@ -192,12 +205,13 @@ impl<'a> Iterator for BitIterator<'a> {
         }
     }
 
-    /// implementing this allows collect to optimize the vector capacity
     fn size_hint(&self) -> (usize, Option<usize>) {
         let remaining = (self.range.count - self.pos) as usize;
         (remaining, Some(remaining))
     }
 }
+
+impl ExactSizeIterator for BitIterator<'_> {}
 
 impl<'a> Iterator for RegisterIterator<'a> {
     type Item = Indexed<u16>;
@@ -219,12 +233,13 @@ impl<'a> Iterator for RegisterIterator<'a> {
         }
     }
 
-    // implementing this allows collect to optimize the vector capacity
     fn size_hint(&self) -> (usize, Option<usize>) {
         let remaining = (self.range.count - self.pos) as usize;
         (remaining, Some(remaining))
     }
 }
+
+impl ExactSizeIterator for RegisterIterator<'_> {}
 
 impl<T> From<(u16, T)> for Indexed<T>
 where

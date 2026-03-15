@@ -17,8 +17,13 @@ impl<T> RegistersCallback for T where
 {
 }
 
+enum PromiseInner {
+    Oneshot(tokio::sync::oneshot::Sender<Result<Vec<Indexed<u16>>, RequestError>>),
+    Boxed(Box<dyn RegistersCallback>),
+}
+
 pub(crate) struct Promise {
-    callback: Option<Box<dyn RegistersCallback>>,
+    inner: Option<PromiseInner>,
 }
 
 impl Drop for Promise {
@@ -33,21 +38,35 @@ impl Promise {
         T: RegistersCallback,
     {
         Self {
-            callback: Some(Box::new(callback)),
+            inner: Some(PromiseInner::Boxed(Box::new(callback))),
+        }
+    }
+
+    fn oneshot(tx: tokio::sync::oneshot::Sender<Result<Vec<Indexed<u16>>, RequestError>>) -> Self {
+        Self {
+            inner: Some(PromiseInner::Oneshot(tx)),
         }
     }
 
     pub(crate) fn failure(&mut self, err: RequestError) {
-        self.complete(Err(err))
+        if let Some(inner) = self.inner.take() {
+            match inner {
+                PromiseInner::Oneshot(tx) => {
+                    let _ = tx.send(Err(err));
+                }
+                PromiseInner::Boxed(callback) => callback(Err(err)),
+            }
+        }
     }
 
     pub(crate) fn success(&mut self, iter: RegisterIterator) {
-        self.complete(Ok(iter))
-    }
-
-    fn complete(&mut self, x: Result<RegisterIterator, RequestError>) {
-        if let Some(callback) = self.callback.take() {
-            callback(x)
+        if let Some(inner) = self.inner.take() {
+            match inner {
+                PromiseInner::Oneshot(tx) => {
+                    let _ = tx.send(Ok(iter.collect_vec()));
+                }
+                PromiseInner::Boxed(callback) => callback(Ok(iter)),
+            }
         }
     }
 }
@@ -66,12 +85,7 @@ impl ReadRegisters {
         request: ReadRegistersRange,
         tx: tokio::sync::oneshot::Sender<Result<Vec<Indexed<u16>>, RequestError>>,
     ) -> Self {
-        Self::new(
-            request,
-            Promise::new(|x: Result<RegisterIterator, RequestError>| {
-                let _ = tx.send(x.map(|x| x.collect()));
-            }),
-        )
+        Self::new(request, Promise::oneshot(tx))
     }
 
     pub(crate) fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError> {

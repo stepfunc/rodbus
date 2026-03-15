@@ -16,7 +16,11 @@ use scursor::{ReadCursor, WriteCursor};
 pub(crate) fn calc_bytes_for_bits(num_bits: usize) -> Result<u8, InternalError> {
     let div_8 = num_bits / 8;
 
-    let count = if num_bits % 8 == 0 { div_8 } else { div_8 + 1 };
+    let count = if num_bits.is_multiple_of(8) {
+        div_8
+    } else {
+        div_8 + 1
+    };
 
     u8::try_from(count).map_err(|_| InternalError::BadByteCount(count))
 }

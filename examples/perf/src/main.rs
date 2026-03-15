@@ -21,6 +21,25 @@ impl RequestHandler for Handler {
     }
 }
 
+/// Listener that signals when the client reaches the Connected state
+struct ConnectListener {
+    tx: tokio::sync::watch::Sender<ClientState>,
+}
+
+impl Listener<ClientState> for ConnectListener {
+    fn update(&mut self, value: ClientState) -> MaybeAsync<()> {
+        let _ = self.tx.send(value);
+        MaybeAsync::ready(())
+    }
+}
+
+/// Wait for the client to reach the Connected state
+async fn wait_for_connected(rx: &mut tokio::sync::watch::Receiver<ClientState>) {
+    while *rx.borrow_and_update() != ClientState::Connected {
+        rx.changed().await.unwrap();
+    }
+}
+
 #[derive(Parser)]
 #[clap(author, version, about, long_about = None)]
 struct Cli {
@@ -79,9 +98,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     )
     .await?;
 
-    // now spawn a bunch of clients
+    // now spawn a bunch of clients, waiting for each to connect
     let mut channels: Vec<(Channel, RequestParam)> = Vec::new();
     for _ in 0..args.sessions {
+        let (tx, mut rx) = tokio::sync::watch::channel(ClientState::Disabled);
+        let listener = ConnectListener { tx };
         let channel = spawn_tcp_client_task(
             addr.into(),
             10,
@@ -91,9 +112,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 FrameDecodeLevel::Nothing,
                 PhysDecodeLevel::Nothing,
             ),
-            None,
+            Some(Box::new(listener)),
         );
         channel.enable().await.unwrap();
+        wait_for_connected(&mut rx).await;
         let params = RequestParam::new(UnitId::new(1), Duration::from_secs(1));
 
         channels.push((channel, params));
@@ -103,7 +125,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let start = std::time::Instant::now();
 
-    // spawn tasks that make a query 1000 times
+    // spawn tasks that make requests for the specified duration
     for (mut channel, params) in channels {
         let handle: tokio::task::JoinHandle<Result<usize, RequestError>> =
             tokio::spawn(async move {

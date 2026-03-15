@@ -77,7 +77,8 @@ impl Request {
 
         // If we made it this far, then everything's alright
         // call the request-specific response handler
-        self.details.handle_response(cursor, decode)
+        self.details
+            .handle_response(cursor, expected_function, decode)
     }
 
     fn get_error_for(
@@ -148,9 +149,9 @@ impl RequestDetails {
     fn handle_response(
         &mut self,
         cursor: ReadCursor,
+        function: FunctionCode,
         decode: AppDecodeLevel,
     ) -> Result<(), RequestError> {
-        let function = self.function();
         match self {
             RequestDetails::ReadCoils(x) => x.handle_response(cursor, function, decode),
             RequestDetails::ReadDiscreteInputs(x) => x.handle_response(cursor, function, decode),
@@ -255,11 +256,19 @@ pub(crate) trait Callback<T>:
 
 impl<F, T> Callback<T> for F where F: FnOnce(Result<T, RequestError>) + Send + Sync + 'static {}
 
+enum PromiseInner<T>
+where
+    T: Send + 'static,
+{
+    Oneshot(tokio::sync::oneshot::Sender<Result<T, RequestError>>),
+    Boxed(Box<dyn Callback<T>>),
+}
+
 pub(crate) struct Promise<T>
 where
     T: Send + 'static,
 {
-    callback: Option<Box<dyn Callback<T>>>,
+    inner: Option<PromiseInner<T>>,
 }
 
 impl<T> Promise<T>
@@ -271,14 +280,14 @@ where
         F: Callback<T>,
     {
         Self {
-            callback: Some(Box::new(callback)),
+            inner: Some(PromiseInner::Boxed(Box::new(callback))),
         }
     }
 
     pub(crate) fn channel(tx: tokio::sync::oneshot::Sender<Result<T, RequestError>>) -> Self {
-        Self::new(|x: Result<T, RequestError>| {
-            let _ = tx.send(x);
-        })
+        Self {
+            inner: Some(PromiseInner::Oneshot(tx)),
+        }
     }
 
     pub(crate) fn failure(&mut self, err: RequestError) {
@@ -290,8 +299,13 @@ where
     }
 
     fn complete(&mut self, result: Result<T, RequestError>) {
-        if let Some(callback) = self.callback.take() {
-            callback(result)
+        if let Some(inner) = self.inner.take() {
+            match inner {
+                PromiseInner::Oneshot(tx) => {
+                    let _ = tx.send(result);
+                }
+                PromiseInner::Boxed(callback) => callback(result),
+            }
         }
     }
 }

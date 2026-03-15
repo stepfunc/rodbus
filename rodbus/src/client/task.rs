@@ -220,10 +220,13 @@ impl ClientLoop {
         request: &mut Request,
     ) -> Result<(), SessionError> {
         let tx_id = self.tx_id.next();
-        let result = self
-            .execute_request(io, request, tx_id)
-            .instrument(tracing::info_span!("Transaction", tx_id = %tx_id))
-            .await;
+        let result = if self.decode != DecodeLevel::nothing() {
+            self.execute_request(io, request, tx_id)
+                .instrument(tracing::info_span!("Transaction", tx_id = %tx_id))
+                .await
+        } else {
+            self.execute_request(io, request, tx_id).await
+        };
 
         match result {
             Ok(()) => self.timeout_counter.reset(),

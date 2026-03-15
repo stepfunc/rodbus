@@ -91,7 +91,7 @@ impl ReadBuffer {
         }
 
         // if we've reached capacity, but still need more data we have to shift
-        if self.end == self.len() {
+        if self.end == self.buffer.len() {
             let length = self.len();
             self.buffer.copy_within(self.begin..self.end, 0);
             self.begin = 0;
@@ -125,6 +125,49 @@ mod tests {
             buffer.read(1),
             Err(InternalError::InsufficientBytesForRead(1, 0))
         );
+    }
+
+    #[test]
+    fn shifts_data_when_buffer_full_with_consumed_bytes() {
+        let mut buffer = ReadBuffer::new();
+        let (io, mut io_handle) = sfio_tokio_mock_io::mock();
+        let mut phys = PhysLayer::new_mock(io);
+
+        let capacity = crate::common::frame::constants::MAX_FRAME_LENGTH;
+
+        // fill the buffer to exactly capacity
+        {
+            let data = vec![0xAA; capacity];
+            let mut task = task::spawn(async {
+                buffer
+                    .read_some(&mut phys, PhysDecodeLevel::Nothing)
+                    .await
+                    .unwrap()
+            });
+            io_handle.read(&data);
+            assert_ready_eq!(task.poll(), capacity);
+        }
+
+        // consume some bytes from the front
+        assert_eq!(buffer.read(7).unwrap(), &[0xAA; 7]);
+
+        // now buffer has begin=7, end=capacity, len=capacity-7
+        // calling read_some should shift the data and read more
+        {
+            let mut task = task::spawn(async {
+                buffer
+                    .read_some(&mut phys, PhysDecodeLevel::Nothing)
+                    .await
+                    .unwrap()
+            });
+            io_handle.read(&[0xBB; 7]);
+            // this should NOT return UnexpectedEof — the shift should
+            // make room for the new data
+            assert_ready_eq!(task.poll(), 7);
+        }
+
+        // verify the unconsumed original data is still intact
+        assert_eq!(buffer.read(1).unwrap(), &[0xAA]);
     }
 
     #[test]
