@@ -63,7 +63,7 @@ impl Promise {
         if let Some(inner) = self.inner.take() {
             match inner {
                 PromiseInner::Oneshot(tx) => {
-                    let _ = tx.send(Ok(iter.collect()));
+                    let _ = tx.send(Ok(iter.collect_vec()));
                 }
                 PromiseInner::Boxed(callback) => callback(Ok(iter)),
             }

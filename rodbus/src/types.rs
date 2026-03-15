@@ -149,6 +149,19 @@ impl<'a> RegisterIterator<'a> {
             pos: 0,
         })
     }
+
+    /// Collect into a Vec using `as_chunks` to avoid per-element bounds checking
+    pub(crate) fn collect_vec(self) -> Vec<Indexed<u16>> {
+        let (chunks, _) = self.bytes.as_chunks::<2>();
+        let mut result = Vec::with_capacity(chunks.len());
+        for (i, &chunk) in chunks.iter().enumerate() {
+            result.push(Indexed::new(
+                self.range.start + (i as u16),
+                u16::from_be_bytes(chunk),
+            ));
+        }
+        result
+    }
 }
 
 impl<'a> RegisterIteratorDisplay<'a> {
