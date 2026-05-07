@@ -1,5 +1,5 @@
 ### 1.5.0 ###
-* :lock: Update `rustls-webpki` to 0.103.13 to resolve RUSTSEC-2026-0098, 2026-0099, and 2026-0104. The two name-constraint advisories (0098, 0099) are theoretically reachable during TLS handshake but require certificate misissuance to exploit; the CRL panic (0104) is unreachable as Rodbus does not use CRLs.
+* :lock: Update `rustls-webpki` to 0.103.13 to resolve [RUSTSEC-2026-0098](https://rustsec.org/advisories/RUSTSEC-2026-0098.html), [RUSTSEC-2026-0099](https://rustsec.org/advisories/RUSTSEC-2026-0099.html), and [RUSTSEC-2026-0104](https://rustsec.org/advisories/RUSTSEC-2026-0104.html). The two name-constraint advisories (0098, 0099) are theoretically reachable during TLS handshake but require certificate misissuance to exploit; the CRL panic (0104) is unreachable as Rodbus does not use CRLs.
 
 ### 1.5.0-RC1 ###
 * :star: Add configurable limit on consecutive client response timeouts. See [#166](https://github.com/stepfunc/rodbus/pull/166).
