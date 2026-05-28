@@ -362,7 +362,7 @@ jobs:
       - name: Import PGP key
         uses: crazy-max/ghaction-import-gpg@v7
         with:
-          gpg-private-key: ${{ secrets.SFIO_PGP_PRIVATE_KEY }}
+          gpg_private_key: ${{ secrets.SFIO_PGP_PRIVATE_KEY }}
           passphrase: ${{ secrets.SFIO_PGP_PRIVATE_KEY_PASSPHRASE }}
       - name: Deploy Java to Maven Central
         shell: bash
