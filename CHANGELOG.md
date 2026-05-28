@@ -1,7 +1,8 @@
-### 1.5.0 ###
+### 1.5.0-RC2 ###
+* :star: Add non-spawning `create_tcp_client_task_with_options()`, `create_tls_client_task_with_options()`, and `create_rtu_client_task()` that return a `ClientTask` for the caller to spawn, enabling custom task instrumentation. See [#180](https://github.com/stepfunc/rodbus/pull/180).
 * :lock: Update `rustls-webpki` to 0.103.13 to resolve [RUSTSEC-2026-0098](https://rustsec.org/advisories/RUSTSEC-2026-0098.html), [RUSTSEC-2026-0099](https://rustsec.org/advisories/RUSTSEC-2026-0099.html), and [RUSTSEC-2026-0104](https://rustsec.org/advisories/RUSTSEC-2026-0104.html). The two name-constraint advisories (0098, 0099) are theoretically reachable during TLS handshake but require certificate misissuance to exploit; the CRL panic (0104) is unreachable as Rodbus does not use CRLs.
-
-### 1.5.0-RC1 ###
+* :star: TCP client performance optimizations: ~33% fewer heap allocations and ~3.4% fewer instructions per request, including an iterative MBAP parser and `ExactSizeIterator` impls for the response iterators. See [#177](https://github.com/stepfunc/rodbus/pull/177).
+* :bug: Fix a `ReadBuffer` shift condition that, in a rare buffer-full edge case, caused a spurious disconnect (no data corruption). See [#177](https://github.com/stepfunc/rodbus/pull/177).
 * :star: Add configurable limit on consecutive client response timeouts. See [#166](https://github.com/stepfunc/rodbus/pull/166).
 * :wrench: Use aws-lc-rs crypto provider for TLS on most platforms. See [#164](https://github.com/stepfunc/rodbus/pull/164).
 * :wrench: Tunable connection logging to reduce verbosity during disrupted communication. See [#163](https://github.com/stepfunc/rodbus/pull/163).

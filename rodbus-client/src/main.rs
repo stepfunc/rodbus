@@ -41,7 +41,7 @@ enum Error {
 #[command(
     about = "A command line program for making Modbus client requests using the Rodbus crate"
 )]
-#[command(version = "1.5.0-RC1")]
+#[command(version = env!("CARGO_PKG_VERSION"))]
 struct Cli {
     #[arg(
         short = 'i',
