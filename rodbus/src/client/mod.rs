@@ -143,6 +143,34 @@ pub fn spawn_tcp_client_task_with_options(
     )
 }
 
+/// Creates a channel task that maintains a TCP connection and processes requests, but does
+/// **not** spawn it. It is the caller's responsibility to run the returned [`ClientTask`] onto a
+/// runtime, e.g. `tokio::spawn(task.run())`. The task completes when the returned [`Channel`]
+/// handle is dropped.
+///
+/// Unlike [`spawn_tcp_client_task_with_options`], no tracing span is attached to the task, so the
+/// caller may wrap [`ClientTask::run`] with their own instrumentation before spawning it.
+///
+/// The channel uses the provided [`RetryStrategy`] to pause between failed connection attempts
+///
+/// * `host` - Address/port of the remote server. Can be an IP address or name on which to perform DNS resolution.
+/// * `retry` - A boxed trait object that controls when the connection is retried on failure
+/// * `listener` - Optional callback to monitor the TCP connection state
+/// * `client_options` - A builder that contains various client options.
+pub fn create_tcp_client_task_with_options(
+    host: HostAddr,
+    retry: Box<dyn RetryStrategy>,
+    listener: Option<Box<dyn Listener<ClientState>>>,
+    client_options: ClientOptions,
+) -> (Channel, ClientTask) {
+    crate::tcp::client::create_tcp_channel(
+        host,
+        retry,
+        listener.unwrap_or_else(|| NullListener::create()),
+        client_options,
+    )
+}
+
 /// Spawns a channel task onto the runtime that opens a serial port and processes
 /// requests. The task completes when the returned channel handle
 /// is dropped.
@@ -168,6 +196,42 @@ pub fn spawn_rtu_client_task(
     listener: Option<Box<dyn Listener<PortState>>>,
 ) -> Channel {
     Channel::spawn_rtu(
+        path,
+        serial_settings,
+        max_queued_requests,
+        retry,
+        decode,
+        listener,
+    )
+}
+
+/// Creates a channel task that opens a serial port and processes requests, but does **not**
+/// spawn it. It is the caller's responsibility to run the returned [`ClientTask`] onto a runtime,
+/// e.g. `tokio::spawn(task.run())`. The task completes when the returned [`Channel`] handle is
+/// dropped.
+///
+/// Unlike [`spawn_rtu_client_task`], no tracing span is attached to the task, so the caller may
+/// wrap [`ClientTask::run`] with their own instrumentation before spawning it.
+///
+/// The channel uses the provided [`RetryStrategy`] to pause between failed attempts to open the
+/// serial port or after the serial port fails.
+///
+/// * `path` - Path to the serial device. Generally `/dev/tty0` on Linux and `COM1` on Windows.
+/// * `serial_settings` = Serial port settings
+/// * `max_queued_requests` - The maximum size of the request queue
+/// * `retry` - A boxed trait object that controls when opening the serial port is retried on failure
+/// * `decode` - Decode log level
+/// * `listener` - Optional callback to monitor the state of the serial port
+#[cfg(feature = "serial")]
+pub fn create_rtu_client_task(
+    path: &str,
+    serial_settings: crate::serial::SerialSettings,
+    max_queued_requests: usize,
+    retry: Box<dyn RetryStrategy>,
+    decode: DecodeLevel,
+    listener: Option<Box<dyn Listener<PortState>>>,
+) -> (Channel, ClientTask) {
+    Channel::create_rtu_handle_and_task(
         path,
         serial_settings,
         max_queued_requests,
@@ -209,6 +273,38 @@ pub fn spawn_tls_client_task(
         retry,
         tls_config,
         options,
+        listener.unwrap_or_else(|| NullListener::create()),
+    )
+}
+
+/// Creates a channel task that maintains a TLS connection and processes requests, but does
+/// **not** spawn it. It is the caller's responsibility to run the returned [`ClientTask`] onto a
+/// runtime, e.g. `tokio::spawn(task.run())`. The task completes when the returned [`Channel`]
+/// handle is dropped.
+///
+/// Unlike [`spawn_tls_client_task`], no tracing span is attached to the task, so the caller may
+/// wrap [`ClientTask::run`] with their own instrumentation before spawning it.
+///
+/// The channel uses the provided [`RetryStrategy`] to pause between failed connection attempts
+///
+/// * `host` - Address/port of the remote server. Can be a IP address or name on which to perform DNS resolution.
+/// * `retry` - A boxed trait object that controls when the connection is retried on failure
+/// * `tls_config` - TLS configuration
+/// * `listener` - Optional callback to monitor the TLS connection state
+/// * `client_options` - A builder that contains various client options.
+#[cfg(feature = "enable-tls")]
+pub fn create_tls_client_task_with_options(
+    host: HostAddr,
+    retry: Box<dyn RetryStrategy>,
+    tls_config: TlsClientConfig,
+    listener: Option<Box<dyn Listener<ClientState>>>,
+    client_options: ClientOptions,
+) -> (Channel, ClientTask) {
+    create_tls_channel(
+        host,
+        retry,
+        tls_config,
+        client_options,
         listener.unwrap_or_else(|| NullListener::create()),
     )
 }
