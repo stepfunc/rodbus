@@ -472,10 +472,14 @@ jobs:
       - name: Publish to crates.io
         shell: bash
         run: |
-          # Check if version already exists on crates.io
+          # Authoritative existence check via the sparse index (the same source
+          # cargo reads) so re-running the release is idempotent. Each line is one
+          # published version as compact JSON. This avoids the crates.io web API,
+          # which 403s on default curl User-Agents. If the version is absent we
+          # publish, and any cargo failure is a genuine failure.
           VERSION=${{github.ref_name}}
-          if curl -f -s "https://crates.io/api/v1/crates/rodbus/$VERSION" > /dev/null 2>&1; then
-            echo "✅ rodbus $VERSION already published to crates.io - skipping"
+          if curl -sf "https://index.crates.io/ro/db/rodbus" | grep -qF "\"vers\":\"$VERSION\""; then
+            echo "✅ rodbus $VERSION already on crates.io - skipping"
           else
             echo "Publishing rodbus $VERSION to crates.io..."
             cargo publish -p rodbus --token ${{ secrets.CRATES_PUBLISH_TOKEN }}
