@@ -360,6 +360,7 @@ jobs:
           path: artifacts
           pattern: java-bindings-*
       - name: Import PGP key
+        id: import_gpg
         uses: crazy-max/ghaction-import-gpg@v7
         with:
           gpg_private_key: ${{ secrets.SFIO_PGP_PRIVATE_KEY }}
@@ -389,10 +390,12 @@ jobs:
             cp java-bindings-jar/rodbus-${{github.ref_name}}-sources.jar io/stepfunc/rodbus/${{github.ref_name}}/
             cp java-bindings-jar/rodbus-${{github.ref_name}}-javadoc.jar io/stepfunc/rodbus/${{github.ref_name}}/
 
-            # Sign all files
+            # Sign all files. v7 of ghaction-import-gpg does not configure a default
+            # signing key, so select it explicitly by fingerprint (the action's
+            # recommended user ID) to avoid "no default secret key" errors.
             cd io/stepfunc/rodbus/${{github.ref_name}}
             for file in *.jar *.pom; do
-              gpg --batch --yes --pinentry-mode loopback --passphrase "${{ secrets.SFIO_PGP_PRIVATE_KEY_PASSPHRASE }}" --armor --detach-sign "$file"
+              gpg --batch --yes --pinentry-mode loopback --local-user "${{ steps.import_gpg.outputs.fingerprint }}" --passphrase "${{ secrets.SFIO_PGP_PRIVATE_KEY_PASSPHRASE }}" --armor --detach-sign "$file"
             done
 
             # Generate checksums
