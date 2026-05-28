@@ -1,6 +1,6 @@
 use tracing::Instrument;
 
-use crate::client::{Channel, ClientState, HostAddr, Listener};
+use crate::client::{Channel, ClientState, ClientTask, HostAddr, Listener};
 use crate::common::phys::PhysLayer;
 
 use crate::client::message::Command;
@@ -31,8 +31,9 @@ pub(crate) fn spawn_tcp_channel(
     listener: Box<dyn Listener<ClientState>>,
     client_options: ClientOptions,
 ) -> Channel {
+    let span = tracing::info_span!("Modbus-Client-TCP", endpoint = ?host);
     let (handle, task) = create_tcp_channel(host, connect_retry, listener, client_options);
-    tokio::spawn(task);
+    tokio::spawn(task.run().instrument(span));
     handle
 }
 
@@ -41,22 +42,17 @@ pub(crate) fn create_tcp_channel(
     connect_retry: Box<dyn RetryStrategy>,
     listener: Box<dyn Listener<ClientState>>,
     options: ClientOptions,
-) -> (Channel, impl std::future::Future<Output = ()>) {
+) -> (Channel, ClientTask) {
     let (tx, rx) = tokio::sync::mpsc::channel(options.max_queued_requests);
-    let task = async move {
-        TcpChannelTask::new(
-            host.clone(),
-            rx.into(),
-            TcpTaskConnectionHandler::Tcp,
-            connect_retry,
-            options,
-            listener,
-        )
-        .run()
-        .instrument(tracing::info_span!("Modbus-Client-TCP", endpoint = ?host))
-        .await;
-    };
-    (Channel { tx }, task)
+    let task = TcpChannelTask::new(
+        host,
+        rx.into(),
+        TcpTaskConnectionHandler::Tcp,
+        connect_retry,
+        options,
+        listener,
+    );
+    (Channel { tx }, ClientTask::tcp(task))
 }
 
 pub(crate) enum TcpTaskConnectionHandler {

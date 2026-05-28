@@ -15,6 +15,52 @@ pub struct Channel {
     pub(crate) tx: tokio::sync::mpsc::Sender<Command>,
 }
 
+/// A client channel task that has been created but not yet spawned.
+///
+/// This is returned, alongside its [`Channel`] handle, by the `create_*_client_task` functions.
+/// Drive it to completion by awaiting [`ClientTask::run`], typically from within
+/// [`tokio::spawn`]. The task completes when the associated [`Channel`] handle is dropped.
+///
+/// Unlike the `spawn_*_client_task` functions, no tracing span is attached to the task, so the
+/// caller is free to wrap [`run`](ClientTask::run) with their own instrumentation.
+pub struct ClientTask {
+    inner: ClientTaskInner,
+}
+
+enum ClientTaskInner {
+    Tcp(crate::tcp::client::TcpChannelTask),
+    #[cfg(feature = "serial")]
+    Serial(crate::serial::client::SerialChannelTask),
+}
+
+impl ClientTask {
+    pub(crate) fn tcp(task: crate::tcp::client::TcpChannelTask) -> Self {
+        Self {
+            inner: ClientTaskInner::Tcp(task),
+        }
+    }
+
+    #[cfg(feature = "serial")]
+    pub(crate) fn serial(task: crate::serial::client::SerialChannelTask) -> Self {
+        Self {
+            inner: ClientTaskInner::Serial(task),
+        }
+    }
+
+    /// Run the channel task until the associated [`Channel`] handle is dropped.
+    pub async fn run(self) {
+        match self.inner {
+            ClientTaskInner::Tcp(mut task) => {
+                task.run().await;
+            }
+            #[cfg(feature = "serial")]
+            ClientTaskInner::Serial(mut task) => {
+                task.run().await;
+            }
+        }
+    }
+}
+
 /// Request parameters to dispatch the request to the proper device
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(
@@ -48,6 +94,8 @@ impl Channel {
         decode: DecodeLevel,
         listener: Option<Box<dyn crate::client::Listener<crate::client::PortState>>>,
     ) -> Self {
+        use tracing::Instrument;
+
         let (handle, task) = Self::create_rtu_handle_and_task(
             path,
             serial_settings,
@@ -56,7 +104,10 @@ impl Channel {
             decode,
             listener,
         );
-        tokio::spawn(task);
+        tokio::spawn(
+            task.run()
+                .instrument(tracing::info_span!("Modbus-Client-RTU", "port" = ?path)),
+        );
         handle
     }
 
@@ -68,25 +119,17 @@ impl Channel {
         retry: Box<dyn crate::retry::RetryStrategy>,
         decode: DecodeLevel,
         listener: Option<Box<dyn crate::client::Listener<crate::client::PortState>>>,
-    ) -> (Self, impl std::future::Future<Output = ()>) {
-        use tracing::Instrument;
-
-        let path = path.to_string();
+    ) -> (Self, ClientTask) {
         let (tx, rx) = tokio::sync::mpsc::channel(max_queued_requests);
-        let task = async move {
-            let _ = crate::serial::client::SerialChannelTask::new(
-                &path,
-                serial_settings,
-                rx.into(),
-                retry,
-                decode,
-                listener.unwrap_or_else(|| crate::client::NullListener::create()),
-            )
-            .run()
-            .instrument(tracing::info_span!("Modbus-Client-RTU", "port" = ?path))
-            .await;
-        };
-        (Channel { tx }, task)
+        let task = crate::serial::client::SerialChannelTask::new(
+            path,
+            serial_settings,
+            rx.into(),
+            retry,
+            decode,
+            listener.unwrap_or_else(|| crate::client::NullListener::create()),
+        );
+        (Channel { tx }, ClientTask::serial(task))
     }
 
     /// Enable communications
