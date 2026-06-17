@@ -7,3 +7,5 @@ Please see the [README](rodbus/README.md) for information on the core Rust libra
 A user guide and documentation may be found [here](https://stepfunc.io/products/libraries/modbus/). 
 
 Refer to the [CHANGELOG](CHANGELOG.md) for a release history.
+
+Maintainers: see [RELEASING.md](RELEASING.md) for how to cut a release.
