@@ -1,0 +1,2398 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.3",
+  "version": 1,
+  "serialNumber": "urn:uuid:8def7e22-b229-47b7-946b-228d33c2100a",
+  "metadata": {
+    "timestamp": "2026-06-17T16:40:50.744262917Z",
+    "tools": [
+      {
+        "vendor": "CycloneDX",
+        "name": "cargo-cyclonedx",
+        "version": "0.5.9"
+      }
+    ],
+    "authors": [
+      {
+        "name": "Step Function I/O LLC <info@stepfunc.io>>"
+      }
+    ],
+    "component": {
+      "type": "application",
+      "bom-ref": "path+file:///home/jadamcrain/code/rodbus/ffi/rodbus-bindings#1.5.0",
+      "author": "Step Function I/O LLC <info@stepfunc.io>>",
+      "name": "rodbus-bindings",
+      "version": "1.5.0",
+      "description": "application to generate bindings for Rodbus",
+      "scope": "required",
+      "licenses": [
+        {
+          "license": {
+            "name": "Unknown",
+            "text": {
+              "encoding": "base64",
+              "content": "77u/TElDRU5TRSBBR1JFRU1FTlQKCkJZIERPV05MT0FESU5HIFRIRSBMSUNFTlNFRCBTT0ZUV0FSRSBGUk9NIFRIRSBERVZFTE9QTUVOVCBQTEFURk9STSwgREVWRUxPUEVSIElTIEFHUkVFSU5HIFRPIEJFIEJPVU5EIEJZIFRIRSBURVJNUyBPRiAKVEhJUyBMSUNFTlNFIEFHUkVFTUVOVCAoVEhJUyDigJxBR1JFRU1FTlTigJ0pLiBUSEVSRUZPUkUsIElUIElTIElNUE9SVEFOVCBUSEFUIFlPVSBSRUFEIFRISVMgQUdSRUVNRU5UIEJFRk9SRSBET1dOTE9BRElORyAKVEhFIFNPRlRXQVJFLiBJRiBERVZFTE9QRVIgRE9FUyBOT1QgQUdSRUUgVE8gVEhFIFRFUk1TIE9GIFRISVMgQUdSRUVNRU5ULCBUSEVOIERFVkVMT1BFUiBNQVkgTk9UIERPV05MT0FEIE9SIFVTRSBUSEUgCkxJQ0VOU0VEIFNPRlRXQVJFLiBJRiBZT1UgQVJFIERPV05MT0FESU5HIFRISVMgTElDRU5TRUQgU09GVFdBUkUgT04gQkVIQUxGIE9GIEFOIEVOVElUWSBPUiBPVEhFUiBQRVJTT04sIFRIRU4gWU9VIApSRVBSRVNFTlQgVEhBVCBZT1UgQVJFIEFVVEhPUklaRUQgVE8gQklORCBTVUNIIEVOVElUWSBPUiBPVEhFUiBQRVJTT04gVE8gVEhFIFRFUk1TIE9GIFRISVMgQUdSRUVNRU5ULgoKVGhpcyBBZ3JlZW1lbnQgc2V0cyBmb3J0aCB0aGUgdGVybXMgYW5kIGNvbmRpdGlvbnMgdW5kZXIgd2hpY2ggdGhlIHBhcnRpZXMgYWdyZWUgdGhhdCBEZXZlbG9wZXIgbWF5IHVzZSB0aGUgTGljZW5zZWQgClNvZnR3YXJlIGZvciB0aGUgbm9uLWNvbW1lcmNpYWwgYW5kIG5vbi1wcm9kdWN0aW9uIFB1cnBvc2UgZGVmaW5lZCBpbiB0aGlzIEFncmVlbWVudC4gCgpOT1csIFRIRVJFRk9SRSwgaW4gY29uc2lkZXJhdGlvbiBvZiB0aGUgcHJlbWlzZXMgYW5kIG9ibGlnYXRpb25zIGNvbnRhaW5lZCBoZXJlaW4sIGl0IGlzIGFncmVlZCBhcyBmb2xsb3dzOgoKMS4gREVGSU5JVElPTlMKCjEuMS4g4oCcRGV2ZWxvcGVyIEFwcGxpY2F0aW9u4oCdIHNoYWxsIG1lYW4gRGV2ZWxvcGVy4oCZcyBhY3R1YWwgb3IgcG90ZW50aWFsIHNvZnR3YXJlIG9yIGhhcmR3YXJlIGFuZCByZWxhdGVkIGRvY3VtZW50YXRpb24gCndpdGggd2hpY2ggdGhlIERldmVsb3BlciBpcyBjb25zaWRlcmluZyBpbnRlZ3JhdGluZyB3aXRoIHRoZSBMaWNlbnNlZCBTb2Z0d2FyZS4KCjEuMi4g4oCcRGV2ZWxvcGVy4oCdIHNoYWxsIG1lYW4gdGhlIHBlcnNvbiBvciBlbnRpdHkgZG93bmxvYWRpbmcgdGhlIExpY2Vuc2VkIFNvZnR3YXJlIG9yIG9uIHdob3NlIGJlaGFsZiB0aGUgTGljZW5zZWQgClNvZnR3YXJlIGlzIGRvd25sb2FkZWQuCgoxLjMuIOKAnERldmVsb3BtZW50IFBsYXRmb3Jt4oCdIHNoYWxsIG1lYW4gR2l0SHViIChnaXRodWIuY29tKSBvciBvdGhlciBzb2Z0d2FyZSBkZXZlbG9wbWVudCBwbGF0Zm9ybSBpZGVudGlmaWVkIGJ5IENvbXBhbnkKd2hlcmUgdGhlIExpY2Vuc2VkIFNvZnR3YXJlIGNhbiBiZSBkb3dubG9hZGVkLgoKMS40LiDigJxFZmZlY3RpdmUgRGF0ZeKAnSBzaGFsbCBtZWFuIHRoZSBkYXRlIHRoYXQgdGhlIExpY2Vuc2VkIFNvZnR3YXJlIGlzIGRvd25sb2FkZWQgZnJvbSB0aGUgRGV2ZWxvcG1lbnQgUGxhdGZvcm0uCgoxLjUuIOKAnExpY2Vuc2VkIFNvZnR3YXJl4oCdIHNoYWxsIG1lYW4gdGhlIENvbXBhbnkgcHJvcHJpZXRhcnkgc29mdHdhcmUgcHJvZHVjdCwgaW4gYm90aCBzb3VyY2UgYW5kIG9iamVjdCBjb2RlLCB0aGF0CkRldmVsb3BlciBkb3dubG9hZHMgZnJvbSB0aGUgRGV2ZWxvcG1lbnQgUGxhdGZvcm0gdGhhdCBwZXJmb3JtcyBhIGNvbW11bmljYXRpb24gZnVuY3Rpb24uCgoxLjYuIOKAnFB1cnBvc2XigJ0gc2hhbGwgbWVhbiB0aGUgZWZmb3J0IHRvIGludGVncmF0ZSB0aGUgTGljZW5zZWQgU29mdHdhcmUgd2l0aCB0aGUgRGV2ZWxvcGVyIEFwcGxpY2F0aW9uKHMpIGZvcgpub24tY29tbWVyY2lhbCBhbmQgbm9uLXByb2R1Y3Rpb24gcHVycG9zZXMsIGluY2x1ZGluZywgd2l0aG91dCBsaW1pdGF0aW9uLCBldmFsdWF0aW9uLCByZXNlYXJjaCwgdGVhY2hpbmcgYW5kIHRyYWluaW5nLgoKMS43LiBTdGVwIEZ1bmN0aW9uIEkvTyBMTEMgKOKAnENvbXBhbnnigJ0pIGlzIHRoZSBkZXZlbG9wZXIgb2YgdGhlIExpY2Vuc2VkIFNvZnR3YXJlLgoKMi4gTElDRU5TRQoKMi4xLiBEZWxpdmVyeSBvZiBMaWNlbnNlZCBTb2Z0d2FyZQoKVGhlIExpY2Vuc2VkIFNvZnR3YXJlIGlzIGRvd25sb2FkZWQgZnJvbSB0aGUgRGV2ZWxvcG1lbnQgUGxhdGZvcm0uCgoyLjIuIExpY2Vuc2UgR3JhbnQKCkNvbXBhbnkgZ3JhbnRzIERldmVsb3BlciBhIHBlcnNvbmFsLCBwZXJwZXR1YWwsIHJldm9jYWJsZSwgbGltaXRlZCwgbm9uLWV4Y2x1c2l2ZSwgbm9uLXN1YmxpY2Vuc2FibGUsCm5vbi10cmFuc2ZlcmFibGUgbGljZW5zZSB0byBhY2Nlc3MsIHVzZSwgZG93bmxvYWQgYW5kL29yIGluc3RhbGwgdGhlIExpY2Vuc2VkIFNvZnR3YXJlIG9ubHkgZm9yIHVzZSBpbiBhY2NvcmRhbmNlIHdpdGgKdGhlIFB1cnBvc2UsIGFuZCBzdWJqZWN0IHRvIGFsbCB0aGUgdGVybXMgb2YgdGhpcyBBZ3JlZW1lbnQuIENvbXBhbnkgcmVzZXJ2ZXMgdGhlIHJpZ2h0IGF0IGFueSB0aW1lIHRvIGFsdGVyIGZlYXR1cmVzCm9yIG90aGVyIGNoYXJhY3RlcmlzdGljcyBvZiBhbnkgdmVyc2lvbiBvZiB0aGUgTGljZW5zZWQgU29mdHdhcmUuIFVubGVzcyBhbmQgdW50aWwgdGhlIHBhcnRpZXMgZW50ZXIgaW50byBhIHN1YnNlcXVlbnQKYWdyZWVtZW50IHVuZGVyIFNlY3Rpb24g4oCOMi40IHRoYXQgcHJvdmlkZXMgdG8gdGhlIGNvbnRyYXJ5LCBEZXZlbG9wZXIgc2hhbGwgbm90IGRpc3RyaWJ1dGUgb3Igc3VibGljZW5zZSBhbnkgcG9ydGlvbiBvZgp0aGUgTGljZW5zZWQgU29mdHdhcmUuIERldmVsb3BlciBtYXkgbm90IHB1Ymxpc2ggb3IgZGlzc2VtaW5hdGUgYW55IGJlbmNobWFya2luZyByZXN1bHRzIG9mIExpY2Vuc2VkIFNvZnR3YXJlCnBlcmZvcm1hbmNlLgoKMi4zLiBOb24tQ29tbWVyY2lhbCBhbmQgTm9uLVByb2R1Y3Rpb24gVXNlCgpGb3IgY2xhcml0eSwgdGhlIFB1cnBvc2UgZXhjbHVkZXMgY29tbWVyY2lhbCB1c2UgYW5kIHVzZSBpbiBwcm9kdWN0aW9uLgpBY2NvcmRpbmdseSwgRGV2ZWxvcGVyIG1heSBub3QgdXNlIHRoZSBMaWNlbnNlZCBTb2Z0d2FyZSBpbiBhbnkgbWFubmVyIHRoYXQsIGRpcmVjdGx5IG9yIGluZGlyZWN0bHksIGdlbmVyYXRlcyByZXZlbnVlCm9yIGFueSBvdGhlciBmb3JtIG9mIGNvbXBlbnNhdGlvbiBvciBjb25zaWRlcmF0aW9uLiBBZGRpdGlvbmFsbHksIHRoZSBMaWNlbnNlZCBTb2Z0d2FyZSBtYXkgbm90IGJlIHVzZWQgaW4gYSBwcm9kdWN0aW9uCmVudmlyb25tZW50IGFuZCBtYXkgb25seSBiZSB1c2VkIGluIG5vbi1wcm9kdWN0aW9uIGVudmlyb25tZW50cyBzdWNoIGFzIHRlc3RpbmcsIHRlYWNoaW5nLCB0cmFpbmluZyBhbmQgcmVzZWFyY2gvZGV2ZWxvcG1lbnQKZW52aXJvbm1lbnRzLiBBIHByb2R1Y3Rpb24gZW52aXJvbm1lbnQgd291bGQgYmUgd2hlcmUgdGhlIExpY2Vuc2VkIFNvZnR3YXJlIGlzIG9wZXJhdGVkIGJ5IGVuZCB1c2VycyBhbmQgcmVsaWVkIHVwb24gZm9yCm9yZ2FuaXphdGlvbiBvciBjb21tZXJjaWFsIG9wZXJhdGlvbnMuIElmIERldmVsb3BlciB3b3VsZCBsaWtlIHRvIHVzZSB0aGUgTGljZW5zZWQgU29mdHdhcmUgZm9yIGNvbW1lcmNpYWwgYW5kIHByb2R1Y3Rpb24KcHVycG9zZXMsIHRoZW4gRGV2ZWxvcGVyIG1heSBvcmRlciBzdWNoIGEgbGljZW5zZSBmcm9tIENvbXBhbnkgaW4gYWNjb3JkYW5jZSBTZWN0aW9uIOKAjjIuNC4KCjIuNC4gQ29tbWVyY2lhbCBMaWNlbnNlCgpJZiBEZXZlbG9wZXIgd2FudHMgdG8gdXNlIHRoZSBMaWNlbnNlZCBTb2Z0d2FyZSBmb3IgY29tbWVyY2lhbCBhbmQgcHJvZHVjdGlvbiBwdXJwb3NlcywgdGhlbiBEZXZlbG9wZXIgbmVlZHMgdG8gY29udGFjdApDb21wYW55IGFzIHByb3ZpZGVkIGJlbG93LiBDb21wYW55IGhhcyBubyBvYmxpZ2F0aW9uIHRvIGVudGVyIGludG8gYSBjb21tZXJjaWFsIGFuZCBwcm9kdWN0aW9uIGFncmVlbWVudCB3aXRoIGFueSBEZXZlbG9wZXIuCgppbmZvQHN0ZXBmdW5jLmlvCgpPUgoKaHR0cHM6Ly9zdGVwZnVuYy5pby9jb250YWN0CgoyLjUuIENvbXBhbnkgU3VwcG9ydAoKVGhpcyBsaWNlbnNlIGRvZXMgbm90IGVudGl0bGUgRGV2ZWxvcGVyIHRvIHJlY2VpdmUgZnJvbSBDb21wYW55IHN1cHBvcnQsIHRlbGVwaG9uZSBhc3Npc3RhbmNlLCBvcgplbmhhbmNlbWVudHMgb3IgdXBkYXRlcyB0byB0aGUgTGljZW5zZWQgU29mdHdhcmUsIHdoaWNoIENvbXBhbnkgbWF5IHByb3ZpZGUgaW4gaXRzIGRpc2NyZXRpb24uIERldmVsb3BlciBtYXkgc3VibWl0CnRpY2tldHMgYW5kIGZlZWRiYWNrIHZpYSB0aGUgRGV2ZWxvcG1lbnQgUGxhdGZvcm0uIENvbXBhbnkgd2lsbCBtYWtlIHJlYXNvbmFibGUgZWZmb3J0cyB0byByZXNwb25kIHRvIHN1Y2ggdGlja2V0cyBhbmQKZmVlZGJhY2ssIGJ1dCBoYXMgbm8gb2JsaWdhdGlvbiB0byBkbyBzbywgYW5kIG1heSBjYW5jZWwgc3VjaCBzdXBwb3J0IGF0IGFueSB0aW1lLgoKMy4gT1dORVJTSElQCgozLjEuIENvbXBhbnkgUmV0YWlucyBUaXRsZSB0byBMaWNlbnNlZCBTb2Z0d2FyZQoKRXhjZXB0IGZvciB0aGUgbGljZW5zZSBncmFudGVkIGhlcmVpbiwgRGV2ZWxvcGVyIGlzIG5vdCBncmFudGVkIGFueQpyaWdodHMgdG8gcGF0ZW50cywgY29weXJpZ2h0cywgdHJhZGUgc2VjcmV0cywgdHJhZGUgbmFtZXMsIHRyYWRlbWFya3MgKHdoZXRoZXIgcmVnaXN0ZXJlZCBvciB1bnJlZ2lzdGVyZWQpIG9yIGFueSBvdGhlcgpyaWdodHMgb3IgbGljZW5zZXMgKHRoZSDigJxJbnRlbGxlY3R1YWwgUHJvcGVydHkgUmlnaHRz4oCdKSB3aXRoIHJlc3BlY3QgdG8gdGhlIExpY2Vuc2VkIFNvZnR3YXJlLiBDb21wYW55IHJldGFpbnMgYWxsIHJpZ2h0LAp0aXRsZSBhbmQgb3duZXJzaGlwIGludGVyZXN0cyBpbiB0aGUgTGljZW5zZWQgU29mdHdhcmUsIGluY2x1ZGluZywgd2l0aG91dCBsaW1pdGF0aW9uLCBhbGwgSW50ZWxsZWN0dWFsIFByb3BlcnR5IFJpZ2h0cyB0aGVyZWluLgogCjMuMi4gRmVlZGJhY2sKCkFueSBmZWVkYmFjayBwcm92aWRlZCBieSBEZXZlbG9wZXIgcGVydGFpbmluZyB0byB0aGUgTGljZW5zZWQgU29mdHdhcmUgc2hhbGwgYmUgbm9uLWNvbmZpZGVudGlhbCBhbmQgQ29tcGFueSBtYXkgdXNlIGFuZApleHBsb2l0IHN1Y2ggZmVlZGJhY2sgZnJlZWx5LCB3aXRob3V0IGFueSBvYmxpZ2F0aW9uIG9mIG5vdGljZSBvciBjb21wZW5zYXRpb24gdG8gRGV2ZWxvcGVyLgoKNC4gVEVSTSBBTkQgVEVSTUlOQVRJT04KCjQuMS4gVGVybSBhbmQgVGVybWluYXRpb24gb2YgQWdyZWVtZW50CgpUaGlzIEFncmVlbWVudCBjb21tZW5jZXMgb24gaXRzIEVmZmVjdGl2ZSBEYXRlIGFuZCBlbmRzIGlmIHRlcm1pbmF0ZWQgYXMgaGVyZWluYWZ0ZXIgcHJvdmlkZWQuIFRoaXMgQWdyZWVtZW50IHdpbGwKYXV0b21hdGljYWxseSB0ZXJtaW5hdGUgaWYgRGV2ZWxvcGVyIG1hdGVyaWFsbHkgYnJlYWNoZXMgdGhpcyBBZ3JlZW1lbnQsIGluY2x1ZGluZywgd2l0aG91dCBsaW1pdGF0aW9uLCBieSBhIHZpb2xhdGlvbgpvZiB0aGUgbm9uLWNvbW1lcmNpYWwgYW5kIG5vbi1wcm9kdWN0aW9uIHVzZSByZXN0cmljdGlvbnMgaW4gU2VjdGlvbiDigI4yLjMuCgo0LjIuIE9ibGlnYXRpb25zIG9uIFRlcm1pbmF0aW9uCgpBbGwgcmlnaHRzIGFuZCBsaWNlbnNlcyBncmFudGVkIHVuZGVyIHRoaXMgQWdyZWVtZW50IHRvIERldmVsb3BlciBzaGFsbCB0ZXJtaW5hdGUgdXBvbgp0ZXJtaW5hdGlvbiBvZiB0aGlzIEFncmVlbWVudC4gRGV2ZWxvcGVyIHNoYWxsIGNlYXNlIG1ha2luZyBhbnkgdXNlIG9mIHRoZSBhcHBsaWNhYmxlIExpY2Vuc2VkIFNvZnR3YXJlIG9yIG90aGVyIG1hdGVyaWFsCnByb3ZpZGVkIGJ5IENvbXBhbnkgaW4gY29ubmVjdGlvbiB0aGVyZXdpdGggYW5kIGRlc3Ryb3kgdGhlbSBhbmQgYWxsIGNvcGllcyBhbmQgbW9kaWZpY2F0aW9ucyB0aGVyZW9mLCBhbmQgYWxzbyBpbmNsdWRpbmcKYW55IGNvcGllcyBvZiBjb2RlIGVtYmVkZGVkIGluIHRoZSBEZXZlbG9wZXIgQXBwbGljYXRpb24sIGFuZCBhbnkgcmVsYXRlZCBtYXRlcmlhbHMgaW4gaXRzIHBvc3Nlc3Npb24uIERldmVsb3BlciBzaGFsbApjZXJ0aWZ5IGluIHdyaXRpbmcgdG8gQ29tcGFueSB0aGF0IG5vIGZ1cnRoZXIgdXNlIG9mIHN1Y2ggTGljZW5zZWQgU29mdHdhcmUgb3IgYW55IGNvcGllcywgbW9kaWZpY2F0aW9ucyBvciBvdGhlcgpkZXJpdmF0aXZlIHdvcmtzIG9mIGFueSBhbmQgYWxsIHBvcnRpb25zIHRoZXJlb2YgaXMgYmVpbmcgbWFkZSBieSBEZXZlbG9wZXIuCgo0LjMuIFN1cnZpdmFsCgpBbnkgcHJvdmlzaW9ucyBvZiB0aGlzIEFncmVlbWVudCB0aGF0LCBpbiBvcmRlciB0byBmdWxmaWxsIHRoZSBwdXJwb3NlcyBvZiBzdWNoIHByb3Zpc2lvbnMsIG5lZWQgdG8gc3Vydml2ZSB0aGUgdGVybWluYXRpb24Kb3IgZXhwaXJhdGlvbiBvZiB0aGlzIEFncmVlbWVudCwgc2hhbGwgYmUgZGVlbWVkIHRvIHN1cnZpdmUgZm9yIGFzIGxvbmcgYXMgbmVjZXNzYXJ5IHRvIGZ1bGZpbGwgc3VjaCBwdXJwb3Nlcy4KCjUuIFdBUlJBTlRZIERJU0NMQUlNRVIKClRIRSBMSUNFTlNFRCBTT0ZUV0FSRSBJUyBQUk9WSURFRCBPTkxZIE9OIEFOIOKAnEFTIElT4oCdIEJBU0lTLiBDT01QQU5ZIE1BS0VTIE5PIE9USEVSIEVYUFJFU1MgV0FSUkFOVElFUywgV1JJVFRFTiBPUiBPUkFMLApBTkQgQUxMIE9USEVSIFdBUlJBTlRJRVMgQVJFIFNQRUNJRklDQUxMWSBFWENMVURFRCwgSU5DTFVESU5HIEJVVCBOT1QgTElNSVRFRCBUTyBUSEUgSU1QTElFRCBXQVJSQU5UWSBPRiBNRVJDSEFOVEFCSUxJVFksCkZJVE5FU1MgRk9SIFBBUlRJQ1VMQVIgUFVSUE9TRSwgT1IgTk9OSU5GUklOR0VNRU5ULCBBTkQgQU5ZIE9USEVSIFdBUlJBTlRZIEFSSVNJTkcgQlkgU1RBVFVURSwgT1BFUkFUSU9OIE9GIExBVywgQ09VUlNFCk9GIERFQUxJTkcgT1IgUEVSRk9STUFOQ0UgT1IgVVNBR0UgT0YgVFJBREUuCgo2LiBMSU1JVEFUSU9OUyBPRiBMSUFCSUxJVFkgQU5EIElOREVNTklUSUVTCgo2LjEuIExpbWl0cyBvZiBMaWFiaWxpdHkKCkNPTVBBTlkgU0hBTEwgSEFWRSBOTyBMSUFCSUxJVFkgVE8gREVWRUxPUEVSIEZPUiBBTlkgU1BFQ0lBTCwgQ09OU0VRVUVOVElBTCwgRVhFTVBMQVJZLCBJTkNJREVOVEFMIE9SIElORElSRUNUIERBTUFHRVMKKElOQ0xVRElORywgQlVUIE5PVCBMSU1JVEVEIFRPLCBMT1NTIE9GIFBST0ZJVFMsIFJFVkVOVUVTLCBEQVRBIEFORC9PUiBVU0UpIEFSSVNJTkcgT1VUIE9GIE9SIElOIENPTk5FQ1RJT04gSEVSRVdJVEggT1IKVEhFIFVTRSBPUiBQRVJGT1JNQU5DRSBPRiBUSEUgTElDRU5TRUQgU09GVFdBUkUsIEVWRU4gSUYgQURWSVNFRCBPRiBUSEUgUE9TU0lCSUxJVFkgVEhFUkVPRi4gVEhFIEFHR1JFR0FURSBMSUFCSUxJVFkgT0YKQ09NUEFOWSBVTkRFUiBUSElTIEFHUkVFTUVOVCBTSEFMTCBOT1QgRVhDRUVEICQxMC4gREVWRUxPUEVSIFNIQUxMIE5PVCBCUklORyBBTlkgQ0xBSU0gQVJJU0lORyBIRVJFVU5ERVIgTU9SRSBUSEFOClRXRUxWRSAoMTIpIE1PTlRIUyBBRlRFUiBTVUNIIENMQUlNIEhBUyBBQ0NSVUVELgoKNi4yLiBEZXZlbG9wZXIgSW5kZW1uaXR5CgpEZXZlbG9wZXIgc2hhbGwgaW5kZW1uaWZ5LCBkZWZlbmQgYW5kIGhvbGQgQ29tcGFueSBoYXJtbGVzcyBmcm9tIGFsbCBsb3NzZXMsIGNvc3RzLCBsaWFiaWxpdGllcwphbmQgZXhwZW5zZXMgaW5jdXJyZWQgYnkgQ29tcGFueSB3aGljaCBhcmlzZSBvdXQgb2YgYW55IGNsYWltIChleGNlcHQgY2xhaW1zIHRoYXQgdGhlIExpY2Vuc2VkIFNvZnR3YXJlIGluZnJpbmdlcyB0aGUKaW50ZWxsZWN0dWFsIHByb3BlcnR5IG9mIGEgdGhpcmQgcGFydHkpIHRoYXQgYXJpc2Ugb3V0IG9mIERldmVsb3BlcuKAmXMgYWN0cyBvciBvbWlzc2lvbnMgcHJvdmlkZWQgKGkpwqBDb21wYW55IGhhcyBub3RpZmllZApEZXZlbG9wZXIgcHJvbXB0bHkgaW4gd3JpdGluZyBvZiBhbnkgc3VjaCBjbGFpbXMgKHByb3ZpZGVkIHRoYXQgYW55IGRlbGF5IHNoYWxsIG5vdCByZWR1Y2UgRGV2ZWxvcGVy4oCZcyBpbmRlbW5pdHkgb2JsaWdhdGlvbnMKZXhjZXB0IHRvIHRoZSBleHRlbnQgdGhhdCB0aGUgZGVsYXkgcHJlanVkaWNlcyBEZXZlbG9wZXLigJlzIGFiaWxpdHkgdG8gZGVmZW5kIHRoZSBjbGFpbSk7IChpaSnCoERldmVsb3BlciBzaGFsbCBoYXZlIHNvbGUKY29udHJvbCBvZiB0aGUgZGVmZW5zZSBvZiBzdWNoIGNsYWltcyBhbmQgYWxsIG5lZ290aWF0aW9ucyBmb3IgdGhlaXIgc2V0dGxlbWVudCBhbmQgY29tcHJvbWlzZTsgYW5kIChpaWkpwqBDb21wYW55IHNoYWxsCnJlYXNvbmFibHkgY29vcGVyYXRlIHdpdGggRGV2ZWxvcGVyIGluIHRoZSBkZWZlbnNlIG9yIHNldHRsZW1lbnQgb2Ygc3VjaCBjbGFpbXMsIGF0IERldmVsb3BlcuKAmXMgZXhwZW5zZS4KCjcuIEdFTkVSQUwKCjcuMS4gRW50aXJlIEFncmVlbWVudAoKVGhlIHRlcm1zIGNvbnRhaW5lZCBoZXJlaW4gY29uc3RpdHV0ZSB0aGUgZW50aXJlIGFncmVlbWVudCBiZXR3ZWVuIHRoZSBwYXJ0aWVzIHdpdGggcmVzcGVjdCB0byB0aGUgc3ViamVjdCBtYXR0ZXIgaGVyZW9mCmFuZCBzaGFsbCBzdXBlcnNlZGUgYWxsIHByaW9yIGNvbW11bmljYXRpb25zIGFuZCBhZ3JlZW1lbnRzLCBlaXRoZXIgb3JhbCBvciB3cml0dGVuLgogCjcuMi4gRXF1aXRhYmxlIFJlbGllZgoKQ29tcGFueSBtYXksIHdpdGhvdXQgbGltaXRpbmcgaXRzIG90aGVyIHJpZ2h0cyBhbmQgcmVtZWRpZXMsIGJlIGVudGl0bGVkIHRvIGVxdWl0YWJsZSByZWxpZWYsIGluY2x1ZGluZyBidXQgbm90IGxpbWl0ZWQKdG8gaW5qdW5jdGl2ZSByZWxpZWYgZm9yIGEgYnJlYWNoIG9yIGFudGljaXBhdGVkIGJyZWFjaCBvZiB0aGlzIEFncmVlbWVudC4KCjcuMy4gQ29tcGxpYW5jZSB3aXRoIExhd3MKCkRldmVsb3BlciBzaGFsbCBjb21wbHkgd2l0aCBhbGwgYXBwbGljYWJsZSBsYXcgYW5kIHdpbGwgb2J0YWluIGFsbCBhdXRob3JpemF0aW9ucyByZXF1aXJlZApieSBVLlMuIGV4cG9ydCBjb250cm9sIGxhd3MgYW5kIGFsbCByZWxhdGVkIHJlZ3VsYXRpb25zIGlmIGFwcGxpY2FibGUuCgo3LjQuIEdvdmVybmluZyBMYXc7IEp1cmlzZGljdGlvbgoKVGhpcyBBZ3JlZW1lbnQgc2hhbGwgYmUgZ292ZXJuZWQgYnkgdGhlIGxhd3Mgb2YgdGhlIFN0YXRlIG9mIE9yZWdvbiwgZXhjbHVkaW5nIGl0cwpjb25mbGljdCBvZiBsYXcgcnVsZXMuIFRoZSBwYXJ0aWVzIHdpbGwgc3VibWl0IGFsbCBkaXNwdXRlcyB3aGljaCBhcmlzZSB1bmRlciB0aGlzIEFncmVlbWVudCB0byBzdGF0ZSBvciBmZWRlcmFsIGNvdXJ0cwpsb2NhdGVkIGluIMKgRGVzY2h1dGVzIENvdW50eSwgT3JlZ29uLiAgVGhlIHBhcnRpZXMgYWNrbm93bGVkZ2UgdGhhdCB0aGUgYWZvcmVzYWlkIGNvdXJ0cyB3aWxsIGhhdmUgZXhjbHVzaXZlIGp1cmlzZGljdGlvbgpvdmVyIHRoaXMgQWdyZWVtZW50IGFuZCBzcGVjaWZpY2FsbHkgd2FpdmUgYW55IGNsYWltcyB0aGV5IG1heSBoYXZlIHdoaWNoIGludm9sdmUganVyaXNkaWN0aW9uIG9yIHZlbnVlLCBpbmNsdWRpbmcsIGJ1dApub3QgbGltaXRlZCB0bywgbGFjayBvZiBwZXJzb25hbCBqdXJpc2RpY3Rpb24gb3IgZm9ydW0gbm9uIGNvbnZlbmllbnMuCgo3LjUuIE5vdGljZXMKCk5vdGljZXMgc2hhbGwgYmUgZGVlbWVkIHRvIGhhdmUgYmVlbiByZWNlaXZlZCB1cG9uIHZlcmlmaWVkIHJlY2VpcHQuCgo3LjYuIE5vIFdhaXZlcgoKTm8gbW9kaWZpY2F0aW9uIG9yIGFtZW5kbWVudCBoZXJldG8sIG5vciBhbnkgd2FpdmVyIG9mIGFueSByaWdodHMsIHNoYWxsIGJlIGVmZmVjdGl2ZSB1bmxlc3MgYXNzZW50ZWQgdG8gaW4gd3JpdGluZyBieQp0aGUgcGFydHkgdG8gYmUgY2hhcmdlZC4gVGhlIHdhaXZlciBvZiBhbnkgYnJlYWNoIG9yIGRlZmF1bHQgd2lsbCBub3QgY29uc3RpdHV0ZSBhIHdhaXZlciBvZiAoaSnCoGFueSBvdGhlciByaWdodCBvciByZW1lZHkKaGVyZXVuZGVyLCBvciAoaWkpwqBhbnkgc3Vic2VxdWVudCBicmVhY2ggb3IgZGVmYXVsdC4KCjcuNy4gSW5kZXBlbmRlbnQgQ29udHJhY3RvcnMKClRoZSBwYXJ0aWVzIHNoYWxsIGFjdCBhcyBpbmRlcGVuZGVudCBjb250cmFjdG9ycyBmb3IgYWxsIHB1cnBvc2VzIGhlcmV1bmRlci4KCjcuOC4gU2VwYXJhYmlsaXR5CgpJZiBhbnkgcHJvdmlzaW9uIGhlcmVvZiBzaGFsbCBiZSBoZWxkIGlsbGVnYWwgb3IgdW5lbmZvcmNlYWJsZSwgc3VjaCBwcm92aXNpb24gc2hhbGwgYmUgZGVlbWVkIHNlcGFyYWJsZSBmcm9tIHRoZQpyZW1haW5pbmcgcHJvdmlzaW9ucyBhbmQgc2hhbGwgaW4gbm8gd2F5IGFmZmVjdCBvciBpbXBhaXIgdGhlIHZhbGlkaXR5IG9yIGVuZm9yY2VhYmlsaXR5IG9mIHRoZSByZW1haW5pbmcgcHJvdmlzaW9ucy4KCjcuOS4gQXNzaWdubWVudAoKRGV2ZWxvcGVyIHNoYWxsIG5vdCBhc3NpZ24gdGhpcyBBZ3JlZW1lbnQsIG9yIGFueSByaWdodCwgb3IgZGVsZWdhdGUgYW55IHBlcmZvcm1hbmNlIGhlcmV1bmRlciB3aXRob3V0IENvbXBhbnnigJlzIHByaW9yCndyaXR0ZW4gY29uc2VudCwgYW5kIGFueSBzdWNoIGFjdGlvbiBpbiB2aW9sYXRpb24gb2YgdGhlIGZvcmVnb2luZyBzaGFsbCBiZSB2b2lkLiBDb21wYW55IG1heSBmcmVlbHkgYXNzaWduIHRoaXMgQWdyZWVtZW50LgoKCg=="
+            }
+          }
+        }
+      ],
+      "purl": "pkg:cargo/rodbus-bindings@1.5.0?download_url=file://.",
+      "externalReferences": [
+        {
+          "type": "website",
+          "url": "https://stepfunc.io/products/libraries/modbus/"
+        },
+        {
+          "type": "vcs",
+          "url": "https://github.com/stepfunc/rodbus"
+        }
+      ],
+      "components": [
+        {
+          "type": "application",
+          "bom-ref": "path+file:///home/jadamcrain/code/rodbus/ffi/rodbus-bindings#1.5.0 bin-target-0",
+          "name": "rodbus-bindings",
+          "version": "1.5.0",
+          "purl": "pkg:cargo/rodbus-bindings@1.5.0?download_url=file://.#src/main.rs"
+        }
+      ]
+    },
+    "properties": [
+      {
+        "name": "cdx:rustc:sbom:target:triple",
+        "value": "x86_64-unknown-linux-gnu"
+      }
+    ]
+  },
+  "components": [
+    {
+      "type": "library",
+      "bom-ref": "path+file:///home/jadamcrain/code/rodbus/ffi/rodbus-schema#1.5.0",
+      "author": "Step Function I/O LLC <info@stepfunc.io>>",
+      "name": "rodbus-schema",
+      "version": "1.5.0",
+      "description": "oobindgen schema for Rodbus",
+      "scope": "required",
+      "licenses": [
+        {
+          "license": {
+            "name": "Unknown",
+            "text": {
+              "encoding": "base64",
+              "content": "77u/TElDRU5TRSBBR1JFRU1FTlQKCkJZIERPV05MT0FESU5HIFRIRSBMSUNFTlNFRCBTT0ZUV0FSRSBGUk9NIFRIRSBERVZFTE9QTUVOVCBQTEFURk9STSwgREVWRUxPUEVSIElTIEFHUkVFSU5HIFRPIEJFIEJPVU5EIEJZIFRIRSBURVJNUyBPRiAKVEhJUyBMSUNFTlNFIEFHUkVFTUVOVCAoVEhJUyDigJxBR1JFRU1FTlTigJ0pLiBUSEVSRUZPUkUsIElUIElTIElNUE9SVEFOVCBUSEFUIFlPVSBSRUFEIFRISVMgQUdSRUVNRU5UIEJFRk9SRSBET1dOTE9BRElORyAKVEhFIFNPRlRXQVJFLiBJRiBERVZFTE9QRVIgRE9FUyBOT1QgQUdSRUUgVE8gVEhFIFRFUk1TIE9GIFRISVMgQUdSRUVNRU5ULCBUSEVOIERFVkVMT1BFUiBNQVkgTk9UIERPV05MT0FEIE9SIFVTRSBUSEUgCkxJQ0VOU0VEIFNPRlRXQVJFLiBJRiBZT1UgQVJFIERPV05MT0FESU5HIFRISVMgTElDRU5TRUQgU09GVFdBUkUgT04gQkVIQUxGIE9GIEFOIEVOVElUWSBPUiBPVEhFUiBQRVJTT04sIFRIRU4gWU9VIApSRVBSRVNFTlQgVEhBVCBZT1UgQVJFIEFVVEhPUklaRUQgVE8gQklORCBTVUNIIEVOVElUWSBPUiBPVEhFUiBQRVJTT04gVE8gVEhFIFRFUk1TIE9GIFRISVMgQUdSRUVNRU5ULgoKVGhpcyBBZ3JlZW1lbnQgc2V0cyBmb3J0aCB0aGUgdGVybXMgYW5kIGNvbmRpdGlvbnMgdW5kZXIgd2hpY2ggdGhlIHBhcnRpZXMgYWdyZWUgdGhhdCBEZXZlbG9wZXIgbWF5IHVzZSB0aGUgTGljZW5zZWQgClNvZnR3YXJlIGZvciB0aGUgbm9uLWNvbW1lcmNpYWwgYW5kIG5vbi1wcm9kdWN0aW9uIFB1cnBvc2UgZGVmaW5lZCBpbiB0aGlzIEFncmVlbWVudC4gCgpOT1csIFRIRVJFRk9SRSwgaW4gY29uc2lkZXJhdGlvbiBvZiB0aGUgcHJlbWlzZXMgYW5kIG9ibGlnYXRpb25zIGNvbnRhaW5lZCBoZXJlaW4sIGl0IGlzIGFncmVlZCBhcyBmb2xsb3dzOgoKMS4gREVGSU5JVElPTlMKCjEuMS4g4oCcRGV2ZWxvcGVyIEFwcGxpY2F0aW9u4oCdIHNoYWxsIG1lYW4gRGV2ZWxvcGVy4oCZcyBhY3R1YWwgb3IgcG90ZW50aWFsIHNvZnR3YXJlIG9yIGhhcmR3YXJlIGFuZCByZWxhdGVkIGRvY3VtZW50YXRpb24gCndpdGggd2hpY2ggdGhlIERldmVsb3BlciBpcyBjb25zaWRlcmluZyBpbnRlZ3JhdGluZyB3aXRoIHRoZSBMaWNlbnNlZCBTb2Z0d2FyZS4KCjEuMi4g4oCcRGV2ZWxvcGVy4oCdIHNoYWxsIG1lYW4gdGhlIHBlcnNvbiBvciBlbnRpdHkgZG93bmxvYWRpbmcgdGhlIExpY2Vuc2VkIFNvZnR3YXJlIG9yIG9uIHdob3NlIGJlaGFsZiB0aGUgTGljZW5zZWQgClNvZnR3YXJlIGlzIGRvd25sb2FkZWQuCgoxLjMuIOKAnERldmVsb3BtZW50IFBsYXRmb3Jt4oCdIHNoYWxsIG1lYW4gR2l0SHViIChnaXRodWIuY29tKSBvciBvdGhlciBzb2Z0d2FyZSBkZXZlbG9wbWVudCBwbGF0Zm9ybSBpZGVudGlmaWVkIGJ5IENvbXBhbnkKd2hlcmUgdGhlIExpY2Vuc2VkIFNvZnR3YXJlIGNhbiBiZSBkb3dubG9hZGVkLgoKMS40LiDigJxFZmZlY3RpdmUgRGF0ZeKAnSBzaGFsbCBtZWFuIHRoZSBkYXRlIHRoYXQgdGhlIExpY2Vuc2VkIFNvZnR3YXJlIGlzIGRvd25sb2FkZWQgZnJvbSB0aGUgRGV2ZWxvcG1lbnQgUGxhdGZvcm0uCgoxLjUuIOKAnExpY2Vuc2VkIFNvZnR3YXJl4oCdIHNoYWxsIG1lYW4gdGhlIENvbXBhbnkgcHJvcHJpZXRhcnkgc29mdHdhcmUgcHJvZHVjdCwgaW4gYm90aCBzb3VyY2UgYW5kIG9iamVjdCBjb2RlLCB0aGF0CkRldmVsb3BlciBkb3dubG9hZHMgZnJvbSB0aGUgRGV2ZWxvcG1lbnQgUGxhdGZvcm0gdGhhdCBwZXJmb3JtcyBhIGNvbW11bmljYXRpb24gZnVuY3Rpb24uCgoxLjYuIOKAnFB1cnBvc2XigJ0gc2hhbGwgbWVhbiB0aGUgZWZmb3J0IHRvIGludGVncmF0ZSB0aGUgTGljZW5zZWQgU29mdHdhcmUgd2l0aCB0aGUgRGV2ZWxvcGVyIEFwcGxpY2F0aW9uKHMpIGZvcgpub24tY29tbWVyY2lhbCBhbmQgbm9uLXByb2R1Y3Rpb24gcHVycG9zZXMsIGluY2x1ZGluZywgd2l0aG91dCBsaW1pdGF0aW9uLCBldmFsdWF0aW9uLCByZXNlYXJjaCwgdGVhY2hpbmcgYW5kIHRyYWluaW5nLgoKMS43LiBTdGVwIEZ1bmN0aW9uIEkvTyBMTEMgKOKAnENvbXBhbnnigJ0pIGlzIHRoZSBkZXZlbG9wZXIgb2YgdGhlIExpY2Vuc2VkIFNvZnR3YXJlLgoKMi4gTElDRU5TRQoKMi4xLiBEZWxpdmVyeSBvZiBMaWNlbnNlZCBTb2Z0d2FyZQoKVGhlIExpY2Vuc2VkIFNvZnR3YXJlIGlzIGRvd25sb2FkZWQgZnJvbSB0aGUgRGV2ZWxvcG1lbnQgUGxhdGZvcm0uCgoyLjIuIExpY2Vuc2UgR3JhbnQKCkNvbXBhbnkgZ3JhbnRzIERldmVsb3BlciBhIHBlcnNvbmFsLCBwZXJwZXR1YWwsIHJldm9jYWJsZSwgbGltaXRlZCwgbm9uLWV4Y2x1c2l2ZSwgbm9uLXN1YmxpY2Vuc2FibGUsCm5vbi10cmFuc2ZlcmFibGUgbGljZW5zZSB0byBhY2Nlc3MsIHVzZSwgZG93bmxvYWQgYW5kL29yIGluc3RhbGwgdGhlIExpY2Vuc2VkIFNvZnR3YXJlIG9ubHkgZm9yIHVzZSBpbiBhY2NvcmRhbmNlIHdpdGgKdGhlIFB1cnBvc2UsIGFuZCBzdWJqZWN0IHRvIGFsbCB0aGUgdGVybXMgb2YgdGhpcyBBZ3JlZW1lbnQuIENvbXBhbnkgcmVzZXJ2ZXMgdGhlIHJpZ2h0IGF0IGFueSB0aW1lIHRvIGFsdGVyIGZlYXR1cmVzCm9yIG90aGVyIGNoYXJhY3RlcmlzdGljcyBvZiBhbnkgdmVyc2lvbiBvZiB0aGUgTGljZW5zZWQgU29mdHdhcmUuIFVubGVzcyBhbmQgdW50aWwgdGhlIHBhcnRpZXMgZW50ZXIgaW50byBhIHN1YnNlcXVlbnQKYWdyZWVtZW50IHVuZGVyIFNlY3Rpb24g4oCOMi40IHRoYXQgcHJvdmlkZXMgdG8gdGhlIGNvbnRyYXJ5LCBEZXZlbG9wZXIgc2hhbGwgbm90IGRpc3RyaWJ1dGUgb3Igc3VibGljZW5zZSBhbnkgcG9ydGlvbiBvZgp0aGUgTGljZW5zZWQgU29mdHdhcmUuIERldmVsb3BlciBtYXkgbm90IHB1Ymxpc2ggb3IgZGlzc2VtaW5hdGUgYW55IGJlbmNobWFya2luZyByZXN1bHRzIG9mIExpY2Vuc2VkIFNvZnR3YXJlCnBlcmZvcm1hbmNlLgoKMi4zLiBOb24tQ29tbWVyY2lhbCBhbmQgTm9uLVByb2R1Y3Rpb24gVXNlCgpGb3IgY2xhcml0eSwgdGhlIFB1cnBvc2UgZXhjbHVkZXMgY29tbWVyY2lhbCB1c2UgYW5kIHVzZSBpbiBwcm9kdWN0aW9uLgpBY2NvcmRpbmdseSwgRGV2ZWxvcGVyIG1heSBub3QgdXNlIHRoZSBMaWNlbnNlZCBTb2Z0d2FyZSBpbiBhbnkgbWFubmVyIHRoYXQsIGRpcmVjdGx5IG9yIGluZGlyZWN0bHksIGdlbmVyYXRlcyByZXZlbnVlCm9yIGFueSBvdGhlciBmb3JtIG9mIGNvbXBlbnNhdGlvbiBvciBjb25zaWRlcmF0aW9uLiBBZGRpdGlvbmFsbHksIHRoZSBMaWNlbnNlZCBTb2Z0d2FyZSBtYXkgbm90IGJlIHVzZWQgaW4gYSBwcm9kdWN0aW9uCmVudmlyb25tZW50IGFuZCBtYXkgb25seSBiZSB1c2VkIGluIG5vbi1wcm9kdWN0aW9uIGVudmlyb25tZW50cyBzdWNoIGFzIHRlc3RpbmcsIHRlYWNoaW5nLCB0cmFpbmluZyBhbmQgcmVzZWFyY2gvZGV2ZWxvcG1lbnQKZW52aXJvbm1lbnRzLiBBIHByb2R1Y3Rpb24gZW52aXJvbm1lbnQgd291bGQgYmUgd2hlcmUgdGhlIExpY2Vuc2VkIFNvZnR3YXJlIGlzIG9wZXJhdGVkIGJ5IGVuZCB1c2VycyBhbmQgcmVsaWVkIHVwb24gZm9yCm9yZ2FuaXphdGlvbiBvciBjb21tZXJjaWFsIG9wZXJhdGlvbnMuIElmIERldmVsb3BlciB3b3VsZCBsaWtlIHRvIHVzZSB0aGUgTGljZW5zZWQgU29mdHdhcmUgZm9yIGNvbW1lcmNpYWwgYW5kIHByb2R1Y3Rpb24KcHVycG9zZXMsIHRoZW4gRGV2ZWxvcGVyIG1heSBvcmRlciBzdWNoIGEgbGljZW5zZSBmcm9tIENvbXBhbnkgaW4gYWNjb3JkYW5jZSBTZWN0aW9uIOKAjjIuNC4KCjIuNC4gQ29tbWVyY2lhbCBMaWNlbnNlCgpJZiBEZXZlbG9wZXIgd2FudHMgdG8gdXNlIHRoZSBMaWNlbnNlZCBTb2Z0d2FyZSBmb3IgY29tbWVyY2lhbCBhbmQgcHJvZHVjdGlvbiBwdXJwb3NlcywgdGhlbiBEZXZlbG9wZXIgbmVlZHMgdG8gY29udGFjdApDb21wYW55IGFzIHByb3ZpZGVkIGJlbG93LiBDb21wYW55IGhhcyBubyBvYmxpZ2F0aW9uIHRvIGVudGVyIGludG8gYSBjb21tZXJjaWFsIGFuZCBwcm9kdWN0aW9uIGFncmVlbWVudCB3aXRoIGFueSBEZXZlbG9wZXIuCgppbmZvQHN0ZXBmdW5jLmlvCgpPUgoKaHR0cHM6Ly9zdGVwZnVuYy5pby9jb250YWN0CgoyLjUuIENvbXBhbnkgU3VwcG9ydAoKVGhpcyBsaWNlbnNlIGRvZXMgbm90IGVudGl0bGUgRGV2ZWxvcGVyIHRvIHJlY2VpdmUgZnJvbSBDb21wYW55IHN1cHBvcnQsIHRlbGVwaG9uZSBhc3Npc3RhbmNlLCBvcgplbmhhbmNlbWVudHMgb3IgdXBkYXRlcyB0byB0aGUgTGljZW5zZWQgU29mdHdhcmUsIHdoaWNoIENvbXBhbnkgbWF5IHByb3ZpZGUgaW4gaXRzIGRpc2NyZXRpb24uIERldmVsb3BlciBtYXkgc3VibWl0CnRpY2tldHMgYW5kIGZlZWRiYWNrIHZpYSB0aGUgRGV2ZWxvcG1lbnQgUGxhdGZvcm0uIENvbXBhbnkgd2lsbCBtYWtlIHJlYXNvbmFibGUgZWZmb3J0cyB0byByZXNwb25kIHRvIHN1Y2ggdGlja2V0cyBhbmQKZmVlZGJhY2ssIGJ1dCBoYXMgbm8gb2JsaWdhdGlvbiB0byBkbyBzbywgYW5kIG1heSBjYW5jZWwgc3VjaCBzdXBwb3J0IGF0IGFueSB0aW1lLgoKMy4gT1dORVJTSElQCgozLjEuIENvbXBhbnkgUmV0YWlucyBUaXRsZSB0byBMaWNlbnNlZCBTb2Z0d2FyZQoKRXhjZXB0IGZvciB0aGUgbGljZW5zZSBncmFudGVkIGhlcmVpbiwgRGV2ZWxvcGVyIGlzIG5vdCBncmFudGVkIGFueQpyaWdodHMgdG8gcGF0ZW50cywgY29weXJpZ2h0cywgdHJhZGUgc2VjcmV0cywgdHJhZGUgbmFtZXMsIHRyYWRlbWFya3MgKHdoZXRoZXIgcmVnaXN0ZXJlZCBvciB1bnJlZ2lzdGVyZWQpIG9yIGFueSBvdGhlcgpyaWdodHMgb3IgbGljZW5zZXMgKHRoZSDigJxJbnRlbGxlY3R1YWwgUHJvcGVydHkgUmlnaHRz4oCdKSB3aXRoIHJlc3BlY3QgdG8gdGhlIExpY2Vuc2VkIFNvZnR3YXJlLiBDb21wYW55IHJldGFpbnMgYWxsIHJpZ2h0LAp0aXRsZSBhbmQgb3duZXJzaGlwIGludGVyZXN0cyBpbiB0aGUgTGljZW5zZWQgU29mdHdhcmUsIGluY2x1ZGluZywgd2l0aG91dCBsaW1pdGF0aW9uLCBhbGwgSW50ZWxsZWN0dWFsIFByb3BlcnR5IFJpZ2h0cyB0aGVyZWluLgogCjMuMi4gRmVlZGJhY2sKCkFueSBmZWVkYmFjayBwcm92aWRlZCBieSBEZXZlbG9wZXIgcGVydGFpbmluZyB0byB0aGUgTGljZW5zZWQgU29mdHdhcmUgc2hhbGwgYmUgbm9uLWNvbmZpZGVudGlhbCBhbmQgQ29tcGFueSBtYXkgdXNlIGFuZApleHBsb2l0IHN1Y2ggZmVlZGJhY2sgZnJlZWx5LCB3aXRob3V0IGFueSBvYmxpZ2F0aW9uIG9mIG5vdGljZSBvciBjb21wZW5zYXRpb24gdG8gRGV2ZWxvcGVyLgoKNC4gVEVSTSBBTkQgVEVSTUlOQVRJT04KCjQuMS4gVGVybSBhbmQgVGVybWluYXRpb24gb2YgQWdyZWVtZW50CgpUaGlzIEFncmVlbWVudCBjb21tZW5jZXMgb24gaXRzIEVmZmVjdGl2ZSBEYXRlIGFuZCBlbmRzIGlmIHRlcm1pbmF0ZWQgYXMgaGVyZWluYWZ0ZXIgcHJvdmlkZWQuIFRoaXMgQWdyZWVtZW50IHdpbGwKYXV0b21hdGljYWxseSB0ZXJtaW5hdGUgaWYgRGV2ZWxvcGVyIG1hdGVyaWFsbHkgYnJlYWNoZXMgdGhpcyBBZ3JlZW1lbnQsIGluY2x1ZGluZywgd2l0aG91dCBsaW1pdGF0aW9uLCBieSBhIHZpb2xhdGlvbgpvZiB0aGUgbm9uLWNvbW1lcmNpYWwgYW5kIG5vbi1wcm9kdWN0aW9uIHVzZSByZXN0cmljdGlvbnMgaW4gU2VjdGlvbiDigI4yLjMuCgo0LjIuIE9ibGlnYXRpb25zIG9uIFRlcm1pbmF0aW9uCgpBbGwgcmlnaHRzIGFuZCBsaWNlbnNlcyBncmFudGVkIHVuZGVyIHRoaXMgQWdyZWVtZW50IHRvIERldmVsb3BlciBzaGFsbCB0ZXJtaW5hdGUgdXBvbgp0ZXJtaW5hdGlvbiBvZiB0aGlzIEFncmVlbWVudC4gRGV2ZWxvcGVyIHNoYWxsIGNlYXNlIG1ha2luZyBhbnkgdXNlIG9mIHRoZSBhcHBsaWNhYmxlIExpY2Vuc2VkIFNvZnR3YXJlIG9yIG90aGVyIG1hdGVyaWFsCnByb3ZpZGVkIGJ5IENvbXBhbnkgaW4gY29ubmVjdGlvbiB0aGVyZXdpdGggYW5kIGRlc3Ryb3kgdGhlbSBhbmQgYWxsIGNvcGllcyBhbmQgbW9kaWZpY2F0aW9ucyB0aGVyZW9mLCBhbmQgYWxzbyBpbmNsdWRpbmcKYW55IGNvcGllcyBvZiBjb2RlIGVtYmVkZGVkIGluIHRoZSBEZXZlbG9wZXIgQXBwbGljYXRpb24sIGFuZCBhbnkgcmVsYXRlZCBtYXRlcmlhbHMgaW4gaXRzIHBvc3Nlc3Npb24uIERldmVsb3BlciBzaGFsbApjZXJ0aWZ5IGluIHdyaXRpbmcgdG8gQ29tcGFueSB0aGF0IG5vIGZ1cnRoZXIgdXNlIG9mIHN1Y2ggTGljZW5zZWQgU29mdHdhcmUgb3IgYW55IGNvcGllcywgbW9kaWZpY2F0aW9ucyBvciBvdGhlcgpkZXJpdmF0aXZlIHdvcmtzIG9mIGFueSBhbmQgYWxsIHBvcnRpb25zIHRoZXJlb2YgaXMgYmVpbmcgbWFkZSBieSBEZXZlbG9wZXIuCgo0LjMuIFN1cnZpdmFsCgpBbnkgcHJvdmlzaW9ucyBvZiB0aGlzIEFncmVlbWVudCB0aGF0LCBpbiBvcmRlciB0byBmdWxmaWxsIHRoZSBwdXJwb3NlcyBvZiBzdWNoIHByb3Zpc2lvbnMsIG5lZWQgdG8gc3Vydml2ZSB0aGUgdGVybWluYXRpb24Kb3IgZXhwaXJhdGlvbiBvZiB0aGlzIEFncmVlbWVudCwgc2hhbGwgYmUgZGVlbWVkIHRvIHN1cnZpdmUgZm9yIGFzIGxvbmcgYXMgbmVjZXNzYXJ5IHRvIGZ1bGZpbGwgc3VjaCBwdXJwb3Nlcy4KCjUuIFdBUlJBTlRZIERJU0NMQUlNRVIKClRIRSBMSUNFTlNFRCBTT0ZUV0FSRSBJUyBQUk9WSURFRCBPTkxZIE9OIEFOIOKAnEFTIElT4oCdIEJBU0lTLiBDT01QQU5ZIE1BS0VTIE5PIE9USEVSIEVYUFJFU1MgV0FSUkFOVElFUywgV1JJVFRFTiBPUiBPUkFMLApBTkQgQUxMIE9USEVSIFdBUlJBTlRJRVMgQVJFIFNQRUNJRklDQUxMWSBFWENMVURFRCwgSU5DTFVESU5HIEJVVCBOT1QgTElNSVRFRCBUTyBUSEUgSU1QTElFRCBXQVJSQU5UWSBPRiBNRVJDSEFOVEFCSUxJVFksCkZJVE5FU1MgRk9SIFBBUlRJQ1VMQVIgUFVSUE9TRSwgT1IgTk9OSU5GUklOR0VNRU5ULCBBTkQgQU5ZIE9USEVSIFdBUlJBTlRZIEFSSVNJTkcgQlkgU1RBVFVURSwgT1BFUkFUSU9OIE9GIExBVywgQ09VUlNFCk9GIERFQUxJTkcgT1IgUEVSRk9STUFOQ0UgT1IgVVNBR0UgT0YgVFJBREUuCgo2LiBMSU1JVEFUSU9OUyBPRiBMSUFCSUxJVFkgQU5EIElOREVNTklUSUVTCgo2LjEuIExpbWl0cyBvZiBMaWFiaWxpdHkKCkNPTVBBTlkgU0hBTEwgSEFWRSBOTyBMSUFCSUxJVFkgVE8gREVWRUxPUEVSIEZPUiBBTlkgU1BFQ0lBTCwgQ09OU0VRVUVOVElBTCwgRVhFTVBMQVJZLCBJTkNJREVOVEFMIE9SIElORElSRUNUIERBTUFHRVMKKElOQ0xVRElORywgQlVUIE5PVCBMSU1JVEVEIFRPLCBMT1NTIE9GIFBST0ZJVFMsIFJFVkVOVUVTLCBEQVRBIEFORC9PUiBVU0UpIEFSSVNJTkcgT1VUIE9GIE9SIElOIENPTk5FQ1RJT04gSEVSRVdJVEggT1IKVEhFIFVTRSBPUiBQRVJGT1JNQU5DRSBPRiBUSEUgTElDRU5TRUQgU09GVFdBUkUsIEVWRU4gSUYgQURWSVNFRCBPRiBUSEUgUE9TU0lCSUxJVFkgVEhFUkVPRi4gVEhFIEFHR1JFR0FURSBMSUFCSUxJVFkgT0YKQ09NUEFOWSBVTkRFUiBUSElTIEFHUkVFTUVOVCBTSEFMTCBOT1QgRVhDRUVEICQxMC4gREVWRUxPUEVSIFNIQUxMIE5PVCBCUklORyBBTlkgQ0xBSU0gQVJJU0lORyBIRVJFVU5ERVIgTU9SRSBUSEFOClRXRUxWRSAoMTIpIE1PTlRIUyBBRlRFUiBTVUNIIENMQUlNIEhBUyBBQ0NSVUVELgoKNi4yLiBEZXZlbG9wZXIgSW5kZW1uaXR5CgpEZXZlbG9wZXIgc2hhbGwgaW5kZW1uaWZ5LCBkZWZlbmQgYW5kIGhvbGQgQ29tcGFueSBoYXJtbGVzcyBmcm9tIGFsbCBsb3NzZXMsIGNvc3RzLCBsaWFiaWxpdGllcwphbmQgZXhwZW5zZXMgaW5jdXJyZWQgYnkgQ29tcGFueSB3aGljaCBhcmlzZSBvdXQgb2YgYW55IGNsYWltIChleGNlcHQgY2xhaW1zIHRoYXQgdGhlIExpY2Vuc2VkIFNvZnR3YXJlIGluZnJpbmdlcyB0aGUKaW50ZWxsZWN0dWFsIHByb3BlcnR5IG9mIGEgdGhpcmQgcGFydHkpIHRoYXQgYXJpc2Ugb3V0IG9mIERldmVsb3BlcuKAmXMgYWN0cyBvciBvbWlzc2lvbnMgcHJvdmlkZWQgKGkpwqBDb21wYW55IGhhcyBub3RpZmllZApEZXZlbG9wZXIgcHJvbXB0bHkgaW4gd3JpdGluZyBvZiBhbnkgc3VjaCBjbGFpbXMgKHByb3ZpZGVkIHRoYXQgYW55IGRlbGF5IHNoYWxsIG5vdCByZWR1Y2UgRGV2ZWxvcGVy4oCZcyBpbmRlbW5pdHkgb2JsaWdhdGlvbnMKZXhjZXB0IHRvIHRoZSBleHRlbnQgdGhhdCB0aGUgZGVsYXkgcHJlanVkaWNlcyBEZXZlbG9wZXLigJlzIGFiaWxpdHkgdG8gZGVmZW5kIHRoZSBjbGFpbSk7IChpaSnCoERldmVsb3BlciBzaGFsbCBoYXZlIHNvbGUKY29udHJvbCBvZiB0aGUgZGVmZW5zZSBvZiBzdWNoIGNsYWltcyBhbmQgYWxsIG5lZ290aWF0aW9ucyBmb3IgdGhlaXIgc2V0dGxlbWVudCBhbmQgY29tcHJvbWlzZTsgYW5kIChpaWkpwqBDb21wYW55IHNoYWxsCnJlYXNvbmFibHkgY29vcGVyYXRlIHdpdGggRGV2ZWxvcGVyIGluIHRoZSBkZWZlbnNlIG9yIHNldHRsZW1lbnQgb2Ygc3VjaCBjbGFpbXMsIGF0IERldmVsb3BlcuKAmXMgZXhwZW5zZS4KCjcuIEdFTkVSQUwKCjcuMS4gRW50aXJlIEFncmVlbWVudAoKVGhlIHRlcm1zIGNvbnRhaW5lZCBoZXJlaW4gY29uc3RpdHV0ZSB0aGUgZW50aXJlIGFncmVlbWVudCBiZXR3ZWVuIHRoZSBwYXJ0aWVzIHdpdGggcmVzcGVjdCB0byB0aGUgc3ViamVjdCBtYXR0ZXIgaGVyZW9mCmFuZCBzaGFsbCBzdXBlcnNlZGUgYWxsIHByaW9yIGNvbW11bmljYXRpb25zIGFuZCBhZ3JlZW1lbnRzLCBlaXRoZXIgb3JhbCBvciB3cml0dGVuLgogCjcuMi4gRXF1aXRhYmxlIFJlbGllZgoKQ29tcGFueSBtYXksIHdpdGhvdXQgbGltaXRpbmcgaXRzIG90aGVyIHJpZ2h0cyBhbmQgcmVtZWRpZXMsIGJlIGVudGl0bGVkIHRvIGVxdWl0YWJsZSByZWxpZWYsIGluY2x1ZGluZyBidXQgbm90IGxpbWl0ZWQKdG8gaW5qdW5jdGl2ZSByZWxpZWYgZm9yIGEgYnJlYWNoIG9yIGFudGljaXBhdGVkIGJyZWFjaCBvZiB0aGlzIEFncmVlbWVudC4KCjcuMy4gQ29tcGxpYW5jZSB3aXRoIExhd3MKCkRldmVsb3BlciBzaGFsbCBjb21wbHkgd2l0aCBhbGwgYXBwbGljYWJsZSBsYXcgYW5kIHdpbGwgb2J0YWluIGFsbCBhdXRob3JpemF0aW9ucyByZXF1aXJlZApieSBVLlMuIGV4cG9ydCBjb250cm9sIGxhd3MgYW5kIGFsbCByZWxhdGVkIHJlZ3VsYXRpb25zIGlmIGFwcGxpY2FibGUuCgo3LjQuIEdvdmVybmluZyBMYXc7IEp1cmlzZGljdGlvbgoKVGhpcyBBZ3JlZW1lbnQgc2hhbGwgYmUgZ292ZXJuZWQgYnkgdGhlIGxhd3Mgb2YgdGhlIFN0YXRlIG9mIE9yZWdvbiwgZXhjbHVkaW5nIGl0cwpjb25mbGljdCBvZiBsYXcgcnVsZXMuIFRoZSBwYXJ0aWVzIHdpbGwgc3VibWl0IGFsbCBkaXNwdXRlcyB3aGljaCBhcmlzZSB1bmRlciB0aGlzIEFncmVlbWVudCB0byBzdGF0ZSBvciBmZWRlcmFsIGNvdXJ0cwpsb2NhdGVkIGluIMKgRGVzY2h1dGVzIENvdW50eSwgT3JlZ29uLiAgVGhlIHBhcnRpZXMgYWNrbm93bGVkZ2UgdGhhdCB0aGUgYWZvcmVzYWlkIGNvdXJ0cyB3aWxsIGhhdmUgZXhjbHVzaXZlIGp1cmlzZGljdGlvbgpvdmVyIHRoaXMgQWdyZWVtZW50IGFuZCBzcGVjaWZpY2FsbHkgd2FpdmUgYW55IGNsYWltcyB0aGV5IG1heSBoYXZlIHdoaWNoIGludm9sdmUganVyaXNkaWN0aW9uIG9yIHZlbnVlLCBpbmNsdWRpbmcsIGJ1dApub3QgbGltaXRlZCB0bywgbGFjayBvZiBwZXJzb25hbCBqdXJpc2RpY3Rpb24gb3IgZm9ydW0gbm9uIGNvbnZlbmllbnMuCgo3LjUuIE5vdGljZXMKCk5vdGljZXMgc2hhbGwgYmUgZGVlbWVkIHRvIGhhdmUgYmVlbiByZWNlaXZlZCB1cG9uIHZlcmlmaWVkIHJlY2VpcHQuCgo3LjYuIE5vIFdhaXZlcgoKTm8gbW9kaWZpY2F0aW9uIG9yIGFtZW5kbWVudCBoZXJldG8sIG5vciBhbnkgd2FpdmVyIG9mIGFueSByaWdodHMsIHNoYWxsIGJlIGVmZmVjdGl2ZSB1bmxlc3MgYXNzZW50ZWQgdG8gaW4gd3JpdGluZyBieQp0aGUgcGFydHkgdG8gYmUgY2hhcmdlZC4gVGhlIHdhaXZlciBvZiBhbnkgYnJlYWNoIG9yIGRlZmF1bHQgd2lsbCBub3QgY29uc3RpdHV0ZSBhIHdhaXZlciBvZiAoaSnCoGFueSBvdGhlciByaWdodCBvciByZW1lZHkKaGVyZXVuZGVyLCBvciAoaWkpwqBhbnkgc3Vic2VxdWVudCBicmVhY2ggb3IgZGVmYXVsdC4KCjcuNy4gSW5kZXBlbmRlbnQgQ29udHJhY3RvcnMKClRoZSBwYXJ0aWVzIHNoYWxsIGFjdCBhcyBpbmRlcGVuZGVudCBjb250cmFjdG9ycyBmb3IgYWxsIHB1cnBvc2VzIGhlcmV1bmRlci4KCjcuOC4gU2VwYXJhYmlsaXR5CgpJZiBhbnkgcHJvdmlzaW9uIGhlcmVvZiBzaGFsbCBiZSBoZWxkIGlsbGVnYWwgb3IgdW5lbmZvcmNlYWJsZSwgc3VjaCBwcm92aXNpb24gc2hhbGwgYmUgZGVlbWVkIHNlcGFyYWJsZSBmcm9tIHRoZQpyZW1haW5pbmcgcHJvdmlzaW9ucyBhbmQgc2hhbGwgaW4gbm8gd2F5IGFmZmVjdCBvciBpbXBhaXIgdGhlIHZhbGlkaXR5IG9yIGVuZm9yY2VhYmlsaXR5IG9mIHRoZSByZW1haW5pbmcgcHJvdmlzaW9ucy4KCjcuOS4gQXNzaWdubWVudAoKRGV2ZWxvcGVyIHNoYWxsIG5vdCBhc3NpZ24gdGhpcyBBZ3JlZW1lbnQsIG9yIGFueSByaWdodCwgb3IgZGVsZWdhdGUgYW55IHBlcmZvcm1hbmNlIGhlcmV1bmRlciB3aXRob3V0IENvbXBhbnnigJlzIHByaW9yCndyaXR0ZW4gY29uc2VudCwgYW5kIGFueSBzdWNoIGFjdGlvbiBpbiB2aW9sYXRpb24gb2YgdGhlIGZvcmVnb2luZyBzaGFsbCBiZSB2b2lkLiBDb21wYW55IG1heSBmcmVlbHkgYXNzaWduIHRoaXMgQWdyZWVtZW50LgoKCg=="
+            }
+          }
+        }
+      ],
+      "purl": "pkg:cargo/rodbus-schema@1.5.0?download_url=file://../rodbus-schema",
+      "externalReferences": [
+        {
+          "type": "website",
+          "url": "https://stepfunc.io/products/libraries/modbus/"
+        },
+        {
+          "type": "vcs",
+          "url": "https://github.com/stepfunc/rodbus"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "registry+https://github.com/rust-lang/crates.io-index#addr2line@0.25.1",
+      "name": "addr2line",
+      "version": "0.25.1",
+      "description": "A cross-platform symbolication library written in Rust, using `gimli`",
+      "scope": "required",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "1b5d307320b3181d6d7954e663bd7c774a838b8220fe0593c86d9fb09f498b4b"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "Apache-2.0 OR MIT"
+        }
+      ],
+      "purl": "pkg:cargo/addr2line@0.25.1",
+      "externalReferences": [
+        {
+          "type": "documentation",
+          "url": "https://docs.rs/addr2line"
+        },
+        {
+          "type": "vcs",
+          "url": "https://github.com/gimli-rs/addr2line"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "registry+https://github.com/rust-lang/crates.io-index#adler2@2.0.1",
+      "author": "Jonas Schievink <jonasschievink@gmail.com>, oyvindln <oyvindln@users.noreply.github.com>",
+      "name": "adler2",
+      "version": "2.0.1",
+      "description": "A simple clean-room implementation of the Adler-32 checksum",
+      "scope": "required",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "320119579fcad9c21884f5c4861d16174d0e06250625266f50fe6898340abefa"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "0BSD OR MIT OR Apache-2.0"
+        }
+      ],
+      "purl": "pkg:cargo/adler2@2.0.1",
+      "externalReferences": [
+        {
+          "type": "documentation",
+          "url": "https://docs.rs/adler2/"
+        },
+        {
+          "type": "vcs",
+          "url": "https://github.com/oyvindln/adler2"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "registry+https://github.com/rust-lang/crates.io-index#aho-corasick@1.1.4",
+      "author": "Andrew Gallant <jamslam@gmail.com>",
+      "name": "aho-corasick",
+      "version": "1.1.4",
+      "description": "Fast multiple substring searching.",
+      "scope": "required",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "ddd31a130427c27518df266943a5308ed92d4b226cc639f5a8f1002816174301"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "Unlicense OR MIT"
+        }
+      ],
+      "purl": "pkg:cargo/aho-corasick@1.1.4",
+      "externalReferences": [
+        {
+          "type": "website",
+          "url": "https://github.com/BurntSushi/aho-corasick"
+        },
+        {
+          "type": "vcs",
+          "url": "https://github.com/BurntSushi/aho-corasick"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "registry+https://github.com/rust-lang/crates.io-index#anstream@1.0.0",
+      "name": "anstream",
+      "version": "1.0.0",
+      "description": "IO stream adapters for writing colored text that will gracefully degrade according to your terminal's capabilities.",
+      "scope": "required",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "824a212faf96e9acacdbd09febd34438f8f711fb84e09a8916013cd7815ca28d"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "MIT OR Apache-2.0"
+        }
+      ],
+      "purl": "pkg:cargo/anstream@1.0.0",
+      "externalReferences": [
+        {
+          "type": "vcs",
+          "url": "https://github.com/rust-cli/anstyle.git"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "registry+https://github.com/rust-lang/crates.io-index#anstyle-parse@1.0.0",
+      "name": "anstyle-parse",
+      "version": "1.0.0",
+      "description": "Parse ANSI Style Escapes",
+      "scope": "required",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "52ce7f38b242319f7cabaa6813055467063ecdc9d355bbb4ce0c68908cd8130e"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "MIT OR Apache-2.0"
+        }
+      ],
+      "purl": "pkg:cargo/anstyle-parse@1.0.0",
+      "externalReferences": [
+        {
+          "type": "vcs",
+          "url": "https://github.com/rust-cli/anstyle.git"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "registry+https://github.com/rust-lang/crates.io-index#anstyle-query@1.1.5",
+      "name": "anstyle-query",
+      "version": "1.1.5",
+      "description": "Look up colored console capabilities",
+      "scope": "required",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "40c48f72fd53cd289104fc64099abca73db4166ad86ea0b4341abe65af83dadc"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "MIT OR Apache-2.0"
+        }
+      ],
+      "purl": "pkg:cargo/anstyle-query@1.1.5",
+      "externalReferences": [
+        {
+          "type": "vcs",
+          "url": "https://github.com/rust-cli/anstyle.git"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "registry+https://github.com/rust-lang/crates.io-index#anstyle@1.0.14",
+      "name": "anstyle",
+      "version": "1.0.14",
+      "description": "ANSI text styling",
+      "scope": "required",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "940b3a0ca603d1eade50a4846a2afffd5ef57a9feac2c0e2ec2e14f9ead76000"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "MIT OR Apache-2.0"
+        }
+      ],
+      "purl": "pkg:cargo/anstyle@1.0.14",
+      "externalReferences": [
+        {
+          "type": "vcs",
+          "url": "https://github.com/rust-cli/anstyle.git"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "registry+https://github.com/rust-lang/crates.io-index#autocfg@1.5.1",
+      "author": "Josh Stone <cuviper@gmail.com>",
+      "name": "autocfg",
+      "version": "1.5.1",
+      "description": "Automatic cfg for Rust compiler features",
+      "scope": "excluded",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "f2032f911046de80f0a198e0901378627c33f59ea0ac00e363d481118bd70a53"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "Apache-2.0 OR MIT"
+        }
+      ],
+      "purl": "pkg:cargo/autocfg@1.5.1",
+      "externalReferences": [
+        {
+          "type": "documentation",
+          "url": "https://docs.rs/autocfg/"
+        },
+        {
+          "type": "vcs",
+          "url": "https://github.com/cuviper/autocfg"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "registry+https://github.com/rust-lang/crates.io-index#backtrace@0.3.76",
+      "author": "The Rust Project Developers",
+      "name": "backtrace",
+      "version": "0.3.76",
+      "description": "A library to acquire a stack trace (backtrace) at runtime in a Rust program. ",
+      "scope": "required",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "bb531853791a215d7c62a30daf0dde835f381ab5de4589cfe7c649d2cbe92bd6"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "MIT OR Apache-2.0"
+        }
+      ],
+      "purl": "pkg:cargo/backtrace@0.3.76",
+      "externalReferences": [
+        {
+          "type": "documentation",
+          "url": "https://docs.rs/backtrace"
+        },
+        {
+          "type": "website",
+          "url": "https://github.com/rust-lang/backtrace-rs"
+        },
+        {
+          "type": "vcs",
+          "url": "https://github.com/rust-lang/backtrace-rs"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "registry+https://github.com/rust-lang/crates.io-index#cfg-if@1.0.4",
+      "author": "Alex Crichton <alex@alexcrichton.com>",
+      "name": "cfg-if",
+      "version": "1.0.4",
+      "description": "A macro to ergonomically define an item depending on a large number of #[cfg] parameters. Structured like an if-else chain, the first matching branch is the item that gets emitted. ",
+      "scope": "required",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "9330f8b2ff13f34540b44e946ef35111825727b38d33286ef986142615121801"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "MIT OR Apache-2.0"
+        }
+      ],
+      "purl": "pkg:cargo/cfg-if@1.0.4",
+      "externalReferences": [
+        {
+          "type": "vcs",
+          "url": "https://github.com/rust-lang/cfg-if"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "registry+https://github.com/rust-lang/crates.io-index#chrono@0.4.45",
+      "name": "chrono",
+      "version": "0.4.45",
+      "description": "Date and time library for Rust",
+      "scope": "required",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "1aa79e62e7697b8e29b513a68abacf485adcd1fe8284a4316c5ae868e6633327"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "MIT OR Apache-2.0"
+        }
+      ],
+      "purl": "pkg:cargo/chrono@0.4.45",
+      "externalReferences": [
+        {
+          "type": "documentation",
+          "url": "https://docs.rs/chrono/"
+        },
+        {
+          "type": "website",
+          "url": "https://github.com/chronotope/chrono"
+        },
+        {
+          "type": "vcs",
+          "url": "https://github.com/chronotope/chrono"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "registry+https://github.com/rust-lang/crates.io-index#clap@4.6.1",
+      "name": "clap",
+      "version": "4.6.1",
+      "description": "A simple to use, efficient, and full-featured Command Line Argument Parser",
+      "scope": "required",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "1ddb117e43bbf7dacf0a4190fef4d345b9bad68dfc649cb349e7d17d28428e51"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "MIT OR Apache-2.0"
+        }
+      ],
+      "purl": "pkg:cargo/clap@4.6.1",
+      "externalReferences": [
+        {
+          "type": "vcs",
+          "url": "https://github.com/clap-rs/clap"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "registry+https://github.com/rust-lang/crates.io-index#clap_builder@4.6.0",
+      "name": "clap_builder",
+      "version": "4.6.0",
+      "description": "A simple to use, efficient, and full-featured Command Line Argument Parser",
+      "scope": "required",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "714a53001bf66416adb0e2ef5ac857140e7dc3a0c48fb28b2f10762fc4b5069f"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "MIT OR Apache-2.0"
+        }
+      ],
+      "purl": "pkg:cargo/clap_builder@4.6.0",
+      "externalReferences": [
+        {
+          "type": "vcs",
+          "url": "https://github.com/clap-rs/clap"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "registry+https://github.com/rust-lang/crates.io-index#clap_derive@4.6.1",
+      "name": "clap_derive",
+      "version": "4.6.1",
+      "description": "Parse command line argument by defining a struct, derive crate.",
+      "scope": "required",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "f2ce8604710f6733aa641a2b3731eaa1e8b3d9973d5e3565da11800813f997a9"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "MIT OR Apache-2.0"
+        }
+      ],
+      "purl": "pkg:cargo/clap_derive@4.6.1",
+      "externalReferences": [
+        {
+          "type": "vcs",
+          "url": "https://github.com/clap-rs/clap"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "registry+https://github.com/rust-lang/crates.io-index#clap_lex@1.1.0",
+      "name": "clap_lex",
+      "version": "1.1.0",
+      "description": "Minimal, flexible command line parser",
+      "scope": "required",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "c8d4a3bb8b1e0c1050499d1815f5ab16d04f0959b233085fb31653fbfc9d98f9"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "MIT OR Apache-2.0"
+        }
+      ],
+      "purl": "pkg:cargo/clap_lex@1.1.0",
+      "externalReferences": [
+        {
+          "type": "vcs",
+          "url": "https://github.com/clap-rs/clap"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "registry+https://github.com/rust-lang/crates.io-index#colorchoice@1.0.5",
+      "name": "colorchoice",
+      "version": "1.0.5",
+      "description": "Global override of color control",
+      "scope": "required",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "1d07550c9036bf2ae0c684c4297d503f838287c83c53686d05370d0e139ae570"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "MIT OR Apache-2.0"
+        }
+      ],
+      "purl": "pkg:cargo/colorchoice@1.0.5",
+      "externalReferences": [
+        {
+          "type": "vcs",
+          "url": "https://github.com/rust-cli/anstyle.git"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "registry+https://github.com/rust-lang/crates.io-index#dunce@1.0.5",
+      "author": "Kornel <kornel@geekhood.net>",
+      "name": "dunce",
+      "version": "1.0.5",
+      "description": "Normalize Windows paths to the most compatible format, avoiding UNC where possible",
+      "scope": "required",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "92773504d58c093f6de2459af4af33faa518c13451eb8f2b5698ed3d36e7c813"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "CC0-1.0 OR MIT-0 OR Apache-2.0"
+        }
+      ],
+      "purl": "pkg:cargo/dunce@1.0.5",
+      "externalReferences": [
+        {
+          "type": "documentation",
+          "url": "https://docs.rs/dunce"
+        },
+        {
+          "type": "website",
+          "url": "https://lib.rs/crates/dunce"
+        },
+        {
+          "type": "vcs",
+          "url": "https://gitlab.com/kornelski/dunce"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "registry+https://github.com/rust-lang/crates.io-index#gimli@0.32.3",
+      "name": "gimli",
+      "version": "0.32.3",
+      "description": "A library for reading and writing the DWARF debugging format.",
+      "scope": "required",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "e629b9b98ef3dd8afe6ca2bd0f89306cec16d43d907889945bc5d6687f2f13c7"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "MIT OR Apache-2.0"
+        }
+      ],
+      "purl": "pkg:cargo/gimli@0.32.3",
+      "externalReferences": [
+        {
+          "type": "documentation",
+          "url": "https://docs.rs/gimli"
+        },
+        {
+          "type": "vcs",
+          "url": "https://github.com/gimli-rs/gimli"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "registry+https://github.com/rust-lang/crates.io-index#heck@0.5.0",
+      "name": "heck",
+      "version": "0.5.0",
+      "description": "heck is a case conversion library.",
+      "scope": "required",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "2304e00983f87ffb38b55b444b5e3b60a884b5d30c0fca7d82fe33449bbe55ea"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "MIT OR Apache-2.0"
+        }
+      ],
+      "purl": "pkg:cargo/heck@0.5.0",
+      "externalReferences": [
+        {
+          "type": "vcs",
+          "url": "https://github.com/withoutboats/heck"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "registry+https://github.com/rust-lang/crates.io-index#iana-time-zone@0.1.65",
+      "author": "Andrew Straw <strawman@astraw.com>, René Kijewski <rene.kijewski@fu-berlin.de>, Ryan Lopopolo <rjl@hyperbo.la>",
+      "name": "iana-time-zone",
+      "version": "0.1.65",
+      "description": "get the IANA time zone for the current system",
+      "scope": "required",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "e31bc9ad994ba00e440a8aa5c9ef0ec67d5cb5e5cb0cc7f8b744a35b389cc470"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "MIT OR Apache-2.0"
+        }
+      ],
+      "purl": "pkg:cargo/iana-time-zone@0.1.65",
+      "externalReferences": [
+        {
+          "type": "vcs",
+          "url": "https://github.com/strawlab/iana-time-zone"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "registry+https://github.com/rust-lang/crates.io-index#is_terminal_polyfill@1.70.2",
+      "name": "is_terminal_polyfill",
+      "version": "1.70.2",
+      "description": "Polyfill for `is_terminal` stdlib feature for use with older MSRVs",
+      "scope": "required",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "a6cb138bb79a146c1bd460005623e142ef0181e3d0219cb493e02f7d08a35695"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "MIT OR Apache-2.0"
+        }
+      ],
+      "purl": "pkg:cargo/is_terminal_polyfill@1.70.2",
+      "externalReferences": [
+        {
+          "type": "vcs",
+          "url": "https://github.com/polyfill-rs/is_terminal_polyfill"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "registry+https://github.com/rust-lang/crates.io-index#itoa@1.0.18",
+      "author": "David Tolnay <dtolnay@gmail.com>",
+      "name": "itoa",
+      "version": "1.0.18",
+      "description": "Fast integer primitive to string conversion",
+      "scope": "required",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "8f42a60cbdf9a97f5d2305f08a87dc4e09308d1276d28c869c684d7777685682"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "MIT OR Apache-2.0"
+        }
+      ],
+      "purl": "pkg:cargo/itoa@1.0.18",
+      "externalReferences": [
+        {
+          "type": "documentation",
+          "url": "https://docs.rs/itoa"
+        },
+        {
+          "type": "vcs",
+          "url": "https://github.com/dtolnay/itoa"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "registry+https://github.com/rust-lang/crates.io-index#lazy_static@1.5.0",
+      "author": "Marvin Löbel <loebel.marvin@gmail.com>",
+      "name": "lazy_static",
+      "version": "1.5.0",
+      "description": "A macro for declaring lazily evaluated statics in Rust.",
+      "scope": "required",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "bbd2bcb4c963f2ddae06a2efc7e9f3591312473c50c6685e1f298068316e66fe"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "MIT OR Apache-2.0"
+        }
+      ],
+      "purl": "pkg:cargo/lazy_static@1.5.0",
+      "externalReferences": [
+        {
+          "type": "documentation",
+          "url": "https://docs.rs/lazy_static"
+        },
+        {
+          "type": "vcs",
+          "url": "https://github.com/rust-lang-nursery/lazy-static.rs"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "registry+https://github.com/rust-lang/crates.io-index#libc@0.2.186",
+      "author": "The Rust Project Developers",
+      "name": "libc",
+      "version": "0.2.186",
+      "description": "Raw FFI bindings to platform libraries like libc.",
+      "scope": "required",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "68ab91017fe16c622486840e4c83c9a37afeff978bd239b5293d61ece587de66"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "MIT OR Apache-2.0"
+        }
+      ],
+      "purl": "pkg:cargo/libc@0.2.186",
+      "externalReferences": [
+        {
+          "type": "vcs",
+          "url": "https://github.com/rust-lang/libc"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "registry+https://github.com/rust-lang/crates.io-index#log@0.4.32",
+      "author": "The Rust Project Developers",
+      "name": "log",
+      "version": "0.4.32",
+      "description": "A lightweight logging facade for Rust ",
+      "scope": "required",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "953f07c43838f8e6f9758cab68bf5bed85465e7587ebe0b823f1bcd81978ad3a"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "MIT OR Apache-2.0"
+        }
+      ],
+      "purl": "pkg:cargo/log@0.4.32",
+      "externalReferences": [
+        {
+          "type": "documentation",
+          "url": "https://docs.rs/log"
+        },
+        {
+          "type": "vcs",
+          "url": "https://github.com/rust-lang/log"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "registry+https://github.com/rust-lang/crates.io-index#memchr@2.8.2",
+      "author": "Andrew Gallant <jamslam@gmail.com>, bluss",
+      "name": "memchr",
+      "version": "2.8.2",
+      "description": "Provides extremely fast (uses SIMD on x86_64, aarch64 and wasm32) routines for 1, 2 or 3 byte search and single substring search. ",
+      "scope": "required",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "88904434abc2901f197fe8cc55f0445e7ded921dba5911dad2e2b39b48e663c4"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "Unlicense OR MIT"
+        }
+      ],
+      "purl": "pkg:cargo/memchr@2.8.2",
+      "externalReferences": [
+        {
+          "type": "documentation",
+          "url": "https://docs.rs/memchr/"
+        },
+        {
+          "type": "website",
+          "url": "https://github.com/BurntSushi/memchr"
+        },
+        {
+          "type": "vcs",
+          "url": "https://github.com/BurntSushi/memchr"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "registry+https://github.com/rust-lang/crates.io-index#miniz_oxide@0.8.9",
+      "author": "Frommi <daniil.liferenko@gmail.com>, oyvindln <oyvindln@users.noreply.github.com>, Rich Geldreich richgel99@gmail.com",
+      "name": "miniz_oxide",
+      "version": "0.8.9",
+      "description": "DEFLATE compression and decompression library rewritten in Rust based on miniz",
+      "scope": "required",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "1fa76a2c86f704bdb222d66965fb3d63269ce38518b83cb0575fca855ebb6316"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "MIT OR Zlib OR Apache-2.0"
+        }
+      ],
+      "purl": "pkg:cargo/miniz_oxide@0.8.9",
+      "externalReferences": [
+        {
+          "type": "documentation",
+          "url": "https://docs.rs/miniz_oxide"
+        },
+        {
+          "type": "website",
+          "url": "https://github.com/Frommi/miniz_oxide/tree/master/miniz_oxide"
+        },
+        {
+          "type": "vcs",
+          "url": "https://github.com/Frommi/miniz_oxide/tree/master/miniz_oxide"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "registry+https://github.com/rust-lang/crates.io-index#nu-ansi-term@0.50.3",
+      "author": "ogham@bsago.me, Ryan Scheel (Havvy) <ryan.havvy@gmail.com>, Josh Triplett <josh@joshtriplett.org>, The Nushell Project Developers",
+      "name": "nu-ansi-term",
+      "version": "0.50.3",
+      "description": "Library for ANSI terminal colors and styles (bold, underline)",
+      "scope": "required",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "7957b9740744892f114936ab4a57b3f487491bbeafaf8083688b16841a4240e5"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "MIT"
+        }
+      ],
+      "purl": "pkg:cargo/nu-ansi-term@0.50.3",
+      "externalReferences": [
+        {
+          "type": "vcs",
+          "url": "https://github.com/nushell/nu-ansi-term"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "registry+https://github.com/rust-lang/crates.io-index#num-traits@0.2.19",
+      "author": "The Rust Project Developers",
+      "name": "num-traits",
+      "version": "0.2.19",
+      "description": "Numeric traits for generic mathematics",
+      "scope": "required",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "071dfc062690e90b734c0b2273ce72ad0ffa95f0c74596bc250dcfd960262841"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "MIT OR Apache-2.0"
+        }
+      ],
+      "purl": "pkg:cargo/num-traits@0.2.19",
+      "externalReferences": [
+        {
+          "type": "documentation",
+          "url": "https://docs.rs/num-traits"
+        },
+        {
+          "type": "website",
+          "url": "https://github.com/rust-num/num-traits"
+        },
+        {
+          "type": "vcs",
+          "url": "https://github.com/rust-num/num-traits"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "registry+https://github.com/rust-lang/crates.io-index#object@0.37.3",
+      "name": "object",
+      "version": "0.37.3",
+      "description": "A unified interface for reading and writing object file formats.",
+      "scope": "required",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "ff76201f031d8863c38aa7f905eca4f53abbfa15f609db4277d44cd8938f33fe"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "Apache-2.0 OR MIT"
+        }
+      ],
+      "purl": "pkg:cargo/object@0.37.3",
+      "externalReferences": [
+        {
+          "type": "vcs",
+          "url": "https://github.com/gimli-rs/object"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "registry+https://github.com/rust-lang/crates.io-index#once_cell@1.21.4",
+      "author": "Aleksey Kladov <aleksey.kladov@gmail.com>",
+      "name": "once_cell",
+      "version": "1.21.4",
+      "description": "Single assignment cells and lazy values.",
+      "scope": "required",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "9f7c3e4beb33f85d45ae3e3a1792185706c8e16d043238c593331cc7cd313b50"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "MIT OR Apache-2.0"
+        }
+      ],
+      "purl": "pkg:cargo/once_cell@1.21.4",
+      "externalReferences": [
+        {
+          "type": "documentation",
+          "url": "https://docs.rs/once_cell"
+        },
+        {
+          "type": "vcs",
+          "url": "https://github.com/matklad/once_cell"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "registry+https://github.com/rust-lang/crates.io-index#oo-bindgen@0.8.8",
+      "author": "Step Function I/O LLC <info@stepfunc.io>",
+      "name": "oo-bindgen",
+      "version": "0.8.8",
+      "description": "DSL-based binding geneator for C, C++, Java, and C#",
+      "scope": "required",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "c87847ac8cd3f9ff4bfdb3a23ce104225f7246f37ac1567efe6fc528bb26563b"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "MIT OR Apache-2.0"
+        }
+      ],
+      "purl": "pkg:cargo/oo-bindgen@0.8.8",
+      "externalReferences": [
+        {
+          "type": "vcs",
+          "url": "https://github.com/stepfunc/oo_bindgen/"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "registry+https://github.com/rust-lang/crates.io-index#pin-project-lite@0.2.17",
+      "name": "pin-project-lite",
+      "version": "0.2.17",
+      "description": "A lightweight version of pin-project written with declarative macros. ",
+      "scope": "required",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "a89322df9ebe1c1578d689c92318e070967d1042b512afbe49518723f4e6d5cd"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "Apache-2.0 OR MIT"
+        }
+      ],
+      "purl": "pkg:cargo/pin-project-lite@0.2.17",
+      "externalReferences": [
+        {
+          "type": "vcs",
+          "url": "https://github.com/taiki-e/pin-project-lite"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "registry+https://github.com/rust-lang/crates.io-index#platforms@2.0.0",
+      "author": "Tony Arcieri <bascule@gmail.com>",
+      "name": "platforms",
+      "version": "2.0.0",
+      "description": "Rust platform registry with information about valid Rust platforms (target triple, target_arch, target_os) sourced from Rust Forge. ",
+      "scope": "required",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "e8d0eef3571242013a0d5dc84861c3ae4a652e56e12adf8bdc26ff5f8cb34c94"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "Apache-2.0 OR MIT"
+        }
+      ],
+      "purl": "pkg:cargo/platforms@2.0.0",
+      "externalReferences": [
+        {
+          "type": "website",
+          "url": "https://rustsec.org"
+        },
+        {
+          "type": "vcs",
+          "url": "https://github.com/rustsec/rustsec/tree/main/platforms"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "registry+https://github.com/rust-lang/crates.io-index#proc-macro2@1.0.106",
+      "author": "David Tolnay <dtolnay@gmail.com>, Alex Crichton <alex@alexcrichton.com>",
+      "name": "proc-macro2",
+      "version": "1.0.106",
+      "description": "A substitute implementation of the compiler's `proc_macro` API to decouple token-based libraries from the procedural macro use case.",
+      "scope": "required",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "8fd00f0bb2e90d81d1044c2b32617f68fcb9fa3bb7640c23e9c748e53fb30934"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "MIT OR Apache-2.0"
+        }
+      ],
+      "purl": "pkg:cargo/proc-macro2@1.0.106",
+      "externalReferences": [
+        {
+          "type": "documentation",
+          "url": "https://docs.rs/proc-macro2"
+        },
+        {
+          "type": "vcs",
+          "url": "https://github.com/dtolnay/proc-macro2"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "registry+https://github.com/rust-lang/crates.io-index#quote@1.0.45",
+      "author": "David Tolnay <dtolnay@gmail.com>",
+      "name": "quote",
+      "version": "1.0.45",
+      "description": "Quasi-quoting macro quote!(...)",
+      "scope": "required",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "41f2619966050689382d2b44f664f4bc593e129785a36d6ee376ddf37259b924"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "MIT OR Apache-2.0"
+        }
+      ],
+      "purl": "pkg:cargo/quote@1.0.45",
+      "externalReferences": [
+        {
+          "type": "documentation",
+          "url": "https://docs.rs/quote/"
+        },
+        {
+          "type": "vcs",
+          "url": "https://github.com/dtolnay/quote"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "registry+https://github.com/rust-lang/crates.io-index#regex-automata@0.4.14",
+      "author": "The Rust Project Developers, Andrew Gallant <jamslam@gmail.com>",
+      "name": "regex-automata",
+      "version": "0.4.14",
+      "description": "Automata construction and matching using regular expressions.",
+      "scope": "required",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "6e1dd4122fc1595e8162618945476892eefca7b88c52820e74af6262213cae8f"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "MIT OR Apache-2.0"
+        }
+      ],
+      "purl": "pkg:cargo/regex-automata@0.4.14",
+      "externalReferences": [
+        {
+          "type": "documentation",
+          "url": "https://docs.rs/regex-automata"
+        },
+        {
+          "type": "website",
+          "url": "https://github.com/rust-lang/regex/tree/master/regex-automata"
+        },
+        {
+          "type": "vcs",
+          "url": "https://github.com/rust-lang/regex"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "registry+https://github.com/rust-lang/crates.io-index#regex-syntax@0.8.11",
+      "author": "The Rust Project Developers, Andrew Gallant <jamslam@gmail.com>",
+      "name": "regex-syntax",
+      "version": "0.8.11",
+      "description": "A regular expression parser.",
+      "scope": "required",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "d6f6ff9a378485b298a5286656da665ba74413d36db0979633275d2e708145d4"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "MIT OR Apache-2.0"
+        }
+      ],
+      "purl": "pkg:cargo/regex-syntax@0.8.11",
+      "externalReferences": [
+        {
+          "type": "documentation",
+          "url": "https://docs.rs/regex-syntax"
+        },
+        {
+          "type": "website",
+          "url": "https://github.com/rust-lang/regex/tree/master/regex-syntax"
+        },
+        {
+          "type": "vcs",
+          "url": "https://github.com/rust-lang/regex"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "registry+https://github.com/rust-lang/crates.io-index#regex@1.12.4",
+      "author": "The Rust Project Developers, Andrew Gallant <jamslam@gmail.com>",
+      "name": "regex",
+      "version": "1.12.4",
+      "description": "An implementation of regular expressions for Rust. This implementation uses finite automata and guarantees linear time matching on all inputs. ",
+      "scope": "required",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "f1292b7759ae1cb9ec195452d1390a074f0cd8541ab7a5a8c31cd6db45d4a6ba"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "MIT OR Apache-2.0"
+        }
+      ],
+      "purl": "pkg:cargo/regex@1.12.4",
+      "externalReferences": [
+        {
+          "type": "documentation",
+          "url": "https://docs.rs/regex"
+        },
+        {
+          "type": "website",
+          "url": "https://github.com/rust-lang/regex"
+        },
+        {
+          "type": "vcs",
+          "url": "https://github.com/rust-lang/regex"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "registry+https://github.com/rust-lang/crates.io-index#rustc-demangle@0.1.27",
+      "author": "Alex Crichton <alex@alexcrichton.com>",
+      "name": "rustc-demangle",
+      "version": "0.1.27",
+      "description": "Rust compiler symbol demangling. ",
+      "scope": "required",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "b50b8869d9fc858ce7266cce0194bd74df58b9d0e3f6df3a9fc8eb470d95c09d"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "MIT OR Apache-2.0"
+        }
+      ],
+      "purl": "pkg:cargo/rustc-demangle@0.1.27",
+      "externalReferences": [
+        {
+          "type": "documentation",
+          "url": "https://docs.rs/rustc-demangle"
+        },
+        {
+          "type": "website",
+          "url": "https://github.com/rust-lang/rustc-demangle"
+        },
+        {
+          "type": "vcs",
+          "url": "https://github.com/rust-lang/rustc-demangle"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "registry+https://github.com/rust-lang/crates.io-index#semver@1.0.28",
+      "author": "David Tolnay <dtolnay@gmail.com>",
+      "name": "semver",
+      "version": "1.0.28",
+      "description": "Parser and evaluator for Cargo's flavor of Semantic Versioning",
+      "scope": "required",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "8a7852d02fc848982e0c167ef163aaff9cd91dc640ba85e263cb1ce46fae51cd"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "MIT OR Apache-2.0"
+        }
+      ],
+      "purl": "pkg:cargo/semver@1.0.28",
+      "externalReferences": [
+        {
+          "type": "documentation",
+          "url": "https://docs.rs/semver"
+        },
+        {
+          "type": "vcs",
+          "url": "https://github.com/dtolnay/semver"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "registry+https://github.com/rust-lang/crates.io-index#serde@1.0.228",
+      "author": "Erick Tryzelaar <erick.tryzelaar@gmail.com>, David Tolnay <dtolnay@gmail.com>",
+      "name": "serde",
+      "version": "1.0.228",
+      "description": "A generic serialization/deserialization framework",
+      "scope": "required",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "9a8e94ea7f378bd32cbbd37198a4a91436180c5bb472411e48b5ec2e2124ae9e"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "MIT OR Apache-2.0"
+        }
+      ],
+      "purl": "pkg:cargo/serde@1.0.228",
+      "externalReferences": [
+        {
+          "type": "documentation",
+          "url": "https://docs.rs/serde"
+        },
+        {
+          "type": "website",
+          "url": "https://serde.rs"
+        },
+        {
+          "type": "vcs",
+          "url": "https://github.com/serde-rs/serde"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "registry+https://github.com/rust-lang/crates.io-index#serde_core@1.0.228",
+      "author": "Erick Tryzelaar <erick.tryzelaar@gmail.com>, David Tolnay <dtolnay@gmail.com>",
+      "name": "serde_core",
+      "version": "1.0.228",
+      "description": "Serde traits only, with no support for derive -- use the `serde` crate instead",
+      "scope": "required",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "41d385c7d4ca58e59fc732af25c3983b67ac852c1a25000afe1175de458b67ad"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "MIT OR Apache-2.0"
+        }
+      ],
+      "purl": "pkg:cargo/serde_core@1.0.228",
+      "externalReferences": [
+        {
+          "type": "documentation",
+          "url": "https://docs.rs/serde_core"
+        },
+        {
+          "type": "website",
+          "url": "https://serde.rs"
+        },
+        {
+          "type": "vcs",
+          "url": "https://github.com/serde-rs/serde"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "registry+https://github.com/rust-lang/crates.io-index#serde_derive@1.0.228",
+      "author": "Erick Tryzelaar <erick.tryzelaar@gmail.com>, David Tolnay <dtolnay@gmail.com>",
+      "name": "serde_derive",
+      "version": "1.0.228",
+      "description": "Macros 1.1 implementation of #[derive(Serialize, Deserialize)]",
+      "scope": "required",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "d540f220d3187173da220f885ab66608367b6574e925011a9353e4badda91d79"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "MIT OR Apache-2.0"
+        }
+      ],
+      "purl": "pkg:cargo/serde_derive@1.0.228",
+      "externalReferences": [
+        {
+          "type": "documentation",
+          "url": "https://serde.rs/derive.html"
+        },
+        {
+          "type": "website",
+          "url": "https://serde.rs"
+        },
+        {
+          "type": "vcs",
+          "url": "https://github.com/serde-rs/serde"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "registry+https://github.com/rust-lang/crates.io-index#serde_json@1.0.150",
+      "author": "Erick Tryzelaar <erick.tryzelaar@gmail.com>, David Tolnay <dtolnay@gmail.com>",
+      "name": "serde_json",
+      "version": "1.0.150",
+      "description": "A JSON serialization file format",
+      "scope": "required",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "e8014e44b4736ed0538adeecded0fce2a272f22dc9578a7eb6b2d9993c74cfb9"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "MIT OR Apache-2.0"
+        }
+      ],
+      "purl": "pkg:cargo/serde_json@1.0.150",
+      "externalReferences": [
+        {
+          "type": "documentation",
+          "url": "https://docs.rs/serde_json"
+        },
+        {
+          "type": "vcs",
+          "url": "https://github.com/serde-rs/json"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "registry+https://github.com/rust-lang/crates.io-index#sfio-tokio-ffi@0.9.0",
+      "name": "sfio-tokio-ffi",
+      "version": "0.9.0",
+      "description": "An oo-bindgen model for using Tokio in an FFI environment",
+      "scope": "required",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "f18d418ee525a2027c0b3e1ab34dc050e1f676834b93389829d40aed2bfefecb"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "name": "Unknown",
+            "text": {
+              "encoding": "base64",
+              "content": "TElDRU5TRSBBR1JFRU1FTlQNCg0KQlkgRE9XTkxPQURJTkcgVEhFIExJQ0VOU0VEIFNPRlRXQVJFIEZST00gVEhFIERFVkVMT1BNRU5UIFBMQVRGT1JNLCBERVZFTE9QRVINCklTIEFHUkVFSU5HIFRPIEJFIEJPVU5EIEJZIFRIRSBURVJNUyBPRiBUSElTIExJQ0VOU0UgQUdSRUVNRU5UIChUSElTICJBR1JFRU1FTlQiKS4NClRIRVJFRk9SRSwgSVQgSVMgSU1QT1JUQU5UIFRIQVQgWU9VIFJFQUQgVEhJUyBBR1JFRU1FTlQgQkVGT1JFIERPV05MT0FESU5HIFRIRQ0KU09GVFdBUkUuIElGIERFVkVMT1BFUiBET0VTIE5PVCBBR1JFRSBUTyBUSEUgVEVSTVMgT0YgVEhJUyBBR1JFRU1FTlQsIFRIRU4NCkRFVkVMT1BFUiBNQVkgTk9UIERPV05MT0FEIE9SIFVTRSBUSEUgTElDRU5TRUQgU09GVFdBUkUuIElGIFlPVSBBUkUgRE9XTkxPQURJTkcNClRISVMgTElDRU5TRUQgU09GVFdBUkUgT04gQkVIQUxGIE9GIEFOIEVOVElUWSBPUiBPVEhFUiBQRVJTT04sIFRIRU4gWU9VIFJFUFJFU0VOVA0KVEhBVCBZT1UgQVJFIEFVVEhPUklaRUQgVE8gQklORCBTVUNIIEVOVElUWSBPUiBPVEhFUiBQRVJTT04gVE8gVEhFIFRFUk1TIE9GIFRISVMNCkFHUkVFTUVOVC4NCg0KVGhpcyBBZ3JlZW1lbnQgc2V0cyBmb3J0aCB0aGUgdGVybXMgYW5kIGNvbmRpdGlvbnMgdW5kZXIgd2hpY2ggdGhlIHBhcnRpZXMgYWdyZWUNCnRoYXQgRGV2ZWxvcGVyIG1heSB1c2UgdGhlIExpY2Vuc2VkIFNvZnR3YXJlIGZvciB0aGUgbm9uLWNvbW1lcmNpYWwgYW5kDQpub24tcHJvZHVjdGlvbiBQdXJwb3NlIGRlZmluZWQgaW4gdGhpcyBBZ3JlZW1lbnQuDQoNCk5PVywgVEhFUkVGT1JFLCBpbiBjb25zaWRlcmF0aW9uIG9mIHRoZSBwcmVtaXNlcyBhbmQgb2JsaWdhdGlvbnMgY29udGFpbmVkIGhlcmVpbiwNCml0IGlzIGFncmVlZCBhcyBmb2xsb3dzOg0KDQoxLiBERUZJTklUSU9OUw0KDQoxLjEuICJEZXZlbG9wZXIgQXBwbGljYXRpb24iIHNoYWxsIG1lYW4gRGV2ZWxvcGVyJ3MgYWN0dWFsIG9yIHBvdGVudGlhbCBzb2Z0d2FyZQ0Kb3IgaGFyZHdhcmUgYW5kIHJlbGF0ZWQgZG9jdW1lbnRhdGlvbiB3aXRoIHdoaWNoIHRoZSBEZXZlbG9wZXIgaXMgY29uc2lkZXJpbmcNCmludGVncmF0aW5nIHdpdGggdGhlIExpY2Vuc2VkIFNvZnR3YXJlLg0KDQoxLjIuICJEZXZlbG9wZXIiIHNoYWxsIG1lYW4gdGhlIHBlcnNvbiBvciBlbnRpdHkgZG93bmxvYWRpbmcgdGhlIExpY2Vuc2VkIFNvZnR3YXJlDQpvciBvbiB3aG9zZSBiZWhhbGYgdGhlIExpY2Vuc2VkIFNvZnR3YXJlIGlzIGRvd25sb2FkZWQuDQoNCjEuMy4gIkRldmVsb3BtZW50IFBsYXRmb3JtIiBzaGFsbCBtZWFuIEdpdEh1YiAoZ2l0aHViLmNvbSkgb3Igb3RoZXIgc29mdHdhcmUNCmRldmVsb3BtZW50IHBsYXRmb3JtIGlkZW50aWZpZWQgYnkgQ29tcGFueSB3aGVyZSB0aGUgTGljZW5zZWQgU29mdHdhcmUgY2FuIGJlDQpkb3dubG9hZGVkLg0KDQoxLjQuICJFZmZlY3RpdmUgRGF0ZSIgc2hhbGwgbWVhbiB0aGUgZGF0ZSB0aGF0IHRoZSBMaWNlbnNlZCBTb2Z0d2FyZSBpcyBkb3dubG9hZGVkDQpmcm9tIHRoZSBEZXZlbG9wbWVudCBQbGF0Zm9ybS4NCg0KMS41LiAiTGljZW5zZWQgU29mdHdhcmUiIHNoYWxsIG1lYW4gdGhlIENvbXBhbnkgcHJvcHJpZXRhcnkgc29mdHdhcmUgcHJvZHVjdCwgaW4NCmJvdGggc291cmNlIGFuZCBvYmplY3QgY29kZSwgdGhhdCBEZXZlbG9wZXIgZG93bmxvYWRzIGZyb20gdGhlIERldmVsb3BtZW50IFBsYXRmb3JtDQp0aGF0IHBlcmZvcm1zIGEgY29tbXVuaWNhdGlvbiBmdW5jdGlvbi4NCg0KMS42LiAiUHVycG9zZSIgc2hhbGwgbWVhbiB0aGUgZWZmb3J0IHRvIGludGVncmF0ZSB0aGUgTGljZW5zZWQgU29mdHdhcmUgd2l0aCB0aGUNCkRldmVsb3BlciBBcHBsaWNhdGlvbihzKSBmb3Igbm9uLWNvbW1lcmNpYWwgYW5kIG5vbi1wcm9kdWN0aW9uIHB1cnBvc2VzLCBpbmNsdWRpbmcsDQp3aXRob3V0IGxpbWl0YXRpb24sIGV2YWx1YXRpb24sIHJlc2VhcmNoLCB0ZWFjaGluZyBhbmQgdHJhaW5pbmcuDQoNCjEuNy4gU3RlcCBGdW5jdGlvbiBJL08gTExDICgiQ29tcGFueSIpIGlzIHRoZSBkZXZlbG9wZXIgb2YgdGhlIExpY2Vuc2VkIFNvZnR3YXJlLg0KDQoyLiBMSUNFTlNFDQoNCjIuMS4gRGVsaXZlcnkgb2YgTGljZW5zZWQgU29mdHdhcmUNCg0KVGhlIExpY2Vuc2VkIFNvZnR3YXJlIGlzIGRvd25sb2FkZWQgZnJvbSB0aGUgRGV2ZWxvcG1lbnQgUGxhdGZvcm0uDQoNCjIuMi4gTGljZW5zZSBHcmFudA0KDQpDb21wYW55IGdyYW50cyBEZXZlbG9wZXIgYSBwZXJzb25hbCwgcGVycGV0dWFsLCByZXZvY2FibGUsIGxpbWl0ZWQsIG5vbi1leGNsdXNpdmUsDQpub24tc3VibGljZW5zYWJsZSwgbm9uLXRyYW5zZmVyYWJsZSBsaWNlbnNlIHRvIGFjY2VzcywgdXNlLCBkb3dubG9hZCBhbmQvb3IgaW5zdGFsbA0KdGhlIExpY2Vuc2VkIFNvZnR3YXJlIG9ubHkgZm9yIHVzZSBpbiBhY2NvcmRhbmNlIHdpdGggdGhlIFB1cnBvc2UsIGFuZCBzdWJqZWN0IHRvDQphbGwgdGhlIHRlcm1zIG9mIHRoaXMgQWdyZWVtZW50LiBDb21wYW55IHJlc2VydmVzIHRoZSByaWdodCBhdCBhbnkgdGltZSB0byBhbHRlcg0KZmVhdHVyZXMgb3Igb3RoZXIgY2hhcmFjdGVyaXN0aWNzIG9mIGFueSB2ZXJzaW9uIG9mIHRoZSBMaWNlbnNlZCBTb2Z0d2FyZS4gVW5sZXNzDQphbmQgdW50aWwgdGhlIHBhcnRpZXMgZW50ZXIgaW50byBhIHN1YnNlcXVlbnQgYWdyZWVtZW50IHVuZGVyIFNlY3Rpb24gMi40IHRoYXQNCnByb3ZpZGVzIHRvIHRoZSBjb250cmFyeSwgRGV2ZWxvcGVyIHNoYWxsIG5vdCBkaXN0cmlidXRlIG9yIHN1YmxpY2Vuc2UgYW55IHBvcnRpb24NCm9mIHRoZSBMaWNlbnNlZCBTb2Z0d2FyZS4gRGV2ZWxvcGVyIG1heSBub3QgcHVibGlzaCBvciBkaXNzZW1pbmF0ZSBhbnkgYmVuY2htYXJraW5nDQpyZXN1bHRzIG9mIExpY2Vuc2VkIFNvZnR3YXJlIHBlcmZvcm1hbmNlLg0KDQoyLjMuIE5vbi1Db21tZXJjaWFsIGFuZCBOb24tUHJvZHVjdGlvbiBVc2UNCg0KRm9yIGNsYXJpdHksIHRoZSBQdXJwb3NlIGV4Y2x1ZGVzIGNvbW1lcmNpYWwgdXNlIGFuZCB1c2UgaW4gcHJvZHVjdGlvbi4gQWNjb3JkaW5nbHksDQpEZXZlbG9wZXIgbWF5IG5vdCB1c2UgdGhlIExpY2Vuc2VkIFNvZnR3YXJlIGluIGFueSBtYW5uZXIgdGhhdCwgZGlyZWN0bHkgb3IgaW5kaXJlY3RseSwNCmdlbmVyYXRlcyByZXZlbnVlIG9yIGFueSBvdGhlciBmb3JtIG9mIGNvbXBlbnNhdGlvbiBvciBjb25zaWRlcmF0aW9uLiBBZGRpdGlvbmFsbHksIHRoZQ0KTGljZW5zZWQgU29mdHdhcmUgbWF5IG5vdCBiZSB1c2VkIGluIGEgcHJvZHVjdGlvbiBlbnZpcm9ubWVudCBhbmQgbWF5IG9ubHkgYmUgdXNlZCBpbg0Kbm9uLXByb2R1Y3Rpb24gZW52aXJvbm1lbnRzIHN1Y2ggYXMgdGVzdGluZywgdGVhY2hpbmcsIHRyYWluaW5nIGFuZCByZXNlYXJjaC9kZXZlbG9wbWVudA0KZW52aXJvbm1lbnRzLiBBIHByb2R1Y3Rpb24gZW52aXJvbm1lbnQgd291bGQgYmUgd2hlcmUgdGhlIExpY2Vuc2VkIFNvZnR3YXJlIGlzIG9wZXJhdGVkDQpieSBlbmQgdXNlcnMgYW5kIHJlbGllZCB1cG9uIGZvciBvcmdhbml6YXRpb24gb3IgY29tbWVyY2lhbCBvcGVyYXRpb25zLiBJZiBEZXZlbG9wZXINCndvdWxkIGxpa2UgdG8gdXNlIHRoZSBMaWNlbnNlZCBTb2Z0d2FyZSBmb3IgY29tbWVyY2lhbCBhbmQgcHJvZHVjdGlvbiBwdXJwb3NlcywgdGhlbg0KRGV2ZWxvcGVyIG1heSBvcmRlciBzdWNoIGEgbGljZW5zZSBmcm9tIENvbXBhbnkgaW4gYWNjb3JkYW5jZSBTZWN0aW9uIDIuNC4NCg0KMi40LiBDb21tZXJjaWFsIExpY2Vuc2UNCg0KSWYgRGV2ZWxvcGVyIHdhbnRzIHRvIHVzZSB0aGUgTGljZW5zZWQgU29mdHdhcmUgZm9yIGNvbW1lcmNpYWwgYW5kIHByb2R1Y3Rpb24gcHVycG9zZXMsDQp0aGVuIERldmVsb3BlciBuZWVkcyB0byBjb250YWN0IENvbXBhbnkgYXMgcHJvdmlkZWQgYmVsb3cuIENvbXBhbnkgaGFzIG5vIG9ibGlnYXRpb24NCnRvIGVudGVyIGludG8gYSBjb21tZXJjaWFsIGFuZCBwcm9kdWN0aW9uIGFncmVlbWVudCB3aXRoIGFueSBEZXZlbG9wZXIuDQoNCmluZm9Ac3RlcGZ1bmMuaW8NCg0KT1INCg0KaHR0cHM6Ly9zdGVwZnVuYy5pby9jb250YWN0DQoNCjIuNS4gQ29tcGFueSBTdXBwb3J0DQoNClRoaXMgbGljZW5zZSBkb2VzIG5vdCBlbnRpdGxlIERldmVsb3BlciB0byByZWNlaXZlIGZyb20gQ29tcGFueSBzdXBwb3J0LCB0ZWxlcGhvbmUNCmFzc2lzdGFuY2UsIG9yIGVuaGFuY2VtZW50cyBvciB1cGRhdGVzIHRvIHRoZSBMaWNlbnNlZCBTb2Z0d2FyZSwgd2hpY2ggQ29tcGFueSBtYXkNCnByb3ZpZGUgaW4gaXRzIGRpc2NyZXRpb24uIERldmVsb3BlciBtYXkgc3VibWl0IHRpY2tldHMgYW5kIGZlZWRiYWNrIHZpYSB0aGUgRGV2ZWxvcG1lbnQNClBsYXRmb3JtLiBDb21wYW55IHdpbGwgbWFrZSByZWFzb25hYmxlIGVmZm9ydHMgdG8gcmVzcG9uZCB0byBzdWNoIHRpY2tldHMgYW5kIGZlZWRiYWNrLA0KYnV0IGhhcyBubyBvYmxpZ2F0aW9uIHRvIGRvIHNvLCBhbmQgbWF5IGNhbmNlbCBzdWNoIHN1cHBvcnQgYXQgYW55IHRpbWUuDQoNCjMuIE9XTkVSU0hJUA0KDQozLjEuIENvbXBhbnkgUmV0YWlucyBUaXRsZSB0byBMaWNlbnNlZCBTb2Z0d2FyZQ0KDQpFeGNlcHQgZm9yIHRoZSBsaWNlbnNlIGdyYW50ZWQgaGVyZWluLCBEZXZlbG9wZXIgaXMgbm90IGdyYW50ZWQgYW55DQpyaWdodHMgdG8gcGF0ZW50cywgY29weXJpZ2h0cywgdHJhZGUgc2VjcmV0cywgdHJhZGUgbmFtZXMsIHRyYWRlbWFya3MgKHdoZXRoZXINCnJlZ2lzdGVyZWQgb3IgdW5yZWdpc3RlcmVkKSBvciBhbnkgb3RoZXIgcmlnaHRzIG9yIGxpY2Vuc2VzICh0aGUgIkludGVsbGVjdHVhbA0KUHJvcGVydHkgUmlnaHRzIikgd2l0aCByZXNwZWN0IHRvIHRoZSBMaWNlbnNlZCBTb2Z0d2FyZS4gQ29tcGFueSByZXRhaW5zIGFsbCByaWdodCwNCnRpdGxlIGFuZCBvd25lcnNoaXAgaW50ZXJlc3RzIGluIHRoZSBMaWNlbnNlZCBTb2Z0d2FyZSwgaW5jbHVkaW5nLCB3aXRob3V0DQpsaW1pdGF0aW9uLCBhbGwgSW50ZWxsZWN0dWFsIFByb3BlcnR5IFJpZ2h0cyB0aGVyZWluLg0KDQozLjIuIEZlZWRiYWNrDQoNCkFueSBmZWVkYmFjayBwcm92aWRlZCBieSBEZXZlbG9wZXIgcGVydGFpbmluZyB0byB0aGUgTGljZW5zZWQgU29mdHdhcmUgc2hhbGwgYmUNCm5vbi1jb25maWRlbnRpYWwgYW5kIENvbXBhbnkgbWF5IHVzZSBhbmQgZXhwbG9pdCBzdWNoIGZlZWRiYWNrIGZyZWVseSwgd2l0aG91dA0KYW55IG9ibGlnYXRpb24gb2Ygbm90aWNlIG9yIGNvbXBlbnNhdGlvbiB0byBEZXZlbG9wZXIuDQoNCjQuIFRFUk0gQU5EIFRFUk1JTkFUSU9ODQoNCjQuMS4gVGVybSBhbmQgVGVybWluYXRpb24gb2YgQWdyZWVtZW50DQoNClRoaXMgQWdyZWVtZW50IGNvbW1lbmNlcyBvbiBpdHMgRWZmZWN0aXZlIERhdGUgYW5kIGVuZHMgaWYgdGVybWluYXRlZCBhcw0KaGVyZWluYWZ0ZXIgcHJvdmlkZWQuIFRoaXMgQWdyZWVtZW50IHdpbGwgYXV0b21hdGljYWxseSB0ZXJtaW5hdGUgaWYgRGV2ZWxvcGVyDQptYXRlcmlhbGx5IGJyZWFjaGVzIHRoaXMgQWdyZWVtZW50LCBpbmNsdWRpbmcsIHdpdGhvdXQgbGltaXRhdGlvbiwgYnkgYSB2aW9sYXRpb24NCm9mIHRoZSBub24tY29tbWVyY2lhbCBhbmQgbm9uLXByb2R1Y3Rpb24gdXNlIHJlc3RyaWN0aW9ucyBpbiBTZWN0aW9uIDIuMy4NCg0KNC4yLiBPYmxpZ2F0aW9ucyBvbiBUZXJtaW5hdGlvbg0KDQpBbGwgcmlnaHRzIGFuZCBsaWNlbnNlcyBncmFudGVkIHVuZGVyIHRoaXMgQWdyZWVtZW50IHRvIERldmVsb3BlciBzaGFsbCB0ZXJtaW5hdGUNCnVwb24gdGVybWluYXRpb24gb2YgdGhpcyBBZ3JlZW1lbnQuIERldmVsb3BlciBzaGFsbCBjZWFzZSBtYWtpbmcgYW55IHVzZSBvZiB0aGUNCmFwcGxpY2FibGUgTGljZW5zZWQgU29mdHdhcmUgb3Igb3RoZXIgbWF0ZXJpYWwgcHJvdmlkZWQgYnkgQ29tcGFueSBpbiBjb25uZWN0aW9uDQp0aGVyZXdpdGggYW5kIGRlc3Ryb3kgdGhlbSBhbmQgYWxsIGNvcGllcyBhbmQgbW9kaWZpY2F0aW9ucyB0aGVyZW9mLCBhbmQgYWxzbw0KaW5jbHVkaW5nIGFueSBjb3BpZXMgb2YgY29kZSBlbWJlZGRlZCBpbiB0aGUgRGV2ZWxvcGVyIEFwcGxpY2F0aW9uLCBhbmQgYW55IHJlbGF0ZWQNCm1hdGVyaWFscyBpbiBpdHMgcG9zc2Vzc2lvbi4gRGV2ZWxvcGVyIHNoYWxsIGNlcnRpZnkgaW4gd3JpdGluZyB0byBDb21wYW55IHRoYXQgbm8NCmZ1cnRoZXIgdXNlIG9mIHN1Y2ggTGljZW5zZWQgU29mdHdhcmUgb3IgYW55IGNvcGllcywgbW9kaWZpY2F0aW9ucyBvciBvdGhlcg0KZGVyaXZhdGl2ZSB3b3JrcyBvZiBhbnkgYW5kIGFsbCBwb3J0aW9ucyB0aGVyZW9mIGlzIGJlaW5nIG1hZGUgYnkgRGV2ZWxvcGVyLg0KDQo0LjMuIFN1cnZpdmFsDQoNCkFueSBwcm92aXNpb25zIG9mIHRoaXMgQWdyZWVtZW50IHRoYXQsIGluIG9yZGVyIHRvIGZ1bGZpbGwgdGhlIHB1cnBvc2VzIG9mIHN1Y2gNCnByb3Zpc2lvbnMsIG5lZWQgdG8gc3Vydml2ZSB0aGUgdGVybWluYXRpb24gb3IgZXhwaXJhdGlvbiBvZiB0aGlzIEFncmVlbWVudCwNCnNoYWxsIGJlIGRlZW1lZCB0byBzdXJ2aXZlIGZvciBhcyBsb25nIGFzIG5lY2Vzc2FyeSB0byBmdWxmaWxsIHN1Y2ggcHVycG9zZXMuDQoNCjUuIFdBUlJBTlRZIERJU0NMQUlNRVINCg0KVEhFIExJQ0VOU0VEIFNPRlRXQVJFIElTIFBST1ZJREVEIE9OTFkgT04gQU4gIkFTIElTIiBCQVNJUy4gQ09NUEFOWSBNQUtFUyBOTyBPVEhFUg0KRVhQUkVTUyBXQVJSQU5USUVTLCBXUklUVEVOIE9SIE9SQUwsIEFORCBBTEwgT1RIRVIgV0FSUkFOVElFUyBBUkUgU1BFQ0lGSUNBTExZDQpFWENMVURFRCwgSU5DTFVESU5HIEJVVCBOT1QgTElNSVRFRCBUTyBUSEUgSU1QTElFRCBXQVJSQU5UWSBPRiBNRVJDSEFOVEFCSUxJVFksDQpGSVRORVNTIEZPUiBQQVJUSUNVTEFSIFBVUlBPU0UsIE9SIE5PTklORlJJTkdFTUVOVCwgQU5EIEFOWSBPVEhFUiBXQVJSQU5UWSBBUklTSU5HDQpCWSBTVEFUVVRFLCBPUEVSQVRJT04gT0YgTEFXLCBDT1VSU0UgT0YgREVBTElORyBPUiBQRVJGT1JNQU5DRSBPUiBVU0FHRSBPRiBUUkFERS4NCg0KNi4gTElNSVRBVElPTlMgT0YgTElBQklMSVRZIEFORCBJTkRFTU5JVElFUw0KDQo2LjEuIExpbWl0cyBvZiBMaWFiaWxpdHkNCg0KQ09NUEFOWSBTSEFMTCBIQVZFIE5PIExJQUJJTElUWSBUTyBERVZFTE9QRVIgRk9SIEFOWSBTUEVDSUFMLCBDT05TRVFVRU5USUFMLA0KRVhFTVBMQVJZLCBJTkNJREVOVEFMIE9SIElORElSRUNUIERBTUFHRVMgKElOQ0xVRElORywgQlVUIE5PVCBMSU1JVEVEIFRPLA0KTE9TUyBPRiBQUk9GSVRTLCBSRVZFTlVFUywgREFUQSBBTkQvT1IgVVNFKSBBUklTSU5HIE9VVCBPRiBPUiBJTiBDT05ORUNUSU9ODQpIRVJFV0lUSCBPUiBUSEUgVVNFIE9SIFBFUkZPUk1BTkNFIE9GIFRIRSBMSUNFTlNFRCBTT0ZUV0FSRSwgRVZFTiBJRiBBRFZJU0VEDQpPRiBUSEUgUE9TU0lCSUxJVFkgVEhFUkVPRi4gVEhFIEFHR1JFR0FURSBMSUFCSUxJVFkgT0YgQ09NUEFOWSBVTkRFUiBUSElTDQpBR1JFRU1FTlQgU0hBTEwgTk9UIEVYQ0VFRCAkMTAuIERFVkVMT1BFUiBTSEFMTCBOT1QgQlJJTkcgQU5ZIENMQUlNIEFSSVNJTkcNCkhFUkVVTkRFUiBNT1JFIFRIQU4gVFdFTFZFICgxMikgTU9OVEhTIEFGVEVSIFNVQ0ggQ0xBSU0gSEFTIEFDQ1JVRUQuDQoNCjYuMi4gRGV2ZWxvcGVyIEluZGVtbml0eQ0KDQpEZXZlbG9wZXIgc2hhbGwgaW5kZW1uaWZ5LCBkZWZlbmQgYW5kIGhvbGQgQ29tcGFueSBoYXJtbGVzcyBmcm9tIGFsbCBsb3NzZXMsDQpjb3N0cywgbGlhYmlsaXRpZXMgYW5kIGV4cGVuc2VzIGluY3VycmVkIGJ5IENvbXBhbnkgd2hpY2ggYXJpc2Ugb3V0IG9mIGFueQ0KY2xhaW0gKGV4Y2VwdCBjbGFpbXMgdGhhdCB0aGUgTGljZW5zZWQgU29mdHdhcmUgaW5mcmluZ2VzIHRoZSBpbnRlbGxlY3R1YWwNCnByb3BlcnR5IG9mIGEgdGhpcmQgcGFydHkpIHRoYXQgYXJpc2Ugb3V0IG9mIERldmVsb3BlcuKAmXMgYWN0cyBvciBvbWlzc2lvbnMNCnByb3ZpZGVkIChpKSBDb21wYW55IGhhcyBub3RpZmllZCBEZXZlbG9wZXIgcHJvbXB0bHkgaW4gd3JpdGluZyBvZiBhbnkgc3VjaA0KY2xhaW1zIChwcm92aWRlZCB0aGF0IGFueSBkZWxheSBzaGFsbCBub3QgcmVkdWNlIERldmVsb3BlcuKAmXMgaW5kZW1uaXR5IG9ibGlnYXRpb25zDQpleGNlcHQgdG8gdGhlIGV4dGVudCB0aGF0IHRoZSBkZWxheSBwcmVqdWRpY2VzIERldmVsb3BlcuKAmXMgYWJpbGl0eSB0byBkZWZlbmQgdGhlDQpjbGFpbSk7IChpaSkgRGV2ZWxvcGVyIHNoYWxsIGhhdmUgc29sZSBjb250cm9sIG9mIHRoZSBkZWZlbnNlIG9mIHN1Y2ggY2xhaW1zIGFuZA0KYWxsIG5lZ290aWF0aW9ucyBmb3IgdGhlaXIgc2V0dGxlbWVudCBhbmQgY29tcHJvbWlzZTsgYW5kIChpaWkpIENvbXBhbnkgc2hhbGwNCnJlYXNvbmFibHkgY29vcGVyYXRlIHdpdGggRGV2ZWxvcGVyIGluIHRoZSBkZWZlbnNlIG9yIHNldHRsZW1lbnQgb2Ygc3VjaCBjbGFpbXMsDQphdCBEZXZlbG9wZXLigJlzIGV4cGVuc2UuDQoNCjcuIEdFTkVSQUwNCg0KNy4xLiBFbnRpcmUgQWdyZWVtZW50DQoNClRoZSB0ZXJtcyBjb250YWluZWQgaGVyZWluIGNvbnN0aXR1dGUgdGhlIGVudGlyZSBhZ3JlZW1lbnQgYmV0d2VlbiB0aGUgcGFydGllcw0Kd2l0aCByZXNwZWN0IHRvIHRoZSBzdWJqZWN0IG1hdHRlciBoZXJlb2YgYW5kIHNoYWxsIHN1cGVyc2VkZSBhbGwgcHJpb3INCmNvbW11bmljYXRpb25zIGFuZCBhZ3JlZW1lbnRzLCBlaXRoZXIgb3JhbCBvciB3cml0dGVuLg0KDQo3LjIuIEVxdWl0YWJsZSBSZWxpZWYNCg0KQ29tcGFueSBtYXksIHdpdGhvdXQgbGltaXRpbmcgaXRzIG90aGVyIHJpZ2h0cyBhbmQgcmVtZWRpZXMsIGJlIGVudGl0bGVkIHRvDQplcXVpdGFibGUgcmVsaWVmLCBpbmNsdWRpbmcgYnV0IG5vdCBsaW1pdGVkIHRvIGluanVuY3RpdmUgcmVsaWVmIGZvciBhIGJyZWFjaCBvcg0KYW50aWNpcGF0ZWQgYnJlYWNoIG9mIHRoaXMgQWdyZWVtZW50Lg0KDQo3LjMuIENvbXBsaWFuY2Ugd2l0aCBMYXdzDQoNCkRldmVsb3BlciBzaGFsbCBjb21wbHkgd2l0aCBhbGwgYXBwbGljYWJsZSBsYXcgYW5kIHdpbGwgb2J0YWluIGFsbCBhdXRob3JpemF0aW9ucw0KcmVxdWlyZWQgYnkgVS5TLiBleHBvcnQgY29udHJvbCBsYXdzIGFuZCBhbGwgcmVsYXRlZCByZWd1bGF0aW9ucyBpZiBhcHBsaWNhYmxlLg0KDQo3LjQuIEdvdmVybmluZyBMYXc7IEp1cmlzZGljdGlvbg0KDQpUaGlzIEFncmVlbWVudCBzaGFsbCBiZSBnb3Zlcm5lZCBieSB0aGUgbGF3cyBvZiB0aGUgU3RhdGUgb2YgT3JlZ29uLCBleGNsdWRpbmcgaXRzDQpjb25mbGljdCBvZiBsYXcgcnVsZXMuIFRoZSBwYXJ0aWVzIHdpbGwgc3VibWl0IGFsbCBkaXNwdXRlcyB3aGljaCBhcmlzZSB1bmRlciB0aGlzDQpBZ3JlZW1lbnQgdG8gc3RhdGUgb3IgZmVkZXJhbCBjb3VydHMgbG9jYXRlZCBpbiBEZXNjaHV0ZXMgQ291bnR5LCBPcmVnb24uIFRoZSBwYXJ0aWVzDQphY2tub3dsZWRnZSB0aGF0IHRoZSBhZm9yZXNhaWQgY291cnRzIHdpbGwgaGF2ZSBleGNsdXNpdmUganVyaXNkaWN0aW9uIG92ZXIgdGhpcw0KQWdyZWVtZW50IGFuZCBzcGVjaWZpY2FsbHkgd2FpdmUgYW55IGNsYWltcyB0aGV5IG1heSBoYXZlIHdoaWNoIGludm9sdmUganVyaXNkaWN0aW9uDQpvciB2ZW51ZSwgaW5jbHVkaW5nLCBidXQgbm90IGxpbWl0ZWQgdG8sIGxhY2sgb2YgcGVyc29uYWwganVyaXNkaWN0aW9uIG9yIGZvcnVtIG5vbg0KY29udmVuaWVucy4NCg0KNy41LiBOb3RpY2VzDQoNCk5vdGljZXMgc2hhbGwgYmUgZGVlbWVkIHRvIGhhdmUgYmVlbiByZWNlaXZlZCB1cG9uIHZlcmlmaWVkIHJlY2VpcHQuDQoNCjcuNi4gTm8gV2FpdmVyDQoNCk5vIG1vZGlmaWNhdGlvbiBvciBhbWVuZG1lbnQgaGVyZXRvLCBub3IgYW55IHdhaXZlciBvZiBhbnkgcmlnaHRzLCBzaGFsbCBiZSBlZmZlY3RpdmUNCnVubGVzcyBhc3NlbnRlZCB0byBpbiB3cml0aW5nIGJ5IHRoZSBwYXJ0eSB0byBiZSBjaGFyZ2VkLiBUaGUgd2FpdmVyIG9mIGFueSBicmVhY2ggb3INCmRlZmF1bHQgd2lsbCBub3QgY29uc3RpdHV0ZSBhIHdhaXZlciBvZiAoaSkgYW55IG90aGVyIHJpZ2h0IG9yIHJlbWVkeSBoZXJldW5kZXIsIG9yIChpaSkNCmFueSBzdWJzZXF1ZW50IGJyZWFjaCBvciBkZWZhdWx0Lg0KDQo3LjcuIEluZGVwZW5kZW50IENvbnRyYWN0b3JzDQoNClRoZSBwYXJ0aWVzIHNoYWxsIGFjdCBhcyBpbmRlcGVuZGVudCBjb250cmFjdG9ycyBmb3IgYWxsIHB1cnBvc2VzIGhlcmV1bmRlci4NCg0KNy44LiBTZXBhcmFiaWxpdHkNCg0KSWYgYW55IHByb3Zpc2lvbiBoZXJlb2Ygc2hhbGwgYmUgaGVsZCBpbGxlZ2FsIG9yIHVuZW5mb3JjZWFibGUsIHN1Y2ggcHJvdmlzaW9uIHNoYWxsIGJlDQpkZWVtZWQgc2VwYXJhYmxlIGZyb20gdGhlIHJlbWFpbmluZyBwcm92aXNpb25zIGFuZCBzaGFsbCBpbiBubyB3YXkgYWZmZWN0IG9yIGltcGFpciB0aGUNCnZhbGlkaXR5IG9yIGVuZm9yY2VhYmlsaXR5IG9mIHRoZSByZW1haW5pbmcgcHJvdmlzaW9ucy4NCg0KNy45LiBBc3NpZ25tZW50DQoNCkRldmVsb3BlciBzaGFsbCBub3QgYXNzaWduIHRoaXMgQWdyZWVtZW50LCBvciBhbnkgcmlnaHQsIG9yIGRlbGVnYXRlIGFueSBwZXJmb3JtYW5jZQ0KaGVyZXVuZGVyIHdpdGhvdXQgQ29tcGFueSdzIHByaW9yIHdyaXR0ZW4gY29uc2VudCwgYW5kIGFueSBzdWNoIGFjdGlvbiBpbiB2aW9sYXRpb24gb2YNCnRoZSBmb3JlZ29pbmcgc2hhbGwgYmUgdm9pZC4gQ29tcGFueSBtYXkgZnJlZWx5IGFzc2lnbiB0aGlzIEFncmVlbWVudC4NCg=="
+            }
+          }
+        }
+      ],
+      "purl": "pkg:cargo/sfio-tokio-ffi@0.9.0",
+      "externalReferences": [
+        {
+          "type": "website",
+          "url": "https://github.com/stepfunc/tokio-ffi"
+        },
+        {
+          "type": "vcs",
+          "url": "https://github.com/stepfunc/tokio-ffi"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "registry+https://github.com/rust-lang/crates.io-index#sfio-tracing-ffi@0.9.0",
+      "name": "sfio-tracing-ffi",
+      "version": "0.9.0",
+      "description": "An oo-bindgen model for using tracing in an FFI environment",
+      "scope": "required",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "8ad957e7cc9c0efe86f4a395c0fd063fbb3460bd83fade7bff80188c8eadef35"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "name": "Unknown",
+            "text": {
+              "encoding": "base64",
+              "content": "TElDRU5TRSBBR1JFRU1FTlQNCg0KQlkgRE9XTkxPQURJTkcgVEhFIExJQ0VOU0VEIFNPRlRXQVJFIEZST00gVEhFIERFVkVMT1BNRU5UIFBMQVRGT1JNLCBERVZFTE9QRVINCklTIEFHUkVFSU5HIFRPIEJFIEJPVU5EIEJZIFRIRSBURVJNUyBPRiBUSElTIExJQ0VOU0UgQUdSRUVNRU5UIChUSElTICJBR1JFRU1FTlQiKS4NClRIRVJFRk9SRSwgSVQgSVMgSU1QT1JUQU5UIFRIQVQgWU9VIFJFQUQgVEhJUyBBR1JFRU1FTlQgQkVGT1JFIERPV05MT0FESU5HIFRIRQ0KU09GVFdBUkUuIElGIERFVkVMT1BFUiBET0VTIE5PVCBBR1JFRSBUTyBUSEUgVEVSTVMgT0YgVEhJUyBBR1JFRU1FTlQsIFRIRU4NCkRFVkVMT1BFUiBNQVkgTk9UIERPV05MT0FEIE9SIFVTRSBUSEUgTElDRU5TRUQgU09GVFdBUkUuIElGIFlPVSBBUkUgRE9XTkxPQURJTkcNClRISVMgTElDRU5TRUQgU09GVFdBUkUgT04gQkVIQUxGIE9GIEFOIEVOVElUWSBPUiBPVEhFUiBQRVJTT04sIFRIRU4gWU9VIFJFUFJFU0VOVA0KVEhBVCBZT1UgQVJFIEFVVEhPUklaRUQgVE8gQklORCBTVUNIIEVOVElUWSBPUiBPVEhFUiBQRVJTT04gVE8gVEhFIFRFUk1TIE9GIFRISVMNCkFHUkVFTUVOVC4NCg0KVGhpcyBBZ3JlZW1lbnQgc2V0cyBmb3J0aCB0aGUgdGVybXMgYW5kIGNvbmRpdGlvbnMgdW5kZXIgd2hpY2ggdGhlIHBhcnRpZXMgYWdyZWUNCnRoYXQgRGV2ZWxvcGVyIG1heSB1c2UgdGhlIExpY2Vuc2VkIFNvZnR3YXJlIGZvciB0aGUgbm9uLWNvbW1lcmNpYWwgYW5kDQpub24tcHJvZHVjdGlvbiBQdXJwb3NlIGRlZmluZWQgaW4gdGhpcyBBZ3JlZW1lbnQuDQoNCk5PVywgVEhFUkVGT1JFLCBpbiBjb25zaWRlcmF0aW9uIG9mIHRoZSBwcmVtaXNlcyBhbmQgb2JsaWdhdGlvbnMgY29udGFpbmVkIGhlcmVpbiwNCml0IGlzIGFncmVlZCBhcyBmb2xsb3dzOg0KDQoxLiBERUZJTklUSU9OUw0KDQoxLjEuICJEZXZlbG9wZXIgQXBwbGljYXRpb24iIHNoYWxsIG1lYW4gRGV2ZWxvcGVyJ3MgYWN0dWFsIG9yIHBvdGVudGlhbCBzb2Z0d2FyZQ0Kb3IgaGFyZHdhcmUgYW5kIHJlbGF0ZWQgZG9jdW1lbnRhdGlvbiB3aXRoIHdoaWNoIHRoZSBEZXZlbG9wZXIgaXMgY29uc2lkZXJpbmcNCmludGVncmF0aW5nIHdpdGggdGhlIExpY2Vuc2VkIFNvZnR3YXJlLg0KDQoxLjIuICJEZXZlbG9wZXIiIHNoYWxsIG1lYW4gdGhlIHBlcnNvbiBvciBlbnRpdHkgZG93bmxvYWRpbmcgdGhlIExpY2Vuc2VkIFNvZnR3YXJlDQpvciBvbiB3aG9zZSBiZWhhbGYgdGhlIExpY2Vuc2VkIFNvZnR3YXJlIGlzIGRvd25sb2FkZWQuDQoNCjEuMy4gIkRldmVsb3BtZW50IFBsYXRmb3JtIiBzaGFsbCBtZWFuIEdpdEh1YiAoZ2l0aHViLmNvbSkgb3Igb3RoZXIgc29mdHdhcmUNCmRldmVsb3BtZW50IHBsYXRmb3JtIGlkZW50aWZpZWQgYnkgQ29tcGFueSB3aGVyZSB0aGUgTGljZW5zZWQgU29mdHdhcmUgY2FuIGJlDQpkb3dubG9hZGVkLg0KDQoxLjQuICJFZmZlY3RpdmUgRGF0ZSIgc2hhbGwgbWVhbiB0aGUgZGF0ZSB0aGF0IHRoZSBMaWNlbnNlZCBTb2Z0d2FyZSBpcyBkb3dubG9hZGVkDQpmcm9tIHRoZSBEZXZlbG9wbWVudCBQbGF0Zm9ybS4NCg0KMS41LiAiTGljZW5zZWQgU29mdHdhcmUiIHNoYWxsIG1lYW4gdGhlIENvbXBhbnkgcHJvcHJpZXRhcnkgc29mdHdhcmUgcHJvZHVjdCwgaW4NCmJvdGggc291cmNlIGFuZCBvYmplY3QgY29kZSwgdGhhdCBEZXZlbG9wZXIgZG93bmxvYWRzIGZyb20gdGhlIERldmVsb3BtZW50IFBsYXRmb3JtDQp0aGF0IHBlcmZvcm1zIGEgY29tbXVuaWNhdGlvbiBmdW5jdGlvbi4NCg0KMS42LiAiUHVycG9zZSIgc2hhbGwgbWVhbiB0aGUgZWZmb3J0IHRvIGludGVncmF0ZSB0aGUgTGljZW5zZWQgU29mdHdhcmUgd2l0aCB0aGUNCkRldmVsb3BlciBBcHBsaWNhdGlvbihzKSBmb3Igbm9uLWNvbW1lcmNpYWwgYW5kIG5vbi1wcm9kdWN0aW9uIHB1cnBvc2VzLCBpbmNsdWRpbmcsDQp3aXRob3V0IGxpbWl0YXRpb24sIGV2YWx1YXRpb24sIHJlc2VhcmNoLCB0ZWFjaGluZyBhbmQgdHJhaW5pbmcuDQoNCjEuNy4gU3RlcCBGdW5jdGlvbiBJL08gTExDICgiQ29tcGFueSIpIGlzIHRoZSBkZXZlbG9wZXIgb2YgdGhlIExpY2Vuc2VkIFNvZnR3YXJlLg0KDQoyLiBMSUNFTlNFDQoNCjIuMS4gRGVsaXZlcnkgb2YgTGljZW5zZWQgU29mdHdhcmUNCg0KVGhlIExpY2Vuc2VkIFNvZnR3YXJlIGlzIGRvd25sb2FkZWQgZnJvbSB0aGUgRGV2ZWxvcG1lbnQgUGxhdGZvcm0uDQoNCjIuMi4gTGljZW5zZSBHcmFudA0KDQpDb21wYW55IGdyYW50cyBEZXZlbG9wZXIgYSBwZXJzb25hbCwgcGVycGV0dWFsLCByZXZvY2FibGUsIGxpbWl0ZWQsIG5vbi1leGNsdXNpdmUsDQpub24tc3VibGljZW5zYWJsZSwgbm9uLXRyYW5zZmVyYWJsZSBsaWNlbnNlIHRvIGFjY2VzcywgdXNlLCBkb3dubG9hZCBhbmQvb3IgaW5zdGFsbA0KdGhlIExpY2Vuc2VkIFNvZnR3YXJlIG9ubHkgZm9yIHVzZSBpbiBhY2NvcmRhbmNlIHdpdGggdGhlIFB1cnBvc2UsIGFuZCBzdWJqZWN0IHRvDQphbGwgdGhlIHRlcm1zIG9mIHRoaXMgQWdyZWVtZW50LiBDb21wYW55IHJlc2VydmVzIHRoZSByaWdodCBhdCBhbnkgdGltZSB0byBhbHRlcg0KZmVhdHVyZXMgb3Igb3RoZXIgY2hhcmFjdGVyaXN0aWNzIG9mIGFueSB2ZXJzaW9uIG9mIHRoZSBMaWNlbnNlZCBTb2Z0d2FyZS4gVW5sZXNzDQphbmQgdW50aWwgdGhlIHBhcnRpZXMgZW50ZXIgaW50byBhIHN1YnNlcXVlbnQgYWdyZWVtZW50IHVuZGVyIFNlY3Rpb24gMi40IHRoYXQNCnByb3ZpZGVzIHRvIHRoZSBjb250cmFyeSwgRGV2ZWxvcGVyIHNoYWxsIG5vdCBkaXN0cmlidXRlIG9yIHN1YmxpY2Vuc2UgYW55IHBvcnRpb24NCm9mIHRoZSBMaWNlbnNlZCBTb2Z0d2FyZS4gRGV2ZWxvcGVyIG1heSBub3QgcHVibGlzaCBvciBkaXNzZW1pbmF0ZSBhbnkgYmVuY2htYXJraW5nDQpyZXN1bHRzIG9mIExpY2Vuc2VkIFNvZnR3YXJlIHBlcmZvcm1hbmNlLg0KDQoyLjMuIE5vbi1Db21tZXJjaWFsIGFuZCBOb24tUHJvZHVjdGlvbiBVc2UNCg0KRm9yIGNsYXJpdHksIHRoZSBQdXJwb3NlIGV4Y2x1ZGVzIGNvbW1lcmNpYWwgdXNlIGFuZCB1c2UgaW4gcHJvZHVjdGlvbi4gQWNjb3JkaW5nbHksDQpEZXZlbG9wZXIgbWF5IG5vdCB1c2UgdGhlIExpY2Vuc2VkIFNvZnR3YXJlIGluIGFueSBtYW5uZXIgdGhhdCwgZGlyZWN0bHkgb3IgaW5kaXJlY3RseSwNCmdlbmVyYXRlcyByZXZlbnVlIG9yIGFueSBvdGhlciBmb3JtIG9mIGNvbXBlbnNhdGlvbiBvciBjb25zaWRlcmF0aW9uLiBBZGRpdGlvbmFsbHksIHRoZQ0KTGljZW5zZWQgU29mdHdhcmUgbWF5IG5vdCBiZSB1c2VkIGluIGEgcHJvZHVjdGlvbiBlbnZpcm9ubWVudCBhbmQgbWF5IG9ubHkgYmUgdXNlZCBpbg0Kbm9uLXByb2R1Y3Rpb24gZW52aXJvbm1lbnRzIHN1Y2ggYXMgdGVzdGluZywgdGVhY2hpbmcsIHRyYWluaW5nIGFuZCByZXNlYXJjaC9kZXZlbG9wbWVudA0KZW52aXJvbm1lbnRzLiBBIHByb2R1Y3Rpb24gZW52aXJvbm1lbnQgd291bGQgYmUgd2hlcmUgdGhlIExpY2Vuc2VkIFNvZnR3YXJlIGlzIG9wZXJhdGVkDQpieSBlbmQgdXNlcnMgYW5kIHJlbGllZCB1cG9uIGZvciBvcmdhbml6YXRpb24gb3IgY29tbWVyY2lhbCBvcGVyYXRpb25zLiBJZiBEZXZlbG9wZXINCndvdWxkIGxpa2UgdG8gdXNlIHRoZSBMaWNlbnNlZCBTb2Z0d2FyZSBmb3IgY29tbWVyY2lhbCBhbmQgcHJvZHVjdGlvbiBwdXJwb3NlcywgdGhlbg0KRGV2ZWxvcGVyIG1heSBvcmRlciBzdWNoIGEgbGljZW5zZSBmcm9tIENvbXBhbnkgaW4gYWNjb3JkYW5jZSBTZWN0aW9uIDIuNC4NCg0KMi40LiBDb21tZXJjaWFsIExpY2Vuc2UNCg0KSWYgRGV2ZWxvcGVyIHdhbnRzIHRvIHVzZSB0aGUgTGljZW5zZWQgU29mdHdhcmUgZm9yIGNvbW1lcmNpYWwgYW5kIHByb2R1Y3Rpb24gcHVycG9zZXMsDQp0aGVuIERldmVsb3BlciBuZWVkcyB0byBjb250YWN0IENvbXBhbnkgYXMgcHJvdmlkZWQgYmVsb3cuIENvbXBhbnkgaGFzIG5vIG9ibGlnYXRpb24NCnRvIGVudGVyIGludG8gYSBjb21tZXJjaWFsIGFuZCBwcm9kdWN0aW9uIGFncmVlbWVudCB3aXRoIGFueSBEZXZlbG9wZXIuDQoNCmluZm9Ac3RlcGZ1bmMuaW8NCg0KT1INCg0KaHR0cHM6Ly9zdGVwZnVuYy5pby9jb250YWN0DQoNCjIuNS4gQ29tcGFueSBTdXBwb3J0DQoNClRoaXMgbGljZW5zZSBkb2VzIG5vdCBlbnRpdGxlIERldmVsb3BlciB0byByZWNlaXZlIGZyb20gQ29tcGFueSBzdXBwb3J0LCB0ZWxlcGhvbmUNCmFzc2lzdGFuY2UsIG9yIGVuaGFuY2VtZW50cyBvciB1cGRhdGVzIHRvIHRoZSBMaWNlbnNlZCBTb2Z0d2FyZSwgd2hpY2ggQ29tcGFueSBtYXkNCnByb3ZpZGUgaW4gaXRzIGRpc2NyZXRpb24uIERldmVsb3BlciBtYXkgc3VibWl0IHRpY2tldHMgYW5kIGZlZWRiYWNrIHZpYSB0aGUgRGV2ZWxvcG1lbnQNClBsYXRmb3JtLiBDb21wYW55IHdpbGwgbWFrZSByZWFzb25hYmxlIGVmZm9ydHMgdG8gcmVzcG9uZCB0byBzdWNoIHRpY2tldHMgYW5kIGZlZWRiYWNrLA0KYnV0IGhhcyBubyBvYmxpZ2F0aW9uIHRvIGRvIHNvLCBhbmQgbWF5IGNhbmNlbCBzdWNoIHN1cHBvcnQgYXQgYW55IHRpbWUuDQoNCjMuIE9XTkVSU0hJUA0KDQozLjEuIENvbXBhbnkgUmV0YWlucyBUaXRsZSB0byBMaWNlbnNlZCBTb2Z0d2FyZQ0KDQpFeGNlcHQgZm9yIHRoZSBsaWNlbnNlIGdyYW50ZWQgaGVyZWluLCBEZXZlbG9wZXIgaXMgbm90IGdyYW50ZWQgYW55DQpyaWdodHMgdG8gcGF0ZW50cywgY29weXJpZ2h0cywgdHJhZGUgc2VjcmV0cywgdHJhZGUgbmFtZXMsIHRyYWRlbWFya3MgKHdoZXRoZXINCnJlZ2lzdGVyZWQgb3IgdW5yZWdpc3RlcmVkKSBvciBhbnkgb3RoZXIgcmlnaHRzIG9yIGxpY2Vuc2VzICh0aGUgIkludGVsbGVjdHVhbA0KUHJvcGVydHkgUmlnaHRzIikgd2l0aCByZXNwZWN0IHRvIHRoZSBMaWNlbnNlZCBTb2Z0d2FyZS4gQ29tcGFueSByZXRhaW5zIGFsbCByaWdodCwNCnRpdGxlIGFuZCBvd25lcnNoaXAgaW50ZXJlc3RzIGluIHRoZSBMaWNlbnNlZCBTb2Z0d2FyZSwgaW5jbHVkaW5nLCB3aXRob3V0DQpsaW1pdGF0aW9uLCBhbGwgSW50ZWxsZWN0dWFsIFByb3BlcnR5IFJpZ2h0cyB0aGVyZWluLg0KDQozLjIuIEZlZWRiYWNrDQoNCkFueSBmZWVkYmFjayBwcm92aWRlZCBieSBEZXZlbG9wZXIgcGVydGFpbmluZyB0byB0aGUgTGljZW5zZWQgU29mdHdhcmUgc2hhbGwgYmUNCm5vbi1jb25maWRlbnRpYWwgYW5kIENvbXBhbnkgbWF5IHVzZSBhbmQgZXhwbG9pdCBzdWNoIGZlZWRiYWNrIGZyZWVseSwgd2l0aG91dA0KYW55IG9ibGlnYXRpb24gb2Ygbm90aWNlIG9yIGNvbXBlbnNhdGlvbiB0byBEZXZlbG9wZXIuDQoNCjQuIFRFUk0gQU5EIFRFUk1JTkFUSU9ODQoNCjQuMS4gVGVybSBhbmQgVGVybWluYXRpb24gb2YgQWdyZWVtZW50DQoNClRoaXMgQWdyZWVtZW50IGNvbW1lbmNlcyBvbiBpdHMgRWZmZWN0aXZlIERhdGUgYW5kIGVuZHMgaWYgdGVybWluYXRlZCBhcw0KaGVyZWluYWZ0ZXIgcHJvdmlkZWQuIFRoaXMgQWdyZWVtZW50IHdpbGwgYXV0b21hdGljYWxseSB0ZXJtaW5hdGUgaWYgRGV2ZWxvcGVyDQptYXRlcmlhbGx5IGJyZWFjaGVzIHRoaXMgQWdyZWVtZW50LCBpbmNsdWRpbmcsIHdpdGhvdXQgbGltaXRhdGlvbiwgYnkgYSB2aW9sYXRpb24NCm9mIHRoZSBub24tY29tbWVyY2lhbCBhbmQgbm9uLXByb2R1Y3Rpb24gdXNlIHJlc3RyaWN0aW9ucyBpbiBTZWN0aW9uIDIuMy4NCg0KNC4yLiBPYmxpZ2F0aW9ucyBvbiBUZXJtaW5hdGlvbg0KDQpBbGwgcmlnaHRzIGFuZCBsaWNlbnNlcyBncmFudGVkIHVuZGVyIHRoaXMgQWdyZWVtZW50IHRvIERldmVsb3BlciBzaGFsbCB0ZXJtaW5hdGUNCnVwb24gdGVybWluYXRpb24gb2YgdGhpcyBBZ3JlZW1lbnQuIERldmVsb3BlciBzaGFsbCBjZWFzZSBtYWtpbmcgYW55IHVzZSBvZiB0aGUNCmFwcGxpY2FibGUgTGljZW5zZWQgU29mdHdhcmUgb3Igb3RoZXIgbWF0ZXJpYWwgcHJvdmlkZWQgYnkgQ29tcGFueSBpbiBjb25uZWN0aW9uDQp0aGVyZXdpdGggYW5kIGRlc3Ryb3kgdGhlbSBhbmQgYWxsIGNvcGllcyBhbmQgbW9kaWZpY2F0aW9ucyB0aGVyZW9mLCBhbmQgYWxzbw0KaW5jbHVkaW5nIGFueSBjb3BpZXMgb2YgY29kZSBlbWJlZGRlZCBpbiB0aGUgRGV2ZWxvcGVyIEFwcGxpY2F0aW9uLCBhbmQgYW55IHJlbGF0ZWQNCm1hdGVyaWFscyBpbiBpdHMgcG9zc2Vzc2lvbi4gRGV2ZWxvcGVyIHNoYWxsIGNlcnRpZnkgaW4gd3JpdGluZyB0byBDb21wYW55IHRoYXQgbm8NCmZ1cnRoZXIgdXNlIG9mIHN1Y2ggTGljZW5zZWQgU29mdHdhcmUgb3IgYW55IGNvcGllcywgbW9kaWZpY2F0aW9ucyBvciBvdGhlcg0KZGVyaXZhdGl2ZSB3b3JrcyBvZiBhbnkgYW5kIGFsbCBwb3J0aW9ucyB0aGVyZW9mIGlzIGJlaW5nIG1hZGUgYnkgRGV2ZWxvcGVyLg0KDQo0LjMuIFN1cnZpdmFsDQoNCkFueSBwcm92aXNpb25zIG9mIHRoaXMgQWdyZWVtZW50IHRoYXQsIGluIG9yZGVyIHRvIGZ1bGZpbGwgdGhlIHB1cnBvc2VzIG9mIHN1Y2gNCnByb3Zpc2lvbnMsIG5lZWQgdG8gc3Vydml2ZSB0aGUgdGVybWluYXRpb24gb3IgZXhwaXJhdGlvbiBvZiB0aGlzIEFncmVlbWVudCwNCnNoYWxsIGJlIGRlZW1lZCB0byBzdXJ2aXZlIGZvciBhcyBsb25nIGFzIG5lY2Vzc2FyeSB0byBmdWxmaWxsIHN1Y2ggcHVycG9zZXMuDQoNCjUuIFdBUlJBTlRZIERJU0NMQUlNRVINCg0KVEhFIExJQ0VOU0VEIFNPRlRXQVJFIElTIFBST1ZJREVEIE9OTFkgT04gQU4gIkFTIElTIiBCQVNJUy4gQ09NUEFOWSBNQUtFUyBOTyBPVEhFUg0KRVhQUkVTUyBXQVJSQU5USUVTLCBXUklUVEVOIE9SIE9SQUwsIEFORCBBTEwgT1RIRVIgV0FSUkFOVElFUyBBUkUgU1BFQ0lGSUNBTExZDQpFWENMVURFRCwgSU5DTFVESU5HIEJVVCBOT1QgTElNSVRFRCBUTyBUSEUgSU1QTElFRCBXQVJSQU5UWSBPRiBNRVJDSEFOVEFCSUxJVFksDQpGSVRORVNTIEZPUiBQQVJUSUNVTEFSIFBVUlBPU0UsIE9SIE5PTklORlJJTkdFTUVOVCwgQU5EIEFOWSBPVEhFUiBXQVJSQU5UWSBBUklTSU5HDQpCWSBTVEFUVVRFLCBPUEVSQVRJT04gT0YgTEFXLCBDT1VSU0UgT0YgREVBTElORyBPUiBQRVJGT1JNQU5DRSBPUiBVU0FHRSBPRiBUUkFERS4NCg0KNi4gTElNSVRBVElPTlMgT0YgTElBQklMSVRZIEFORCBJTkRFTU5JVElFUw0KDQo2LjEuIExpbWl0cyBvZiBMaWFiaWxpdHkNCg0KQ09NUEFOWSBTSEFMTCBIQVZFIE5PIExJQUJJTElUWSBUTyBERVZFTE9QRVIgRk9SIEFOWSBTUEVDSUFMLCBDT05TRVFVRU5USUFMLA0KRVhFTVBMQVJZLCBJTkNJREVOVEFMIE9SIElORElSRUNUIERBTUFHRVMgKElOQ0xVRElORywgQlVUIE5PVCBMSU1JVEVEIFRPLA0KTE9TUyBPRiBQUk9GSVRTLCBSRVZFTlVFUywgREFUQSBBTkQvT1IgVVNFKSBBUklTSU5HIE9VVCBPRiBPUiBJTiBDT05ORUNUSU9ODQpIRVJFV0lUSCBPUiBUSEUgVVNFIE9SIFBFUkZPUk1BTkNFIE9GIFRIRSBMSUNFTlNFRCBTT0ZUV0FSRSwgRVZFTiBJRiBBRFZJU0VEDQpPRiBUSEUgUE9TU0lCSUxJVFkgVEhFUkVPRi4gVEhFIEFHR1JFR0FURSBMSUFCSUxJVFkgT0YgQ09NUEFOWSBVTkRFUiBUSElTDQpBR1JFRU1FTlQgU0hBTEwgTk9UIEVYQ0VFRCAkMTAuIERFVkVMT1BFUiBTSEFMTCBOT1QgQlJJTkcgQU5ZIENMQUlNIEFSSVNJTkcNCkhFUkVVTkRFUiBNT1JFIFRIQU4gVFdFTFZFICgxMikgTU9OVEhTIEFGVEVSIFNVQ0ggQ0xBSU0gSEFTIEFDQ1JVRUQuDQoNCjYuMi4gRGV2ZWxvcGVyIEluZGVtbml0eQ0KDQpEZXZlbG9wZXIgc2hhbGwgaW5kZW1uaWZ5LCBkZWZlbmQgYW5kIGhvbGQgQ29tcGFueSBoYXJtbGVzcyBmcm9tIGFsbCBsb3NzZXMsDQpjb3N0cywgbGlhYmlsaXRpZXMgYW5kIGV4cGVuc2VzIGluY3VycmVkIGJ5IENvbXBhbnkgd2hpY2ggYXJpc2Ugb3V0IG9mIGFueQ0KY2xhaW0gKGV4Y2VwdCBjbGFpbXMgdGhhdCB0aGUgTGljZW5zZWQgU29mdHdhcmUgaW5mcmluZ2VzIHRoZSBpbnRlbGxlY3R1YWwNCnByb3BlcnR5IG9mIGEgdGhpcmQgcGFydHkpIHRoYXQgYXJpc2Ugb3V0IG9mIERldmVsb3BlcuKAmXMgYWN0cyBvciBvbWlzc2lvbnMNCnByb3ZpZGVkIChpKSBDb21wYW55IGhhcyBub3RpZmllZCBEZXZlbG9wZXIgcHJvbXB0bHkgaW4gd3JpdGluZyBvZiBhbnkgc3VjaA0KY2xhaW1zIChwcm92aWRlZCB0aGF0IGFueSBkZWxheSBzaGFsbCBub3QgcmVkdWNlIERldmVsb3BlcuKAmXMgaW5kZW1uaXR5IG9ibGlnYXRpb25zDQpleGNlcHQgdG8gdGhlIGV4dGVudCB0aGF0IHRoZSBkZWxheSBwcmVqdWRpY2VzIERldmVsb3BlcuKAmXMgYWJpbGl0eSB0byBkZWZlbmQgdGhlDQpjbGFpbSk7IChpaSkgRGV2ZWxvcGVyIHNoYWxsIGhhdmUgc29sZSBjb250cm9sIG9mIHRoZSBkZWZlbnNlIG9mIHN1Y2ggY2xhaW1zIGFuZA0KYWxsIG5lZ290aWF0aW9ucyBmb3IgdGhlaXIgc2V0dGxlbWVudCBhbmQgY29tcHJvbWlzZTsgYW5kIChpaWkpIENvbXBhbnkgc2hhbGwNCnJlYXNvbmFibHkgY29vcGVyYXRlIHdpdGggRGV2ZWxvcGVyIGluIHRoZSBkZWZlbnNlIG9yIHNldHRsZW1lbnQgb2Ygc3VjaCBjbGFpbXMsDQphdCBEZXZlbG9wZXLigJlzIGV4cGVuc2UuDQoNCjcuIEdFTkVSQUwNCg0KNy4xLiBFbnRpcmUgQWdyZWVtZW50DQoNClRoZSB0ZXJtcyBjb250YWluZWQgaGVyZWluIGNvbnN0aXR1dGUgdGhlIGVudGlyZSBhZ3JlZW1lbnQgYmV0d2VlbiB0aGUgcGFydGllcw0Kd2l0aCByZXNwZWN0IHRvIHRoZSBzdWJqZWN0IG1hdHRlciBoZXJlb2YgYW5kIHNoYWxsIHN1cGVyc2VkZSBhbGwgcHJpb3INCmNvbW11bmljYXRpb25zIGFuZCBhZ3JlZW1lbnRzLCBlaXRoZXIgb3JhbCBvciB3cml0dGVuLg0KDQo3LjIuIEVxdWl0YWJsZSBSZWxpZWYNCg0KQ29tcGFueSBtYXksIHdpdGhvdXQgbGltaXRpbmcgaXRzIG90aGVyIHJpZ2h0cyBhbmQgcmVtZWRpZXMsIGJlIGVudGl0bGVkIHRvDQplcXVpdGFibGUgcmVsaWVmLCBpbmNsdWRpbmcgYnV0IG5vdCBsaW1pdGVkIHRvIGluanVuY3RpdmUgcmVsaWVmIGZvciBhIGJyZWFjaCBvcg0KYW50aWNpcGF0ZWQgYnJlYWNoIG9mIHRoaXMgQWdyZWVtZW50Lg0KDQo3LjMuIENvbXBsaWFuY2Ugd2l0aCBMYXdzDQoNCkRldmVsb3BlciBzaGFsbCBjb21wbHkgd2l0aCBhbGwgYXBwbGljYWJsZSBsYXcgYW5kIHdpbGwgb2J0YWluIGFsbCBhdXRob3JpemF0aW9ucw0KcmVxdWlyZWQgYnkgVS5TLiBleHBvcnQgY29udHJvbCBsYXdzIGFuZCBhbGwgcmVsYXRlZCByZWd1bGF0aW9ucyBpZiBhcHBsaWNhYmxlLg0KDQo3LjQuIEdvdmVybmluZyBMYXc7IEp1cmlzZGljdGlvbg0KDQpUaGlzIEFncmVlbWVudCBzaGFsbCBiZSBnb3Zlcm5lZCBieSB0aGUgbGF3cyBvZiB0aGUgU3RhdGUgb2YgT3JlZ29uLCBleGNsdWRpbmcgaXRzDQpjb25mbGljdCBvZiBsYXcgcnVsZXMuIFRoZSBwYXJ0aWVzIHdpbGwgc3VibWl0IGFsbCBkaXNwdXRlcyB3aGljaCBhcmlzZSB1bmRlciB0aGlzDQpBZ3JlZW1lbnQgdG8gc3RhdGUgb3IgZmVkZXJhbCBjb3VydHMgbG9jYXRlZCBpbiBEZXNjaHV0ZXMgQ291bnR5LCBPcmVnb24uIFRoZSBwYXJ0aWVzDQphY2tub3dsZWRnZSB0aGF0IHRoZSBhZm9yZXNhaWQgY291cnRzIHdpbGwgaGF2ZSBleGNsdXNpdmUganVyaXNkaWN0aW9uIG92ZXIgdGhpcw0KQWdyZWVtZW50IGFuZCBzcGVjaWZpY2FsbHkgd2FpdmUgYW55IGNsYWltcyB0aGV5IG1heSBoYXZlIHdoaWNoIGludm9sdmUganVyaXNkaWN0aW9uDQpvciB2ZW51ZSwgaW5jbHVkaW5nLCBidXQgbm90IGxpbWl0ZWQgdG8sIGxhY2sgb2YgcGVyc29uYWwganVyaXNkaWN0aW9uIG9yIGZvcnVtIG5vbg0KY29udmVuaWVucy4NCg0KNy41LiBOb3RpY2VzDQoNCk5vdGljZXMgc2hhbGwgYmUgZGVlbWVkIHRvIGhhdmUgYmVlbiByZWNlaXZlZCB1cG9uIHZlcmlmaWVkIHJlY2VpcHQuDQoNCjcuNi4gTm8gV2FpdmVyDQoNCk5vIG1vZGlmaWNhdGlvbiBvciBhbWVuZG1lbnQgaGVyZXRvLCBub3IgYW55IHdhaXZlciBvZiBhbnkgcmlnaHRzLCBzaGFsbCBiZSBlZmZlY3RpdmUNCnVubGVzcyBhc3NlbnRlZCB0byBpbiB3cml0aW5nIGJ5IHRoZSBwYXJ0eSB0byBiZSBjaGFyZ2VkLiBUaGUgd2FpdmVyIG9mIGFueSBicmVhY2ggb3INCmRlZmF1bHQgd2lsbCBub3QgY29uc3RpdHV0ZSBhIHdhaXZlciBvZiAoaSkgYW55IG90aGVyIHJpZ2h0IG9yIHJlbWVkeSBoZXJldW5kZXIsIG9yIChpaSkNCmFueSBzdWJzZXF1ZW50IGJyZWFjaCBvciBkZWZhdWx0Lg0KDQo3LjcuIEluZGVwZW5kZW50IENvbnRyYWN0b3JzDQoNClRoZSBwYXJ0aWVzIHNoYWxsIGFjdCBhcyBpbmRlcGVuZGVudCBjb250cmFjdG9ycyBmb3IgYWxsIHB1cnBvc2VzIGhlcmV1bmRlci4NCg0KNy44LiBTZXBhcmFiaWxpdHkNCg0KSWYgYW55IHByb3Zpc2lvbiBoZXJlb2Ygc2hhbGwgYmUgaGVsZCBpbGxlZ2FsIG9yIHVuZW5mb3JjZWFibGUsIHN1Y2ggcHJvdmlzaW9uIHNoYWxsIGJlDQpkZWVtZWQgc2VwYXJhYmxlIGZyb20gdGhlIHJlbWFpbmluZyBwcm92aXNpb25zIGFuZCBzaGFsbCBpbiBubyB3YXkgYWZmZWN0IG9yIGltcGFpciB0aGUNCnZhbGlkaXR5IG9yIGVuZm9yY2VhYmlsaXR5IG9mIHRoZSByZW1haW5pbmcgcHJvdmlzaW9ucy4NCg0KNy45LiBBc3NpZ25tZW50DQoNCkRldmVsb3BlciBzaGFsbCBub3QgYXNzaWduIHRoaXMgQWdyZWVtZW50LCBvciBhbnkgcmlnaHQsIG9yIGRlbGVnYXRlIGFueSBwZXJmb3JtYW5jZQ0KaGVyZXVuZGVyIHdpdGhvdXQgQ29tcGFueSdzIHByaW9yIHdyaXR0ZW4gY29uc2VudCwgYW5kIGFueSBzdWNoIGFjdGlvbiBpbiB2aW9sYXRpb24gb2YNCnRoZSBmb3JlZ29pbmcgc2hhbGwgYmUgdm9pZC4gQ29tcGFueSBtYXkgZnJlZWx5IGFzc2lnbiB0aGlzIEFncmVlbWVudC4NCg=="
+            }
+          }
+        }
+      ],
+      "purl": "pkg:cargo/sfio-tracing-ffi@0.9.0",
+      "externalReferences": [
+        {
+          "type": "website",
+          "url": "https://github.com/stepfunc/tracing-ffi"
+        },
+        {
+          "type": "vcs",
+          "url": "https://github.com/stepfunc/tracing-ffi"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "registry+https://github.com/rust-lang/crates.io-index#sharded-slab@0.1.7",
+      "author": "Eliza Weisman <eliza@buoyant.io>",
+      "name": "sharded-slab",
+      "version": "0.1.7",
+      "description": "A lock-free concurrent slab. ",
+      "scope": "required",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "f40ca3c46823713e0d4209592e8d6e826aa57e928f09752619fc696c499637f6"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "MIT"
+        }
+      ],
+      "purl": "pkg:cargo/sharded-slab@0.1.7",
+      "externalReferences": [
+        {
+          "type": "documentation",
+          "url": "https://docs.rs/sharded-slab/"
+        },
+        {
+          "type": "website",
+          "url": "https://github.com/hawkw/sharded-slab"
+        },
+        {
+          "type": "vcs",
+          "url": "https://github.com/hawkw/sharded-slab"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "registry+https://github.com/rust-lang/crates.io-index#smallvec@1.15.2",
+      "author": "The Servo Project Developers",
+      "name": "smallvec",
+      "version": "1.15.2",
+      "description": "'Small vector' optimization: store up to a small number of items on the stack",
+      "scope": "required",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "8ed6a63f02c8539c91a8685a86f4099661ba3da017932f6ebbea6de3f0fa7c90"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "MIT OR Apache-2.0"
+        }
+      ],
+      "purl": "pkg:cargo/smallvec@1.15.2",
+      "externalReferences": [
+        {
+          "type": "documentation",
+          "url": "https://docs.rs/smallvec/"
+        },
+        {
+          "type": "vcs",
+          "url": "https://github.com/servo/rust-smallvec"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "registry+https://github.com/rust-lang/crates.io-index#strsim@0.11.1",
+      "author": "Danny Guo <danny@dannyguo.com>, maxbachmann <oss@maxbachmann.de>",
+      "name": "strsim",
+      "version": "0.11.1",
+      "description": "Implementations of string similarity metrics. Includes Hamming, Levenshtein, OSA, Damerau-Levenshtein, Jaro, Jaro-Winkler, and Sørensen-Dice. ",
+      "scope": "required",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "7da8b5736845d9f2fcb837ea5d9e2628564b3b043a70948a3f0b778838c5fb4f"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "MIT"
+        }
+      ],
+      "purl": "pkg:cargo/strsim@0.11.1",
+      "externalReferences": [
+        {
+          "type": "documentation",
+          "url": "https://docs.rs/strsim/"
+        },
+        {
+          "type": "website",
+          "url": "https://github.com/rapidfuzz/strsim-rs"
+        },
+        {
+          "type": "vcs",
+          "url": "https://github.com/rapidfuzz/strsim-rs"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "registry+https://github.com/rust-lang/crates.io-index#syn@2.0.118",
+      "author": "David Tolnay <dtolnay@gmail.com>",
+      "name": "syn",
+      "version": "2.0.118",
+      "description": "Parser for Rust source code",
+      "scope": "required",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "1b9ae57f904213ebb649ce6895b8a66c66f0203b9319718f69a5612a065b1422"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "MIT OR Apache-2.0"
+        }
+      ],
+      "purl": "pkg:cargo/syn@2.0.118",
+      "externalReferences": [
+        {
+          "type": "documentation",
+          "url": "https://docs.rs/syn"
+        },
+        {
+          "type": "vcs",
+          "url": "https://github.com/dtolnay/syn"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "registry+https://github.com/rust-lang/crates.io-index#thiserror-impl@2.0.18",
+      "author": "David Tolnay <dtolnay@gmail.com>",
+      "name": "thiserror-impl",
+      "version": "2.0.18",
+      "description": "Implementation detail of the `thiserror` crate",
+      "scope": "required",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "ebc4ee7f67670e9b64d05fa4253e753e016c6c95ff35b89b7941d6b856dec1d5"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "MIT OR Apache-2.0"
+        }
+      ],
+      "purl": "pkg:cargo/thiserror-impl@2.0.18",
+      "externalReferences": [
+        {
+          "type": "vcs",
+          "url": "https://github.com/dtolnay/thiserror"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "registry+https://github.com/rust-lang/crates.io-index#thiserror@2.0.18",
+      "author": "David Tolnay <dtolnay@gmail.com>",
+      "name": "thiserror",
+      "version": "2.0.18",
+      "description": "derive(Error)",
+      "scope": "required",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "4288b5bcbc7920c07a1149a35cf9590a2aa808e0bc1eafaade0b80947865fbc4"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "MIT OR Apache-2.0"
+        }
+      ],
+      "purl": "pkg:cargo/thiserror@2.0.18",
+      "externalReferences": [
+        {
+          "type": "documentation",
+          "url": "https://docs.rs/thiserror"
+        },
+        {
+          "type": "vcs",
+          "url": "https://github.com/dtolnay/thiserror"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "registry+https://github.com/rust-lang/crates.io-index#thread_local@1.1.9",
+      "author": "Amanieu d'Antras <amanieu@gmail.com>",
+      "name": "thread_local",
+      "version": "1.1.9",
+      "description": "Per-object thread-local storage",
+      "scope": "required",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "f60246a4944f24f6e018aa17cdeffb7818b76356965d03b07d6a9886e8962185"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "MIT OR Apache-2.0"
+        }
+      ],
+      "purl": "pkg:cargo/thread_local@1.1.9",
+      "externalReferences": [
+        {
+          "type": "documentation",
+          "url": "https://docs.rs/thread_local/"
+        },
+        {
+          "type": "vcs",
+          "url": "https://github.com/Amanieu/thread_local-rs"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "registry+https://github.com/rust-lang/crates.io-index#tracing-attributes@0.1.31",
+      "author": "Tokio Contributors <team@tokio.rs>, Eliza Weisman <eliza@buoyant.io>, David Barsky <dbarsky@amazon.com>",
+      "name": "tracing-attributes",
+      "version": "0.1.31",
+      "description": "Procedural macro attributes for automatically instrumenting functions. ",
+      "scope": "required",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "7490cfa5ec963746568740651ac6781f701c9c5ea257c58e057f3ba8cf69e8da"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "MIT"
+        }
+      ],
+      "purl": "pkg:cargo/tracing-attributes@0.1.31",
+      "externalReferences": [
+        {
+          "type": "website",
+          "url": "https://tokio.rs"
+        },
+        {
+          "type": "vcs",
+          "url": "https://github.com/tokio-rs/tracing"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "registry+https://github.com/rust-lang/crates.io-index#tracing-core@0.1.36",
+      "author": "Tokio Contributors <team@tokio.rs>",
+      "name": "tracing-core",
+      "version": "0.1.36",
+      "description": "Core primitives for application-level tracing. ",
+      "scope": "required",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "db97caf9d906fbde555dd62fa95ddba9eecfd14cb388e4f491a66d74cd5fb79a"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "MIT"
+        }
+      ],
+      "purl": "pkg:cargo/tracing-core@0.1.36",
+      "externalReferences": [
+        {
+          "type": "website",
+          "url": "https://tokio.rs"
+        },
+        {
+          "type": "vcs",
+          "url": "https://github.com/tokio-rs/tracing"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "registry+https://github.com/rust-lang/crates.io-index#tracing-log@0.2.0",
+      "author": "Tokio Contributors <team@tokio.rs>",
+      "name": "tracing-log",
+      "version": "0.2.0",
+      "description": "Provides compatibility between `tracing` and the `log` crate. ",
+      "scope": "required",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "ee855f1f400bd0e5c02d150ae5de3840039a3f54b025156404e34c23c03f47c3"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "MIT"
+        }
+      ],
+      "purl": "pkg:cargo/tracing-log@0.2.0",
+      "externalReferences": [
+        {
+          "type": "website",
+          "url": "https://tokio.rs"
+        },
+        {
+          "type": "vcs",
+          "url": "https://github.com/tokio-rs/tracing"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "registry+https://github.com/rust-lang/crates.io-index#tracing-serde@0.2.0",
+      "author": "Tokio Contributors <team@tokio.rs>",
+      "name": "tracing-serde",
+      "version": "0.2.0",
+      "description": "A compatibility layer for serializing trace data with `serde` ",
+      "scope": "required",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "704b1aeb7be0d0a84fc9828cae51dab5970fee5088f83d1dd7ee6f6246fc6ff1"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "MIT"
+        }
+      ],
+      "purl": "pkg:cargo/tracing-serde@0.2.0",
+      "externalReferences": [
+        {
+          "type": "website",
+          "url": "https://tokio.rs"
+        },
+        {
+          "type": "vcs",
+          "url": "https://github.com/tokio-rs/tracing"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "registry+https://github.com/rust-lang/crates.io-index#tracing-subscriber@0.3.23",
+      "author": "Eliza Weisman <eliza@buoyant.io>, David Barsky <me@davidbarsky.com>, Tokio Contributors <team@tokio.rs>",
+      "name": "tracing-subscriber",
+      "version": "0.3.23",
+      "description": "Utilities for implementing and composing `tracing` subscribers. ",
+      "scope": "required",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "cb7f578e5945fb242538965c2d0b04418d38ec25c79d160cd279bf0731c8d319"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "MIT"
+        }
+      ],
+      "purl": "pkg:cargo/tracing-subscriber@0.3.23",
+      "externalReferences": [
+        {
+          "type": "website",
+          "url": "https://tokio.rs"
+        },
+        {
+          "type": "vcs",
+          "url": "https://github.com/tokio-rs/tracing"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "registry+https://github.com/rust-lang/crates.io-index#tracing@0.1.44",
+      "author": "Eliza Weisman <eliza@buoyant.io>, Tokio Contributors <team@tokio.rs>",
+      "name": "tracing",
+      "version": "0.1.44",
+      "description": "Application-level tracing for Rust. ",
+      "scope": "required",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "63e71662fa4b2a2c3a26f570f037eb95bb1f85397f3cd8076caed2f026a6d100"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "MIT"
+        }
+      ],
+      "purl": "pkg:cargo/tracing@0.1.44",
+      "externalReferences": [
+        {
+          "type": "website",
+          "url": "https://tokio.rs"
+        },
+        {
+          "type": "vcs",
+          "url": "https://github.com/tokio-rs/tracing"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "registry+https://github.com/rust-lang/crates.io-index#unicode-ident@1.0.24",
+      "author": "David Tolnay <dtolnay@gmail.com>",
+      "name": "unicode-ident",
+      "version": "1.0.24",
+      "description": "Determine whether characters have the XID_Start or XID_Continue properties according to Unicode Standard Annex #31",
+      "scope": "required",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "e6e4313cd5fcd3dad5cafa179702e2b244f760991f45397d14d4ebf38247da75"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "(MIT OR Apache-2.0) AND Unicode-3.0"
+        }
+      ],
+      "purl": "pkg:cargo/unicode-ident@1.0.24",
+      "externalReferences": [
+        {
+          "type": "documentation",
+          "url": "https://docs.rs/unicode-ident"
+        },
+        {
+          "type": "vcs",
+          "url": "https://github.com/dtolnay/unicode-ident"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "registry+https://github.com/rust-lang/crates.io-index#utf8parse@0.2.2",
+      "author": "Joe Wilm <joe@jwilm.com>, Christian Duerr <contact@christianduerr.com>",
+      "name": "utf8parse",
+      "version": "0.2.2",
+      "description": "Table-driven UTF-8 parser",
+      "scope": "required",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "06abde3611657adf66d383f00b093d7faecc7fa57071cce2578660c9f1010821"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "Apache-2.0 OR MIT"
+        }
+      ],
+      "purl": "pkg:cargo/utf8parse@0.2.2",
+      "externalReferences": [
+        {
+          "type": "documentation",
+          "url": "https://docs.rs/utf8parse/"
+        },
+        {
+          "type": "vcs",
+          "url": "https://github.com/alacritty/vte"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "registry+https://github.com/rust-lang/crates.io-index#zmij@1.0.21",
+      "author": "David Tolnay <dtolnay@gmail.com>",
+      "name": "zmij",
+      "version": "1.0.21",
+      "description": "A double-to-string conversion algorithm based on Schubfach and yy",
+      "scope": "required",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "b8848ee67ecc8aedbaf3e4122217aff892639231befc6a1b58d29fff4c2cabaa"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "MIT"
+        }
+      ],
+      "purl": "pkg:cargo/zmij@1.0.21",
+      "externalReferences": [
+        {
+          "type": "documentation",
+          "url": "https://docs.rs/zmij"
+        },
+        {
+          "type": "vcs",
+          "url": "https://github.com/dtolnay/zmij"
+        }
+      ]
+    }
+  ],
+  "dependencies": [
+    {
+      "ref": "path+file:///home/jadamcrain/code/rodbus/ffi/rodbus-bindings#1.5.0",
+      "dependsOn": [
+        "registry+https://github.com/rust-lang/crates.io-index#oo-bindgen@0.8.8",
+        "path+file:///home/jadamcrain/code/rodbus/ffi/rodbus-schema#1.5.0",
+        "registry+https://github.com/rust-lang/crates.io-index#tracing@0.1.44",
+        "registry+https://github.com/rust-lang/crates.io-index#tracing-subscriber@0.3.23"
+      ]
+    },
+    {
+      "ref": "path+file:///home/jadamcrain/code/rodbus/ffi/rodbus-schema#1.5.0",
+      "dependsOn": [
+        "registry+https://github.com/rust-lang/crates.io-index#oo-bindgen@0.8.8",
+        "registry+https://github.com/rust-lang/crates.io-index#sfio-tokio-ffi@0.9.0",
+        "registry+https://github.com/rust-lang/crates.io-index#sfio-tracing-ffi@0.9.0"
+      ]
+    },
+    {
+      "ref": "registry+https://github.com/rust-lang/crates.io-index#addr2line@0.25.1",
+      "dependsOn": [
+        "registry+https://github.com/rust-lang/crates.io-index#gimli@0.32.3"
+      ]
+    },
+    {
+      "ref": "registry+https://github.com/rust-lang/crates.io-index#adler2@2.0.1"
+    },
+    {
+      "ref": "registry+https://github.com/rust-lang/crates.io-index#aho-corasick@1.1.4",
+      "dependsOn": [
+        "registry+https://github.com/rust-lang/crates.io-index#memchr@2.8.2"
+      ]
+    },
+    {
+      "ref": "registry+https://github.com/rust-lang/crates.io-index#anstream@1.0.0",
+      "dependsOn": [
+        "registry+https://github.com/rust-lang/crates.io-index#anstyle@1.0.14",
+        "registry+https://github.com/rust-lang/crates.io-index#anstyle-parse@1.0.0",
+        "registry+https://github.com/rust-lang/crates.io-index#anstyle-query@1.1.5",
+        "registry+https://github.com/rust-lang/crates.io-index#colorchoice@1.0.5",
+        "registry+https://github.com/rust-lang/crates.io-index#is_terminal_polyfill@1.70.2",
+        "registry+https://github.com/rust-lang/crates.io-index#utf8parse@0.2.2"
+      ]
+    },
+    {
+      "ref": "registry+https://github.com/rust-lang/crates.io-index#anstyle-parse@1.0.0",
+      "dependsOn": [
+        "registry+https://github.com/rust-lang/crates.io-index#utf8parse@0.2.2"
+      ]
+    },
+    {
+      "ref": "registry+https://github.com/rust-lang/crates.io-index#anstyle-query@1.1.5"
+    },
+    {
+      "ref": "registry+https://github.com/rust-lang/crates.io-index#anstyle@1.0.14"
+    },
+    {
+      "ref": "registry+https://github.com/rust-lang/crates.io-index#autocfg@1.5.1"
+    },
+    {
+      "ref": "registry+https://github.com/rust-lang/crates.io-index#backtrace@0.3.76",
+      "dependsOn": [
+        "registry+https://github.com/rust-lang/crates.io-index#addr2line@0.25.1",
+        "registry+https://github.com/rust-lang/crates.io-index#cfg-if@1.0.4",
+        "registry+https://github.com/rust-lang/crates.io-index#libc@0.2.186",
+        "registry+https://github.com/rust-lang/crates.io-index#miniz_oxide@0.8.9",
+        "registry+https://github.com/rust-lang/crates.io-index#object@0.37.3",
+        "registry+https://github.com/rust-lang/crates.io-index#rustc-demangle@0.1.27"
+      ]
+    },
+    {
+      "ref": "registry+https://github.com/rust-lang/crates.io-index#cfg-if@1.0.4"
+    },
+    {
+      "ref": "registry+https://github.com/rust-lang/crates.io-index#chrono@0.4.45",
+      "dependsOn": [
+        "registry+https://github.com/rust-lang/crates.io-index#iana-time-zone@0.1.65",
+        "registry+https://github.com/rust-lang/crates.io-index#num-traits@0.2.19"
+      ]
+    },
+    {
+      "ref": "registry+https://github.com/rust-lang/crates.io-index#clap@4.6.1",
+      "dependsOn": [
+        "registry+https://github.com/rust-lang/crates.io-index#clap_builder@4.6.0",
+        "registry+https://github.com/rust-lang/crates.io-index#clap_derive@4.6.1"
+      ]
+    },
+    {
+      "ref": "registry+https://github.com/rust-lang/crates.io-index#clap_builder@4.6.0",
+      "dependsOn": [
+        "registry+https://github.com/rust-lang/crates.io-index#anstream@1.0.0",
+        "registry+https://github.com/rust-lang/crates.io-index#anstyle@1.0.14",
+        "registry+https://github.com/rust-lang/crates.io-index#clap_lex@1.1.0",
+        "registry+https://github.com/rust-lang/crates.io-index#strsim@0.11.1"
+      ]
+    },
+    {
+      "ref": "registry+https://github.com/rust-lang/crates.io-index#clap_derive@4.6.1",
+      "dependsOn": [
+        "registry+https://github.com/rust-lang/crates.io-index#heck@0.5.0",
+        "registry+https://github.com/rust-lang/crates.io-index#proc-macro2@1.0.106",
+        "registry+https://github.com/rust-lang/crates.io-index#quote@1.0.45",
+        "registry+https://github.com/rust-lang/crates.io-index#syn@2.0.118"
+      ]
+    },
+    {
+      "ref": "registry+https://github.com/rust-lang/crates.io-index#clap_lex@1.1.0"
+    },
+    {
+      "ref": "registry+https://github.com/rust-lang/crates.io-index#colorchoice@1.0.5"
+    },
+    {
+      "ref": "registry+https://github.com/rust-lang/crates.io-index#dunce@1.0.5"
+    },
+    {
+      "ref": "registry+https://github.com/rust-lang/crates.io-index#gimli@0.32.3"
+    },
+    {
+      "ref": "registry+https://github.com/rust-lang/crates.io-index#heck@0.5.0"
+    },
+    {
+      "ref": "registry+https://github.com/rust-lang/crates.io-index#iana-time-zone@0.1.65"
+    },
+    {
+      "ref": "registry+https://github.com/rust-lang/crates.io-index#is_terminal_polyfill@1.70.2"
+    },
+    {
+      "ref": "registry+https://github.com/rust-lang/crates.io-index#itoa@1.0.18"
+    },
+    {
+      "ref": "registry+https://github.com/rust-lang/crates.io-index#lazy_static@1.5.0"
+    },
+    {
+      "ref": "registry+https://github.com/rust-lang/crates.io-index#libc@0.2.186"
+    },
+    {
+      "ref": "registry+https://github.com/rust-lang/crates.io-index#log@0.4.32"
+    },
+    {
+      "ref": "registry+https://github.com/rust-lang/crates.io-index#memchr@2.8.2"
+    },
+    {
+      "ref": "registry+https://github.com/rust-lang/crates.io-index#miniz_oxide@0.8.9",
+      "dependsOn": [
+        "registry+https://github.com/rust-lang/crates.io-index#adler2@2.0.1"
+      ]
+    },
+    {
+      "ref": "registry+https://github.com/rust-lang/crates.io-index#nu-ansi-term@0.50.3"
+    },
+    {
+      "ref": "registry+https://github.com/rust-lang/crates.io-index#num-traits@0.2.19",
+      "dependsOn": [
+        "registry+https://github.com/rust-lang/crates.io-index#autocfg@1.5.1"
+      ]
+    },
+    {
+      "ref": "registry+https://github.com/rust-lang/crates.io-index#object@0.37.3",
+      "dependsOn": [
+        "registry+https://github.com/rust-lang/crates.io-index#memchr@2.8.2"
+      ]
+    },
+    {
+      "ref": "registry+https://github.com/rust-lang/crates.io-index#once_cell@1.21.4"
+    },
+    {
+      "ref": "registry+https://github.com/rust-lang/crates.io-index#oo-bindgen@0.8.8",
+      "dependsOn": [
+        "registry+https://github.com/rust-lang/crates.io-index#backtrace@0.3.76",
+        "registry+https://github.com/rust-lang/crates.io-index#clap@4.6.1",
+        "registry+https://github.com/rust-lang/crates.io-index#dunce@1.0.5",
+        "registry+https://github.com/rust-lang/crates.io-index#heck@0.5.0",
+        "registry+https://github.com/rust-lang/crates.io-index#lazy_static@1.5.0",
+        "registry+https://github.com/rust-lang/crates.io-index#platforms@2.0.0",
+        "registry+https://github.com/rust-lang/crates.io-index#regex@1.12.4",
+        "registry+https://github.com/rust-lang/crates.io-index#semver@1.0.28",
+        "registry+https://github.com/rust-lang/crates.io-index#serde@1.0.228",
+        "registry+https://github.com/rust-lang/crates.io-index#serde_json@1.0.150",
+        "registry+https://github.com/rust-lang/crates.io-index#thiserror@2.0.18",
+        "registry+https://github.com/rust-lang/crates.io-index#tracing@0.1.44"
+      ]
+    },
+    {
+      "ref": "registry+https://github.com/rust-lang/crates.io-index#pin-project-lite@0.2.17"
+    },
+    {
+      "ref": "registry+https://github.com/rust-lang/crates.io-index#platforms@2.0.0"
+    },
+    {
+      "ref": "registry+https://github.com/rust-lang/crates.io-index#proc-macro2@1.0.106",
+      "dependsOn": [
+        "registry+https://github.com/rust-lang/crates.io-index#unicode-ident@1.0.24"
+      ]
+    },
+    {
+      "ref": "registry+https://github.com/rust-lang/crates.io-index#quote@1.0.45",
+      "dependsOn": [
+        "registry+https://github.com/rust-lang/crates.io-index#proc-macro2@1.0.106"
+      ]
+    },
+    {
+      "ref": "registry+https://github.com/rust-lang/crates.io-index#regex-automata@0.4.14",
+      "dependsOn": [
+        "registry+https://github.com/rust-lang/crates.io-index#aho-corasick@1.1.4",
+        "registry+https://github.com/rust-lang/crates.io-index#memchr@2.8.2",
+        "registry+https://github.com/rust-lang/crates.io-index#regex-syntax@0.8.11"
+      ]
+    },
+    {
+      "ref": "registry+https://github.com/rust-lang/crates.io-index#regex-syntax@0.8.11"
+    },
+    {
+      "ref": "registry+https://github.com/rust-lang/crates.io-index#regex@1.12.4",
+      "dependsOn": [
+        "registry+https://github.com/rust-lang/crates.io-index#aho-corasick@1.1.4",
+        "registry+https://github.com/rust-lang/crates.io-index#memchr@2.8.2",
+        "registry+https://github.com/rust-lang/crates.io-index#regex-automata@0.4.14",
+        "registry+https://github.com/rust-lang/crates.io-index#regex-syntax@0.8.11"
+      ]
+    },
+    {
+      "ref": "registry+https://github.com/rust-lang/crates.io-index#rustc-demangle@0.1.27"
+    },
+    {
+      "ref": "registry+https://github.com/rust-lang/crates.io-index#semver@1.0.28"
+    },
+    {
+      "ref": "registry+https://github.com/rust-lang/crates.io-index#serde@1.0.228",
+      "dependsOn": [
+        "registry+https://github.com/rust-lang/crates.io-index#serde_core@1.0.228",
+        "registry+https://github.com/rust-lang/crates.io-index#serde_derive@1.0.228"
+      ]
+    },
+    {
+      "ref": "registry+https://github.com/rust-lang/crates.io-index#serde_core@1.0.228"
+    },
+    {
+      "ref": "registry+https://github.com/rust-lang/crates.io-index#serde_derive@1.0.228",
+      "dependsOn": [
+        "registry+https://github.com/rust-lang/crates.io-index#proc-macro2@1.0.106",
+        "registry+https://github.com/rust-lang/crates.io-index#quote@1.0.45",
+        "registry+https://github.com/rust-lang/crates.io-index#syn@2.0.118"
+      ]
+    },
+    {
+      "ref": "registry+https://github.com/rust-lang/crates.io-index#serde_json@1.0.150",
+      "dependsOn": [
+        "registry+https://github.com/rust-lang/crates.io-index#itoa@1.0.18",
+        "registry+https://github.com/rust-lang/crates.io-index#memchr@2.8.2",
+        "registry+https://github.com/rust-lang/crates.io-index#serde_core@1.0.228",
+        "registry+https://github.com/rust-lang/crates.io-index#zmij@1.0.21"
+      ]
+    },
+    {
+      "ref": "registry+https://github.com/rust-lang/crates.io-index#sfio-tokio-ffi@0.9.0",
+      "dependsOn": [
+        "registry+https://github.com/rust-lang/crates.io-index#oo-bindgen@0.8.8"
+      ]
+    },
+    {
+      "ref": "registry+https://github.com/rust-lang/crates.io-index#sfio-tracing-ffi@0.9.0",
+      "dependsOn": [
+        "registry+https://github.com/rust-lang/crates.io-index#oo-bindgen@0.8.8"
+      ]
+    },
+    {
+      "ref": "registry+https://github.com/rust-lang/crates.io-index#sharded-slab@0.1.7",
+      "dependsOn": [
+        "registry+https://github.com/rust-lang/crates.io-index#lazy_static@1.5.0"
+      ]
+    },
+    {
+      "ref": "registry+https://github.com/rust-lang/crates.io-index#smallvec@1.15.2"
+    },
+    {
+      "ref": "registry+https://github.com/rust-lang/crates.io-index#strsim@0.11.1"
+    },
+    {
+      "ref": "registry+https://github.com/rust-lang/crates.io-index#syn@2.0.118",
+      "dependsOn": [
+        "registry+https://github.com/rust-lang/crates.io-index#proc-macro2@1.0.106",
+        "registry+https://github.com/rust-lang/crates.io-index#quote@1.0.45",
+        "registry+https://github.com/rust-lang/crates.io-index#unicode-ident@1.0.24"
+      ]
+    },
+    {
+      "ref": "registry+https://github.com/rust-lang/crates.io-index#thiserror-impl@2.0.18",
+      "dependsOn": [
+        "registry+https://github.com/rust-lang/crates.io-index#proc-macro2@1.0.106",
+        "registry+https://github.com/rust-lang/crates.io-index#quote@1.0.45",
+        "registry+https://github.com/rust-lang/crates.io-index#syn@2.0.118"
+      ]
+    },
+    {
+      "ref": "registry+https://github.com/rust-lang/crates.io-index#thiserror@2.0.18",
+      "dependsOn": [
+        "registry+https://github.com/rust-lang/crates.io-index#thiserror-impl@2.0.18"
+      ]
+    },
+    {
+      "ref": "registry+https://github.com/rust-lang/crates.io-index#thread_local@1.1.9",
+      "dependsOn": [
+        "registry+https://github.com/rust-lang/crates.io-index#cfg-if@1.0.4"
+      ]
+    },
+    {
+      "ref": "registry+https://github.com/rust-lang/crates.io-index#tracing-attributes@0.1.31",
+      "dependsOn": [
+        "registry+https://github.com/rust-lang/crates.io-index#proc-macro2@1.0.106",
+        "registry+https://github.com/rust-lang/crates.io-index#quote@1.0.45",
+        "registry+https://github.com/rust-lang/crates.io-index#syn@2.0.118"
+      ]
+    },
+    {
+      "ref": "registry+https://github.com/rust-lang/crates.io-index#tracing-core@0.1.36",
+      "dependsOn": [
+        "registry+https://github.com/rust-lang/crates.io-index#once_cell@1.21.4"
+      ]
+    },
+    {
+      "ref": "registry+https://github.com/rust-lang/crates.io-index#tracing-log@0.2.0",
+      "dependsOn": [
+        "registry+https://github.com/rust-lang/crates.io-index#log@0.4.32",
+        "registry+https://github.com/rust-lang/crates.io-index#once_cell@1.21.4",
+        "registry+https://github.com/rust-lang/crates.io-index#tracing-core@0.1.36"
+      ]
+    },
+    {
+      "ref": "registry+https://github.com/rust-lang/crates.io-index#tracing-serde@0.2.0",
+      "dependsOn": [
+        "registry+https://github.com/rust-lang/crates.io-index#serde@1.0.228",
+        "registry+https://github.com/rust-lang/crates.io-index#tracing-core@0.1.36"
+      ]
+    },
+    {
+      "ref": "registry+https://github.com/rust-lang/crates.io-index#tracing-subscriber@0.3.23",
+      "dependsOn": [
+        "registry+https://github.com/rust-lang/crates.io-index#chrono@0.4.45",
+        "registry+https://github.com/rust-lang/crates.io-index#nu-ansi-term@0.50.3",
+        "registry+https://github.com/rust-lang/crates.io-index#serde@1.0.228",
+        "registry+https://github.com/rust-lang/crates.io-index#serde_json@1.0.150",
+        "registry+https://github.com/rust-lang/crates.io-index#sharded-slab@0.1.7",
+        "registry+https://github.com/rust-lang/crates.io-index#smallvec@1.15.2",
+        "registry+https://github.com/rust-lang/crates.io-index#thread_local@1.1.9",
+        "registry+https://github.com/rust-lang/crates.io-index#tracing-core@0.1.36",
+        "registry+https://github.com/rust-lang/crates.io-index#tracing-log@0.2.0",
+        "registry+https://github.com/rust-lang/crates.io-index#tracing-serde@0.2.0"
+      ]
+    },
+    {
+      "ref": "registry+https://github.com/rust-lang/crates.io-index#tracing@0.1.44",
+      "dependsOn": [
+        "registry+https://github.com/rust-lang/crates.io-index#pin-project-lite@0.2.17",
+        "registry+https://github.com/rust-lang/crates.io-index#tracing-attributes@0.1.31",
+        "registry+https://github.com/rust-lang/crates.io-index#tracing-core@0.1.36"
+      ]
+    },
+    {
+      "ref": "registry+https://github.com/rust-lang/crates.io-index#unicode-ident@1.0.24"
+    },
+    {
+      "ref": "registry+https://github.com/rust-lang/crates.io-index#utf8parse@0.2.2"
+    },
+    {
+      "ref": "registry+https://github.com/rust-lang/crates.io-index#zmij@1.0.21"
+    }
+  ]
+}
