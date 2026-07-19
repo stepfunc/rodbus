@@ -4,7 +4,7 @@ use tracing::Instrument;
 
 use crate::decode::DecodeLevel;
 use crate::server::task::ServerSetting;
-use crate::tcp::server::{ServerTask, TcpServerConnectionHandler};
+use crate::tcp::server::{ServerTask as TcpServerTask, TcpServerConnectionHandler};
 
 /// server handling
 mod address_filter;
@@ -33,6 +33,53 @@ pub use crate::tcp::tls::*;
 #[derive(Debug)]
 pub struct ServerHandle {
     tx: tokio::sync::mpsc::Sender<ServerSetting>,
+}
+
+/// A server task that has been created but not yet spawned.
+///
+/// This is returned, alongside its [`ServerHandle`], by the `create_*_server_task` functions.
+/// Drive it to completion by awaiting [`ServerTask::run`], typically from within
+/// [`tokio::spawn`]. The task completes when the associated [`ServerHandle`] is dropped.
+///
+/// Unlike the `spawn_*_server_task` functions, no tracing span is attached to the task, so the
+/// caller is free to wrap [`run`](ServerTask::run) with their own instrumentation.
+pub struct ServerTask<T: RequestHandler> {
+    inner: ServerTaskInner<T>,
+}
+
+enum ServerTaskInner<T: RequestHandler> {
+    Tcp(
+        Box<TcpServerTask<T>>,
+        tokio::sync::mpsc::Receiver<ServerSetting>,
+    ),
+    #[cfg(feature = "serial")]
+    Rtu(Box<crate::serial::server::RtuServerTask<T>>),
+}
+
+impl<T: RequestHandler> ServerTask<T> {
+    fn tcp(task: TcpServerTask<T>, commands: tokio::sync::mpsc::Receiver<ServerSetting>) -> Self {
+        Self {
+            inner: ServerTaskInner::Tcp(Box::new(task), commands),
+        }
+    }
+
+    #[cfg(feature = "serial")]
+    fn rtu(task: crate::serial::server::RtuServerTask<T>) -> Self {
+        Self {
+            inner: ServerTaskInner::Rtu(Box::new(task)),
+        }
+    }
+
+    /// Run the server task until the associated [`ServerHandle`] is dropped.
+    pub async fn run(self) {
+        match self.inner {
+            ServerTaskInner::Tcp(mut task, commands) => task.run(commands).await,
+            #[cfg(feature = "serial")]
+            ServerTaskInner::Rtu(mut task) => {
+                task.run().await;
+            }
+        }
+    }
 }
 
 impl ServerHandle {
@@ -70,26 +117,44 @@ pub async fn spawn_tcp_server_task<T: RequestHandler>(
     decode: DecodeLevel,
 ) -> Result<ServerHandle, std::io::Error> {
     let listener = tokio::net::TcpListener::bind(addr).await?;
+    let (handle, task) = create_tcp_server_task(max_sessions, listener, handlers, filter, decode);
 
+    tokio::spawn(
+        task.run()
+            .instrument(tracing::info_span!("Modbus-Server-TCP", "listen" = ?addr)),
+    );
+
+    Ok(handle)
+}
+
+/// Creates a TCP server task for a pre-bound listener, but does **not** spawn it.
+///
+/// It is the caller's responsibility to run the returned [`ServerTask`] on a runtime, e.g.
+/// `tokio::spawn(task.run())`. Each incoming connection will spawn a new task to handle it.
+///
+/// * `max_sessions` - Maximum number of concurrent sessions
+/// * `listener` - A pre-bound TCP listener
+/// * `handlers` - A map of handlers keyed by a unit id
+/// * `filter` - Address filter which may be used to restrict the connecting IP address
+/// * `decode` - Decode log level
+pub fn create_tcp_server_task<T: RequestHandler>(
+    max_sessions: usize,
+    listener: tokio::net::TcpListener,
+    handlers: ServerHandlerMap<T>,
+    filter: AddressFilter,
+    decode: DecodeLevel,
+) -> (ServerHandle, ServerTask<T>) {
     let (tx, rx) = tokio::sync::mpsc::channel(SERVER_SETTING_CHANNEL_CAPACITY);
+    let task = TcpServerTask::new(
+        max_sessions,
+        listener,
+        handlers,
+        TcpServerConnectionHandler::Tcp,
+        filter,
+        decode,
+    );
 
-    let task = async move {
-        ServerTask::new(
-            max_sessions,
-            listener,
-            handlers,
-            TcpServerConnectionHandler::Tcp,
-            filter,
-            decode,
-        )
-        .run(rx)
-        .instrument(tracing::info_span!("Modbus-Server-TCP", "listen" = ?addr))
-        .await;
-    };
-
-    tokio::spawn(task);
-
-    Ok(ServerHandle::new(tx))
+    (ServerHandle::new(tx), ServerTask::tcp(task, rx))
 }
 
 /// Spawns a RTU server task onto the runtime.
@@ -109,6 +174,35 @@ pub fn spawn_rtu_server_task<T: RequestHandler>(
     handlers: ServerHandlerMap<T>,
     decode: DecodeLevel,
 ) -> Result<ServerHandle, std::io::Error> {
+    let (handle, task) = create_rtu_server_task(path, settings, retry, handlers, decode);
+    let path = path.to_string();
+
+    tokio::spawn(
+        task.run()
+            .instrument(tracing::info_span!("Modbus-Server-RTU", "port" = ?path)),
+    );
+
+    Ok(handle)
+}
+
+/// Creates an RTU server task, but does **not** spawn it or open the serial port.
+///
+/// It is the caller's responsibility to run the returned [`ServerTask`] on a runtime, e.g.
+/// `tokio::spawn(task.run())`.
+///
+/// * `path` - Path to the serial device. Generally `/dev/tty0` on Linux and `COM1` on Windows.
+/// * `settings` - Serial port settings
+/// * `retry` - A boxed trait object that controls when opening the serial port is retried after a failure
+/// * `handlers` - A map of handlers keyed by a unit id
+/// * `decode` - Decode log level
+#[cfg(feature = "serial")]
+pub fn create_rtu_server_task<T: RequestHandler>(
+    path: &str,
+    settings: crate::serial::SerialSettings,
+    retry: Box<dyn crate::retry::RetryStrategy>,
+    handlers: ServerHandlerMap<T>,
+    decode: DecodeLevel,
+) -> (ServerHandle, ServerTask<T>) {
     let (tx, rx) = tokio::sync::mpsc::channel(SERVER_SETTING_CHANNEL_CAPACITY);
     let session = crate::server::task::SessionTask::new(
         handlers,
@@ -119,24 +213,14 @@ pub fn spawn_rtu_server_task<T: RequestHandler>(
         decode,
     );
 
-    let mut rtu = crate::serial::server::RtuServerTask {
+    let rtu = crate::serial::server::RtuServerTask {
         port: path.to_string(),
         retry,
         settings,
         session,
     };
 
-    let path = path.to_string();
-
-    let task = async move {
-        rtu.run()
-            .instrument(tracing::info_span!("Modbus-Server-RTU", "port" = ?path))
-            .await
-    };
-
-    tokio::spawn(task);
-
-    Ok(ServerHandle::new(tx))
+    (ServerHandle::new(tx), ServerTask::rtu(rtu))
 }
 
 /// Spawns a "raw" TLS server task onto the runtime. This TLS server does NOT require that
@@ -172,6 +256,38 @@ pub async fn spawn_tls_server_task<T: RequestHandler>(
         decode,
     )
     .await
+}
+
+/// Creates a "raw" TLS server task for a pre-bound listener, but does **not** spawn it.
+///
+/// This TLS server does not require that the client certificate contain the Role extension and
+/// allows all operations for any authenticated client. It is the caller's responsibility to run
+/// the returned [`ServerTask`] on a runtime, e.g. `tokio::spawn(task.run())`.
+///
+/// * `max_sessions` - Maximum number of concurrent sessions
+/// * `listener` - A pre-bound TCP listener
+/// * `handlers` - A map of handlers keyed by a unit id
+/// * `tls_config` - TLS configuration
+/// * `filter` - Address filter which may be used to restrict the connecting IP address
+/// * `decode` - Decode log level
+#[cfg(feature = "enable-tls")]
+pub fn create_tls_server_task<T: RequestHandler>(
+    max_sessions: usize,
+    listener: tokio::net::TcpListener,
+    handlers: ServerHandlerMap<T>,
+    tls_config: TlsServerConfig,
+    filter: AddressFilter,
+    decode: DecodeLevel,
+) -> (ServerHandle, ServerTask<T>) {
+    create_tls_server_task_impl(
+        max_sessions,
+        listener,
+        handlers,
+        None,
+        tls_config,
+        filter,
+        decode,
+    )
 }
 
 /// Spawns a "Secure Modbus" TLS server task onto the runtime. This TLS server requires that
@@ -212,6 +328,40 @@ pub async fn spawn_tls_server_task_with_authz<T: RequestHandler>(
     .await
 }
 
+/// Creates a "Secure Modbus" TLS server task for a pre-bound listener, but does **not** spawn it.
+///
+/// This TLS server requires that the client certificate contain the Role extension and checks the
+/// authorization of requests against the supplied handler. It is the caller's responsibility to
+/// run the returned [`ServerTask`] on a runtime, e.g. `tokio::spawn(task.run())`.
+///
+/// * `max_sessions` - Maximum number of concurrent sessions
+/// * `listener` - A pre-bound TCP listener
+/// * `handlers` - A map of handlers keyed by a unit id
+/// * `auth_handler` - Handler used to authorize requests
+/// * `tls_config` - TLS configuration
+/// * `filter` - Address filter which may be used to restrict the connecting IP address
+/// * `decode` - Decode log level
+#[cfg(feature = "enable-tls")]
+pub fn create_tls_server_task_with_authz<T: RequestHandler>(
+    max_sessions: usize,
+    listener: tokio::net::TcpListener,
+    handlers: ServerHandlerMap<T>,
+    auth_handler: std::sync::Arc<dyn AuthorizationHandler>,
+    tls_config: TlsServerConfig,
+    filter: AddressFilter,
+    decode: DecodeLevel,
+) -> (ServerHandle, ServerTask<T>) {
+    create_tls_server_task_impl(
+        max_sessions,
+        listener,
+        handlers,
+        Some(auth_handler),
+        tls_config,
+        filter,
+        decode,
+    )
+}
+
 #[cfg(feature = "enable-tls")]
 async fn spawn_tls_server_task_impl<T: RequestHandler>(
     max_sessions: usize,
@@ -223,24 +373,43 @@ async fn spawn_tls_server_task_impl<T: RequestHandler>(
     decode: DecodeLevel,
 ) -> Result<ServerHandle, std::io::Error> {
     let listener = tokio::net::TcpListener::bind(addr).await?;
+    let (handle, task) = create_tls_server_task_impl(
+        max_sessions,
+        listener,
+        handlers,
+        auth_handler,
+        tls_config,
+        filter,
+        decode,
+    );
 
+    tokio::spawn(
+        task.run()
+            .instrument(tracing::info_span!("Modbus-Server-TLS", "listen" = ?addr)),
+    );
+
+    Ok(handle)
+}
+
+#[cfg(feature = "enable-tls")]
+fn create_tls_server_task_impl<T: RequestHandler>(
+    max_sessions: usize,
+    listener: tokio::net::TcpListener,
+    handlers: ServerHandlerMap<T>,
+    auth_handler: Option<std::sync::Arc<dyn AuthorizationHandler>>,
+    tls_config: TlsServerConfig,
+    filter: AddressFilter,
+    decode: DecodeLevel,
+) -> (ServerHandle, ServerTask<T>) {
     let (tx, rx) = tokio::sync::mpsc::channel(SERVER_SETTING_CHANNEL_CAPACITY);
+    let task = TcpServerTask::new(
+        max_sessions,
+        listener,
+        handlers,
+        TcpServerConnectionHandler::Tls(tls_config, auth_handler),
+        filter,
+        decode,
+    );
 
-    let task = async move {
-        ServerTask::new(
-            max_sessions,
-            listener,
-            handlers,
-            TcpServerConnectionHandler::Tls(tls_config, auth_handler),
-            filter,
-            decode,
-        )
-        .run(rx)
-        .instrument(tracing::info_span!("Modbus-Server-TLS", "listen" = ?addr))
-        .await
-    };
-
-    tokio::spawn(task);
-
-    Ok(ServerHandle::new(tx))
+    (ServerHandle::new(tx), ServerTask::tcp(task, rx))
 }
