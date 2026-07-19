@@ -115,17 +115,19 @@ impl RequestHandler for Handler {
 
 async fn test_requests_and_responses() {
     let handler = Handler::new().wrap();
-    let addr = SocketAddr::from_str("127.0.0.1:40000").unwrap();
+    let listener = tokio::net::TcpListener::bind(SocketAddr::from_str("127.0.0.1:0").unwrap())
+        .await
+        .unwrap();
+    let addr = listener.local_addr().unwrap();
 
-    let _server = spawn_tcp_server_task(
+    let (_server, task) = create_tcp_server_task(
         1,
-        addr,
+        listener,
         ServerHandlerMap::single(UnitId::new(1), handler.clone()),
         AddressFilter::Any,
         DecodeLevel::default(),
-    )
-    .await
-    .unwrap();
+    );
+    tokio::spawn(task.run());
 
     let (tx, mut rx) = tokio::sync::mpsc::channel(8);
     let listener = ClientStateListener { tx };
