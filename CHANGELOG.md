@@ -1,3 +1,6 @@
+### 1.6.0-M1 ###
+* :star: Add non-spawning `create_tcp_server_task()`, `create_rtu_server_task()`, `create_tls_server_task()`, and `create_tls_server_task_with_authz()` that return a `ServerTask` for the caller to spawn, enabling custom task instrumentation. See [#188](https://github.com/stepfunc/rodbus/pull/188).
+
 ### 1.5.0 ###
 * :star: Add non-spawning `create_tcp_client_task_with_options()`, `create_tls_client_task_with_options()`, and `create_rtu_client_task()` that return a `ClientTask` for the caller to spawn, enabling custom task instrumentation. See [#180](https://github.com/stepfunc/rodbus/pull/180).
 * :lock: Update `rustls-webpki` to 0.103.13 to resolve [RUSTSEC-2026-0098](https://rustsec.org/advisories/RUSTSEC-2026-0098.html), [RUSTSEC-2026-0099](https://rustsec.org/advisories/RUSTSEC-2026-0099.html), and [RUSTSEC-2026-0104](https://rustsec.org/advisories/RUSTSEC-2026-0104.html). The two name-constraint advisories (0098, 0099) are theoretically reachable during TLS handshake but require certificate misissuance to exploit; the CRL panic (0104) is unreachable as Rodbus does not use CRLs.
