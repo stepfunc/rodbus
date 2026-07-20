@@ -29,3 +29,6 @@ ffi/bindings/dotnet/nupkg
 /ffi/bindings/java/rodbus
 /ffi/bindings/java/rodbus-jni
 ffi/bindings/java/**/target
+
+# Generated CycloneDX SBOMs (produced by cargo-cyclonedx in CI/local runs)
+*.cdx.json
