@@ -126,7 +126,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let start = std::time::Instant::now();
 
     // spawn tasks that make requests for the specified duration
-    for (mut channel, params) in channels {
+    for (channel, params) in channels {
         let handle: tokio::task::JoinHandle<Result<usize, RequestError>> =
             tokio::spawn(async move {
                 let mut iterations = 0;

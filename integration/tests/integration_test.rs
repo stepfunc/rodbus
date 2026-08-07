@@ -132,7 +132,7 @@ async fn test_requests_and_responses() {
     let (tx, mut rx) = tokio::sync::mpsc::channel(8);
     let listener = ClientStateListener { tx };
 
-    let mut channel = spawn_tcp_client_task(
+    let channel = spawn_tcp_client_task(
         HostAddr::ip(addr.ip(), addr.port()),
         10,
         default_retry_strategy(),
