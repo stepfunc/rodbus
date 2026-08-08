@@ -1,3 +1,6 @@
+### 1.6.0-M2 ###
+* :wrench: Client `Channel` read/write methods and `set_decode_level()` now take `&self` instead of `&mut self`. These methods only send a command on an internal `mpsc::Sender` and mutate nothing, so the exclusive borrow overstated what the API actually requires. This is source-compatible for existing callers. See [#191](https://github.com/stepfunc/rodbus/pull/191).
+
 ### 1.6.0-M1 ###
 * :star: Add non-spawning `create_tcp_server_task()`, `create_rtu_server_task()`, `create_tls_server_task()`, and `create_tls_server_task_with_authz()` that return a `ServerTask` for the caller to spawn, enabling custom task instrumentation. See [#188](https://github.com/stepfunc/rodbus/pull/188).
 
