@@ -1,6 +1,6 @@
 [package]
 name = "example-perf"
-version = "1.6.0-M1"
+version = "1.6.0-M2"
 
 # inherit from workspace
 authors.workspace = true
