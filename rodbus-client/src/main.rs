@@ -275,16 +275,16 @@ async fn main() -> Result<(), Error> {
 async fn run() -> Result<(), Error> {
     let cli = Cli::parse();
 
-    let (mut channel, command) = setup_channel(cli.mode).await?;
+    let (channel, command) = setup_channel(cli.mode).await?;
 
     let params = RequestParam::new(UnitId::new(cli.id), REQUEST_TIMEOUT);
 
     match cli.period {
-        None => run_command(&command, &mut channel, params).await,
+        None => run_command(&command, &channel, params).await,
         Some(period_ms) => {
             let period = Duration::from_millis(period_ms);
             loop {
-                run_command(&command, &mut channel, params).await?;
+                run_command(&command, &channel, params).await?;
                 tokio::time::sleep(period).await
             }
         }
@@ -367,7 +367,7 @@ async fn setup_serial(path: String, settings: ModeSerialSettings) -> Result<Chan
 
 async fn run_command(
     command: &Command,
-    channel: &mut Channel,
+    channel: &Channel,
     params: RequestParam,
 ) -> Result<(), Error> {
     match command {

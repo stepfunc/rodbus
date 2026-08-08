@@ -432,7 +432,7 @@ mod tests {
 
     #[tokio::test]
     async fn returns_io_error_when_write_fails() {
-        let (mut channel, _task, mut io) = spawn_client_loop();
+        let (channel, _task, mut io) = spawn_client_loop();
 
         let error_kind = ErrorKind::ConnectionReset;
 
@@ -452,7 +452,7 @@ mod tests {
 
     #[tokio::test]
     async fn returns_timeout_when_no_response() {
-        let (mut channel, _task, mut io) = spawn_client_loop();
+        let (channel, _task, mut io) = spawn_client_loop();
 
         // the expected request
         let range = AddressRange::try_from(7, 2).unwrap();
@@ -479,7 +479,7 @@ mod tests {
 
     #[tokio::test]
     async fn returns_shutdown_when_task_dropped() {
-        let (mut channel, task, mut io) = spawn_client_loop();
+        let (channel, task, mut io) = spawn_client_loop();
 
         // the expected request
         let range = AddressRange::try_from(7, 2).unwrap();
@@ -517,7 +517,7 @@ mod tests {
 
     #[tokio::test]
     async fn transmit_read_coils_when_requested() {
-        let (mut channel, _task, mut io) = spawn_client_loop();
+        let (channel, _task, mut io) = spawn_client_loop();
 
         let range = AddressRange::try_from(7, 2).unwrap();
         let request = get_framed_adu(FunctionCode::ReadCoils, &range);
@@ -558,7 +558,7 @@ mod tests {
 
         // spawn 3 requests that will all timeout
         for _ in 0..3 {
-            let mut ch = channel.clone();
+            let ch = channel.clone();
             tokio::spawn(async move {
                 ch.read_coils(
                     RequestParam::new(UnitId::new(1), Duration::from_secs(1)),
@@ -588,7 +588,7 @@ mod tests {
 
         // send 10 requests that all timeout
         for _ in 0..10 {
-            let mut ch = channel.clone();
+            let ch = channel.clone();
             tokio::spawn(async move {
                 ch.read_coils(
                     RequestParam::new(UnitId::new(1), Duration::from_secs(1)),
@@ -620,7 +620,7 @@ mod tests {
 
         // First two timeouts
         for _ in 0..2 {
-            let mut ch = channel.clone();
+            let ch = channel.clone();
             tokio::spawn(async move {
                 ch.read_coils(
                     RequestParam::new(UnitId::new(1), Duration::from_secs(1)),
@@ -636,7 +636,7 @@ mod tests {
 
         // Successful request
         let success_task = tokio::spawn({
-            let mut ch = channel.clone();
+            let ch = channel.clone();
             async move {
                 ch.read_coils(
                     RequestParam::new(UnitId::new(1), Duration::from_secs(1)),
@@ -675,7 +675,7 @@ mod tests {
 
         // Two more timeouts - should NOT terminate since counter was reset
         for _ in 0..2 {
-            let mut ch = channel.clone();
+            let ch = channel.clone();
             tokio::spawn(async move {
                 ch.read_coils(
                     RequestParam::new(UnitId::new(1), Duration::from_secs(1)),

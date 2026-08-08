@@ -176,7 +176,7 @@ fn print_write_result<T>(result: Result<T, RequestError>) {
     }
 }
 
-async fn run_channel(mut channel: Channel) -> Result<(), Box<dyn std::error::Error>> {
+async fn run_channel(channel: Channel) -> Result<(), Box<dyn std::error::Error>> {
     channel.enable().await?;
 
     // ANCHOR: request_param

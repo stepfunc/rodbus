@@ -15,7 +15,7 @@
 //!#[tokio::main(flavor = "multi_thread")]
 //!async fn main() -> Result<(), Box<dyn std::error::Error>> {
 //!
-//!    let mut channel = spawn_tcp_client_task(
+//!    let channel = spawn_tcp_client_task(
 //!        HostAddr::ip("127.0.0.1".parse()?, 502),
 //!        10,
 //!        default_retry_strategy(),

@@ -146,7 +146,7 @@ impl Channel {
 
     /// Read coils from the server
     pub async fn read_coils(
-        &mut self,
+        &self,
         param: RequestParam,
         range: AddressRange,
     ) -> Result<Vec<Indexed<bool>>, RequestError> {
@@ -161,7 +161,7 @@ impl Channel {
 
     /// Read discrete inputs from the server
     pub async fn read_discrete_inputs(
-        &mut self,
+        &self,
         param: RequestParam,
         range: AddressRange,
     ) -> Result<Vec<Indexed<bool>>, RequestError> {
@@ -176,7 +176,7 @@ impl Channel {
 
     /// Read holding registers from the server
     pub async fn read_holding_registers(
-        &mut self,
+        &self,
         param: RequestParam,
         range: AddressRange,
     ) -> Result<Vec<Indexed<u16>>, RequestError> {
@@ -194,7 +194,7 @@ impl Channel {
 
     /// Read input registers from the server
     pub async fn read_input_registers(
-        &mut self,
+        &self,
         param: RequestParam,
         range: AddressRange,
     ) -> Result<Vec<Indexed<u16>>, RequestError> {
@@ -212,7 +212,7 @@ impl Channel {
 
     /// Write a single coil on the server
     pub async fn write_single_coil(
-        &mut self,
+        &self,
         param: RequestParam,
         request: Indexed<bool>,
     ) -> Result<Indexed<bool>, RequestError> {
@@ -227,7 +227,7 @@ impl Channel {
 
     /// Write a single register on the server
     pub async fn write_single_register(
-        &mut self,
+        &self,
         param: RequestParam,
         request: Indexed<u16>,
     ) -> Result<Indexed<u16>, RequestError> {
@@ -242,7 +242,7 @@ impl Channel {
 
     /// Write multiple contiguous coils on the server
     pub async fn write_multiple_coils(
-        &mut self,
+        &self,
         param: RequestParam,
         request: WriteMultiple<bool>,
     ) -> Result<AddressRange, RequestError> {
@@ -260,7 +260,7 @@ impl Channel {
 
     /// Write multiple contiguous registers on the server
     pub async fn write_multiple_registers(
-        &mut self,
+        &self,
         param: RequestParam,
         request: WriteMultiple<u16>,
     ) -> Result<AddressRange, RequestError> {
@@ -277,7 +277,7 @@ impl Channel {
     }
 
     /// Dynamically change the protocol decoding level of the channel
-    pub async fn set_decode_level(&mut self, level: DecodeLevel) -> Result<(), Shutdown> {
+    pub async fn set_decode_level(&self, level: DecodeLevel) -> Result<(), Shutdown> {
         self.tx
             .send(Command::Setting(Setting::DecodeLevel(level)))
             .await?;
