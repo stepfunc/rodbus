@@ -27,6 +27,10 @@ pub(crate) enum Command {
     Request(Request),
     /// Change a setting
     Setting(Setting),
+    /// Terminate the channel task
+    ///
+    /// Queued like any other command, so anything ahead of it is processed first
+    Shutdown,
 }
 
 pub(crate) struct Request {
