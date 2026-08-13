@@ -19,7 +19,8 @@ pub struct Channel {
 ///
 /// This is returned, alongside its [`Channel`] handle, by the `create_*_client_task` functions.
 /// Drive it to completion by awaiting [`ClientTask::run`], typically from within
-/// [`tokio::spawn`]. The task completes when the associated [`Channel`] handle is dropped.
+/// [`tokio::spawn`]. The task completes when every associated [`Channel`] handle is dropped or
+/// [`Channel::shutdown`] is called.
 ///
 /// Unlike the `spawn_*_client_task` functions, no tracing span is attached to the task, so the
 /// caller is free to wrap [`run`](ClientTask::run) with their own instrumentation.
@@ -47,7 +48,7 @@ impl ClientTask {
         }
     }
 
-    /// Run the channel task until the associated [`Channel`] handle is dropped.
+    /// Run the channel task until every [`Channel`] is dropped or [`Channel::shutdown`] is called.
     pub async fn run(self) {
         match self.inner {
             ClientTaskInner::Tcp(mut task) => {
@@ -141,6 +142,22 @@ impl Channel {
     /// Disable communications
     pub async fn disable(&self) -> Result<(), Shutdown> {
         self.tx.send(Command::Setting(Setting::Disable)).await?;
+        Ok(())
+    }
+
+    /// Terminate the channel task, however many [`Channel`] handles remain
+    ///
+    /// The task also terminates once every handle is dropped. This is for callers that cannot
+    /// guarantee that, such as one publishing a handle where it will outlive the task.
+    ///
+    /// The command is queued behind any pending requests, and a transaction already in flight
+    /// runs to completion, so the task ends within one response timeout of the last of them.
+    /// Requests made after this fail with [`RequestError::Shutdown`].
+    ///
+    /// This signals the task rather than waiting on it. Await [`ClientTask::run`] to observe it
+    /// finish. `Err(Shutdown)` means the task had already terminated.
+    pub async fn shutdown(&self) -> Result<(), Shutdown> {
+        self.tx.send(Command::Shutdown).await?;
         Ok(())
     }
 

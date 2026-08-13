@@ -75,6 +75,45 @@ impl TcpTaskConnectionHandler {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::maybe_async::MaybeAsync;
+    use crate::retry::default_retry_strategy;
+    use std::net::Ipv4Addr;
+
+    struct StateRecorder {
+        tx: tokio::sync::mpsc::UnboundedSender<ClientState>,
+    }
+
+    impl Listener<ClientState> for StateRecorder {
+        fn update(&mut self, value: ClientState) -> MaybeAsync<()> {
+            let _ = self.tx.send(value);
+            MaybeAsync::ready(())
+        }
+    }
+
+    #[tokio::test]
+    async fn reports_shutdown_state_when_shutdown_requested() {
+        let (tx, mut states) = tokio::sync::mpsc::unbounded_channel();
+        // the channel is never enabled, so the host is never dialed
+        let (channel, task) = create_tcp_channel(
+            HostAddr::ip(Ipv4Addr::LOCALHOST.into(), 502),
+            default_retry_strategy(),
+            Box::new(StateRecorder { tx }),
+            ClientOptions::default(),
+        );
+        let task = tokio::spawn(task.run());
+
+        channel.shutdown().await.unwrap();
+        task.await.unwrap();
+
+        // the task announced its own termination on the way out
+        assert_eq!(states.recv().await, Some(ClientState::Disabled));
+        assert_eq!(states.recv().await, Some(ClientState::Shutdown));
+    }
+}
+
 pub(crate) struct TcpChannelTask {
     host: HostAddr,
     connect_retry: Box<dyn RetryStrategy>,
