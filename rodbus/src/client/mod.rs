@@ -89,7 +89,8 @@ impl HostAddr {
 }
 
 /// Spawns a channel task onto the runtime that maintains a TCP connection and processes
-/// requests. The task completes when the returned channel handle is dropped.
+/// requests. The task completes when the returned channel handle is dropped or
+/// [`Channel::shutdown`] is called.
 ///
 /// The channel uses the provided [`RetryStrategy`] to pause between failed connection attempts
 ///
@@ -119,7 +120,8 @@ pub fn spawn_tcp_client_task(
 }
 
 /// Spawns a channel task onto the runtime that maintains a TCP connection and processes
-/// requests. The task completes when the returned channel handle is dropped.
+/// requests. The task completes when the returned channel handle is dropped or
+/// [`Channel::shutdown`] is called.
 ///
 /// The channel uses the provided [`RetryStrategy`] to pause between failed connection attempts
 ///
@@ -146,7 +148,7 @@ pub fn spawn_tcp_client_task_with_options(
 /// Creates a channel task that maintains a TCP connection and processes requests, but does
 /// **not** spawn it. It is the caller's responsibility to run the returned [`ClientTask`] onto a
 /// runtime, e.g. `tokio::spawn(task.run())`. The task completes when the returned [`Channel`]
-/// handle is dropped.
+/// handle is dropped or [`Channel::shutdown`] is called.
 ///
 /// Unlike [`spawn_tcp_client_task_with_options`], no tracing span is attached to the task, so the
 /// caller may wrap [`ClientTask::run`] with their own instrumentation before spawning it.
@@ -172,8 +174,8 @@ pub fn create_tcp_client_task_with_options(
 }
 
 /// Spawns a channel task onto the runtime that opens a serial port and processes
-/// requests. The task completes when the returned channel handle
-/// is dropped.
+/// requests. The task completes when the returned channel handle is dropped or
+/// [`Channel::shutdown`] is called.
 ///
 /// The channel uses the provided [`RetryStrategy`] to pause between failed attempts to open the
 /// serial port or after the serial port fails.
@@ -208,7 +210,7 @@ pub fn spawn_rtu_client_task(
 /// Creates a channel task that opens a serial port and processes requests, but does **not**
 /// spawn it. It is the caller's responsibility to run the returned [`ClientTask`] onto a runtime,
 /// e.g. `tokio::spawn(task.run())`. The task completes when the returned [`Channel`] handle is
-/// dropped.
+/// dropped or [`Channel::shutdown`] is called.
 ///
 /// Unlike [`spawn_rtu_client_task`], no tracing span is attached to the task, so the caller may
 /// wrap [`ClientTask::run`] with their own instrumentation before spawning it.
@@ -242,8 +244,8 @@ pub fn create_rtu_client_task(
 }
 
 /// Spawns a channel task onto the runtime that maintains a TLS connection and processes
-/// requests. The task completes when the returned channel handle
-/// is dropped.
+/// requests. The task completes when the returned channel handle is dropped or
+/// [`Channel::shutdown`] is called.
 ///
 /// The channel uses the provided [`RetryStrategy`] to pause between failed connection attempts
 ///
@@ -280,7 +282,7 @@ pub fn spawn_tls_client_task(
 /// Creates a channel task that maintains a TLS connection and processes requests, but does
 /// **not** spawn it. It is the caller's responsibility to run the returned [`ClientTask`] onto a
 /// runtime, e.g. `tokio::spawn(task.run())`. The task completes when the returned [`Channel`]
-/// handle is dropped.
+/// handle is dropped or [`Channel::shutdown`] is called.
 ///
 /// Unlike [`spawn_tls_client_task`], no tracing span is attached to the task, so the caller may
 /// wrap [`ClientTask::run`] with their own instrumentation before spawning it.

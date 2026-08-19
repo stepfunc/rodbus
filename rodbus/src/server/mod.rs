@@ -99,16 +99,7 @@ impl ServerHandle {
         Ok(())
     }
 
-    /// Terminate the server task, even if this [`ServerHandle`] is still alive
-    ///
-    /// The task also terminates once the handle is dropped. This is for callers that cannot
-    /// guarantee that, such as one publishing a handle where it will outlive the task.
-    ///
-    /// The command is queued behind any pending settings, so those are applied first. Active
-    /// sessions end as the task unwinds, the same as when the handle is dropped.
-    ///
-    /// This signals the task rather than waiting on it. Await [`ServerTask::run`] to observe it
-    /// finish. `Err(Shutdown)` means the task had already terminated.
+    /// Shut down the server task, even if this [`ServerHandle`] is still alive
     pub async fn shutdown(&self) -> Result<(), Shutdown> {
         self.tx.send(ServerSetting::Shutdown).await?;
         Ok(())

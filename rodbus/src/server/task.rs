@@ -18,9 +18,7 @@ use std::sync::Arc;
 #[derive(Copy, Clone)]
 pub enum ServerSetting {
     ChangeDecoding(DecodeLevel),
-    /// Terminate the server task
-    ///
-    /// Queued like any other setting, so anything ahead of it is applied first
+    /// Shut down the server task
     Shutdown,
 }
 
@@ -138,7 +136,7 @@ where
         }
     }
 
-    /// Apply a setting, or report that the task was asked to terminate
+    /// Apply a setting, returning `Err(Shutdown)` if the session should complete
     fn apply_setting(&mut self, setting: ServerSetting) -> Result<(), Shutdown> {
         match setting {
             ServerSetting::ChangeDecoding(level) => {

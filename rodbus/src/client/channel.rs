@@ -9,7 +9,8 @@ use crate::error::*;
 use crate::types::{AddressRange, BitIterator, Indexed, RegisterIterator, UnitId};
 use crate::DecodeLevel;
 
-/// Async channel used to make requests
+/// Async channel used to make requests. The task is shutdown when every handle is dropped or
+/// [`Channel::shutdown`] is called.
 #[derive(Debug, Clone)]
 pub struct Channel {
     pub(crate) tx: tokio::sync::mpsc::Sender<Command>,
@@ -48,7 +49,8 @@ impl ClientTask {
         }
     }
 
-    /// Run the channel task until every [`Channel`] is dropped or [`Channel::shutdown`] is called.
+    /// Run the channel task until every [`Channel`] handle is dropped or [`Channel::shutdown`] is
+    /// called.
     pub async fn run(self) {
         match self.inner {
             ClientTaskInner::Tcp(mut task) => {
@@ -145,17 +147,7 @@ impl Channel {
         Ok(())
     }
 
-    /// Terminate the channel task, however many [`Channel`] handles remain
-    ///
-    /// The task also terminates once every handle is dropped. This is for callers that cannot
-    /// guarantee that, such as one publishing a handle where it will outlive the task.
-    ///
-    /// The command is queued behind any pending requests, and a transaction already in flight
-    /// runs to completion, so the task ends within one response timeout of the last of them.
-    /// Requests made after this fail with [`RequestError::Shutdown`].
-    ///
-    /// This signals the task rather than waiting on it. Await [`ClientTask::run`] to observe it
-    /// finish. `Err(Shutdown)` means the task had already terminated.
+    /// Shut down the channel task, even if one or more [`Channel`] handles are still alive
     pub async fn shutdown(&self) -> Result<(), Shutdown> {
         self.tx.send(Command::Shutdown).await?;
         Ok(())
