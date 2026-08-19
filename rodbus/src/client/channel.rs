@@ -9,8 +9,8 @@ use crate::error::*;
 use crate::types::{AddressRange, BitIterator, Indexed, RegisterIterator, UnitId};
 use crate::DecodeLevel;
 
-/// Async channel used to make requests. The task is shutdown when every handle is dropped or
-/// [`Channel::shutdown`] is called.
+/// Async channel used to make requests. The associated task is shutdown when every handle is
+/// dropped or [`Channel::shutdown`] is called.
 #[derive(Debug, Clone)]
 pub struct Channel {
     pub(crate) tx: tokio::sync::mpsc::Sender<Command>,
@@ -147,7 +147,9 @@ impl Channel {
         Ok(())
     }
 
-    /// Shut down the channel task, even if one or more [`Channel`] handles are still alive
+    /// Begin shutting down the channel task, even if one or more [`Channel`] handles are still alive
+    ///
+    /// The task completes when it processes the command, which may be after this returns
     pub async fn shutdown(&self) -> Result<(), Shutdown> {
         self.tx.send(Command::Shutdown).await?;
         Ok(())

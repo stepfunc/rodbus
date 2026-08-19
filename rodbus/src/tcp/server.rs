@@ -6,7 +6,7 @@ use crate::common::frame::{FrameWriter, FramedReader};
 use crate::common::phys::PhysLayer;
 use crate::decode::DecodeLevel;
 use crate::server::handler::{RequestHandler, ServerHandlerMap};
-use crate::server::task::{AuthorizationType, ServerSetting};
+use crate::server::task::{AuthorizationType, ServerCommand};
 
 use crate::server::AddressFilter;
 use std::net::SocketAddr;
@@ -21,7 +21,7 @@ struct SessionClose(u128);
 struct SessionTracker {
     max_sessions: usize,
     id: u128,
-    sessions: BTreeMap<u128, tokio::sync::mpsc::Sender<ServerSetting>>,
+    sessions: BTreeMap<u128, tokio::sync::mpsc::Sender<ServerCommand>>,
 }
 
 impl SessionTracker {
@@ -45,7 +45,7 @@ impl SessionTracker {
         ret
     }
 
-    pub(crate) fn add(&mut self, sender: tokio::sync::mpsc::Sender<ServerSetting>) -> u128 {
+    pub(crate) fn add(&mut self, sender: tokio::sync::mpsc::Sender<ServerCommand>) -> u128 {
         if self.sessions.len() >= self.max_sessions {
             if let Some(oldest) = self.sessions.keys().next().copied() {
                 tracing::warn!(
@@ -134,35 +134,35 @@ where
         }
     }
 
-    async fn change_setting(&mut self, setting: ServerSetting) {
+    async fn apply_command(&mut self, command: ServerCommand) {
         // first, change it locally so that it is applied to new sessions
-        match setting {
-            ServerSetting::ChangeDecoding(level) => {
+        match command {
+            ServerCommand::ChangeDecoding(level) => {
                 tracing::info!("changed decoding level to {:?}", level);
                 self.decode = level;
             }
             // handled by the caller, which returns instead of forwarding it to the sessions
-            ServerSetting::Shutdown => return,
+            ServerCommand::Shutdown => return,
         }
 
         for sender in self.tracker.sessions.values_mut() {
-            // best effort to send the setting to each session this isn't critical so we wouldn't
+            // best effort to send the command to each session this isn't critical so we wouldn't
             // want to slow the server down by awaiting it
-            let _ = sender.send(setting).await;
+            let _ = sender.send(command).await;
         }
     }
 
-    pub(crate) async fn run(&mut self, mut commands: tokio::sync::mpsc::Receiver<ServerSetting>) {
+    pub(crate) async fn run(&mut self, mut commands: tokio::sync::mpsc::Receiver<ServerCommand>) {
         loop {
             tokio::select! {
-               setting = commands.recv() => {
-                    match setting {
+               command = commands.recv() => {
+                    match command {
                         // dropping the tracker ends every session, just as dropping the handle does
-                        Some(ServerSetting::Shutdown) => {
+                        Some(ServerCommand::Shutdown) => {
                             tracing::info!("server shutdown requested");
                             return;
                         }
-                        Some(setting) => self.change_setting(setting).await,
+                        Some(command) => self.apply_command(command).await,
                         None => {
                             tracing::info!("server shutdown");
                             return; // shutdown signal
@@ -243,7 +243,7 @@ async fn run_session<T: RequestHandler>(
     mut handler: TcpServerConnectionHandler,
     decode: DecodeLevel,
     handlers: ServerHandlerMap<T>,
-    commands: tokio::sync::mpsc::Receiver<ServerSetting>,
+    commands: tokio::sync::mpsc::Receiver<ServerCommand>,
 ) {
     match handler.handle(socket).await {
         Err(err) => {
