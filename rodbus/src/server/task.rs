@@ -18,6 +18,10 @@ use std::sync::Arc;
 #[derive(Copy, Clone)]
 pub enum ServerSetting {
     ChangeDecoding(DecodeLevel),
+    /// Terminate the server task
+    ///
+    /// Queued like any other setting, so anything ahead of it is applied first
+    Shutdown,
 }
 
 pub(crate) struct SessionTask<T>
@@ -108,7 +112,9 @@ where
             match self.commands.recv().await {
                 None => return Shutdown,
                 Some(setting) => {
-                    self.apply_setting(setting);
+                    if self.apply_setting(setting).is_err() {
+                        return Shutdown;
+                    }
                 }
             }
         }
@@ -123,20 +129,23 @@ where
             cmd = self.commands.recv() => {
                match cmd {
                     None => Err(crate::error::RequestError::Shutdown),
-                    Some(setting) => {
-                        self.apply_setting(setting);
-                        Ok(())
-                    }
+                    Some(setting) => match self.apply_setting(setting) {
+                        Ok(()) => Ok(()),
+                        Err(Shutdown) => Err(crate::error::RequestError::Shutdown),
+                    },
                }
             }
         }
     }
 
-    fn apply_setting(&mut self, setting: ServerSetting) {
+    /// Apply a setting, or report that the task was asked to terminate
+    fn apply_setting(&mut self, setting: ServerSetting) -> Result<(), Shutdown> {
         match setting {
             ServerSetting::ChangeDecoding(level) => {
                 self.decode = level;
+                Ok(())
             }
+            ServerSetting::Shutdown => Err(Shutdown),
         }
     }
 
@@ -230,6 +239,44 @@ where
         }
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::server::ServerHandle;
+
+    struct DefaultHandler;
+    impl RequestHandler for DefaultHandler {}
+
+    #[tokio::test]
+    async fn session_ends_when_shutdown_requested_with_the_handle_still_alive() {
+        // the session reads settings straight from the handle on the RTU path
+        let (tx, rx) = tokio::sync::mpsc::channel(8);
+        let (mock, _io) = sfio_tokio_mock_io::mock();
+        let mut session = SessionTask::new(
+            ServerHandlerMap::single(UnitId::new(1), DefaultHandler.wrap()),
+            AuthorizationType::None,
+            FrameWriter::tcp(),
+            FramedReader::tcp(),
+            rx,
+            DecodeLevel::nothing(),
+        );
+        let handle = ServerHandle::new(tx);
+
+        // the mock never yields a frame, so the loop is parked on the command queue
+        let task = tokio::spawn(async move {
+            let mut phys = PhysLayer::new_mock(mock);
+            session.run(&mut phys).await
+        });
+
+        handle.shutdown().await.unwrap();
+
+        assert_eq!(task.await.unwrap(), RequestError::Shutdown);
+
+        // the handle outlived the session it terminated, and now reports that it is gone
+        assert!(handle.shutdown().await.is_err());
     }
 }
 

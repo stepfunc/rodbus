@@ -141,6 +141,8 @@ where
                 tracing::info!("changed decoding level to {:?}", level);
                 self.decode = level;
             }
+            // handled by the caller, which returns instead of forwarding it to the sessions
+            ServerSetting::Shutdown => return,
         }
 
         for sender in self.tracker.sessions.values_mut() {
@@ -155,6 +157,11 @@ where
             tokio::select! {
                setting = commands.recv() => {
                     match setting {
+                        // dropping the tracker ends every session, just as dropping the handle does
+                        Some(ServerSetting::Shutdown) => {
+                            tracing::info!("server shutdown requested");
+                            return;
+                        }
                         Some(setting) => self.change_setting(setting).await,
                         None => {
                             tracing::info!("server shutdown");
@@ -227,6 +234,36 @@ where
 
         // spawn the session off onto another task
         tokio::spawn(session);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::server::create_tcp_server_task;
+    use crate::UnitId;
+
+    struct DefaultHandler;
+    impl RequestHandler for DefaultHandler {}
+
+    #[tokio::test]
+    async fn task_ends_when_shutdown_requested_with_the_handle_still_alive() {
+        // bound but never connected to: shutdown is a queued command, not something on the wire
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let (handle, task) = create_tcp_server_task(
+            1,
+            listener,
+            ServerHandlerMap::single(UnitId::new(1), DefaultHandler.wrap()),
+            AddressFilter::Any,
+            DecodeLevel::nothing(),
+        );
+        let task = tokio::spawn(task.run());
+
+        handle.shutdown().await.unwrap();
+        task.await.unwrap();
+
+        // the handle outlived the task it terminated, and now reports that it is gone
+        assert!(handle.shutdown().await.is_err());
     }
 }
 

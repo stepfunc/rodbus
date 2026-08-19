@@ -29,7 +29,8 @@ pub use crate::tcp::tls::server::TlsServerConfig;
 #[cfg(feature = "enable-tls")]
 pub use crate::tcp::tls::*;
 
-/// Handle to the server async task. The task is shutdown when the handle is dropped.
+/// Handle to the server async task. The task is shutdown when the handle is dropped or
+/// [`ServerHandle::shutdown`] is called.
 #[derive(Debug)]
 pub struct ServerHandle {
     tx: tokio::sync::mpsc::Sender<ServerSetting>,
@@ -39,7 +40,8 @@ pub struct ServerHandle {
 ///
 /// This is returned, alongside its [`ServerHandle`], by the `create_*_server_task` functions.
 /// Drive it to completion by awaiting [`ServerTask::run`], typically from within
-/// [`tokio::spawn`]. The task completes when the associated [`ServerHandle`] is dropped.
+/// [`tokio::spawn`]. The task completes when the associated [`ServerHandle`] is dropped or
+/// [`ServerHandle::shutdown`] is called.
 ///
 /// Unlike the `spawn_*_server_task` functions, no tracing span is attached to the task, so the
 /// caller is free to wrap [`run`](ServerTask::run) with their own instrumentation.
@@ -70,7 +72,8 @@ impl<T: RequestHandler> ServerTask<T> {
         }
     }
 
-    /// Run the server task until the associated [`ServerHandle`] is dropped.
+    /// Run the server task until the [`ServerHandle`] is dropped or
+    /// [`ServerHandle::shutdown`] is called.
     pub async fn run(self) {
         match self.inner {
             ServerTaskInner::Tcp(mut task, commands) => task.run(commands).await,
@@ -93,6 +96,21 @@ impl ServerHandle {
     /// Change the decoding level for future sessions and all active sessions
     pub async fn set_decode_level(&mut self, level: DecodeLevel) -> Result<(), Shutdown> {
         self.tx.send(ServerSetting::ChangeDecoding(level)).await?;
+        Ok(())
+    }
+
+    /// Terminate the server task, even if this [`ServerHandle`] is still alive
+    ///
+    /// The task also terminates once the handle is dropped. This is for callers that cannot
+    /// guarantee that, such as one publishing a handle where it will outlive the task.
+    ///
+    /// The command is queued behind any pending settings, so those are applied first. Active
+    /// sessions end as the task unwinds, the same as when the handle is dropped.
+    ///
+    /// This signals the task rather than waiting on it. Await [`ServerTask::run`] to observe it
+    /// finish. `Err(Shutdown)` means the task had already terminated.
+    pub async fn shutdown(&self) -> Result<(), Shutdown> {
+        self.tx.send(ServerSetting::Shutdown).await?;
         Ok(())
     }
 }
