@@ -440,7 +440,7 @@ mod tests {
         assert_eq!(task.await.unwrap(), SessionError::Shutdown);
 
         // the handle outlived the task it terminated, and now reports that it is gone
-        assert!(channel.shutdown().await.is_err());
+        assert_eq!(channel.shutdown().await, Err(Shutdown));
         let res = channel
             .read_coils(
                 RequestParam::new(UnitId::new(1), Duration::from_secs(1)),

@@ -237,36 +237,6 @@ where
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::server::create_tcp_server_task;
-    use crate::UnitId;
-
-    struct DefaultHandler;
-    impl RequestHandler for DefaultHandler {}
-
-    #[tokio::test]
-    async fn task_ends_when_shutdown_requested_with_the_handle_still_alive() {
-        // bound but never connected to: shutdown is a queued command, not something on the wire
-        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
-        let (handle, task) = create_tcp_server_task(
-            1,
-            listener,
-            ServerHandlerMap::single(UnitId::new(1), DefaultHandler.wrap()),
-            AddressFilter::Any,
-            DecodeLevel::nothing(),
-        );
-        let task = tokio::spawn(task.run());
-
-        handle.shutdown().await.unwrap();
-        task.await.unwrap();
-
-        // the handle outlived the task it terminated, and now reports that it is gone
-        assert!(handle.shutdown().await.is_err());
-    }
-}
-
 async fn run_session<T: RequestHandler>(
     socket: tokio::net::TcpStream,
     addr: SocketAddr,
@@ -291,5 +261,36 @@ async fn run_session<T: RequestHandler>(
             .run(&mut phys)
             .await;
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::error::Shutdown;
+    use crate::server::create_tcp_server_task;
+    use crate::UnitId;
+
+    struct DefaultHandler;
+    impl RequestHandler for DefaultHandler {}
+
+    #[tokio::test]
+    async fn task_ends_when_shutdown_requested_with_the_handle_still_alive() {
+        // bound but never connected to: shutdown is a queued command, not something on the wire
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let (handle, task) = create_tcp_server_task(
+            1,
+            listener,
+            ServerHandlerMap::single(UnitId::new(1), DefaultHandler.wrap()),
+            AddressFilter::Any,
+            DecodeLevel::nothing(),
+        );
+        let task = tokio::spawn(task.run());
+
+        handle.shutdown().await.unwrap();
+        task.await.unwrap();
+
+        // the handle outlived the task it terminated, and now reports that it is gone
+        assert_eq!(handle.shutdown().await, Err(Shutdown));
     }
 }

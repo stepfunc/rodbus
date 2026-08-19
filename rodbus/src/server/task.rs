@@ -240,44 +240,6 @@ where
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::server::ServerHandle;
-
-    struct DefaultHandler;
-    impl RequestHandler for DefaultHandler {}
-
-    #[tokio::test]
-    async fn session_ends_when_shutdown_requested_with_the_handle_still_alive() {
-        // the session reads settings straight from the handle on the RTU path
-        let (tx, rx) = tokio::sync::mpsc::channel(8);
-        let (mock, _io) = sfio_tokio_mock_io::mock();
-        let mut session = SessionTask::new(
-            ServerHandlerMap::single(UnitId::new(1), DefaultHandler.wrap()),
-            AuthorizationType::None,
-            FrameWriter::tcp(),
-            FramedReader::tcp(),
-            rx,
-            DecodeLevel::nothing(),
-        );
-        let handle = ServerHandle::new(tx);
-
-        // the mock never yields a frame, so the loop is parked on the command queue
-        let task = tokio::spawn(async move {
-            let mut phys = PhysLayer::new_mock(mock);
-            session.run(&mut phys).await
-        });
-
-        handle.shutdown().await.unwrap();
-
-        assert_eq!(task.await.unwrap(), RequestError::Shutdown);
-
-        // the handle outlived the session it terminated, and now reports that it is gone
-        assert!(handle.shutdown().await.is_err());
-    }
-}
-
 /// Determines how authorization of user defined requests are handled
 pub(crate) enum AuthorizationType {
     /// Requests do not require authorization checks (TCP / RTU)
@@ -327,5 +289,43 @@ impl AuthorizationType {
                 result
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::server::ServerHandle;
+
+    struct DefaultHandler;
+    impl RequestHandler for DefaultHandler {}
+
+    #[tokio::test]
+    async fn session_ends_when_shutdown_requested_with_the_handle_still_alive() {
+        // the session reads settings straight from the handle on the RTU path
+        let (tx, rx) = tokio::sync::mpsc::channel(8);
+        let (mock, _io) = sfio_tokio_mock_io::mock();
+        let mut session = SessionTask::new(
+            ServerHandlerMap::single(UnitId::new(1), DefaultHandler.wrap()),
+            AuthorizationType::None,
+            FrameWriter::tcp(),
+            FramedReader::tcp(),
+            rx,
+            DecodeLevel::nothing(),
+        );
+        let handle = ServerHandle::new(tx);
+
+        // the mock never yields a frame, so the loop is parked on the command queue
+        let task = tokio::spawn(async move {
+            let mut phys = PhysLayer::new_mock(mock);
+            session.run(&mut phys).await
+        });
+
+        handle.shutdown().await.unwrap();
+
+        assert_eq!(task.await.unwrap(), RequestError::Shutdown);
+
+        // the handle outlived the session it terminated, and now reports that it is gone
+        assert_eq!(handle.shutdown().await, Err(Shutdown));
     }
 }
