@@ -9,7 +9,8 @@ use crate::error::*;
 use crate::types::{AddressRange, BitIterator, Indexed, RegisterIterator, UnitId};
 use crate::DecodeLevel;
 
-/// Async channel used to make requests
+/// Async channel used to make requests. The associated task is shutdown when every handle is
+/// dropped or [`Channel::shutdown`] is called.
 #[derive(Debug, Clone)]
 pub struct Channel {
     pub(crate) tx: tokio::sync::mpsc::Sender<Command>,
@@ -19,7 +20,8 @@ pub struct Channel {
 ///
 /// This is returned, alongside its [`Channel`] handle, by the `create_*_client_task` functions.
 /// Drive it to completion by awaiting [`ClientTask::run`], typically from within
-/// [`tokio::spawn`]. The task completes when the associated [`Channel`] handle is dropped.
+/// [`tokio::spawn`]. The task completes when every associated [`Channel`] handle is dropped or
+/// [`Channel::shutdown`] is called.
 ///
 /// Unlike the `spawn_*_client_task` functions, no tracing span is attached to the task, so the
 /// caller is free to wrap [`run`](ClientTask::run) with their own instrumentation.
@@ -47,7 +49,8 @@ impl ClientTask {
         }
     }
 
-    /// Run the channel task until the associated [`Channel`] handle is dropped.
+    /// Run the channel task until every [`Channel`] handle is dropped or [`Channel::shutdown`] is
+    /// called.
     pub async fn run(self) {
         match self.inner {
             ClientTaskInner::Tcp(mut task) => {
@@ -141,6 +144,14 @@ impl Channel {
     /// Disable communications
     pub async fn disable(&self) -> Result<(), Shutdown> {
         self.tx.send(Command::Setting(Setting::Disable)).await?;
+        Ok(())
+    }
+
+    /// Begin shutting down the channel task, even if one or more [`Channel`] handles are still alive
+    ///
+    /// The task completes when it processes the command, which may be after this returns
+    pub async fn shutdown(&self) -> Result<(), Shutdown> {
+        self.tx.send(Command::Shutdown).await?;
         Ok(())
     }
 

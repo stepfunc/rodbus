@@ -14,10 +14,13 @@ use crate::server::request::{Request, RequestDisplay};
 use scursor::ReadCursor;
 use std::sync::Arc;
 
-/// Messages that can be sent to change server settings dynamically
+/// Commands that can be sent to a running server task
 #[derive(Copy, Clone)]
-pub enum ServerSetting {
+pub enum ServerCommand {
+    /// Change the decoding level dynamically
     ChangeDecoding(DecodeLevel),
+    /// Shut down the server task
+    Shutdown,
 }
 
 pub(crate) struct SessionTask<T>
@@ -26,7 +29,7 @@ where
 {
     handlers: ServerHandlerMap<T>,
     auth: AuthorizationType,
-    commands: tokio::sync::mpsc::Receiver<ServerSetting>,
+    commands: tokio::sync::mpsc::Receiver<ServerCommand>,
     writer: FrameWriter,
     reader: FramedReader,
     decode: DecodeLevel,
@@ -41,7 +44,7 @@ where
         auth: AuthorizationType,
         writer: FrameWriter,
         reader: FramedReader,
-        commands: tokio::sync::mpsc::Receiver<ServerSetting>,
+        commands: tokio::sync::mpsc::Receiver<ServerCommand>,
         decode: DecodeLevel,
     ) -> Self {
         Self {
@@ -94,7 +97,7 @@ where
         &mut self,
         duration: std::time::Duration,
     ) -> Result<(), Shutdown> {
-        match tokio::time::timeout(duration, self.process_settings()).await {
+        match tokio::time::timeout(duration, self.process_commands()).await {
             // mpsc closed
             Ok(_) => Err(Shutdown),
             // timeout elapsed
@@ -103,12 +106,14 @@ where
     }
 
     #[cfg(feature = "serial")]
-    async fn process_settings(&mut self) -> Shutdown {
+    async fn process_commands(&mut self) -> Shutdown {
         loop {
             match self.commands.recv().await {
                 None => return Shutdown,
-                Some(setting) => {
-                    self.apply_setting(setting);
+                Some(command) => {
+                    if self.apply_command(command).is_err() {
+                        return Shutdown;
+                    }
                 }
             }
         }
@@ -123,20 +128,23 @@ where
             cmd = self.commands.recv() => {
                match cmd {
                     None => Err(crate::error::RequestError::Shutdown),
-                    Some(setting) => {
-                        self.apply_setting(setting);
-                        Ok(())
-                    }
+                    Some(command) => match self.apply_command(command) {
+                        Ok(()) => Ok(()),
+                        Err(Shutdown) => Err(crate::error::RequestError::Shutdown),
+                    },
                }
             }
         }
     }
 
-    fn apply_setting(&mut self, setting: ServerSetting) {
-        match setting {
-            ServerSetting::ChangeDecoding(level) => {
+    /// Apply a command, returning `Err(Shutdown)` if the session should complete
+    fn apply_command(&mut self, command: ServerCommand) -> Result<(), Shutdown> {
+        match command {
+            ServerCommand::ChangeDecoding(level) => {
                 self.decode = level;
+                Ok(())
             }
+            ServerCommand::Shutdown => Err(Shutdown),
         }
     }
 
@@ -282,5 +290,43 @@ impl AuthorizationType {
                 result
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::server::ServerHandle;
+
+    struct DefaultHandler;
+    impl RequestHandler for DefaultHandler {}
+
+    #[tokio::test]
+    async fn session_ends_when_shutdown_requested_with_the_handle_still_alive() {
+        // the session reads commands straight from the handle on the RTU path
+        let (tx, rx) = tokio::sync::mpsc::channel(8);
+        let (mock, _io) = sfio_tokio_mock_io::mock();
+        let mut session = SessionTask::new(
+            ServerHandlerMap::single(UnitId::new(1), DefaultHandler.wrap()),
+            AuthorizationType::None,
+            FrameWriter::tcp(),
+            FramedReader::tcp(),
+            rx,
+            DecodeLevel::nothing(),
+        );
+        let handle = ServerHandle::new(tx);
+
+        // the mock never yields a frame, so the loop is parked on the command queue
+        let task = tokio::spawn(async move {
+            let mut phys = PhysLayer::new_mock(mock);
+            session.run(&mut phys).await
+        });
+
+        handle.shutdown().await.unwrap();
+
+        assert_eq!(task.await.unwrap(), RequestError::Shutdown);
+
+        // the handle outlived the session it terminated, and now reports that it is gone
+        assert_eq!(handle.shutdown().await, Err(Shutdown));
     }
 }

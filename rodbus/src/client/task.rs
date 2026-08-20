@@ -168,6 +168,7 @@ impl ClientLoop {
                 Ok(())
             }
             Command::Request(mut request) => self.run_one_request(io, &mut request).await,
+            Command::Shutdown => Err(SessionError::Shutdown),
         }
     }
 
@@ -336,6 +337,7 @@ impl ClientLoop {
                     Err(StateChange::Disable)
                 }
             }
+            Command::Shutdown => Err(StateChange::Shutdown),
         }
     }
 
@@ -428,6 +430,83 @@ mod tests {
         let (channel, task, _io) = spawn_client_loop();
         drop(channel);
         assert_eq!(task.await.unwrap(), SessionError::Shutdown);
+    }
+
+    #[tokio::test]
+    async fn task_completes_when_shutdown_requested_with_a_handle_still_alive() {
+        let (channel, task, _io) = spawn_client_loop();
+
+        channel.shutdown().await.unwrap();
+        assert_eq!(task.await.unwrap(), SessionError::Shutdown);
+
+        // the handle outlived the task it terminated, and now reports that it is gone
+        assert_eq!(channel.shutdown().await, Err(Shutdown));
+        let res = channel
+            .read_coils(
+                RequestParam::new(UnitId::new(1), Duration::from_secs(1)),
+                AddressRange::try_from(7, 2).unwrap(),
+            )
+            .await;
+        assert_eq!(res, Err(RequestError::Shutdown));
+    }
+
+    #[tokio::test]
+    async fn transaction_in_flight_completes_before_requested_shutdown() {
+        let (channel, task, mut io) = spawn_client_loop();
+        let other_handle = channel.clone();
+
+        let range = AddressRange::try_from(7, 2).unwrap();
+        let request = get_framed_adu(FunctionCode::ReadCoils, &range);
+        let response = get_framed_adu(
+            FunctionCode::ReadCoils,
+            &BitWriter::new(ReadBitsRange { inner: range }, |idx| match idx {
+                7 => Ok(true),
+                8 => Ok(false),
+                _ => Err(ExceptionCode::IllegalDataAddress),
+            }),
+        );
+
+        let coils = tokio::spawn(async move {
+            channel
+                .read_coils(
+                    RequestParam::new(UnitId::new(1), Duration::from_secs(1)),
+                    range,
+                )
+                .await
+        });
+
+        // the request is on the wire, so the loop is inside a transaction
+        assert_eq!(io.next_event().await, Event::Write(request));
+
+        // shutdown queues behind that transaction rather than interrupting it
+        other_handle.shutdown().await.unwrap();
+        io.read(&response);
+
+        assert_eq!(
+            coils.await.unwrap().unwrap(),
+            vec![Indexed::new(7, true), Indexed::new(8, false)]
+        );
+        assert_eq!(task.await.unwrap(), SessionError::Shutdown);
+    }
+
+    #[tokio::test]
+    async fn shutdown_ends_the_task_while_it_is_failing_requests() {
+        // fail_requests() is the path taken while disconnected or waiting to retry, which reads
+        // the queue separately from the session loop and so needs its own handling
+        let (tx, rx) = tokio::sync::mpsc::channel(16);
+        let mut client_loop = ClientLoop::new(
+            rx.into(),
+            FrameWriter::tcp(),
+            FramedReader::tcp(),
+            DecodeLevel::nothing(),
+            None,
+        );
+        let channel = Channel { tx };
+
+        let task = tokio::spawn(async move { client_loop.fail_requests().await });
+        channel.shutdown().await.unwrap();
+
+        assert_eq!(task.await.unwrap(), StateChange::Shutdown);
     }
 
     #[tokio::test]
