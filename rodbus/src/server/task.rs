@@ -16,11 +16,9 @@ use std::sync::Arc;
 
 /// Commands that can be sent to a running server task
 #[derive(Copy, Clone)]
-pub enum ServerCommand {
+pub(crate) enum ServerCommand {
     /// Change the decoding level dynamically
     ChangeDecoding(DecodeLevel),
-    /// Shut down the server task
-    Shutdown,
 }
 
 pub(crate) struct SessionTask<T>
@@ -110,11 +108,7 @@ where
         loop {
             match self.commands.recv().await {
                 None => return Shutdown,
-                Some(command) => {
-                    if self.apply_command(command).is_err() {
-                        return Shutdown;
-                    }
-                }
+                Some(command) => self.apply_command(command),
             }
         }
     }
@@ -128,23 +122,18 @@ where
             cmd = self.commands.recv() => {
                match cmd {
                     None => Err(crate::error::RequestError::Shutdown),
-                    Some(command) => match self.apply_command(command) {
-                        Ok(()) => Ok(()),
-                        Err(Shutdown) => Err(crate::error::RequestError::Shutdown),
-                    },
+                    Some(command) => {
+                        self.apply_command(command);
+                        Ok(())
+                    }
                }
             }
         }
     }
 
-    /// Apply a command, returning `Err(Shutdown)` if the session should complete
-    fn apply_command(&mut self, command: ServerCommand) -> Result<(), Shutdown> {
+    fn apply_command(&mut self, command: ServerCommand) {
         match command {
-            ServerCommand::ChangeDecoding(level) => {
-                self.decode = level;
-                Ok(())
-            }
-            ServerCommand::Shutdown => Err(Shutdown),
+            ServerCommand::ChangeDecoding(level) => self.decode = level,
         }
     }
 
@@ -290,43 +279,5 @@ impl AuthorizationType {
                 result
             }
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::server::ServerHandle;
-
-    struct DefaultHandler;
-    impl RequestHandler for DefaultHandler {}
-
-    #[tokio::test]
-    async fn session_ends_when_shutdown_requested_with_the_handle_still_alive() {
-        // the session reads commands straight from the handle on the RTU path
-        let (tx, rx) = tokio::sync::mpsc::channel(8);
-        let (mock, _io) = sfio_tokio_mock_io::mock();
-        let mut session = SessionTask::new(
-            ServerHandlerMap::single(UnitId::new(1), DefaultHandler.wrap()),
-            AuthorizationType::None,
-            FrameWriter::tcp(),
-            FramedReader::tcp(),
-            rx,
-            DecodeLevel::nothing(),
-        );
-        let handle = ServerHandle::new(tx);
-
-        // the mock never yields a frame, so the loop is parked on the command queue
-        let task = tokio::spawn(async move {
-            let mut phys = PhysLayer::new_mock(mock);
-            session.run(&mut phys).await
-        });
-
-        handle.shutdown().await.unwrap();
-
-        assert_eq!(task.await.unwrap(), RequestError::Shutdown);
-
-        // the handle outlived the session it terminated, and now reports that it is gone
-        assert_eq!(handle.shutdown().await, Err(Shutdown));
     }
 }

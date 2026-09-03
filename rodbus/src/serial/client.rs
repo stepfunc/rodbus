@@ -40,14 +40,9 @@ impl SerialChannelTask {
         }
     }
 
+    /// Run until every handle is dropped. Cancellation is applied by the caller.
     pub(crate) async fn run(&mut self) -> Shutdown {
         self.listener.update(PortState::Disabled).get().await;
-        let ret = self.run_inner().await;
-        self.listener.update(PortState::Shutdown).get().await;
-        ret
-    }
-
-    async fn run_inner(&mut self) -> Shutdown {
         loop {
             // wait for the channel to be enabled
             if let Err(Shutdown) = self.client_loop.wait_for_enabled().await {
@@ -62,6 +57,13 @@ impl SerialChannelTask {
                 self.listener.update(PortState::Disabled).get().await;
             }
         }
+    }
+
+    /// Fail everything still queued and report the terminal state. Called after `run` completes or
+    /// is cancelled.
+    pub(crate) async fn shutdown(&mut self) {
+        self.client_loop.shutdown().await;
+        self.listener.update(PortState::Shutdown).get().await;
     }
 
     pub(crate) async fn try_open_and_run(&mut self) -> Result<(), StateChange> {
@@ -96,5 +98,59 @@ impl SerialChannelTask {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use crate::maybe_async::MaybeAsync;
+    use crate::retry::default_retry_strategy;
+
+    use super::*;
+
+    const TEST_TIMEOUT: Duration = Duration::from_secs(5);
+
+    struct BlockingDisabledListener {
+        states: tokio::sync::mpsc::UnboundedSender<PortState>,
+    }
+
+    impl Listener<PortState> for BlockingDisabledListener {
+        fn update(&mut self, state: PortState) -> MaybeAsync<()> {
+            self.states.send(state).unwrap();
+            match state {
+                PortState::Disabled => MaybeAsync::asynchronous(std::future::pending()),
+                _ => MaybeAsync::ready(()),
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn shutdown_interrupts_a_pending_listener_notification() {
+        let (_tx, rx) = tokio::sync::mpsc::channel(1);
+        let (states, mut state_rx) = tokio::sync::mpsc::unbounded_channel();
+        let mut task = SerialChannelTask::new(
+            "unused",
+            SerialSettings::default(),
+            rx.into(),
+            default_retry_strategy(),
+            DecodeLevel::nothing(),
+            Box::new(BlockingDisabledListener { states }),
+        );
+        let (cancellation, signal) = crate::common::cancellation::pair();
+        let task = tokio::spawn(async move {
+            signal.run_until_cancelled(task.run()).await;
+            task.shutdown().await
+        });
+
+        assert_eq!(state_rx.recv().await, Some(PortState::Disabled));
+        cancellation.cancel();
+
+        tokio::time::timeout(TEST_TIMEOUT, task)
+            .await
+            .expect("shutdown did not interrupt the listener")
+            .unwrap();
+        assert_eq!(state_rx.recv().await, Some(PortState::Shutdown));
     }
 }

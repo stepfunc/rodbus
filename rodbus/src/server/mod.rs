@@ -2,6 +2,7 @@ use std::net::SocketAddr;
 
 use tracing::Instrument;
 
+use crate::common::cancellation::{ShutdownHandle, ShutdownSignal};
 use crate::decode::DecodeLevel;
 use crate::server::task::ServerCommand;
 use crate::tcp::server::{ServerTask as TcpServerTask, TcpServerConnectionHandler};
@@ -29,24 +30,26 @@ pub use crate::tcp::tls::server::TlsServerConfig;
 #[cfg(feature = "enable-tls")]
 pub use crate::tcp::tls::*;
 
-/// Handle to the server async task. The associated task is shutdown when every handle is dropped
-/// or [`ServerHandle::shutdown`] is called.
+/// Handle to the server async task. The associated task is shutdown when the handle is dropped or
+/// [`ServerHandle::shutdown`] is called.
 #[derive(Debug)]
 pub struct ServerHandle {
     tx: tokio::sync::mpsc::Sender<ServerCommand>,
+    shutdown: ShutdownHandle,
 }
 
 /// A server task that has been created but not yet spawned.
 ///
 /// This is returned, alongside its [`ServerHandle`], by the `create_*_server_task` functions.
 /// Drive it to completion by awaiting [`ServerTask::run`], typically from within
-/// [`tokio::spawn`]. The task completes when every associated [`ServerHandle`] is dropped or
+/// [`tokio::spawn`]. The task completes when the associated [`ServerHandle`] is dropped or
 /// [`ServerHandle::shutdown`] is called.
 ///
 /// Unlike the `spawn_*_server_task` functions, no tracing span is attached to the task, so the
 /// caller is free to wrap [`run`](ServerTask::run) with their own instrumentation.
 pub struct ServerTask<T: RequestHandler> {
     inner: ServerTaskInner<T>,
+    shutdown: ShutdownSignal,
 }
 
 enum ServerTaskInner<T: RequestHandler> {
@@ -59,38 +62,45 @@ enum ServerTaskInner<T: RequestHandler> {
 }
 
 impl<T: RequestHandler> ServerTask<T> {
-    fn tcp(task: TcpServerTask<T>, commands: tokio::sync::mpsc::Receiver<ServerCommand>) -> Self {
+    fn tcp(
+        task: TcpServerTask<T>,
+        commands: tokio::sync::mpsc::Receiver<ServerCommand>,
+        shutdown: ShutdownSignal,
+    ) -> Self {
         Self {
             inner: ServerTaskInner::Tcp(Box::new(task), commands),
+            shutdown,
         }
     }
 
     #[cfg(feature = "serial")]
-    fn rtu(task: crate::serial::server::RtuServerTask<T>) -> Self {
+    fn rtu(task: crate::serial::server::RtuServerTask<T>, shutdown: ShutdownSignal) -> Self {
         Self {
             inner: ServerTaskInner::Rtu(Box::new(task)),
+            shutdown,
         }
     }
 
-    /// Run the server task until every [`ServerHandle`] is dropped or
+    /// Run the server task until the associated [`ServerHandle`] is dropped or
     /// [`ServerHandle::shutdown`] is called.
     pub async fn run(self) {
-        match self.inner {
-            ServerTaskInner::Tcp(mut task, commands) => task.run(commands).await,
+        let ServerTask { inner, shutdown } = self;
+        match inner {
+            ServerTaskInner::Tcp(mut task, commands) => {
+                shutdown.run_until_cancelled(task.run(commands)).await;
+            }
             #[cfg(feature = "serial")]
             ServerTaskInner::Rtu(mut task) => {
-                task.run().await;
+                shutdown.run_until_cancelled(task.run()).await;
             }
         }
+        tracing::info!("server shutdown");
     }
 }
 
 impl ServerHandle {
-    /// Construct a [ServerHandle] from its fields
-    ///
-    /// This function is only required for the C bindings
-    pub fn new(tx: tokio::sync::mpsc::Sender<ServerCommand>) -> Self {
-        ServerHandle { tx }
+    fn new(tx: tokio::sync::mpsc::Sender<ServerCommand>, shutdown: ShutdownHandle) -> Self {
+        ServerHandle { tx, shutdown }
     }
 
     /// Change the decoding level for future sessions and all active sessions
@@ -99,12 +109,14 @@ impl ServerHandle {
         Ok(())
     }
 
-    /// Begin shutting down the server task, even if one or more [`ServerHandle`]s are still alive
+    /// Begin shutting down the server task, even while the [`ServerHandle`] is still alive
     ///
-    /// The task completes when it processes the command, which may be after this returns
-    pub async fn shutdown(&self) -> Result<(), Shutdown> {
-        self.tx.send(ServerCommand::Shutdown).await?;
-        Ok(())
+    /// The listener stops accepting connections, and each active session is cancelled at its next
+    /// suspension point. A response that is partially written is abandoned.
+    ///
+    /// Calling this more than once, or after the task has already terminated, has no effect.
+    pub fn shutdown(&self) {
+        self.shutdown.cancel();
     }
 }
 
@@ -156,6 +168,7 @@ pub fn create_tcp_server_task<T: RequestHandler>(
     decode: DecodeLevel,
 ) -> (ServerHandle, ServerTask<T>) {
     let (tx, rx) = tokio::sync::mpsc::channel(SERVER_COMMAND_CHANNEL_CAPACITY);
+    let (shutdown, signal) = crate::common::cancellation::pair();
     let task = TcpServerTask::new(
         max_sessions,
         listener,
@@ -163,9 +176,13 @@ pub fn create_tcp_server_task<T: RequestHandler>(
         TcpServerConnectionHandler::Tcp,
         filter,
         decode,
+        signal.clone(),
     );
 
-    (ServerHandle::new(tx), ServerTask::tcp(task, rx))
+    (
+        ServerHandle::new(tx, shutdown),
+        ServerTask::tcp(task, rx, signal),
+    )
 }
 
 /// Spawns a RTU server task onto the runtime.
@@ -215,6 +232,7 @@ pub fn create_rtu_server_task<T: RequestHandler>(
     decode: DecodeLevel,
 ) -> (ServerHandle, ServerTask<T>) {
     let (tx, rx) = tokio::sync::mpsc::channel(SERVER_COMMAND_CHANNEL_CAPACITY);
+    let (shutdown, signal) = crate::common::cancellation::pair();
     let session = crate::server::task::SessionTask::new(
         handlers,
         crate::server::task::AuthorizationType::None,
@@ -231,7 +249,10 @@ pub fn create_rtu_server_task<T: RequestHandler>(
         session,
     };
 
-    (ServerHandle::new(tx), ServerTask::rtu(rtu))
+    (
+        ServerHandle::new(tx, shutdown),
+        ServerTask::rtu(rtu, signal),
+    )
 }
 
 /// Spawns a "raw" TLS server task onto the runtime. This TLS server does NOT require that
@@ -413,6 +434,7 @@ fn create_tls_server_task_impl<T: RequestHandler>(
     decode: DecodeLevel,
 ) -> (ServerHandle, ServerTask<T>) {
     let (tx, rx) = tokio::sync::mpsc::channel(SERVER_COMMAND_CHANNEL_CAPACITY);
+    let (shutdown, signal) = crate::common::cancellation::pair();
     let task = TcpServerTask::new(
         max_sessions,
         listener,
@@ -420,7 +442,11 @@ fn create_tls_server_task_impl<T: RequestHandler>(
         TcpServerConnectionHandler::Tls(tls_config, auth_handler),
         filter,
         decode,
+        signal.clone(),
     );
 
-    (ServerHandle::new(tx), ServerTask::tcp(task, rx))
+    (
+        ServerHandle::new(tx, shutdown),
+        ServerTask::tcp(task, rx, signal),
+    )
 }

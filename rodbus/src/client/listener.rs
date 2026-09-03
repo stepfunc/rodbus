@@ -3,6 +3,11 @@ use crate::MaybeAsync;
 /// Generic listener type that can be invoked multiple times
 pub trait Listener<T>: Send {
     /// Inform the listener that the value has changed
+    ///
+    /// The task delivering the update awaits the returned [`MaybeAsync`], so an implementation
+    /// that never completes stalls that task. This includes the terminal update delivered while
+    /// shutting down, which the task awaits before it finishes: a listener that never completes
+    /// that update keeps the task alive indefinitely.
     fn update(&mut self, _value: T) -> MaybeAsync<()> {
         MaybeAsync::ready(())
     }

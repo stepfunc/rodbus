@@ -980,6 +980,7 @@ dependencies = [
  "tokio-rustls",
  "tokio-serial",
  "tokio-test",
+ "tokio-util",
  "tracing",
 ]
 
