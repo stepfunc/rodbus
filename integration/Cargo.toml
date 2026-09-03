@@ -1,6 +1,6 @@
 [package]
 name = "integration"
-version = "1.6.0-M2"
+version = "1.6.0-M3"
 autobins = false
 autotests = false
 autobenches = false

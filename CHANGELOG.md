@@ -1,3 +1,6 @@
+### 1.6.0-M3 ###
+* :star: Add `Channel::shutdown()` and `ServerHandle::shutdown()` to immediately terminate the associated task while handles are still alive. See [#198](https://github.com/stepfunc/rodbus/pull/198).
+
 ### 1.6.0-M2 ###
 * :wrench: Client `Channel` read/write methods and `set_decode_level()` now take `&self` instead of `&mut self`. These methods only send a command on an internal `mpsc::Sender` and mutate nothing, so the exclusive borrow overstated what the API actually requires. This is source-compatible for existing callers. See [#191](https://github.com/stepfunc/rodbus/pull/191).
 
