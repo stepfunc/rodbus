@@ -362,6 +362,8 @@ jobs:
           mkdir -p ./rodbus/${{github.ref_name}}
           cp -a ../artifacts/doc-api/* ./rodbus/${{github.ref_name}}
           cp -a ../artifacts/doc-guide/* ./rodbus/${{github.ref_name}}
+          # Remove versions superseded under the docs repo's retention policy
+          ./scripts/prune.sh
           # Check if there are actual changes to commit
           git add -A
           if git diff --staged --quiet; then
