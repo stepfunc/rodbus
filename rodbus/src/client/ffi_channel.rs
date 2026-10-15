@@ -50,6 +50,9 @@ impl FfiChannel {
     }
 
     /// Read coils from the server
+    ///
+    /// On success, the result contains exactly `range.count` values in ascending address order
+    /// starting at `range.start`. See [`Indexed`] for details.
     pub fn read_coils<C>(
         &mut self,
         param: RequestParam,
@@ -63,6 +66,9 @@ impl FfiChannel {
     }
 
     /// Read discrete inputs from the server
+    ///
+    /// On success, the result contains exactly `range.count` values in ascending address order
+    /// starting at `range.start`. See [`Indexed`] for details.
     pub fn read_discrete_inputs<C>(
         &mut self,
         param: RequestParam,
@@ -76,6 +82,9 @@ impl FfiChannel {
     }
 
     /// Read holding registers from the server
+    ///
+    /// On success, the result contains exactly `range.count` values in ascending address order
+    /// starting at `range.start`. See [`Indexed`] for details.
     pub fn read_holding_registers<C>(
         &mut self,
         param: RequestParam,
@@ -89,6 +98,9 @@ impl FfiChannel {
     }
 
     /// Read input registers from the server
+    ///
+    /// On success, the result contains exactly `range.count` values in ascending address order
+    /// starting at `range.start`. See [`Indexed`] for details.
     pub fn read_input_registers<C>(
         &mut self,
         param: RequestParam,

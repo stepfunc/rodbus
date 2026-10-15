@@ -420,9 +420,9 @@ fn build_bit_read_callback(
 ) -> BackTraced<FutureInterfaceHandle> {
     let future = lib.define_future_interface(
         "bit_read_callback",
-        "Callbacks received when reading coils or discrete inputs",
+        doc("Callbacks received when reading coils or discrete inputs").details("On success, the iterator yields exactly the requested number of values in ascending, contiguous address order, beginning at the start of the requested {struct:address_range}. A response containing too few or too many values fails the request."),
         common.bit_iterator.clone(),
-        "response",
+        "Iterator over the values read from the server, in ascending address order",
         common.error_info.clone(),
     )?;
 
@@ -435,9 +435,9 @@ fn build_register_read_callback(
 ) -> BackTraced<FutureInterfaceHandle> {
     let future = lib.define_future_interface(
         "register_read_callback",
-        "Callbacks received when reading reading holding or input registers",
+        doc("Callbacks received when reading holding or input registers").details("On success, the iterator yields exactly the requested number of values in ascending, contiguous address order, beginning at the start of the requested {struct:address_range}. A response containing too few or too many values fails the request."),
         common.register_iterator.clone(),
-        "response",
+        "Iterator over the values read from the server, in ascending address order",
         common.error_info.clone(),
     )?;
 
