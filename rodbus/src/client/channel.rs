@@ -173,6 +173,9 @@ impl Channel {
     }
 
     /// Read coils from the server
+    ///
+    /// On success, the result contains exactly `range.count` values in ascending address order
+    /// starting at `range.start`. See [`Indexed`] for details.
     pub async fn read_coils(
         &self,
         param: RequestParam,
@@ -188,6 +191,9 @@ impl Channel {
     }
 
     /// Read discrete inputs from the server
+    ///
+    /// On success, the result contains exactly `range.count` values in ascending address order
+    /// starting at `range.start`. See [`Indexed`] for details.
     pub async fn read_discrete_inputs(
         &self,
         param: RequestParam,
@@ -203,6 +209,9 @@ impl Channel {
     }
 
     /// Read holding registers from the server
+    ///
+    /// On success, the result contains exactly `range.count` values in ascending address order
+    /// starting at `range.start`. See [`Indexed`] for details.
     pub async fn read_holding_registers(
         &self,
         param: RequestParam,
@@ -221,6 +230,9 @@ impl Channel {
     }
 
     /// Read input registers from the server
+    ///
+    /// On success, the result contains exactly `range.count` values in ascending address order
+    /// starting at `range.start`. See [`Indexed`] for details.
     pub async fn read_input_registers(
         &self,
         param: RequestParam,
@@ -339,6 +351,9 @@ impl CallbackSession {
     }
 
     /// Read coils from the server
+    ///
+    /// On success, the result contains exactly `range.count` values in ascending address order
+    /// starting at `range.start`. See [`Indexed`] for details.
     pub async fn read_coils<C>(&mut self, range: AddressRange, callback: C)
     where
         C: FnOnce(Result<BitIterator, RequestError>) + Send + Sync + 'static,
@@ -348,6 +363,9 @@ impl CallbackSession {
     }
 
     /// Read discrete inputs from the server
+    ///
+    /// On success, the result contains exactly `range.count` values in ascending address order
+    /// starting at `range.start`. See [`Indexed`] for details.
     pub async fn read_discrete_inputs<C>(&mut self, range: AddressRange, callback: C)
     where
         C: FnOnce(Result<BitIterator, RequestError>) + Send + Sync + 'static,
@@ -357,6 +375,9 @@ impl CallbackSession {
     }
 
     /// Read holding registers from the server
+    ///
+    /// On success, the result contains exactly `range.count` values in ascending address order
+    /// starting at `range.start`. See [`Indexed`] for details.
     pub async fn read_holding_registers<C>(&mut self, range: AddressRange, callback: C)
     where
         C: FnOnce(Result<RegisterIterator, RequestError>) + Send + Sync + 'static,
@@ -366,6 +387,9 @@ impl CallbackSession {
     }
 
     /// Read input registers from the server
+    ///
+    /// On success, the result contains exactly `range.count` values in ascending address order
+    /// starting at `range.start`. See [`Indexed`] for details.
     pub async fn read_input_registers<C>(&mut self, range: AddressRange, callback: C)
     where
         C: FnOnce(Result<RegisterIterator, RequestError>) + Send + Sync + 'static,

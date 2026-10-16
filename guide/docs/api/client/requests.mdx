@@ -41,7 +41,11 @@ The sum of the `start` and `count` fields **cannot exceed 65,536**. The library 
 returning an error.
 :::
 
-The asynchronous response contains an iterator over the retrieved values. If an error occurs, the iterator is empty.
+The asynchronous response contains an iterator over the retrieved values. A successful response always contains exactly `count` values
+in ascending, contiguous address order beginning at `start`. A response containing too few or too many values fails the request.
+
+Each value is paired with its address as a convenience. Modbus read responses don't encode per-value addresses, only the values in
+address order, so the library computes each address from `start` and the value's position.
 
 The following example demonstrates reading the first 5 coils from a device:
 

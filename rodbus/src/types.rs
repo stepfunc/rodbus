@@ -61,6 +61,15 @@ impl ReadRegistersRange {
 }
 
 /// Value and its address
+///
+/// Modbus messages that carry a block of values (read responses and write multiple requests)
+/// encode a starting address and the values in address order, but not a per-value address.
+/// The library computes `index` from the starting address and the value's position
+/// as a convenience.
+///
+/// The values of a successful read are always in ascending, contiguous address order,
+/// and contain exactly `range.count` values starting at `range.start`. A response
+/// containing too few or too many values fails the request.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Indexed<T> {
     /// Address of the value
@@ -70,6 +79,8 @@ pub struct Indexed<T> {
 }
 
 /// Zero-copy type used to iterate over a collection of bits
+///
+/// Values are yielded in ascending address order. See [`Indexed`] for details.
 #[derive(Debug, Copy, Clone)]
 pub struct BitIterator<'a> {
     bytes: &'a [u8],
@@ -83,6 +94,8 @@ pub(crate) struct BitIteratorDisplay<'a> {
 }
 
 /// Zero-copy type used to iterate over a collection of registers
+///
+/// Values are yielded in ascending address order. See [`Indexed`] for details.
 #[derive(Debug, Copy, Clone)]
 pub struct RegisterIterator<'a> {
     bytes: &'a [u8],

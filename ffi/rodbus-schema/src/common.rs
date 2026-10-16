@@ -149,9 +149,9 @@ fn build_bit_value(lib: &mut LibraryBuilder) -> BackTraced<UniversalStructHandle
     let bit = lib.declare_universal_struct("bit_value")?;
     let bit = lib
         .define_universal_struct(bit)?
-        .add("index", Primitive::U16, "Index of bit")?
+        .add("index", Primitive::U16, "Address of the bit")?
         .add("value", Primitive::Bool, "Value of the bit")?
-        .doc("Index/value tuple of a bit type")?
+        .doc(doc("Bit value and its address").details("Modbus messages that carry a block of values (read responses and write multiple requests) encode a starting address and the values in address order, but not a per-value address. The library computes the index from the starting address and the value's position as a convenience."))?
         .end_fields()?
         .add_full_initializer("init")?
         .build()?;
@@ -163,9 +163,9 @@ fn build_register_value(lib: &mut LibraryBuilder) -> BackTraced<UniversalStructH
     let bit = lib.declare_universal_struct("register_value")?;
     let register = lib
         .define_universal_struct(bit)?
-        .add("index", Primitive::U16, "Index of register")?
+        .add("index", Primitive::U16, "Address of the register")?
         .add("value", Primitive::U16, "Value of the register")?
-        .doc("Index/value tuple of a register type")?
+        .doc(doc("Register value and its address").details("Modbus messages that carry a block of values (read responses and write multiple requests) encode a starting address and the values in address order, but not a per-value address. The library computes the index from the starting address and the value's position as a convenience."))?
         .end_fields()?
         .add_full_initializer("init")?
         .build()?;
