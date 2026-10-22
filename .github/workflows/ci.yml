@@ -112,9 +112,44 @@ jobs:
           save-if: ${{ github.event_name == 'pull_request' }}
       - name: Run Rust unit tests
         run: cargo test
+  # Check that a change keeps the core crate's public API semver compatible with the revision it
+  # merges into. Tag pushes and manual runs have no such revision, so only the checkout runs there.
+  # The toolchain and the checker are pinned so an upstream release can't fail an unchanged PR
+  # (the checker reads rustdoc's JSON, whose format changes with the toolchain); raise them together
+  semver:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Install Rust
+        if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.99"
+      - name: Install cargo-binstall
+        if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
+        uses: cargo-bins/cargo-binstall@e00d2c94cc0067b77737821097a62d91c0301baa # v1.21.1
+      - name: Install cargo-semver-checks
+        if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
+        run: cargo binstall cargo-semver-checks@0.51.0 --no-confirm
+      - name: Compare the public API with the base revision
+        if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
+        uses: obi1kenobi/cargo-semver-checks-action@6b69fcf40e9b5fb17adeb57e4b6ecd020649a239 # v2.9
+        with:
+          rust-toolchain: manual
+          package: rodbus
+          # every feature with public API; tls and tls-aws-lc can't be enabled together
+          feature-group: only-explicit-features
+          features: default,ffi,serialization
+          # every change must be at most a minor release; derived from a pre-release version
+          # (1.6.0-M3) the tool would skip every check
+          release-type: minor
+          baseline-rev: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}
   # The check branch protection requires: passes only if every job a PR runs passed
   ci-ok:
-    needs: [linting, features, msrv, test]
+    needs: [linting, features, msrv, test, semver]
     if: always()
     runs-on: ubuntu-latest
     steps:
