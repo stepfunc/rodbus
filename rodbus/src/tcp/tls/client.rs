@@ -1,7 +1,7 @@
 use std::convert::TryFrom;
 use std::net::Ipv4Addr;
 
-use sfio_rustls_config::{ProtocolVersions, ServerNameVerification};
+use sfio_rustls_config::ServerNameVerification;
 use std::path::Path;
 use std::sync::Arc;
 
@@ -185,14 +185,5 @@ impl TlsClientConfig {
 impl From<InvalidDnsNameError> for TlsError {
     fn from(_: InvalidDnsNameError) -> Self {
         TlsError::InvalidDnsName
-    }
-}
-
-impl From<MinTlsVersion> for ProtocolVersions {
-    fn from(value: MinTlsVersion) -> Self {
-        match value {
-            MinTlsVersion::V1_2 => ProtocolVersions::v12_only(),
-            MinTlsVersion::V1_3 => ProtocolVersions::new().enable_v12().enable_v13(),
-        }
     }
 }
