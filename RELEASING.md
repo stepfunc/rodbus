@@ -38,7 +38,15 @@ cargo check --workspace
 cargo audit          # must pass; resolve any advisories before releasing
 ```
 
-Open a PR titled `Release X.Y.Z` against `main`, get CI green, and merge.
+Pull request CI doesn't build the bindings or their packages; only release tags
+and manual runs do. Run them on the release branch before merging, so a broken
+cross-compile shows up here rather than on the tag:
+
+```bash
+gh workflow run CI --ref <release-branch>
+```
+
+Open a PR titled `Release X.Y.Z` against `main`, get both runs green, and merge.
 
 ## 3. Tag the release
 
