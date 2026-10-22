@@ -8,8 +8,7 @@ on:
   # Allow manual trigger for testing
   workflow_dispatch:
   # Run on push to main so a newly introduced dependency is audited against the
-  # advisory database as of the merge, not as of whenever the PR last ran. main
-  # is not branch protected here, so this also covers direct pushes.
+  # advisory database as of the merge, not as of whenever the PR last ran.
   push:
     branches:
       - main
@@ -23,6 +22,8 @@ on:
   # trigger is a prerequisite for ever making this a required status check,
   # since a path-filtered workflow reports no status at all.
   pull_request:
+  # audit and osv-scanner are required checks, so they must also run in the merge queue
+  merge_group:
 
 permissions:
   contents: read

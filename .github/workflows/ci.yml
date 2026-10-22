@@ -4,28 +4,42 @@ on:
     tags:
       - "*"
   pull_request:
+  # The merge queue runs the required checks on each queued merge result
+  merge_group:
+  # Runs everything a release tag builds, without publishing (see RELEASING.md)
+  workflow_dispatch:
+# Jobs that write with GITHUB_TOKEN ask for it themselves
+permissions:
+  contents: read
+# A newer push to a PR cancels its older run
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
-  # Check formatting and run clippy lints
+  # Check formatting and run clippy lints. Clippy on the workspace also compiles the FFI crates
   linting:
-    strategy:
-      fail-fast: false
-      matrix:
-        rust:
-          - stable
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v7
-      - name: Install Rust ${{ matrix.rust }}
+      - name: Install Rust
         uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: ${{ matrix.rust }}
+          toolchain: stable
           components: rustfmt, clippy
+      - name: Cache the build
+        uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.event_name == 'pull_request' }}
       - name: Format
         run: cargo fmt --all -- --check
-      - name: Clippy
-        run: cargo clippy -- -D warnings
-  # Build the workspace with the feature permutations not built by default
+      - name: Clippy the workspace
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: Clippy the core crate with all features (ring)
+        run: cargo clippy -p rodbus --all-targets --features ffi,serialization -- -D warnings
+      - name: Clippy the core crate with all features (AWS-LC)
+        run: cargo clippy -p rodbus --all-targets --no-default-features --features ffi,serial,tls-aws-lc,serialization -- -D warnings
+  # Check the feature permutations not built by default
   features:
     strategy:
       fail-fast: false
@@ -40,32 +54,79 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
-      - name: Install Rust ${{ matrix.rust }}
-        uses: dtolnay/rust-toolchain@stable
-      - name: Build the workspace with the features
-        run: cargo build --release -p rodbus -p rodbus-ffi -p rodbus-ffi-java ${{ matrix.feature-args }}
-  # Run the unit tests on Windows and Linux
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: stable
+          components: clippy
+      - name: Cache the build
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: features-${{ strategy.job-index }}
+          save-if: ${{ github.event_name == 'pull_request' }}
+      - name: Clippy the core crate and its tests with the features
+        run: cargo clippy -p rodbus --all-targets ${{ matrix.feature-args }} -- -D warnings
+      # rodbus is selected too because the FFI crates don't have every feature (serialization)
+      - name: Check the FFI crates with the features
+        run: cargo check -p rodbus -p rodbus-ffi -p rodbus-ffi-java ${{ matrix.feature-args }}
+  # Check the workspace with the minimum supported Rust version declared in Cargo.toml
+  msrv:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Read the minimum supported Rust version
+        id: msrv
+        # a two-part rust-version means the .0 release, so check exactly that toolchain
+        run: |
+          version=$(sed -n 's/^rust-version = "\(.*\)"/\1/p' Cargo.toml)
+          if [[ "$version" =~ ^[0-9]+\.[0-9]+$ ]]; then version="$version.0"; fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - name: Install Rust ${{ steps.msrv.outputs.version }}
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ steps.msrv.outputs.version }}
+      - name: Cache the build
+        uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.event_name == 'pull_request' }}
+      - name: Check the workspace
+        run: cargo check --locked --workspace --all-targets
+      - name: Check the AWS-LC TLS backend
+        run: cargo check --locked -p rodbus --no-default-features --features ffi,serial,tls-aws-lc,serialization
+  # Run the unit tests on Linux; Windows too in the merge queue and for releases
   test:
     strategy:
       fail-fast: false
       matrix:
-        os:
-          - ubuntu-latest
-          - windows-latest
-        rust:
-          - stable
+        os: ${{ fromJSON(github.event_name == 'pull_request' && '["ubuntu-latest"]' || '["ubuntu-latest", "windows-latest"]') }}
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
-      - name: Install Rust ${{ matrix.rust }}
-        uses: dtolnay/rust-toolchain@master
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Cache the build
+        uses: Swatinem/rust-cache@v2
         with:
-          toolchain: ${{ matrix.rust }}
+          save-if: ${{ github.event_name == 'pull_request' }}
       - name: Run Rust unit tests
         run: cargo test
+  # The check branch protection requires: passes only if every job a PR runs passed
+  ci-ok:
+    needs: [linting, features, msrv, test]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check the CI jobs
+        run: |
+          echo '${{ toJSON(needs) }}'
+          [ "${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') || contains(needs.*.result, 'skipped') }}" = "false" ]
+  # Everything below builds the bindings and their packages: only for release tags and manual runs.
+  # A PR's FFI changes are compiled by the linting job's clippy on the workspace
   # Build API documentation packages
   documentation:
+    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -100,6 +161,7 @@ jobs:
           path: ~/doc
   # Build bindings on Windows x64 [64-bit MSVC (Windows 7+) (x86_64-pc-windows-msvc)] and x86 [32-bit MSVC (Windows 7+) (i686-pc-windows-msvc)]
   bindings-windows:
+    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
     runs-on: windows-latest
     strategy:
       fail-fast: false
@@ -149,6 +211,7 @@ jobs:
         run: cargo run --bin rodbus-bindings -- --java -r ${{ matrix.target }} -a ./target/${{ matrix.target }}/release
   # Build bindings on MacOS [64-bit macOS (10.7+, Lion+) (x86_64-apple-darwin)]
   bindings-macos:
+    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
     strategy:
       fail-fast: false
       matrix:
@@ -189,6 +252,7 @@ jobs:
         run: cargo run --bin rodbus-bindings -- --java -r ${{ matrix.target }} -a ./target/${{ matrix.target }}/release
   # Cross-compilation for Linux to produce portable C and JNI libraries
   bindings-linux:
+    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
     env:
       # By default, MUSL will not produce a cdylib with dynamic linkage to MUSL LIB C
       CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_RUSTFLAGS: "-C target-feature=-crt-static"
@@ -243,6 +307,7 @@ jobs:
           name: evidence-${{ matrix.cases.target }}
           path: evidence
   guide:
+    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -264,6 +329,7 @@ jobs:
   # Package all the generated bindings
   packaging:
     needs: [documentation, bindings-windows, bindings-macos, bindings-linux]
+    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - name: Install Rust
@@ -326,9 +392,9 @@ jobs:
           path: ffi/bindings/java/rodbus/pom.xml
   # Quality gate to ensure all tests pass before releases
   quality-gate:
-    needs: [linting, test, features]
+    needs: [linting, features, msrv, test]
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/')
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
     steps:
       - name: Quality checks passed
         run: echo "✅ All quality checks passed successfully"
@@ -337,7 +403,7 @@ jobs:
   release-docs:
     needs: [packaging, guide, quality-gate]
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/')
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
     steps:
       - name: Download documentation artifacts
         uses: actions/download-artifact@v8
@@ -376,7 +442,7 @@ jobs:
   release-maven:
     needs: [packaging, quality-gate]
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/')
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
     steps:
       - name: Download Java artifacts
         uses: actions/download-artifact@v8
@@ -467,7 +533,7 @@ jobs:
   release-nuget:
     needs: [packaging, quality-gate]
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/')
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
     steps:
       - name: Download .NET artifacts
         uses: actions/download-artifact@v8
@@ -486,7 +552,7 @@ jobs:
   release-crates-io:
     needs: [quality-gate]
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/')
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -512,7 +578,10 @@ jobs:
   create-github-release:
     needs: [release-docs, release-maven, release-nuget, release-crates-io]
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/')
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    # creates the draft release and uploads its assets
+    permissions:
+      contents: write
     steps:
       - name: Download all release artifacts
         uses: actions/download-artifact@v8
