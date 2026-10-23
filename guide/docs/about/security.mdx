@@ -163,7 +163,7 @@ TLS is implemented with [rustls](https://github.com/rustls/rustls), not OpenSSL,
   certificate chains are rejected.
 * The minimum TLS version you configure is enforced on both sides.
 * A Modbus Security server with an `AuthorizationHandler` requires the client certificate to carry exactly one role
-  (the Modbus role extension), and closes the connection after the handshake otherwise. Every valid request is
+  (the Modbus role extension) without a NUL character, and closes the connection after the handshake otherwise. Every valid request is
   passed to your handler with that role before it is processed, and a denied request is answered with exception 01
   (Illegal Function). Without an `AuthorizationHandler`, every authenticated client may make every request.
 

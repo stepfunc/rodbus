@@ -8,9 +8,12 @@ slug: /api/outstation/tls_server
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
-Creating a TLS server for outstation instances is exactly the same process as a [TCP server](./tcp_server.mdx),
-except that an extra `TlsServerConfig` and an `AuthorizationHandler` is required. For more details about TLS
+Creating a TLS server is the same process as creating a [TCP server](./tcp_server.mdx),
+except that an extra `TlsServerConfig` and an `AuthorizationHandler` are required. For more details about TLS
 support and the configuration options, check the [TLS general information](../tls.mdx) page.
+
+Connections are admitted differently: a connection counts toward `max_sessions` only once its TLS handshake completes, and
+handshakes run one at a time, each limited to 5 seconds.
 
 :::tip
 A server mode of operation is also supported which does not require the client certificate to contain the role extension.

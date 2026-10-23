@@ -22,13 +22,14 @@ end
 ```
 
 The `DeviceMap` class is used to build the association between unit IDs and the custom read/write functionality you wish to provide to clients.
+The server doesn't reply to a request for a unit ID that isn't in the map, whatever the request contains.
 
 ## Creating a server
 
-To create a server, first build a `DeviceMap` for each unit ID the server must support. Then use the `create_tcp_server` static method of the `Server` class.
+To create a server, first build a `DeviceMap` for each unit ID the server must support. Then use the `create_tcp` static method of the `Server` class (`spawn_tcp_server_task` in Rust).
 The server starts listening on the port immediately.
 
-The `Server.CreateTcp` method takes the following arguments:
+The `create_tcp` method takes the following arguments:
 
 - `runtime`: tokio runtime used to drive the async process. See [Runtime](../runtime.mdx) for more details.
 - `address`: IP address of the adapter on which to listen. Specify any valid IPv4 or IPv6 local endpoint, such as:
@@ -38,7 +39,8 @@ The `Server.CreateTcp` method takes the following arguments:
 - `port`: port on which to listen for connection
 - `filter`: `AddressFilter` which can be used to limit which external IPs may connect.
 - `max_sessions`: maximum concurrent sessions allowed by the server. When the server reaches maximum sessions, new connections terminate the oldest session to limit resource usage.
-- `map`: Map of unit ids and their corresponding callback handlers.
+- `endpoints`: Map of unit ids and their corresponding callback handlers.
+- `decode_level`: Initial decoding level for the server, which can be adjusted later via the returned server.
 
 <Tabs
 groupId="language"

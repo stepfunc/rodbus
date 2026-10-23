@@ -82,8 +82,8 @@ The following table lists the functions currently supported by our library:
 | 0x04 | Read input registers          | ✔️    |
 | 0x05 | Write single coil             | ✔️    |
 | 0x06 | Write single register         | ✔️    |
-| 0x15 | Write multiple coils          | ✔️    |
-| 0x16 | Write multiple registers      | ✔️    |
+| 0x0F | Write multiple coils          | ✔️    |
+| 0x10 | Write multiple registers      | ✔️    |
 
 These functions are all that is required for the vast majority of applications using Modbus. Additional function codes can be added upon request.
 
@@ -98,7 +98,7 @@ Modbus servers return an exception code when the request cannot be fulfilled. He
 | ---- | --------------------------------------- | ------------------------------------------------------------------------------- |
 | 0x01 | ILLEGAL FUNCTION                        | Function code is not allowed or supported                                       |
 | 0x02 | ILLEGAL DATA ADDRESS                    | A data address is not allowed                                                   |
-| 0x03 | ILLEGAL DATA VALUE                      | A value contained in the request is not an allowed                              |
+| 0x03 | ILLEGAL DATA VALUE                      | A value contained in the request is not allowed                                 |
 | 0x04 | SERVER DEVICE FAILURE                   | An unrecoverable error occurred when trying to perform the action               |
 | 0x05 | ACKNOWLEDGE                             | Specialized use in conjunction with programming commands (unsupported)          |
 | 0x06 | SERVER DEVICE BUSY                      | Specialized use in conjunction with programming commands (unsupported)          |
