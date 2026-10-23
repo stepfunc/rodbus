@@ -112,6 +112,26 @@ impl std::fmt::Debug for PhysLayer {
     }
 }
 
+/// A port that just opened, made into a [`PhysLayer`] only once the task starts running it
+#[cfg(feature = "serial")]
+pub(crate) enum OpenPort {
+    Serial(tokio_serial::SerialStream),
+    /// a port that is already a layer, such as an in-memory pipe
+    #[cfg(test)]
+    Phys(PhysLayer),
+}
+
+#[cfg(feature = "serial")]
+impl OpenPort {
+    pub(crate) fn into_phys(self) -> PhysLayer {
+        match self {
+            Self::Serial(stream) => PhysLayer::new_serial(stream),
+            #[cfg(test)]
+            Self::Phys(phys) => phys,
+        }
+    }
+}
+
 impl PhysLayer {
     pub(crate) fn new_tcp(socket: tokio::net::TcpStream) -> Self {
         Self {

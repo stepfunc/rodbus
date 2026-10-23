@@ -4,7 +4,7 @@
 // Text and data mining rights, including for AI training, are reserved under
 // Directive (EU) 2019/790 Art. 4(3), subject to LICENSE.txt Section 3.3.
 
-use crate::common::phys::PhysLayer;
+use crate::common::phys::OpenPort;
 use crate::decode::DecodeLevel;
 use crate::serial::SerialSettings;
 
@@ -80,69 +80,61 @@ impl SerialChannelTask {
                 tracing::warn!("{} - waiting {} ms to re-open port", err, delay.as_millis());
                 self.client_loop.fail_requests_for(delay).await
             }
-            Ok(serial) => {
-                self.retry.reset();
-                self.listener.update(PortState::Open).get().await;
-                tracing::info!("serial port open");
-                let mut phys = PhysLayer::new_serial(serial);
+            Ok(serial) => self.run_port(OpenPort::Serial(serial)).await,
+        }
+    }
 
-                match self.client_loop.run(&mut phys).await {
-                    // the mpsc was closed, end the task
-                    SessionError::Shutdown => Err(StateChange::Shutdown),
-                    // don't wait, we're disabled
-                    SessionError::Disabled => Ok(()),
-                    // wait before retrying
-                    SessionError::IoError(_)
-                    | SessionError::BadFrame
-                    | SessionError::MaxTimeouts(_) => {
-                        drop(phys);
-                        let delay = self.retry.after_disconnect();
-                        self.listener.update(PortState::Wait(delay)).get().await;
-                        tracing::warn!("waiting {} ms to re-open port", delay.as_millis());
-                        self.client_loop.fail_requests_for(delay).await
-                    }
-                }
+    /// Run a session on a port that just opened, and wait before reopening it if the session
+    /// failed
+    async fn run_port(&mut self, port: OpenPort) -> Result<(), StateChange> {
+        self.retry.reset();
+        self.listener.update(PortState::Open).get().await;
+        tracing::info!("serial port open");
+        let mut phys = port.into_phys();
+
+        match self.client_loop.run(&mut phys).await {
+            // the mpsc was closed, end the task
+            SessionError::Shutdown => Err(StateChange::Shutdown),
+            // don't wait, we're disabled
+            SessionError::Disabled => Ok(()),
+            // wait before retrying
+            SessionError::IoError(_) | SessionError::BadFrame | SessionError::MaxTimeouts(_) => {
+                drop(phys);
+                let delay = self.retry.after_disconnect();
+                self.listener.update(PortState::Wait(delay)).get().await;
+                tracing::warn!("waiting {} ms to re-open port", delay.as_millis());
+                self.client_loop.fail_requests_for(delay).await
             }
         }
     }
 }
 
+/// Test support shared by the serial client and server
 #[cfg(test)]
-mod tests {
+pub(crate) mod test_util {
     use std::time::Duration;
 
-    use tokio::sync::mpsc::error::TryRecvError;
-    use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
-    use tokio::time::Instant;
+    use tokio::sync::mpsc::UnboundedSender;
 
-    use crate::client::{Channel, RequestParam};
-    use crate::common::test_support::watchdog;
-    use crate::maybe_async::MaybeAsync;
-    use crate::retry::default_retry_strategy;
-    use crate::{AddressRange, RequestError, UnitId};
-
-    use super::*;
+    use crate::RetryStrategy;
 
     /// A path that can't be opened, so every attempt to open the port fails
-    const UNOPENABLE: &str = "/dev/rodbus-does-not-exist";
+    pub(crate) const UNOPENABLE: &str = "/dev/rodbus-does-not-exist";
 
     /// The delay [`RecordingRetry`] returns for every retry
-    const DELAY: Duration = Duration::from_secs(1);
+    pub(crate) const DELAY: Duration = Duration::from_secs(1);
 
-    /// A response timeout long enough that a request failing before it elapses wasn't timed out
-    const NEVER: Duration = Duration::from_secs(3600);
-
-    /// A call the task made on its [`RetryStrategy`]
+    /// A call a task made on its [`RetryStrategy`]
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-    enum RetryCall {
+    pub(crate) enum RetryCall {
         Reset,
         AfterFailedConnect,
         AfterDisconnect,
     }
 
     /// Records each call and always returns [`DELAY`]
-    struct RecordingRetry {
-        calls: UnboundedSender<RetryCall>,
+    pub(crate) struct RecordingRetry {
+        pub(crate) calls: UnboundedSender<RetryCall>,
     }
 
     impl RecordingRetry {
@@ -166,6 +158,30 @@ mod tests {
             DELAY
         }
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use tokio::sync::mpsc::error::TryRecvError;
+    use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
+    use tokio::time::Instant;
+
+    use crate::client::{Channel, RequestParam};
+    use crate::common::phys::PhysLayer;
+    use crate::common::test_support::watchdog;
+    use crate::maybe_async::MaybeAsync;
+    use crate::retry::default_retry_strategy;
+    use crate::{AddressRange, RequestError, UnitId};
+
+    use crate::client::message::Setting;
+
+    use super::test_util::{RecordingRetry, RetryCall, DELAY, UNOPENABLE};
+    use super::*;
+
+    /// A response timeout long enough that a request failing before it elapses wasn't timed out
+    const NEVER: Duration = Duration::from_secs(3600);
 
     struct StateRecorder {
         states: UnboundedSender<PortState>,
@@ -304,6 +320,185 @@ mod tests {
 
             task.await.unwrap();
             assert_eq!(state_rx.recv().await, Some(PortState::Shutdown));
+        })
+        .await;
+    }
+
+    /// What the peer at the other end of the port sees when it reads without waiting
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    enum PeerView {
+        /// the read waits for data: the port is still open
+        Open,
+        /// the read returns end of file: the port was dropped
+        Closed,
+    }
+
+    impl PeerView {
+        fn of(peer: &mut tokio::io::DuplexStream) -> Self {
+            let mut byte = [0u8; 1];
+            match tokio_test::task::spawn(tokio::io::AsyncReadExt::read(peer, &mut byte)).poll() {
+                std::task::Poll::Pending => Self::Open,
+                std::task::Poll::Ready(Ok(0)) => Self::Closed,
+                other => panic!("the peer read {other:?}"),
+            }
+        }
+    }
+
+    /// Records each state with what the peer sees of the port at the moment it's reported
+    struct PortWatcher {
+        states: UnboundedSender<(PortState, PeerView)>,
+        peer: tokio::io::DuplexStream,
+    }
+
+    impl Listener<PortState> for PortWatcher {
+        fn update(&mut self, state: PortState) -> MaybeAsync<()> {
+            self.states.send((state, PeerView::of(&mut self.peer))).ok();
+            MaybeAsync::ready(())
+        }
+    }
+
+    /// A task whose port is one end of an in-memory pipe, run with
+    /// [`SerialChannelTask::run_port`] as it is once a serial port opens
+    struct PipePort {
+        task: SerialChannelTask,
+        port: OpenPort,
+        states: UnboundedReceiver<(PortState, PeerView)>,
+        retry: UnboundedReceiver<RetryCall>,
+    }
+
+    impl PipePort {
+        /// A port whose peer, watched by the listener, first closes its end if `peer_closes`,
+        /// and the only handle sending the task commands
+        async fn new(peer_closes: bool) -> (Self, tokio::sync::mpsc::Sender<Command>) {
+            let (port, mut peer) = tokio::io::duplex(64);
+            if peer_closes {
+                tokio::io::AsyncWriteExt::shutdown(&mut peer).await.unwrap();
+            }
+            let (commands, rx) = crate::channel::bounded(16);
+            let (states_tx, states) = tokio::sync::mpsc::unbounded_channel();
+            let (calls, retry) = tokio::sync::mpsc::unbounded_channel();
+            let task = SerialChannelTask::new(
+                "unused",
+                SerialSettings::default(),
+                rx,
+                Box::new(RecordingRetry { calls }),
+                DecodeLevel::nothing(),
+                Box::new(PortWatcher {
+                    states: states_tx,
+                    peer,
+                }),
+            );
+            let port = Self {
+                task,
+                port: OpenPort::Phys(PhysLayer::new_duplex(port)),
+                states,
+                retry,
+            };
+            (port, commands)
+        }
+
+        /// Run the port until `run_port` returns, and return the result with how long it took
+        async fn run(self) -> (Result<(), StateChange>, Duration, Recorded) {
+            let Self {
+                mut task,
+                port,
+                states,
+                retry,
+            } = self;
+            let started = Instant::now();
+            let result = task.run_port(port).await;
+            let elapsed = started.elapsed();
+            (
+                result,
+                elapsed,
+                Recorded {
+                    states: drain(states),
+                    retry: drain(retry),
+                },
+            )
+        }
+    }
+
+    /// Everything the task reported to its listener and retry strategy
+    #[derive(Debug, PartialEq)]
+    struct Recorded {
+        states: Vec<(PortState, PeerView)>,
+        retry: Vec<RetryCall>,
+    }
+
+    fn drain<T>(mut rx: UnboundedReceiver<T>) -> Vec<T> {
+        let mut items = Vec::new();
+        while let Ok(item) = rx.try_recv() {
+            items.push(item);
+        }
+        items
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn when_the_peer_closes_the_port_is_dropped_before_waiting_after_disconnect() {
+        watchdog(async {
+            let (port, _commands) = PipePort::new(true).await;
+
+            // the end of file is an I/O error; only that arm is pinned here, as a bad frame
+            // ending an RTU session is expected to change
+            let (result, elapsed, recorded) = port.run().await;
+
+            assert_eq!(result, Ok(()));
+            assert_eq!(elapsed, DELAY);
+            assert_eq!(
+                recorded,
+                Recorded {
+                    states: vec![
+                        (PortState::Open, PeerView::Open),
+                        (PortState::Wait(DELAY), PeerView::Closed),
+                    ],
+                    retry: vec![RetryCall::Reset, RetryCall::AfterDisconnect],
+                }
+            );
+        })
+        .await;
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn disabling_an_open_port_returns_at_once_without_waiting_to_reopen_it() {
+        watchdog(async {
+            let (port, commands) = PipePort::new(false).await;
+            for setting in [Setting::Enable, Setting::Disable] {
+                commands.send(Command::Setting(setting)).await.unwrap();
+            }
+
+            let (result, elapsed, recorded) = port.run().await;
+
+            assert_eq!(result, Ok(()));
+            assert_eq!(elapsed, Duration::ZERO);
+            assert_eq!(
+                recorded,
+                Recorded {
+                    states: vec![(PortState::Open, PeerView::Open)],
+                    retry: vec![RetryCall::Reset],
+                }
+            );
+        })
+        .await;
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn dropping_every_handle_while_the_port_is_open_shuts_down_at_once() {
+        watchdog(async {
+            let (port, commands) = PipePort::new(false).await;
+            drop(commands);
+
+            let (result, elapsed, recorded) = port.run().await;
+
+            assert_eq!(result, Err(StateChange::Shutdown));
+            assert_eq!(elapsed, Duration::ZERO);
+            assert_eq!(
+                recorded,
+                Recorded {
+                    states: vec![(PortState::Open, PeerView::Open)],
+                    retry: vec![RetryCall::Reset],
+                }
+            );
         })
         .await;
     }
