@@ -10,7 +10,7 @@ use crate::common::traits::{Parse, Serialize};
 use crate::decode::AppDecodeLevel;
 use crate::error::RequestError;
 use crate::error::{InvalidRange, InvalidRequest};
-use crate::types::{AddressRange, Indexed};
+use crate::types::{AddressIterator, AddressRange, Indexed};
 
 use scursor::{ReadCursor, WriteCursor};
 use std::convert::TryFrom;
@@ -27,9 +27,8 @@ pub struct WriteMultiple<T> {
 }
 
 pub(crate) struct WriteMultipleIterator<'a, T> {
-    range: AddressRange,
-    pos: u16,
-    iter: std::slice::Iter<'a, T>,
+    addresses: AddressIterator,
+    values: std::slice::Iter<'a, T>,
 }
 
 impl<T> WriteMultiple<T> {
@@ -44,16 +43,9 @@ impl<T> WriteMultiple<T> {
     }
 
     pub(crate) fn iter(&self) -> WriteMultipleIterator<'_, T> {
-        WriteMultipleIterator::new(self.range, self.values.iter())
-    }
-}
-
-impl<'a, T> WriteMultipleIterator<'a, T> {
-    fn new(range: AddressRange, iter: std::slice::Iter<'a, T>) -> Self {
-        Self {
-            range,
-            pos: 0,
-            iter,
+        WriteMultipleIterator {
+            addresses: self.range.iter(),
+            values: self.values.iter(),
         }
     }
 }
@@ -65,22 +57,12 @@ where
     type Item = Indexed<T>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let next = self.iter.next();
-
-        match next {
-            Some(next) => {
-                // pos < count, and the range was checked when the request was made
-                let result = Indexed::new(self.range.start.checked_add(self.pos)?, *next);
-                self.pos = self.pos.checked_add(1)?;
-                Some(result)
-            }
-            None => None,
-        }
+        let value = *self.values.next()?;
+        Some(Indexed::new(self.addresses.next()?, value))
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        let remaining = self.range.count.saturating_sub(self.pos).into();
-        (remaining, Some(remaining))
+        self.values.size_hint()
     }
 }
 

@@ -93,6 +93,8 @@ pub struct Indexed<T> {
 pub struct BitIterator<'a> {
     bytes: &'a [u8],
     range: AddressRange,
+    addresses: AddressIterator,
+    /// the position of the next bit in `bytes`
     pos: u16,
 }
 
@@ -106,9 +108,10 @@ pub(crate) struct BitIteratorDisplay<'a> {
 /// Values are yielded in ascending address order. See [`Indexed`] for details.
 #[derive(Debug, Copy, Clone)]
 pub struct RegisterIterator<'a> {
+    /// the values not yet yielded
     bytes: &'a [u8],
     range: AddressRange,
-    pos: u16,
+    addresses: AddressIterator,
 }
 
 pub(crate) struct RegisterIteratorDisplay<'a> {
@@ -159,6 +162,7 @@ impl<'a> BitIterator<'a> {
         Ok(Self {
             bytes,
             range,
+            addresses: range.iter(),
             pos: 0,
         })
     }
@@ -206,7 +210,7 @@ impl<'a> RegisterIterator<'a> {
         Ok(Self {
             bytes,
             range,
-            pos: 0,
+            addresses: range.iter(),
         })
     }
 
@@ -214,7 +218,7 @@ impl<'a> RegisterIterator<'a> {
     pub(crate) fn collect_vec(self) -> Vec<Indexed<u16>> {
         let (chunks, _) = self.bytes.as_chunks::<2>();
         let mut result = Vec::with_capacity(chunks.len());
-        for (address, &chunk) in self.range.iter().zip(chunks) {
+        for (address, &chunk) in self.addresses.zip(chunks) {
             result.push(Indexed::new(address, u16::from_be_bytes(chunk)));
         }
         result
@@ -245,27 +249,15 @@ impl<'a> Iterator for BitIterator<'a> {
     type Item = Indexed<bool>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.pos == self.range.count {
-            return None;
-        }
-        let byte = self.pos / 8;
-        let bit = self.pos % 8;
-
-        match self.bytes.get(usize::from(byte)) {
-            Some(value) => {
-                let bit = (*value & (1 << bit)) != 0;
-                // pos < count, and a range never extends past 0xFFFF
-                let address = self.range.start.checked_add(self.pos)?;
-                self.pos = self.pos.checked_add(1)?;
-                Some(Indexed::new(address, bit))
-            }
-            None => None,
-        }
+        let address = self.addresses.next()?;
+        let byte = self.bytes.get(usize::from(self.pos / 8))?;
+        let value = (*byte & (1 << (self.pos % 8))) != 0;
+        self.pos = self.pos.checked_add(1)?;
+        Some(Indexed::new(address, value))
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        let remaining = self.range.count.saturating_sub(self.pos).into();
-        (remaining, Some(remaining))
+        self.addresses.size_hint()
     }
 }
 
@@ -275,21 +267,14 @@ impl<'a> Iterator for RegisterIterator<'a> {
     type Item = Indexed<u16>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.pos == self.range.count {
-            return None;
-        }
-
-        let pos = usize::from(self.pos).checked_mul(2)?;
-        let value = u16::from_be_bytes(*self.bytes.get(pos..)?.first_chunk()?);
-        // pos < count, and a range never extends past 0xFFFF
-        let index = self.range.start.checked_add(self.pos)?;
-        self.pos = self.pos.checked_add(1)?;
-        Some(Indexed::new(index, value))
+        let address = self.addresses.next()?;
+        let (value, rest) = self.bytes.split_first_chunk()?;
+        self.bytes = rest;
+        Some(Indexed::new(address, u16::from_be_bytes(*value)))
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        let remaining = self.range.count.saturating_sub(self.pos).into();
-        (remaining, Some(remaining))
+        self.addresses.size_hint()
     }
 }
 
@@ -343,7 +328,7 @@ impl AddressRange {
         start..start.saturating_add(usize::from(self.count))
     }
 
-    pub(crate) fn iter(&self) -> impl Iterator<Item = u16> {
+    pub(crate) fn iter(&self) -> AddressIterator {
         AddressIterator::new(self.start, self.count)
     }
 
@@ -400,8 +385,10 @@ impl std::fmt::Display for AddressRange {
 /// The addresses of a range, counted in `u32` so that reaching 0xFFFF can't overflow
 ///
 /// A range whose public fields were set past 0xFFFF ends at 0xFFFF.
+#[derive(Debug, Copy, Clone)]
 pub(crate) struct AddressIterator {
     next: u32,
+    /// one past the last address, at most 0x1_0000
     end: u32,
 }
 
@@ -409,7 +396,9 @@ impl AddressIterator {
     pub(crate) fn new(start: u16, count: u16) -> Self {
         Self {
             next: u32::from(start),
-            end: u32::from(start).saturating_add(u32::from(count)),
+            end: u32::from(start)
+                .saturating_add(u32::from(count))
+                .min(0x1_0000),
         }
     }
 }
@@ -424,6 +413,11 @@ impl Iterator for AddressIterator {
         let address = u16::try_from(self.next).ok()?;
         self.next = self.next.saturating_add(1);
         Some(address)
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let remaining = usize::try_from(self.end.saturating_sub(self.next)).ok();
+        (remaining.unwrap_or(usize::MAX), remaining)
     }
 }
 
@@ -712,6 +706,21 @@ mod tests {
         let outcome = check(0xFFFE, 2);
         assert_eq!(outcome.addresses.len(), 2);
         assert_eq!(outcome.after_the_last, [None, None]);
+    }
+
+    #[test]
+    fn the_count_of_addresses_left_is_exact() {
+        for (start, count, addresses) in [(0xFFFE, 2, 2), (0xFFFF, 2, 1), (0x8000, 0xFFFF, 0x8000)]
+        {
+            let mut iterator = AddressIterator::new(start, count);
+            for remaining in (1..=addresses).rev() {
+                assert_eq!(iterator.size_hint(), (remaining, Some(remaining)));
+                assert!(iterator.next().is_some());
+            }
+            assert_eq!(iterator.size_hint(), (0, Some(0)));
+            assert_eq!(iterator.next(), None);
+            assert_eq!(iterator.size_hint(), (0, Some(0)));
+        }
     }
 
     #[test]
