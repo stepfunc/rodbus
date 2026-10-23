@@ -13,7 +13,7 @@ use crate::common::deadline::Deadline;
 use crate::common::phys::PhysLayer;
 
 use crate::client::message::{Command, Request, Setting};
-use crate::common::frame::{FrameHeader, FrameWriter, FramedReader, TxId};
+use crate::common::frame::{FrameHeader, FrameWriter, FramedReader, ReadError, TxId};
 use crate::error::*;
 use crate::DecodeLevel;
 
@@ -74,16 +74,17 @@ impl std::fmt::Display for SessionError {
     }
 }
 
-impl SessionError {
-    pub(crate) fn from_request_err(err: RequestError) -> Option<Self> {
+impl From<ReadError> for SessionError {
+    fn from(err: ReadError) -> Self {
         match err {
-            RequestError::Io(x) => Some(SessionError::IoError(x)),
-            RequestError::BadFrame(_) => Some(SessionError::BadFrame),
-            // all other errors don't kill the loop
-            _ => None,
+            ReadError::Io(kind) => SessionError::IoError(kind),
+            // the reader's place in the stream is unknown after an internal error too
+            ReadError::BadFrame(_) | ReadError::Internal(_) => SessionError::BadFrame,
         }
     }
+}
 
+impl SessionError {
     /// What the transport does now that the session has ended
     pub(crate) fn after(&self) -> AfterSession {
         match self {
@@ -92,6 +93,35 @@ impl SessionError {
             SessionError::IoError(_) | SessionError::BadFrame | SessionError::MaxTimeouts(_) => {
                 AfterSession::Reconnect
             }
+        }
+    }
+}
+
+/// Why a request got no response, which decides whether its session goes on
+#[derive(Clone, Copy)]
+enum ExchangeError {
+    /// Writing the request failed or timed out; the session ends
+    Write(std::io::ErrorKind),
+    /// Reading the response failed; the session ends
+    Read(ReadError),
+    /// The request failed on its own (no response in time, an exception, a bad response, ...);
+    /// the session goes on
+    Request(RequestError),
+}
+
+impl From<ReadError> for ExchangeError {
+    fn from(err: ReadError) -> Self {
+        Self::Read(err)
+    }
+}
+
+/// What the request fails with
+impl From<ExchangeError> for RequestError {
+    fn from(err: ExchangeError) -> Self {
+        match err {
+            ExchangeError::Write(kind) => Self::Io(kind),
+            ExchangeError::Read(err) => err.into(),
+            ExchangeError::Request(err) => err,
         }
     }
 }
@@ -248,10 +278,7 @@ impl ClientLoop {
                         tracing::debug!("Received unexpected frame while idle: {:?}", frame.header);
                         Ok(())
                     }
-                    Err(err) => match SessionError::from_request_err(err) {
-                        Some(err) => Err(err),
-                        None => Ok(()),
-                    }
+                    Err(err) => Err(err.into()),
                 }
             }
             res = self.rx.recv() => {
@@ -280,23 +307,22 @@ impl ClientLoop {
             Err(err) => {
                 // Fail the request in ONE place. If the whole future
                 // gets dropped, then the request gets failed with Shutdown
-                tracing::warn!("request error: {}", err);
-                request.details.fail(err);
+                let request_err = RequestError::from(err);
+                tracing::warn!("request error: {}", request_err);
+                request.details.fail(request_err);
 
-                // some request errors are a session error that will
-                // bubble up and close the session
-                if let Some(err) = SessionError::from_request_err(err) {
-                    return Err(err);
-                }
-
-                if err == RequestError::ResponseTimeout {
+                match err {
+                    // the stream failed, so the session ends
+                    ExchangeError::Write(kind) => return Err(SessionError::IoError(kind)),
+                    ExchangeError::Read(err) => return Err(err.into()),
                     // if we reach the maximum number of consecutive timeouts,
                     // this can also terminate the session
-                    self.timeout_counter.increment()?;
-                } else {
+                    ExchangeError::Request(RequestError::ResponseTimeout) => {
+                        self.timeout_counter.increment()?;
+                    }
                     // all other errors reset the response timeout counter,
                     // e.g. a Modbus exception
-                    self.timeout_counter.reset();
+                    ExchangeError::Request(_) => self.timeout_counter.reset(),
                 }
             }
         }
@@ -309,14 +335,17 @@ impl ClientLoop {
         io: &mut PhysLayer,
         request: &mut Request,
         tx_id: TxId,
-    ) -> Result<(), RequestError> {
-        let (header, bytes) = self.writer.format_request(
-            request.id,
-            tx_id,
-            request.details.function(),
-            &request.details,
-            self.decode,
-        )?;
+    ) -> Result<(), ExchangeError> {
+        let (header, bytes) = self
+            .writer
+            .format_request(
+                request.id,
+                tx_id,
+                request.details.function(),
+                &request.details,
+                self.decode,
+            )
+            .map_err(ExchangeError::Request)?;
 
         // the timeout covers sending the request as well as receiving the response
         let deadline = Deadline::after(request.timeout);
@@ -324,16 +353,18 @@ impl ClientLoop {
         tokio::select! {
             _ = deadline.wait() => {
                 // part of the request may be on the wire, so the session can't continue
-                return Err(RequestError::Io(std::io::ErrorKind::TimedOut));
+                return Err(ExchangeError::Write(std::io::ErrorKind::TimedOut));
             }
-            res = io.write(bytes, self.decode.physical) => res?,
+            res = io.write(bytes, self.decode.physical) => {
+                res.map_err(|err| ExchangeError::Write(err.kind()))?
+            }
         }
 
         // loop until we get the response to this request or we timeout
         let response = loop {
             let frame = tokio::select! {
                 _ = deadline.wait() => {
-                    return Err(RequestError::ResponseTimeout);
+                    return Err(ExchangeError::Request(RequestError::ResponseTimeout));
                 }
                 frame = self.reader.next_frame(io, self.decode) => {
                     frame?
@@ -356,7 +387,9 @@ impl ClientLoop {
 
         // once we have a response, handle it. This may complete a promise
         // successfully or bubble up an error
-        request.handle_response(response.payload(), self.decode.app)
+        request
+            .handle_response(response.payload(), self.decode.app)
+            .map_err(ExchangeError::Request)
     }
 
     pub(crate) fn change_setting(&mut self, setting: Setting) {

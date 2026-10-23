@@ -6,7 +6,7 @@
 
 use crate::common::buffer::ReadBuffer;
 use crate::common::frame::{
-    Frame, FrameDestination, FrameHeader, FrameInfo, FrameType, FunctionField, PduLength,
+    Frame, FrameDestination, FrameHeader, FrameInfo, FrameType, FunctionField, PduLength, ReadError,
 };
 use crate::common::function::{is_exception, FunctionCode};
 use crate::common::traits::Serialize;
@@ -130,7 +130,7 @@ impl RtuParser {
     pub(crate) fn parse(
         &self,
         cursor: &mut ReadBuffer,
-    ) -> Result<Option<(Frame, FrameType)>, RequestError> {
+    ) -> Result<Option<(Frame, FrameType)>, ReadError> {
         let Some(pdu_length) = self.pdu_length(cursor.peek())? else {
             return Ok(None);
         };
@@ -154,9 +154,7 @@ impl RtuParser {
         digest.update(frame.payload());
         let expected_crc = digest.finalize();
         if received_crc != expected_crc {
-            return Err(RequestError::BadFrame(
-                FrameParseError::CrcValidationFailure(received_crc, expected_crc),
-            ));
+            return Err(FrameParseError::CrcValidationFailure(received_crc, expected_crc).into());
         }
 
         Ok(Some((frame, FrameType::Rtu(destination, received_crc))))
@@ -587,7 +585,10 @@ mod tests {
                         });
                     }
                     Poll::Ready(Err(error)) => {
-                        outcomes.push(Outcome::Error { chunk, error });
+                        outcomes.push(Outcome::Error {
+                            chunk,
+                            error: error.into(),
+                        });
                         return outcomes;
                     }
                 }
@@ -890,7 +891,7 @@ mod tests {
         assert!(task.poll().is_pending());
         io_handle.read_error(std::io::ErrorKind::BrokenPipe);
         assert_eq!(
-            task.poll().map(|x| x.err()),
+            task.poll().map(|x| x.err().map(RequestError::from)),
             Poll::Ready(Some(RequestError::Io(std::io::ErrorKind::BrokenPipe)))
         );
     }
@@ -1185,7 +1186,7 @@ mod tests {
                     },
                     payload: frame.payload().to_vec(),
                 },
-                Err(error) => Parsed::Error(error),
+                Err(error) => Parsed::Error(error.into()),
             };
             ((parsed, taken.checked_sub(buffer.len()).unwrap()), taken)
         }
