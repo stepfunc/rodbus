@@ -587,67 +587,310 @@ pub(crate) mod strategies {
 
 #[cfg(test)]
 mod tests {
+    use crate::common::traits::Parse;
     use crate::error::*;
 
     use super::*;
 
-    fn addresses(start: u16, count: u16) -> Vec<u16> {
-        AddressIterator::new(start, count).collect()
+    /// What a range built from its fields gives: checked, checked for each function that limits
+    /// its count, parsed from its four bytes, as a `std` range, and its addresses with the next
+    /// two calls after the last
+    #[derive(Debug, PartialEq)]
+    struct Outcome {
+        checked: Result<AddressRange, InvalidRange>,
+        read_bits: Result<AddressRange, InvalidRange>,
+        read_registers: Result<AddressRange, InvalidRange>,
+        write_coils: Result<AddressRange, InvalidRange>,
+        write_registers: Result<AddressRange, InvalidRange>,
+        parsed: Result<AddressRange, RequestError>,
+        unparsed_bytes: usize,
+        std_range: std::ops::Range<usize>,
+        addresses: Vec<u16>,
+        after_the_last: [Option<u16>; 2],
+    }
+
+    /// The model of a range checked: its last address is counted in `u32`, so it can't wrap
+    fn model_checked(start: u16, count: u16) -> Result<AddressRange, InvalidRange> {
+        let Some(before_last) = count.checked_sub(1) else {
+            return Err(InvalidRange::CountOfZero);
+        };
+        let last = u32::from(start)
+            .checked_add(u32::from(before_last))
+            .unwrap();
+        if last > 0xFFFF {
+            return Err(InvalidRange::AddressOverflow(start, count));
+        }
+        Ok(AddressRange { start, count })
+    }
+
+    /// The model of a range checked for a function that carries at most `limit` values: the
+    /// count against the limit first
+    fn model_limited(start: u16, count: u16, limit: u16) -> Result<AddressRange, InvalidRange> {
+        if count > limit {
+            return Err(InvalidRange::CountTooLargeForType(count, limit));
+        }
+        model_checked(start, count)
+    }
+
+    // MODBUS Application Protocol Specification V1.1b3 6.1, 6.3, 6.11, 6.12 for the limits
+    fn model(start: u16, count: u16) -> Outcome {
+        let first = u32::from(start);
+        let end = first.checked_add(u32::from(count)).unwrap();
+        let std_end = usize::from(start).checked_add(usize::from(count)).unwrap();
+        Outcome {
+            checked: model_checked(start, count),
+            read_bits: model_limited(start, count, 2000),
+            read_registers: model_limited(start, count, 125),
+            write_coils: model_limited(start, count, 1968),
+            write_registers: model_limited(start, count, 123),
+            // decoded big-endian, not validated: a response's range is compared with the request's
+            parsed: Ok(AddressRange { start, count }),
+            unparsed_bytes: 0,
+            std_range: usize::from(start)..std_end,
+            addresses: (first..end.min(0x1_0000))
+                .map(|address| u16::try_from(address).unwrap())
+                .collect(),
+            after_the_last: [None, None],
+        }
+    }
+
+    fn outcome(start: u16, count: u16) -> Outcome {
+        let range = AddressRange { start, count };
+        let [start_hi, start_lo] = start.to_be_bytes();
+        let [count_hi, count_lo] = count.to_be_bytes();
+        let bytes = [start_hi, start_lo, count_hi, count_lo];
+        let mut cursor = ReadCursor::new(&bytes);
+        let parsed = AddressRange::parse(&mut cursor);
+        let mut iterator = AddressIterator::new(start, count);
+        let addresses = iterator.by_ref().collect();
+        Outcome {
+            checked: AddressRange::try_from(start, count),
+            read_bits: range.of_read_bits().map(ReadBitsRange::get),
+            read_registers: range.of_read_registers().map(ReadRegistersRange::get),
+            write_coils: range.of_write_coils(),
+            write_registers: range.of_write_registers(),
+            parsed,
+            unparsed_bytes: cursor.remaining(),
+            std_range: range.to_std_range(),
+            addresses,
+            after_the_last: [iterator.next(), iterator.next()],
+        }
+    }
+
+    /// The range built from `start` and `count` behaves as the model says; returns what it gave
+    fn check(start: u16, count: u16) -> Outcome {
+        let outcome = outcome(start, count);
+        assert_eq!(outcome, model(start, count));
+        outcome
     }
 
     #[test]
     fn addresses_of_a_range_in_order() {
-        assert_eq!(addresses(0, 3), [0, 1, 2]);
+        assert_eq!(check(0, 3).addresses, [0, 1, 2]);
     }
 
     #[test]
     fn addresses_reach_the_last_address() {
-        assert_eq!(addresses(0xFFFF, 1), [0xFFFF]);
-        assert_eq!(addresses(0xFFFE, 2), [0xFFFE, 0xFFFF]);
+        assert_eq!(check(0xFFFF, 1).addresses, [0xFFFF]);
+        assert_eq!(check(0xFFFE, 2).addresses, [0xFFFE, 0xFFFF]);
     }
 
     #[test]
     fn addresses_of_an_empty_range() {
-        assert_eq!(addresses(7, 0), []);
+        assert_eq!(check(7, 0).addresses, []);
     }
 
     #[test]
     fn addresses_past_the_end_of_the_address_space_stop_at_the_last() {
-        let mut addresses = AddressIterator::new(0xFFFF, 2);
-        assert_eq!(addresses.next(), Some(0xFFFF));
-        assert_eq!(addresses.next(), None);
-        assert_eq!(addresses.next(), None);
+        let outcome = check(0xFFFF, 2);
+        assert_eq!(outcome.addresses, [0xFFFF]);
+        assert_eq!(outcome.after_the_last, [None, None]);
     }
 
     #[test]
     fn addresses_stay_exhausted() {
-        let mut addresses = AddressIterator::new(0xFFFE, 2);
-        assert_eq!(addresses.by_ref().count(), 2);
-        assert_eq!(addresses.next(), None);
-        assert_eq!(addresses.next(), None);
+        let outcome = check(0xFFFE, 2);
+        assert_eq!(outcome.addresses.len(), 2);
+        assert_eq!(outcome.after_the_last, [None, None]);
     }
 
     #[test]
     fn address_start_max_count_of_one_is_allowed() {
-        AddressRange::try_from(u16::MAX, 1).unwrap();
+        assert_eq!(
+            check(u16::MAX, 1).checked,
+            Ok(AddressRange {
+                start: u16::MAX,
+                count: 1
+            })
+        );
     }
 
     #[test]
     fn address_maximum_range_is_ok() {
-        AddressRange::try_from(0, 0xFFFF).unwrap();
+        assert_eq!(
+            check(0, 0xFFFF).checked,
+            Ok(AddressRange {
+                start: 0,
+                count: 0xFFFF
+            })
+        );
     }
 
     #[test]
     fn address_count_zero_fails_validation() {
-        assert_eq!(AddressRange::try_from(0, 0), Err(InvalidRange::CountOfZero));
+        assert_eq!(check(0, 0).checked, Err(InvalidRange::CountOfZero));
     }
 
     #[test]
     fn start_max_count_of_two_overflows() {
         assert_eq!(
-            AddressRange::try_from(u16::MAX, 2),
+            check(u16::MAX, 2).checked,
             Err(InvalidRange::AddressOverflow(u16::MAX, 2))
         );
+    }
+
+    #[test]
+    fn a_range_is_parsed_from_its_four_bytes_without_being_checked() {
+        let outcome = check(0x1234, 0x0056);
+        assert_eq!(
+            outcome.parsed,
+            Ok(AddressRange {
+                start: 0x1234,
+                count: 0x0056
+            })
+        );
+        assert_eq!(outcome.unparsed_bytes, 0);
+        assert_eq!(
+            check(u16::MAX, 2).parsed,
+            Ok(AddressRange {
+                start: u16::MAX,
+                count: 2
+            })
+        );
+        assert_eq!(check(0, 0).parsed, Ok(AddressRange { start: 0, count: 0 }));
+    }
+
+    #[test]
+    fn std_range_of_the_whole_address_space() {
+        assert_eq!(check(0, 0xFFFF).std_range, 0..0xFFFF);
+        assert_eq!(check(0xFFFF, 1).std_range, 0xFFFF..0x10000);
+        // built from its fields, past the end of the address space
+        assert_eq!(check(0xFFFF, 0xFFFF).std_range, 0xFFFF..0x1FFFE);
+        assert_eq!(check(5, 0).std_range, 5..5);
+    }
+
+    #[test]
+    fn a_range_built_from_its_fields_is_checked_when_a_read_is_made() {
+        let error = InvalidRange::AddressOverflow(0xFFFF, 2);
+        let overflow = check(0xFFFF, 2);
+        assert_eq!(overflow.read_bits, Err(error));
+        assert_eq!(overflow.read_registers, Err(error));
+
+        let empty = check(0, 0);
+        assert_eq!(empty.read_bits, Err(InvalidRange::CountOfZero));
+        assert_eq!(empty.read_registers, Err(InvalidRange::CountOfZero));
+    }
+
+    // MODBUS Application Protocol Specification V1.1b3 6.1-6.4: the quantity before the address
+    #[test]
+    fn a_read_past_its_limit_and_past_0xffff_is_refused_for_its_count() {
+        assert_eq!(
+            check(0xFFF0, 2001).read_bits,
+            Err(InvalidRange::CountTooLargeForType(2001, 2000))
+        );
+        assert_eq!(
+            check(0xFFF0, 126).read_registers,
+            Err(InvalidRange::CountTooLargeForType(126, 125))
+        );
+    }
+
+    // MODBUS Application Protocol Specification V1.1b3 6.1, 6.2
+    #[test]
+    fn a_read_of_bits_is_limited_to_2000() {
+        assert_eq!(
+            check(0, 2000).read_bits,
+            Ok(AddressRange {
+                start: 0,
+                count: 2000
+            })
+        );
+        assert_eq!(
+            check(0, 2001).read_bits,
+            Err(InvalidRange::CountTooLargeForType(2001, 2000))
+        );
+    }
+
+    // MODBUS Application Protocol Specification V1.1b3 6.3, 6.4
+    #[test]
+    fn a_read_of_registers_is_limited_to_125() {
+        assert_eq!(
+            check(0, 125).read_registers,
+            Ok(AddressRange {
+                start: 0,
+                count: 125
+            })
+        );
+        assert_eq!(
+            check(0, 126).read_registers,
+            Err(InvalidRange::CountTooLargeForType(126, 125))
+        );
+    }
+
+    // MODBUS Application Protocol Specification V1.1b3 6.11
+    #[test]
+    fn a_write_of_coils_is_limited_to_1968() {
+        assert_eq!(
+            check(0, 1968).write_coils,
+            Ok(AddressRange {
+                start: 0,
+                count: 1968
+            })
+        );
+        assert_eq!(
+            check(0, 1969).write_coils,
+            Err(InvalidRange::CountTooLargeForType(1969, 1968))
+        );
+    }
+
+    // MODBUS Application Protocol Specification V1.1b3 6.12
+    #[test]
+    fn a_write_of_registers_is_limited_to_123() {
+        assert_eq!(
+            check(0, 123).write_registers,
+            Ok(AddressRange {
+                start: 0,
+                count: 123
+            })
+        );
+        assert_eq!(
+            check(0, 124).write_registers,
+            Err(InvalidRange::CountTooLargeForType(124, 123))
+        );
+    }
+
+    // MODBUS Application Protocol Specification V1.1b3 6.11, 6.12: the quantity before the address
+    #[test]
+    fn a_write_past_its_limit_and_past_0xffff_is_refused_for_its_count() {
+        assert_eq!(
+            check(0xFFF0, 1969).write_coils,
+            Err(InvalidRange::CountTooLargeForType(1969, 1968))
+        );
+        assert_eq!(
+            check(0xFFF0, 124).write_registers,
+            Err(InvalidRange::CountTooLargeForType(124, 123))
+        );
+    }
+
+    #[test]
+    fn a_range_built_from_its_fields_is_checked_when_a_write_is_made() {
+        let error = InvalidRange::AddressOverflow(0xFFFF, 2);
+        let overflow = check(0xFFFF, 2);
+        assert_eq!(overflow.write_coils, Err(error));
+        assert_eq!(overflow.write_registers, Err(error));
+
+        let empty = check(0, 0);
+        assert_eq!(empty.write_coils, Err(InvalidRange::CountOfZero));
+        assert_eq!(empty.write_registers, Err(InvalidRange::CountOfZero));
     }
 
     #[test]
@@ -717,148 +960,6 @@ mod tests {
             &[0x12, 0x34, 0x56, 0x78],
             &[Indexed::new(0xFFFE, 0x1234), Indexed::new(0xFFFF, 0x5678)],
         );
-    }
-
-    #[test]
-    fn std_range_of_the_whole_address_space() {
-        let range = AddressRange::try_from(0, 0xFFFF).unwrap();
-        assert_eq!(range.to_std_range(), 0..0xFFFF);
-        let range = AddressRange::try_from(0xFFFF, 1).unwrap();
-        assert_eq!(range.to_std_range(), 0xFFFF..0x10000);
-        // built from its fields, past the end of the address space
-        let range = AddressRange {
-            start: 0xFFFF,
-            count: 0xFFFF,
-        };
-        assert_eq!(range.to_std_range(), 0xFFFF..0x1FFFE);
-        let range = AddressRange { start: 5, count: 0 };
-        assert_eq!(range.to_std_range(), 5..5);
-    }
-    #[test]
-    fn a_range_built_from_its_fields_is_checked_when_a_read_is_made() {
-        let overflow = AddressRange {
-            start: 0xFFFF,
-            count: 2,
-        };
-        let error = InvalidRange::AddressOverflow(0xFFFF, 2);
-        assert_eq!(overflow.of_read_bits(), Err(error));
-        assert_eq!(overflow.of_read_registers(), Err(error));
-
-        let empty = AddressRange { start: 0, count: 0 };
-        assert_eq!(empty.of_read_bits(), Err(InvalidRange::CountOfZero));
-        assert_eq!(empty.of_read_registers(), Err(InvalidRange::CountOfZero));
-    }
-
-    // MODBUS Application Protocol Specification V1.1b3 6.1-6.4: the quantity before the address
-    #[test]
-    fn a_read_past_its_limit_and_past_0xffff_is_refused_for_its_count() {
-        let bits = AddressRange {
-            start: 0xFFF0,
-            count: 2001,
-        };
-        assert_eq!(
-            bits.of_read_bits(),
-            Err(InvalidRange::CountTooLargeForType(2001, 2000))
-        );
-        let registers = AddressRange {
-            start: 0xFFF0,
-            count: 126,
-        };
-        assert_eq!(
-            registers.of_read_registers(),
-            Err(InvalidRange::CountTooLargeForType(126, 125))
-        );
-    }
-
-    // MODBUS Application Protocol Specification V1.1b3 6.1, 6.2
-    #[test]
-    fn a_read_of_bits_is_limited_to_2000() {
-        let most = AddressRange::try_from(0, 2000).unwrap();
-        assert_eq!(most.of_read_bits().map(ReadBitsRange::get), Ok(most));
-
-        let too_many = AddressRange::try_from(0, 2001).unwrap();
-        assert_eq!(
-            too_many.of_read_bits(),
-            Err(InvalidRange::CountTooLargeForType(2001, 2000))
-        );
-    }
-
-    // MODBUS Application Protocol Specification V1.1b3 6.3, 6.4
-    #[test]
-    fn a_read_of_registers_is_limited_to_125() {
-        let most = AddressRange::try_from(0, 125).unwrap();
-        assert_eq!(
-            most.of_read_registers().map(ReadRegistersRange::get),
-            Ok(most)
-        );
-
-        let too_many = AddressRange::try_from(0, 126).unwrap();
-        assert_eq!(
-            too_many.of_read_registers(),
-            Err(InvalidRange::CountTooLargeForType(126, 125))
-        );
-    }
-
-    // MODBUS Application Protocol Specification V1.1b3 6.11
-    #[test]
-    fn a_write_of_coils_is_limited_to_1968() {
-        let most = AddressRange::try_from(0, 1968).unwrap();
-        assert_eq!(most.of_write_coils(), Ok(most));
-
-        let too_many = AddressRange::try_from(0, 1969).unwrap();
-        assert_eq!(
-            too_many.of_write_coils(),
-            Err(InvalidRange::CountTooLargeForType(1969, 1968))
-        );
-    }
-
-    // MODBUS Application Protocol Specification V1.1b3 6.12
-    #[test]
-    fn a_write_of_registers_is_limited_to_123() {
-        let most = AddressRange::try_from(0, 123).unwrap();
-        assert_eq!(most.of_write_registers(), Ok(most));
-
-        let too_many = AddressRange::try_from(0, 124).unwrap();
-        assert_eq!(
-            too_many.of_write_registers(),
-            Err(InvalidRange::CountTooLargeForType(124, 123))
-        );
-    }
-
-    // MODBUS Application Protocol Specification V1.1b3 6.11, 6.12: the quantity before the address
-    #[test]
-    fn a_write_past_its_limit_and_past_0xffff_is_refused_for_its_count() {
-        let coils = AddressRange {
-            start: 0xFFF0,
-            count: 1969,
-        };
-        assert_eq!(
-            coils.of_write_coils(),
-            Err(InvalidRange::CountTooLargeForType(1969, 1968))
-        );
-        let registers = AddressRange {
-            start: 0xFFF0,
-            count: 124,
-        };
-        assert_eq!(
-            registers.of_write_registers(),
-            Err(InvalidRange::CountTooLargeForType(124, 123))
-        );
-    }
-
-    #[test]
-    fn a_range_built_from_its_fields_is_checked_when_a_write_is_made() {
-        let overflow = AddressRange {
-            start: 0xFFFF,
-            count: 2,
-        };
-        let error = InvalidRange::AddressOverflow(0xFFFF, 2);
-        assert_eq!(overflow.of_write_coils(), Err(error));
-        assert_eq!(overflow.of_write_registers(), Err(error));
-
-        let empty = AddressRange { start: 0, count: 0 };
-        assert_eq!(empty.of_write_coils(), Err(InvalidRange::CountOfZero));
-        assert_eq!(empty.of_write_registers(), Err(InvalidRange::CountOfZero));
     }
 
     /// `values` yields `expected` and stays exhausted after it, its length counting down to zero
@@ -969,6 +1070,29 @@ mod tests {
                 let bytes = prop::collection::vec(any::<u8>(), bits.div_ceil(8));
                 (Just(range), bytes)
             })
+        }
+
+        /// The limits of MODBUS Application Protocol Specification V1.1b3 6.1, 6.3, 6.11 and
+        /// 6.12, each with the counts one below and one above it
+        static LIMITS_AND_NEIGHBORS: [u16; 11] =
+            [122, 123, 124, 125, 126, 1967, 1968, 1969, 1999, 2000, 2001];
+
+        proptest! {
+            #![proptest_config(ProptestConfig::with_cases(1024))]
+
+            // starts biased to the top of the address space, counts to the limits and around them
+            #[test]
+            fn a_range_built_from_any_fields_behaves_as_modelled(
+                start in prop_oneof![any::<u16>(), 0xFF00..=u16::MAX, Just(0)],
+                count in prop_oneof![
+                    any::<u16>(),
+                    0..=2100u16,
+                    Just(0),
+                    prop::sample::select(&LIMITS_AND_NEIGHBORS[..]),
+                ],
+            ) {
+                check(start, count);
+            }
         }
 
         proptest! {
