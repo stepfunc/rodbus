@@ -406,13 +406,14 @@ mod tests {
     use tokio::time::Instant;
 
     use super::*;
-    use crate::client::{Channel, RequestParam};
+    use crate::client::{Channel, RequestParam, WriteMultiple};
     #[cfg(feature = "serial")]
     use crate::common::frame::FrameDestination;
     #[cfg(feature = "serial")]
     use crate::common::test_support::with_crc;
     use crate::common::test_support::{mbap, watchdog};
     use crate::decode::AppDecodeLevel;
+    use crate::exception::ExceptionCode;
     use crate::types::{AddressRange, UnitId};
     use crate::Indexed;
 
@@ -743,6 +744,117 @@ mod tests {
             }
             // only two consecutive timeouts, so the session is still running
             a_read_of_coils_is_answered(&channel, &mut session).await;
+        })
+        .await;
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn counter_resets_on_an_exception() {
+        watchdog(async {
+            let (channel, mut session) = Setup::tcp().max_timeouts(2).spawn();
+            a_read_of_coils_times_out(&channel, &mut session).await;
+
+            let request = read_coils(&channel);
+            let tx_id = session.tcp_request().await;
+            session.send(&mbap(tx_id, 1, &[0x81, 0x02])).await;
+            assert_eq!(
+                request.await.unwrap(),
+                Err(RequestError::Exception(ExceptionCode::IllegalDataAddress))
+            );
+
+            a_read_of_coils_times_out(&channel, &mut session).await;
+            // the exception broke the run of timeouts, so the session is still running
+            a_read_of_coils_is_answered(&channel, &mut session).await;
+        })
+        .await;
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn counter_resets_when_a_session_starts() {
+        watchdog(async {
+            let (channel, mut first) = Setup::tcp().max_timeouts(2).spawn();
+            for _ in 0..2 {
+                a_read_of_coils_times_out(&channel, &mut first).await;
+            }
+            let (ended, client_loop) = first.hang_up().await;
+            assert_eq!(ended, SessionError::MaxTimeouts(2));
+
+            let mut second = Session::run(client_loop, PIPE);
+            a_read_of_coils_times_out(&channel, &mut second).await;
+            // only one timeout in this session, so it is still running
+            a_read_of_coils_is_answered(&channel, &mut second).await;
+        })
+        .await;
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn disabling_the_channel_ends_the_session_and_other_settings_dont() {
+        watchdog(async {
+            let (channel, mut client_loop) = Setup::tcp().build();
+            // a session only runs once the channel is enabled
+            client_loop.change_setting(Setting::Enable);
+            let mut session = Session::run(client_loop, PIPE);
+            a_read_of_coils_is_answered(&channel, &mut session).await;
+
+            channel
+                .set_decode_level(DecodeLevel::default().application(AppDecodeLevel::DataValues))
+                .await
+                .unwrap();
+            channel.enable().await.unwrap();
+            a_read_of_coils_is_answered(&channel, &mut session).await;
+
+            channel.disable().await.unwrap();
+            assert_eq!(session.ended().await, SessionError::Disabled);
+        })
+        .await;
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_late_answer_while_idle_is_ignored() {
+        watchdog(async {
+            let (channel, mut session) = Setup::tcp().spawn();
+            a_read_of_coils_times_out(&channel, &mut session).await;
+
+            // the answer to the request that timed out arrives while no request is outstanding
+            session.send(&mbap(0, 1, &COILS_ON_OFF)).await;
+            tokio::time::sleep(TIMEOUT).await;
+            assert!(!session.task.is_finished());
+
+            let request = read_coils(&channel);
+            session.expect(&mbap(1, 1, &READ_COILS)).await;
+            session.send(&mbap(1, 1, &COILS_ON_OFF)).await;
+            assert_eq!(
+                request.await.unwrap(),
+                Ok(vec![Indexed::new(7, true), Indexed::new(8, false)])
+            );
+        })
+        .await;
+    }
+
+    /// A Write Multiple Registers of 124 values needs a PDU of 254 bytes, so formatting it runs out
+    /// of room for the last value before anything is written
+    #[tokio::test(start_paused = true)]
+    async fn a_request_that_cant_be_formatted_fails_alone() {
+        watchdog(async {
+            let (channel, mut session) = Setup::tcp().spawn();
+            let write = WriteMultiple::from(0, vec![0; 124]).unwrap();
+            assert_eq!(
+                channel
+                    .write_multiple_registers(RequestParam::new(UnitId::new(1), TIMEOUT), write)
+                    .await,
+                Err(RequestError::Internal(
+                    InternalError::InsufficientWriteSpace(2, 1)
+                ))
+            );
+
+            // the failed request wrote nothing but used transaction id 0
+            let request = read_coils(&channel);
+            session.expect(&mbap(1, 1, &READ_COILS)).await;
+            session.send(&mbap(1, 1, &COILS_ON_OFF)).await;
+            assert_eq!(
+                request.await.unwrap(),
+                Ok(vec![Indexed::new(7, true), Indexed::new(8, false)])
+            );
         })
         .await;
     }
