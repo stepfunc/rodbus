@@ -201,7 +201,7 @@ fn build_request_param(lib: &mut LibraryBuilder) -> BackTraced<FunctionArgStruct
         .add(
             "timeout",
             DurationType::Milliseconds,
-            "Response timeout for the request. It covers sending the request and receiving the response. A request that can't be sent in time fails with an I/O error, and the connection (or serial port) is closed and reopened, whatever the channel's limit on consecutive response timeouts. A response that doesn't arrive in time is a response timeout. On a serial port, the delay between frames is part of sending the request.",
+            "Response timeout for the request. It covers sending the request and receiving the response. A request that can't be sent in time fails with an I/O error, and the connection (or serial port) is closed and reopened, whatever the channel's limit on consecutive response timeouts. A response that doesn't arrive in time is a response timeout. On a serial port, the delay between frames is part of sending the request. A zero timeout is replaced by one millisecond; any other duration is used as given.",
         )?
         .doc("Address and timeout parameters for requests")?
         .end_fields()?

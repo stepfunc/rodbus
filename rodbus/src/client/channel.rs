@@ -117,6 +117,8 @@ pub struct RequestParam {
     /// consecutive response timeouts. A response that doesn't arrive in time is
     /// [`RequestError::ResponseTimeout`]. On a serial port, the delay between frames is part of
     /// sending the request.
+    ///
+    /// A zero timeout is replaced by one millisecond; any other duration is used as given.
     pub response_timeout: Duration,
 }
 
@@ -574,6 +576,40 @@ mod tests {
                 Err(too_many(124, 123))
             );
             assert_eq!(rx.try_recv().err(), Some(TryRecvError::Empty));
+        })
+        .await;
+    }
+
+    /// The timeout of the request a read with `response_timeout` puts in the queue
+    async fn queued_timeout(response_timeout: Duration) -> Option<Duration> {
+        let (channel, mut rx) = channel();
+        let param = RequestParam::new(UnitId::new(1), response_timeout);
+        let queued = async {
+            // dropping the request fails the read with Shutdown
+            match rx.recv().await {
+                Some(Command::Request(request)) => Some(request.timeout()),
+                _ => None,
+            }
+        };
+        let (_, timeout) = tokio::join!(
+            channel.read_coils(param, AddressRange::try_from(0, 1).unwrap()),
+            queued
+        );
+        timeout
+    }
+
+    #[tokio::test]
+    async fn a_zero_response_timeout_is_queued_as_one_millisecond() {
+        watchdog(async {
+            let cases = [
+                (Duration::ZERO, Duration::from_millis(1)),
+                (Duration::from_nanos(1), Duration::from_nanos(1)),
+                (Duration::from_secs(1), Duration::from_secs(1)),
+                (Duration::MAX, Duration::MAX),
+            ];
+            for (given, queued) in cases {
+                assert_eq!(queued_timeout(given).await, Some(queued), "{given:?}");
+            }
         })
         .await;
     }
