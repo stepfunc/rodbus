@@ -691,6 +691,18 @@ mod tests {
         .await;
     }
 
+    #[tokio::test(start_paused = true)]
+    async fn an_ipv4_filter_admits_the_ipv4_mapped_form_of_its_address() {
+        // how a dual-stack listener, bound to [::], reports an IPv4 peer
+        let mapped = IpAddr::V6(ADMITTED.to_ipv6_mapped());
+        watchdog(async {
+            let (_handle, _task, mut peers) = spawn_filtered_server();
+            let (mut admitted, _) = peers.connect_from(mapped);
+            assert_eq!(read_coils(&mut admitted).await, ILLEGAL_FUNCTION);
+        })
+        .await;
+    }
+
     /// The size of the pipe under a session started by [`start_a_blocked_session`]
     const PIPE: usize = 4;
 
