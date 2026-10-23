@@ -249,10 +249,16 @@ pub(crate) mod test_util {
     }
 
     impl Peers {
-        /// Queue a connection for the listener; returns this end of it and its address
+        /// Queue a connection from 127.0.0.1 for the listener; returns this end of it and its
+        /// address
         pub(crate) fn connect(&mut self) -> (DuplexStream, SocketAddr) {
+            self.connect_from(std::net::Ipv4Addr::LOCALHOST.into())
+        }
+
+        /// Queue a connection from `ip` for the listener; returns this end of it and its address
+        pub(crate) fn connect_from(&mut self, ip: std::net::IpAddr) -> (DuplexStream, SocketAddr) {
             self.last_port = self.last_port.checked_add(1).unwrap();
-            let addr = SocketAddr::from(([127, 0, 0, 1], self.last_port));
+            let addr = SocketAddr::new(ip, self.last_port);
             let (local, remote) = tokio::io::duplex(PIPE);
             self.connections.send((remote, addr)).unwrap();
             (local, addr)
