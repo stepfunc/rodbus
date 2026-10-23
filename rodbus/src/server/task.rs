@@ -81,13 +81,17 @@ where
         Ok(())
     }
 
+    /// Serve requests over `io` until the session ends, leaving no partial frame behind for the
+    /// next
     pub(crate) async fn run(&mut self, io: &mut PhysLayer) -> RequestError {
-        loop {
+        let err = loop {
             if let Err(err) = self.run_one(io).await {
                 tracing::warn!("session error: {}", err);
-                return err;
+                break err;
             }
-        }
+        };
+        self.reader.reset();
+        err
     }
 
     #[cfg(feature = "serial")]
@@ -279,5 +283,76 @@ impl AuthorizationType {
                 result
             }
         }
+    }
+}
+
+#[cfg(all(test, feature = "serial"))]
+mod tests {
+    use super::*;
+    use crate::common::frame::{FrameWriter, FramedReader};
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    /// Holding registers hold their address
+    struct Values;
+
+    impl RequestHandler for Values {
+        fn read_holding_register(&self, address: u16) -> Result<u16, ExceptionCode> {
+            Ok(address)
+        }
+    }
+
+    fn with_crc(mut frame: Vec<u8>) -> Vec<u8> {
+        let crc = crc::Crc::<u16>::new(&crc::CRC_16_MODBUS).checksum(&frame);
+        frame.extend_from_slice(&crc.to_le_bytes());
+        frame
+    }
+
+    #[tokio::test]
+    async fn a_partial_request_doesnt_reach_the_reopened_port() {
+        crate::common::test_support::watchdog(async {
+            let (_commands, rx) = tokio::sync::mpsc::channel(1);
+            let mut session = SessionTask::new(
+                ServerHandlerMap::single(UnitId::new(1), Values.wrap()),
+                AuthorizationType::None,
+                FrameWriter::rtu(),
+                FramedReader::rtu_request(),
+                rx,
+                DecodeLevel::nothing(),
+            );
+            let (first, mut first_peer) = tokio::io::duplex(64);
+            let (second_tx, second_rx) = tokio::sync::oneshot::channel();
+            let task = tokio::spawn(async move {
+                let ended = session.run(&mut PhysLayer::new_duplex(first)).await;
+                let second = second_rx.await.unwrap();
+                (ended, session.run(&mut PhysLayer::new_duplex(second)).await)
+            });
+
+            let request = with_crc(vec![0x01, 0x03, 0x00, 0x10, 0x00, 0x01]);
+            // part of a request, then the port goes away
+            first_peer.write_all(&request[..3]).await.unwrap();
+            drop(first_peer);
+
+            let (second, mut second_peer) = tokio::io::duplex(64);
+            second_tx.send(second).unwrap();
+            second_peer.write_all(&request).await.unwrap();
+            let mut response = [0u8; 7];
+            second_peer.read_exact(&mut response).await.unwrap();
+            assert_eq!(
+                response.to_vec(),
+                with_crc(vec![0x01, 0x03, 0x02, 0x00, 0x10])
+            );
+
+            drop(second_peer);
+            let (first_ended, second_ended) = task.await.unwrap();
+            assert_eq!(
+                first_ended,
+                RequestError::Io(std::io::ErrorKind::UnexpectedEof)
+            );
+            assert_eq!(
+                second_ended,
+                RequestError::Io(std::io::ErrorKind::UnexpectedEof)
+            );
+        })
+        .await;
     }
 }
