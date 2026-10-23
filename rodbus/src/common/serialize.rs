@@ -15,8 +15,8 @@ use crate::error::{InternalError, RequestError};
 use crate::exception::ExceptionCode;
 use crate::server::response::{BitWriter, RegisterWriter};
 use crate::types::{
-    coil_from_u16, coil_to_u16, AddressRange, BitIterator, BitIteratorDisplay, Indexed,
-    RegisterIterator, RegisterIteratorDisplay,
+    coil_to_u16, AddressRange, BitIterator, BitIteratorDisplay, Indexed, RegisterIterator,
+    RegisterIteratorDisplay,
 };
 
 use scursor::{ReadCursor, WriteCursor};
@@ -78,21 +78,9 @@ impl Loggable for Indexed<bool> {
         if level.data_headers() {
             let mut cursor = ReadCursor::new(payload);
 
-            let index = match cursor.read_u16_be() {
-                Ok(idx) => idx,
-                Err(_) => return Ok(()),
-            };
-            let coil_raw_value = match cursor.read_u16_be() {
-                Ok(value) => value,
-                Err(_) => return Ok(()),
-            };
-            let coil_value = match coil_from_u16(coil_raw_value) {
-                Ok(value) => value,
-                Err(_) => return Ok(()),
-            };
-            let value = Indexed::new(index, coil_value);
-
-            write!(f, "{value}")?;
+            if let Ok(value) = Indexed::<bool>::parse(&mut cursor) {
+                write!(f, "{value}")?;
+            }
         }
 
         Ok(())
@@ -117,17 +105,9 @@ impl Loggable for Indexed<u16> {
         if level.data_headers() {
             let mut cursor = ReadCursor::new(payload);
 
-            let index = match cursor.read_u16_be() {
-                Ok(idx) => idx,
-                Err(_) => return Ok(()),
-            };
-            let raw_value = match cursor.read_u16_be() {
-                Ok(value) => value,
-                Err(_) => return Ok(()),
-            };
-            let value = Indexed::new(index, raw_value);
-
-            write!(f, "{value}")?;
+            if let Ok(value) = Indexed::<u16>::parse(&mut cursor) {
+                write!(f, "{value}")?;
+            }
         }
 
         Ok(())
