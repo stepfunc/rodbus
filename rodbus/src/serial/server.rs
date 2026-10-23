@@ -26,8 +26,8 @@ where
     pub(crate) async fn run(&mut self) -> Shutdown {
         loop {
             match crate::serial::open(&self.port, self.settings) {
-                Ok(serial) => {
-                    if let Err(Shutdown) = self.run_port(OpenPort::Serial(serial)).await {
+                Ok(port) => {
+                    if let Err(Shutdown) = self.run_port(port).await {
                         return Shutdown;
                     }
                 }
