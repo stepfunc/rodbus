@@ -498,14 +498,9 @@ mod tests {
 
         /// A client loop, and a channel to it, that isn't running
         fn build(self) -> (Channel, ClientLoop) {
-            let (tx, rx) = tokio::sync::mpsc::channel(16);
-            let client_loop = ClientLoop::new(
-                rx.into(),
-                self.writer,
-                self.reader,
-                self.decode,
-                self.max_timeouts,
-            );
+            let (tx, rx) = crate::channel::bounded(16);
+            let client_loop =
+                ClientLoop::new(rx, self.writer, self.reader, self.decode, self.max_timeouts);
             let channel = Channel {
                 tx,
                 shutdown: crate::common::cancellation::pair().0,

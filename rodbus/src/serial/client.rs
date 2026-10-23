@@ -299,12 +299,12 @@ mod tests {
     #[tokio::test(start_paused = true)]
     async fn shutdown_interrupts_a_pending_listener_notification() {
         watchdog(async {
-            let (_tx, rx) = tokio::sync::mpsc::channel(1);
+            let (_tx, rx) = crate::channel::bounded(1);
             let (states, mut state_rx) = tokio::sync::mpsc::unbounded_channel();
             let mut task = SerialChannelTask::new(
                 "unused",
                 SerialSettings::default(),
-                rx.into(),
+                rx,
                 default_retry_strategy(),
                 DecodeLevel::nothing(),
                 Box::new(BlockingDisabledListener { states }),
