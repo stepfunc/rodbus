@@ -7,10 +7,12 @@
 use std::convert::TryFrom;
 
 use crate::client::WriteMultiple;
+use crate::common::bits::calc_bytes_for_bits;
 use crate::common::traits::Loggable;
 use crate::common::traits::Parse;
 use crate::common::traits::Serialize;
 use crate::error::{InternalError, RequestError};
+use crate::exception::ExceptionCode;
 use crate::server::response::{BitWriter, RegisterWriter};
 use crate::types::{
     coil_from_u16, coil_to_u16, AddressRange, BitIterator, BitIteratorDisplay, Indexed,
@@ -18,11 +20,6 @@ use crate::types::{
 };
 
 use scursor::{ReadCursor, WriteCursor};
-
-pub(crate) fn calc_bytes_for_bits(num_bits: usize) -> Result<u8, InternalError> {
-    let count = num_bits.div_ceil(8);
-    u8::try_from(count).map_err(|_| InternalError::BadByteCount(count))
-}
 
 pub(crate) fn calc_bytes_for_registers(num_registers: usize) -> Result<u8, InternalError> {
     let count = num_registers.saturating_mul(2);
@@ -56,7 +53,7 @@ impl Loggable for AddressRange {
     }
 }
 
-impl Serialize for crate::exception::ExceptionCode {
+impl Serialize for ExceptionCode {
     fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
         cursor.write_u8((*self).into())?;
         Ok(())
@@ -137,65 +134,57 @@ impl Loggable for Indexed<u16> {
     }
 }
 
+/// Writes the byte count of `count` bits, then the `bits` eight to a byte, the first in the lowest
+/// bit and the last byte padded with zeros; stops at the first bit that is an exception
+#[inline]
+fn write_packed_bits(
+    cursor: &mut WriteCursor,
+    count: usize,
+    bits: impl Iterator<Item = Result<bool, ExceptionCode>>,
+) -> Result<(), RequestError> {
+    cursor.write_u8(calc_bytes_for_bits(count)?)?;
+
+    let mut byte: u8 = 0;
+    // the bit of `byte` that the next bit goes in
+    let mut mask: u8 = 1;
+    for bit in bits {
+        if bit? {
+            byte |= mask;
+        }
+        mask = mask.rotate_left(1);
+        if mask == 1 {
+            cursor.write_u8(byte)?;
+            byte = 0;
+        }
+    }
+
+    // a partial last byte
+    if mask != 1 {
+        cursor.write_u8(byte)?;
+    }
+
+    Ok(())
+}
+
 impl Serialize for &[bool] {
     fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
-        // how many bytes should we have?
-        let num_bytes = calc_bytes_for_bits(self.len())?;
-
-        cursor.write_u8(num_bytes)?;
-
-        for byte in self.chunks(8) {
-            let mut acc: u8 = 0;
-            for (count, bit) in byte.iter().enumerate() {
-                if *bit {
-                    acc |= 1 << count;
-                }
-            }
-            cursor.write_u8(acc)?;
-        }
-
-        Ok(())
+        write_packed_bits(cursor, self.len(), self.iter().map(|bit| Ok(*bit)))
     }
 }
 
 impl<T> Serialize for BitWriter<T>
 where
-    T: Fn(u16) -> Result<bool, crate::exception::ExceptionCode>,
+    T: Fn(u16) -> Result<bool, ExceptionCode>,
 {
     fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
         let range = self.range.get();
-        // write the number of bytes that follow
-        let num_bytes = calc_bytes_for_bits(range.count.into())?;
-        cursor.write_u8(num_bytes)?;
-
-        let mut acc = 0;
-
-        // iterate over all the addresses, accumulating bits in the byte
-        for (pos, address) in range.iter().enumerate() {
-            let bit = pos % 8;
-            if (self.getter)(address)? {
-                // merge the bit into the byte
-                acc |= 1 << bit;
-            }
-            if bit == 7 {
-                // flush the byte
-                cursor.write_u8(acc)?;
-                acc = 0;
-            }
-        }
-
-        // write any partial byte
-        if !range.count.is_multiple_of(8) {
-            cursor.write_u8(acc)?;
-        }
-
-        Ok(())
+        write_packed_bits(cursor, range.count.into(), range.iter().map(&self.getter))
     }
 }
 
 impl<T> Loggable for BitWriter<T>
 where
-    T: Fn(u16) -> Result<bool, crate::exception::ExceptionCode>,
+    T: Fn(u16) -> Result<bool, ExceptionCode>,
 {
     fn log(
         &self,
@@ -221,7 +210,7 @@ where
 
 impl<T> Serialize for RegisterWriter<T>
 where
-    T: Fn(u16) -> Result<u16, crate::exception::ExceptionCode>,
+    T: Fn(u16) -> Result<u16, ExceptionCode>,
 {
     fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
         // write the number of bytes that follow
@@ -240,7 +229,7 @@ where
 
 impl<T> Loggable for RegisterWriter<T>
 where
-    T: Fn(u16) -> Result<u16, crate::exception::ExceptionCode>,
+    T: Fn(u16) -> Result<u16, ExceptionCode>,
 {
     fn log(
         &self,
