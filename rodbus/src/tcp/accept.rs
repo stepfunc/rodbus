@@ -177,10 +177,11 @@ pub(crate) mod test_util {
     use tokio::io::DuplexStream;
     use tokio::sync::mpsc;
 
-    /// What one accept call of a [`FaultyListener`] does
+    /// What one accept call of a [`FaultyListener`], or one connect attempt of the client's
+    /// `MemoryConnector`, does
     #[derive(Copy, Clone, Debug)]
     pub(crate) enum Fault {
-        /// accept the next connection
+        /// accept or make the next connection
         None,
         /// fail with an error of this kind
         Kind(ErrorKind),
@@ -202,8 +203,8 @@ pub(crate) mod test_util {
         }
     }
 
-    /// The capacity of each direction of the pipes between [`Peers`] and a [`FaultyListener`],
-    /// which holds a TLS flight
+    /// The capacity of each direction of the in-memory pipes that stand in for TCP connections in
+    /// tests, on both the server and the client side, which holds a TLS flight
     pub(crate) const PIPE: usize = 16 * 1024;
 
     /// Applies one entry of `faults` per accept, then accepts the in-memory connections that its
