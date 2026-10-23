@@ -10,6 +10,37 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
+use crate::types::Indexed;
+
+/// Single coil writes and their bytes, from the example of MODBUS Application Protocol
+/// Specification V1.1b3 6.5 with the coil both on and off
+pub(crate) const SINGLE_COIL_WRITES: [(Indexed<bool>, [u8; 4]); 2] = [
+    (
+        Indexed {
+            index: 0x00AC,
+            value: true,
+        },
+        [0x00, 0xAC, 0xFF, 0x00],
+    ),
+    (
+        Indexed {
+            index: 0x00AC,
+            value: false,
+        },
+        [0x00, 0xAC, 0x00, 0x00],
+    ),
+];
+
+/// A single register write and its bytes, from the example of MODBUS Application Protocol
+/// Specification V1.1b3 6.6
+pub(crate) const SINGLE_REGISTER_WRITE: (Indexed<u16>, [u8; 4]) = (
+    Indexed {
+        index: 0x0001,
+        value: 0x0003,
+    },
+    [0x00, 0x01, 0x00, 0x03],
+);
+
 /// How long a test may run in wall-clock time before [`watchdog`] fails it
 const WATCHDOG: Duration = Duration::from_secs(30);
 

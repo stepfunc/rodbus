@@ -108,3 +108,42 @@ impl std::fmt::Display for ExceptionCode {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // MODBUS Application Protocol Specification V1.1b3 7
+    const NAMED_CODES: [(u8, ExceptionCode); 9] = [
+        (0x01, ExceptionCode::IllegalFunction),
+        (0x02, ExceptionCode::IllegalDataAddress),
+        (0x03, ExceptionCode::IllegalDataValue),
+        (0x04, ExceptionCode::ServerDeviceFailure),
+        (0x05, ExceptionCode::Acknowledge),
+        (0x06, ExceptionCode::ServerDeviceBusy),
+        (0x08, ExceptionCode::MemoryParityError),
+        (0x0A, ExceptionCode::GatewayPathUnavailable),
+        (0x0B, ExceptionCode::GatewayTargetDeviceFailedToRespond),
+    ];
+
+    #[test]
+    fn every_byte_round_trips_through_an_exception_code() {
+        for value in u8::MIN..=u8::MAX {
+            assert_eq!(u8::from(ExceptionCode::from(value)), value);
+        }
+    }
+
+    #[test]
+    fn named_exception_codes_have_their_assigned_values_and_other_bytes_are_unknown() {
+        for value in u8::MIN..=u8::MAX {
+            let expected = NAMED_CODES
+                .iter()
+                .find(|(code, _)| *code == value)
+                .map_or(ExceptionCode::Unknown(value), |(_, ex)| *ex);
+            assert_eq!(ExceptionCode::from(value), expected);
+        }
+        for (value, ex) in NAMED_CODES {
+            assert_eq!(u8::from(ex), value);
+        }
+    }
+}

@@ -294,14 +294,60 @@ impl Serialize for WriteMultiple<u16> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::common::test_support::{SINGLE_COIL_WRITES, SINGLE_REGISTER_WRITE};
+
+    fn bytes_of(value: &dyn Serialize) -> Vec<u8> {
+        let mut buffer = [0u8; 300];
+        let mut cursor = WriteCursor::new(&mut buffer);
+        value.serialize(&mut cursor).unwrap();
+        let len = cursor.position();
+        buffer[..len].to_vec()
+    }
 
     #[test]
     fn serializes_address_range() {
         let range = AddressRange::try_from(3, 512).unwrap();
-        let mut buffer = [0u8; 4];
-        let mut cursor = WriteCursor::new(&mut buffer);
-        range.serialize(&mut cursor).unwrap();
-        assert_eq!(buffer, [0x00, 0x03, 0x02, 0x00]);
+        assert_eq!(bytes_of(&range), [0x00, 0x03, 0x02, 0x00]);
+    }
+
+    // a server echoes a single write by serializing the request again
+    #[test]
+    fn writes_a_single_coil_as_its_address_and_ff00_or_0000() {
+        for (write, bytes) in SINGLE_COIL_WRITES {
+            assert_eq!(bytes_of(&write), bytes);
+        }
+    }
+
+    #[test]
+    fn writes_a_single_register_as_its_address_and_value_big_endian() {
+        let (write, bytes) = SINGLE_REGISTER_WRITE;
+        assert_eq!(bytes_of(&write), bytes);
+    }
+
+    // the example of MODBUS Application Protocol Specification V1.1b3 6.11; a multiple write is
+    // echoed by serializing its range
+    #[test]
+    fn writes_multiple_coils_as_range_byte_count_and_packed_coils() {
+        let coils = vec![
+            true, false, true, true, false, false, true, true, true, false,
+        ];
+        let request = WriteMultiple::from(0x13, coils).unwrap();
+        assert_eq!(
+            bytes_of(&request),
+            [0x00, 0x13, 0x00, 0x0A, 0x02, 0xCD, 0x01]
+        );
+        assert_eq!(bytes_of(&request.range), [0x00, 0x13, 0x00, 0x0A]);
+    }
+
+    // the example of MODBUS Application Protocol Specification V1.1b3 6.12
+    #[test]
+    fn writes_multiple_registers_as_range_byte_count_and_values_big_endian() {
+        let request = WriteMultiple::from(0x01, vec![0x000A, 0x0102]).unwrap();
+        assert_eq!(
+            bytes_of(&request),
+            [0x00, 0x01, 0x00, 0x02, 0x04, 0x00, 0x0A, 0x01, 0x02]
+        );
+        assert_eq!(bytes_of(&request.range), [0x00, 0x01, 0x00, 0x02]);
     }
 
     #[test]
@@ -338,11 +384,7 @@ mod tests {
             .unwrap();
         // odd addresses are on
         let writer = crate::server::response::BitWriter::new(range, |address| Ok(address % 2 == 1));
-        let mut buffer = [0u8; 300];
-        let mut cursor = WriteCursor::new(&mut buffer);
-        writer.serialize(&mut cursor).unwrap();
-        let len = cursor.position();
-        buffer[..len].to_vec()
+        bytes_of(&writer)
     }
 
     #[test]
@@ -356,11 +398,7 @@ mod tests {
     }
 
     fn serialize_slice(bits: &[bool]) -> Vec<u8> {
-        let mut buffer = [0u8; 8];
-        let mut cursor = WriteCursor::new(&mut buffer);
-        bits.serialize(&mut cursor).unwrap();
-        let len = cursor.position();
-        buffer[..len].to_vec()
+        bytes_of(&bits)
     }
 
     #[test]

@@ -90,3 +90,35 @@ impl FunctionCode {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // MODBUS Application Protocol Specification V1.1b3 6.1-6.6, 6.11, 6.12
+    const FUNCTION_CODES: [(u8, FunctionCode); 8] = [
+        (0x01, FunctionCode::ReadCoils),
+        (0x02, FunctionCode::ReadDiscreteInputs),
+        (0x03, FunctionCode::ReadHoldingRegisters),
+        (0x04, FunctionCode::ReadInputRegisters),
+        (0x05, FunctionCode::WriteSingleCoil),
+        (0x06, FunctionCode::WriteSingleRegister),
+        (0x0F, FunctionCode::WriteMultipleCoils),
+        (0x10, FunctionCode::WriteMultipleRegisters),
+    ];
+
+    #[test]
+    fn only_the_supported_function_codes_are_recognized_and_each_maps_back_to_its_value() {
+        for value in u8::MIN..=u8::MAX {
+            let expected = FUNCTION_CODES
+                .iter()
+                .find(|(code, _)| *code == value)
+                .map(|(_, function)| *function);
+            assert_eq!(FunctionCode::get(value), expected, "value {value:#04X}");
+            if let Some(function) = expected {
+                assert_eq!(function.get_value(), value);
+                assert_eq!(function.as_error(), value | 0x80);
+            }
+        }
+    }
+}
