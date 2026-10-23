@@ -107,6 +107,23 @@ impl Drop for Finished {
     }
 }
 
+/// The framing a session runs over
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub(crate) enum Link {
+    Tcp,
+    #[cfg(feature = "serial")]
+    Rtu,
+}
+
+/// A frame carrying `pdu` to or from `unit` over `link`; `tx_id` is used by MBAP only
+pub(crate) fn frame(link: Link, tx_id: u16, unit: u8, pdu: &[u8]) -> Vec<u8> {
+    match link {
+        Link::Tcp => mbap(tx_id, unit, pdu),
+        #[cfg(feature = "serial")]
+        Link::Rtu => crate::serial::test_util::rtu(unit, pdu),
+    }
+}
+
 /// An MBAP frame carrying `pdu` to or from `unit`, with transaction id `tx_id`
 pub(crate) fn mbap(tx_id: u16, unit: u8, pdu: &[u8]) -> Vec<u8> {
     let [tx_high, tx_low] = tx_id.to_be_bytes();

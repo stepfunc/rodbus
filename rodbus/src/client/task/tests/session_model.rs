@@ -17,6 +17,7 @@ use proptest::strategy::ValueTree;
 use proptest::test_runner::TestRunner;
 
 use super::*;
+use crate::common::test_support::{frame, Link};
 use crate::decode::{FrameDecodeLevel, PhysDecodeLevel};
 use crate::error::{AduParseError, FrameParseError};
 use crate::exception::ExceptionCode;
@@ -29,14 +30,6 @@ const PAST_TIMEOUT: Duration = Duration::from_millis(7 * 143);
 
 /// The address of the register every request reads
 const REGISTER: u16 = 0x10;
-
-/// The framing a session runs over
-#[derive(Copy, Clone, Debug, PartialEq)]
-enum Link {
-    Tcp,
-    #[cfg(feature = "serial")]
-    Rtu,
-}
 
 /// What the peer does once it read a request
 #[derive(Copy, Clone, Debug)]
@@ -229,15 +222,6 @@ fn predict(link: Link, max_timeouts: Option<usize>, steps: &[Step]) -> (&[Step],
         }
     }
     (steps, Ending::Running)
-}
-
-/// A frame carrying `pdu` to or from `unit`; RTU frames have no transaction id
-fn frame(link: Link, tx_id: u16, unit: u8, pdu: &[u8]) -> Vec<u8> {
-    match link {
-        Link::Tcp => mbap(tx_id, unit, pdu),
-        #[cfg(feature = "serial")]
-        Link::Rtu => crate::serial::test_util::rtu(unit, pdu),
-    }
 }
 
 /// A frame from `unit` the client can't parse, and the error it reports for it

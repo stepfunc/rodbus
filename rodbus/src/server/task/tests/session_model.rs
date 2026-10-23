@@ -43,7 +43,7 @@ use super::serve;
 use crate::common::frame::{FrameWriter, FramedReader};
 #[cfg(feature = "enable-tls")]
 use crate::common::function::FunctionCode;
-use crate::common::test_support::{mbap, watchdog};
+use crate::common::test_support::{frame, watchdog, Link};
 use crate::exception::ExceptionCode;
 #[cfg(feature = "enable-tls")]
 use crate::server::handler::test_util::{Check, Recorder, Target};
@@ -54,14 +54,6 @@ use crate::types::strategies::{packed_bits, packed_registers};
 #[cfg(feature = "enable-tls")]
 use crate::AddressRange;
 use crate::{Indexed, UnitId};
-
-/// The framing a session runs over
-#[derive(Copy, Clone, Debug, PartialEq)]
-enum Link {
-    Tcp,
-    #[cfg(feature = "serial")]
-    Rtu,
-}
 
 /// How the session authorizes requests
 #[derive(Copy, Clone, Debug)]
@@ -773,15 +765,6 @@ struct Case {
     failures: BTreeMap<u16, Failure>,
     /// the requests, then a read the session must answer
     requests: Vec<Request>,
-}
-
-/// A frame carrying `pdu` to or from `unit`; RTU frames have no transaction id
-fn frame(link: Link, tx_id: u16, unit: u8, pdu: &[u8]) -> Vec<u8> {
-    match link {
-        Link::Tcp => mbap(tx_id, unit, pdu),
-        #[cfg(feature = "serial")]
-        Link::Rtu => crate::serial::test_util::rtu(unit, pdu),
-    }
 }
 
 /// What the model expects of a case, and the kinds of its requests
