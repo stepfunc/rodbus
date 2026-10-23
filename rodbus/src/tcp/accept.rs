@@ -250,7 +250,7 @@ pub(crate) mod test_util {
     impl Peers {
         /// Queue a connection for the listener; returns this end of it and its address
         pub(crate) fn connect(&mut self) -> (DuplexStream, SocketAddr) {
-            self.last_port += 1;
+            self.last_port = self.last_port.checked_add(1).unwrap();
             let addr = SocketAddr::from(([127, 0, 0, 1], self.last_port));
             let (local, remote) = tokio::io::duplex(PIPE);
             self.connections.send((remote, addr)).unwrap();

@@ -31,7 +31,7 @@ impl ReadBuffer {
     }
 
     pub(crate) fn len(&self) -> usize {
-        self.end - self.begin
+        self.end.saturating_sub(self.begin)
     }
 
     pub(crate) fn is_empty(&self) -> bool {
@@ -39,29 +39,20 @@ impl ReadBuffer {
     }
 
     pub(crate) fn read(&mut self, count: usize) -> Result<&[u8], InternalError> {
-        if self.len() < count {
-            return Err(InternalError::InsufficientBytesForRead(count, self.len()));
-        }
-
-        match self.buffer.get(self.begin..(self.begin + count)) {
-            Some(ret) => {
-                self.begin += count;
-                Ok(ret)
-            }
-            None => Err(InternalError::InsufficientBytesForRead(count, self.len())),
-        }
+        let insufficient = InternalError::InsufficientBytesForRead(count, self.len());
+        let end = match self.begin.checked_add(count) {
+            Some(end) if end <= self.end => end,
+            _ => return Err(insufficient),
+        };
+        let ret = self.buffer.get(self.begin..end).ok_or(insufficient)?;
+        self.begin = end;
+        Ok(ret)
     }
 
     pub(crate) fn read_u8(&mut self) -> Result<u8, InternalError> {
-        if self.is_empty() {
-            return Err(InternalError::InsufficientBytesForRead(1, 0));
-        }
-        match self.buffer.get(self.begin) {
-            Some(ret) => {
-                self.begin += 1;
-                Ok(*ret)
-            }
-            None => Err(InternalError::InsufficientBytesForRead(1, 0)),
+        match self.read(1)? {
+            [byte] => Ok(*byte),
+            _ => Err(InternalError::InsufficientBytesForRead(1, 0)),
         }
     }
 
@@ -103,7 +94,8 @@ impl ReadBuffer {
         if count == 0 {
             return Err(std::io::Error::from(std::io::ErrorKind::UnexpectedEof));
         }
-        self.end += count;
+        // the read filled part of the space after `end`
+        self.end = self.end.saturating_add(count);
         Ok(count)
     }
 }

@@ -8,7 +8,7 @@ use crate::common::buffer::ReadBuffer;
 use crate::common::frame::{Frame, FrameHeader, FrameInfo, FrameType, FunctionField, TxId};
 use crate::common::traits::Serialize;
 use crate::decode::FrameDecodeLevel;
-use crate::error::{FrameParseError, RequestError};
+use crate::error::{FrameParseError, InternalError, RequestError};
 use crate::types::UnitId;
 
 use scursor::WriteCursor;
@@ -143,16 +143,21 @@ pub(crate) fn format_mbap(
     cursor.write_u16_be(0)?; // protocol id
     let len_pos = cursor.position();
     cursor.skip(2)?; // write the length later
+    let start_unit_id = cursor.position();
     cursor.write_u8(unit_id.value)?; // unit id
 
-    let start_pdu = cursor.position();
     cursor.write_u8(function.get_value())?;
     let start_pdu_body = cursor.position();
     msg.serialize(cursor)?;
     let end_pdu = cursor.position();
 
-    // the length field includes the unit identifier
-    let mbap_len_field = (end_pdu - start_pdu + 1) as u16;
+    // the length field counts the unit identifier and the PDU
+    let len = cursor
+        .get(start_unit_id..end_pdu)
+        .ok_or(InternalError::BadSeekOperation)?
+        .len();
+    let mbap_len_field =
+        u16::try_from(len).map_err(|_| InternalError::FrameTooBig(len, usize::from(u16::MAX)))?;
 
     // seek back and write the length, restore to the end of the pdu
     cursor.seek_to(len_pos)?;

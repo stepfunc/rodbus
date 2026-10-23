@@ -59,15 +59,11 @@ impl TxId {
         self.value
     }
 
+    /// The current id, moving on to the next one, which wraps from 0xFFFF to 0
     pub(crate) fn next(&mut self) -> TxId {
-        if self.value == u16::MAX {
-            self.value = 0;
-            TxId::new(u16::MAX)
-        } else {
-            let ret = self.value;
-            self.value += 1;
-            TxId::new(ret)
-        }
+        let ret = self.value;
+        self.value = self.value.wrapping_add(1);
+        TxId::new(ret)
     }
 }
 
