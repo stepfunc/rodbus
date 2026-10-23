@@ -147,7 +147,7 @@ impl RtuParser {
             FrameHeader::new_rtu_header(destination),
             pdu_length.read(cursor)?,
         );
-        let received_crc = u16::from_le_bytes([cursor.read_u8()?, cursor.read_u8()?]);
+        let received_crc = cursor.read_array().map(u16::from_le_bytes)?;
 
         let mut digest = CRC.digest();
         digest.update(&[unit_id.value]);
