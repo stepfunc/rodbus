@@ -449,11 +449,6 @@ mod tests {
     /// How late tokio may wake a timer: it rounds deadlines up to the next millisecond
     const TIMER_RESOLUTION: Duration = Duration::from_millis(1);
 
-    /// How late a sleep may end when the paused clock advances by itself: a timer's resolution,
-    /// plus up to another millisecond because tokio counts the advance from the start of the
-    /// current one
-    const AUTO_ADVANCE_SLACK: Duration = Duration::from_millis(2);
-
     /// Assert that a write starting now waits `expected`, to the timer's resolution
     async fn assert_write_waits(gap: &InterFrameGap, expected: Duration) {
         let mut write = tokio_test::task::spawn(gap.before_write());
@@ -723,6 +718,11 @@ mod tests {
         use tokio_serial::SerialPort;
 
         use super::*;
+
+        /// How late a sleep may end when the paused clock advances by itself: a timer's
+        /// resolution, plus up to another millisecond because tokio counts the advance from the
+        /// start of the current one
+        const AUTO_ADVANCE_SLACK: Duration = Duration::from_millis(2);
 
         /// The other end of the pseudo-terminal, and the layer on a port at 9600 baud
         fn port_at_9600() -> (tokio_serial::SerialStream, PhysLayer) {
