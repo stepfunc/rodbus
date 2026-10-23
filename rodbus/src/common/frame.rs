@@ -206,7 +206,8 @@ impl FrameParser {
     pub(crate) fn reset(&mut self) {
         match self {
             #[cfg(feature = "serial")]
-            FrameParser::Rtu(x) => x.reset(),
+            // the RTU parser keeps nothing between calls
+            FrameParser::Rtu(_) => {}
             FrameParser::Tcp(x) => x.reset(),
         }
     }

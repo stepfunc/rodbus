@@ -11,7 +11,7 @@ use crate::common::frame::{
 use crate::common::function::FunctionCode;
 use crate::common::traits::Serialize;
 use crate::decode::FrameDecodeLevel;
-use crate::error::{FrameParseError, RequestError};
+use crate::error::{FrameParseError, InternalError, RequestError};
 use crate::types::UnitId;
 
 use scursor::WriteCursor;
@@ -33,183 +33,142 @@ enum ParserType {
     Response,
 }
 
-#[derive(Clone, Copy)]
-enum ParseState {
-    Start,
-    ReadFullBody(FrameDestination, usize), // unit_id, length of rest
-    ReadToOffsetForLength(FrameDestination, usize), // unit_id, length to length
-}
-
+/// How to find the length of a PDU from its leading bytes
 #[derive(Clone, Copy)]
 enum LengthMode {
-    /// The length is always the same (without function code)
+    /// The function code is followed by this many bytes
     Fixed(usize),
-    /// You need to read X more bytes. The last byte contains the number of extra bytes to read after that
-    Offset(usize),
-    /// Unknown function code, can't determine the size
-    Unknown,
+    /// The function code is followed by this many bytes, then a byte count, then that many bytes
+    ByteCountAfter(usize),
 }
 
 pub(crate) struct RtuParser {
-    state: ParseState,
     parser_type: ParserType,
 }
 
 impl RtuParser {
     pub(crate) fn new_request_parser() -> Self {
         Self {
-            state: ParseState::Start,
             parser_type: ParserType::Request,
         }
     }
 
     pub(crate) fn new_response_parser() -> Self {
         Self {
-            state: ParseState::Start,
             parser_type: ParserType::Response,
         }
     }
 
-    // Returns how to calculate the length of the body
-    fn length_mode(&self, function_code: u8) -> LengthMode {
+    /// How to find the length of the PDU, or `None` for a function code it can't be found for
+    fn length_mode(&self, function_code: u8) -> Option<LengthMode> {
         // Check exception (only valid for responses)
         if matches!(self.parser_type, ParserType::Response) && function_code & 0x80 != 0 {
-            return LengthMode::Fixed(1);
+            return Some(LengthMode::Fixed(1));
         }
 
-        // Parse function code
-        let function_code = match FunctionCode::get(function_code) {
-            Some(code) => code,
-            None => return LengthMode::Unknown,
-        };
-
-        match self.parser_type {
-            ParserType::Request => match function_code {
+        let mode = match self.parser_type {
+            ParserType::Request => match FunctionCode::get(function_code)? {
                 FunctionCode::ReadCoils => LengthMode::Fixed(4),
                 FunctionCode::ReadDiscreteInputs => LengthMode::Fixed(4),
                 FunctionCode::ReadHoldingRegisters => LengthMode::Fixed(4),
                 FunctionCode::ReadInputRegisters => LengthMode::Fixed(4),
                 FunctionCode::WriteSingleCoil => LengthMode::Fixed(4),
                 FunctionCode::WriteSingleRegister => LengthMode::Fixed(4),
-                FunctionCode::WriteMultipleCoils => LengthMode::Offset(5),
-                FunctionCode::WriteMultipleRegisters => LengthMode::Offset(5),
+                FunctionCode::WriteMultipleCoils => LengthMode::ByteCountAfter(4),
+                FunctionCode::WriteMultipleRegisters => LengthMode::ByteCountAfter(4),
             },
-            ParserType::Response => match function_code {
-                FunctionCode::ReadCoils => LengthMode::Offset(1),
-                FunctionCode::ReadDiscreteInputs => LengthMode::Offset(1),
-                FunctionCode::ReadHoldingRegisters => LengthMode::Offset(1),
-                FunctionCode::ReadInputRegisters => LengthMode::Offset(1),
+            ParserType::Response => match FunctionCode::get(function_code)? {
+                FunctionCode::ReadCoils => LengthMode::ByteCountAfter(0),
+                FunctionCode::ReadDiscreteInputs => LengthMode::ByteCountAfter(0),
+                FunctionCode::ReadHoldingRegisters => LengthMode::ByteCountAfter(0),
+                FunctionCode::ReadInputRegisters => LengthMode::ByteCountAfter(0),
                 FunctionCode::WriteSingleCoil => LengthMode::Fixed(4),
                 FunctionCode::WriteSingleRegister => LengthMode::Fixed(4),
                 FunctionCode::WriteMultipleCoils => LengthMode::Fixed(4),
                 FunctionCode::WriteMultipleRegisters => LengthMode::Fixed(4),
             },
-        }
+        };
+        Some(mode)
     }
 
+    /// The length of the frame that starts `bytes`, unit id and CRC included, or `None` until
+    /// enough of it is buffered to tell and all of it is buffered
+    fn frame_length(&self, bytes: &[u8]) -> Result<Option<usize>, FrameParseError> {
+        let [_unit_id, function_code, body @ ..] = bytes else {
+            return Ok(None);
+        };
+
+        let pdu_length = match self.length_mode(*function_code) {
+            None => return Err(FrameParseError::UnknownFunctionCode(*function_code)),
+            Some(LengthMode::Fixed(length)) => constants::FUNCTION_CODE_LENGTH + length,
+            Some(LengthMode::ByteCountAfter(offset)) => match body.get(offset) {
+                None => return Ok(None),
+                Some(count) => constants::FUNCTION_CODE_LENGTH + offset + 1 + usize::from(*count),
+            },
+        };
+
+        if pdu_length > crate::common::frame::constants::MAX_ADU_LENGTH {
+            return Err(FrameParseError::FrameLengthTooBig(
+                pdu_length,
+                crate::common::frame::constants::MAX_ADU_LENGTH,
+            ));
+        }
+
+        let frame_length = constants::HEADER_LENGTH + pdu_length + constants::CRC_LENGTH;
+        Ok((bytes.len() >= frame_length).then_some(frame_length))
+    }
+
+    /// Read the frame at the start of the buffer, consuming it once it is complete
     pub(crate) fn parse(
-        &mut self,
+        &self,
         cursor: &mut ReadBuffer,
         decode_level: FrameDecodeLevel,
     ) -> Result<Option<Frame>, RequestError> {
-        match self.state {
-            ParseState::Start => {
-                if cursor.len() < 2 {
-                    return Ok(None);
-                }
+        let Some(frame_length) = self.frame_length(cursor.peek())? else {
+            return Ok(None);
+        };
 
-                let unit_id = UnitId::new(cursor.read_u8()?);
-                let destination = if unit_id == UnitId::broadcast() {
-                    FrameDestination::Broadcast
-                } else {
-                    FrameDestination::UnitId(unit_id)
-                };
-
-                if unit_id.is_rtu_reserved() {
-                    tracing::warn!("received reserved unit ID {}, violating Modbus RTU spec. Passing it through nevertheless.", unit_id);
-                }
-
-                // We don't consume the function code to avoid an unecessary copy of the receive buffer later on
-                let raw_function_code = cursor.peek_at(0)?;
-
-                self.state = match self.length_mode(raw_function_code) {
-                    LengthMode::Fixed(length) => ParseState::ReadFullBody(destination, length),
-                    LengthMode::Offset(offset) => {
-                        ParseState::ReadToOffsetForLength(destination, offset)
-                    }
-                    LengthMode::Unknown => {
-                        return Err(RequestError::BadFrame(
-                            FrameParseError::UnknownFunctionCode(raw_function_code),
-                        ))
-                    }
-                };
-
-                self.parse(cursor, decode_level)
-            }
-            ParseState::ReadToOffsetForLength(destination, offset) => {
-                if cursor.len() < constants::FUNCTION_CODE_LENGTH + offset {
-                    return Ok(None);
-                }
-
-                // Get the complete size
-                let extra_bytes_to_read =
-                    cursor.peek_at(constants::FUNCTION_CODE_LENGTH + offset - 1)? as usize;
-                self.state = ParseState::ReadFullBody(destination, offset + extra_bytes_to_read);
-
-                self.parse(cursor, decode_level)
-            }
-            ParseState::ReadFullBody(destination, length) => {
-                if constants::FUNCTION_CODE_LENGTH + length
-                    > crate::common::frame::constants::MAX_ADU_LENGTH
-                {
-                    return Err(RequestError::BadFrame(FrameParseError::FrameLengthTooBig(
-                        constants::FUNCTION_CODE_LENGTH + length,
-                        crate::common::frame::constants::MAX_ADU_LENGTH,
-                    )));
-                }
-
-                if cursor.len() < constants::FUNCTION_CODE_LENGTH + length + constants::CRC_LENGTH {
-                    return Ok(None);
-                }
-
-                let frame = {
-                    let data = cursor.read(constants::FUNCTION_CODE_LENGTH + length)?;
-                    let mut frame = Frame::new(FrameHeader::new_rtu_header(destination));
-                    frame.set(data);
-                    frame
-                };
-                let received_crc = cursor.read_u16_le()?;
-
-                // Calculate CRC
-                let expected_crc = {
-                    let mut digest = CRC.digest();
-                    digest.update(&[destination.value()]);
-                    digest.update(frame.payload());
-                    digest.finalize()
-                };
-
-                // Check CRC
-                if received_crc != expected_crc {
-                    return Err(RequestError::BadFrame(
-                        FrameParseError::CrcValidationFailure(received_crc, expected_crc),
-                    ));
-                }
-
-                if decode_level.enabled() {
-                    tracing::info!(
-                        "RTU RX - {}",
-                        RtuDisplay::new(decode_level, destination, frame.payload(), received_crc)
-                    );
-                }
-
-                self.state = ParseState::Start;
-                Ok(Some(frame))
-            }
+        let (adu, received_crc) = cursor.read(frame_length)?.split_last_chunk().ok_or(
+            InternalError::InsufficientBytesForRead(constants::CRC_LENGTH, 0),
+        )?;
+        let received_crc = u16::from_le_bytes(*received_crc);
+        let expected_crc = CRC.checksum(adu);
+        if received_crc != expected_crc {
+            return Err(RequestError::BadFrame(
+                FrameParseError::CrcValidationFailure(received_crc, expected_crc),
+            ));
         }
-    }
 
-    pub(crate) fn reset(&mut self) {
-        self.state = ParseState::Start;
+        let (unit_id, pdu) = adu
+            .split_first()
+            .ok_or(InternalError::InsufficientBytesForRead(1, 0))?;
+        let unit_id = UnitId::new(*unit_id);
+        let destination = if unit_id == UnitId::broadcast() {
+            FrameDestination::Broadcast
+        } else {
+            FrameDestination::UnitId(unit_id)
+        };
+
+        if unit_id.is_rtu_reserved() {
+            tracing::warn!("received reserved unit ID {}, violating Modbus RTU spec. Passing it through nevertheless.", unit_id);
+        }
+
+        let mut frame = Frame::new(FrameHeader::new_rtu_header(destination));
+        if !frame.set(pdu) {
+            return Err(RequestError::Internal(InternalError::FrameTooBig(
+                pdu.len(),
+                crate::common::frame::constants::MAX_ADU_LENGTH,
+            )));
+        }
+
+        if decode_level.enabled() {
+            tracing::info!(
+                "RTU RX - {}",
+                RtuDisplay::new(decode_level, destination, frame.payload(), received_crc)
+            );
+        }
+
+        Ok(Some(frame))
     }
 }
 
@@ -226,7 +185,11 @@ pub(crate) fn format_rtu_pdu(
     msg.serialize(cursor)?;
     let end_pdu_body = cursor.position();
     // Write the CRC
-    let crc = CRC.checksum(cursor.get(start_frame..end_pdu_body).unwrap());
+    let crc = CRC.checksum(
+        cursor
+            .get(start_frame..end_pdu_body)
+            .ok_or(InternalError::BadSeekOperation)?,
+    );
     cursor.write_u16_le(crc)?;
 
     Ok(FrameInfo::new(
