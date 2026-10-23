@@ -432,13 +432,14 @@ mod tests {
     use tokio::time::Instant;
 
     use super::*;
-    use crate::client::{Channel, RequestParam};
+    use crate::client::{Channel, RequestParam, WriteMultiple};
     #[cfg(feature = "serial")]
     use crate::common::frame::FrameDestination;
     #[cfg(feature = "serial")]
     use crate::common::test_support::with_crc;
     use crate::common::test_support::{mbap, watchdog};
     use crate::decode::AppDecodeLevel;
+    use crate::error::AduParseError;
     use crate::types::{AddressRange, UnitId};
     use crate::Indexed;
 
@@ -965,6 +966,66 @@ mod tests {
             session.send(&mbap(0, 2, &register_value(0x2222))).await;
             assert_eq!(request.await.unwrap(), Ok(vec![Indexed::new(0x10, 0x2222)]));
             assert_eq!(start.elapsed(), Duration::from_millis(100));
+        })
+        .await;
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_tcp_read_response_whose_byte_count_disagrees_with_its_values_fails_the_read() {
+        watchdog(async {
+            let (channel, mut session) = Setup::tcp().spawn();
+            let request = read_register(&channel, 1);
+            let tx_id = session.tcp_request().await;
+            // the one register, counted as three bytes
+            session
+                .send(&mbap(tx_id, 1, &[0x03, 0x03, 0x12, 0x34]))
+                .await;
+            assert_eq!(
+                request.await.unwrap(),
+                Err(RequestError::BadResponse(
+                    AduParseError::InsufficientBytesForByteCount(3, 2)
+                ))
+            );
+            // the session continues
+            a_read_of_coils_is_answered(&channel, &mut session).await;
+        })
+        .await;
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_tcp_write_echo_of_a_range_no_request_has_is_a_bad_response() {
+        watchdog(async {
+            let (channel, mut session) = Setup::tcp().spawn();
+            // no registers, and two from 0xFFFF
+            let echoes = [
+                [0x10, 0x00, 0x10, 0x00, 0x00],
+                [0x10, 0xFF, 0xFF, 0x00, 0x02],
+            ];
+            for (tx_id, echo) in (0..).zip(echoes) {
+                let channel = channel.clone();
+                let request = tokio::spawn(async move {
+                    channel
+                        .write_multiple_registers(
+                            RequestParam::new(UnitId::new(1), TIMEOUT),
+                            WriteMultiple::from(0x10, vec![0x1234, 0x5678]).unwrap(),
+                        )
+                        .await
+                });
+                session
+                    .expect(&mbap(
+                        tx_id,
+                        1,
+                        &[0x10, 0x00, 0x10, 0x00, 0x02, 0x04, 0x12, 0x34, 0x56, 0x78],
+                    ))
+                    .await;
+                session.send(&mbap(tx_id, 1, &echo)).await;
+                assert_eq!(
+                    request.await.unwrap(),
+                    Err(RequestError::BadResponse(AduParseError::ReplyEchoMismatch))
+                );
+            }
+            // the session continues
+            a_read_of_coils_is_answered(&channel, &mut session).await;
         })
         .await;
     }

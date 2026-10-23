@@ -123,9 +123,6 @@ impl ReadBits {
         range: AddressRange,
         cursor: &'a mut ReadCursor,
     ) -> Result<BitIterator<'a>, RequestError> {
-        // there's a byte-count here that we don't actually need
-        cursor.read_u8()?;
-        // the rest is a sequence of bits
-        BitIterator::parse_all(range, cursor)
+        BitIterator::parse_counted(range, cursor)
     }
 }

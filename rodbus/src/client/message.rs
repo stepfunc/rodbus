@@ -807,10 +807,16 @@ mod test {
                 rejected(AduParseError::UnknownCoilState(0x0001)),
             ),
             // Write single coil: bytes after the echo, or a truncated echo (caught if the
-            // trailing-byte check went, or the parse read past the end)
+            // trailing-byte check went, or the parse read past the end); the response's length is
+            // checked before the coil value it echoes
             (
                 WRITE_COIL,
                 &[0x05, 0x00, 0x10, 0xFF, 0x00, 0x00],
+                rejected(AduParseError::TrailingBytes(1)),
+            ),
+            (
+                WRITE_COIL,
+                &[0x05, 0x00, 0x10, 0xFF, 0x01, 0x00],
                 rejected(AduParseError::TrailingBytes(1)),
             ),
             (
@@ -854,8 +860,9 @@ mod test {
                 &[0x06, 0x00, 0x01, 0x12],
                 rejected(AduParseError::InsufficientBytes),
             ),
-            // Write multiple coils: the echoed range is compared with the request's (caught if
-            // the comparison went), then nothing may follow it
+            // Write multiple coils: nothing may follow the echoed range, which is then compared
+            // with the request's (caught if the comparison went); a range no request can have is
+            // a mismatch like any other
             (
                 WRITE_COILS,
                 &[0x0F, 0x00, 0x13, 0x00, 0x0A],
@@ -875,6 +882,21 @@ mod test {
                 WRITE_COILS,
                 &[0x0F, 0x00, 0x13, 0x00, 0x0A, 0x00],
                 rejected(AduParseError::TrailingBytes(1)),
+            ),
+            (
+                WRITE_COILS,
+                &[0x0F, 0x00, 0x14, 0x00, 0x0A, 0x00],
+                rejected(AduParseError::TrailingBytes(1)),
+            ),
+            (
+                WRITE_COILS,
+                &[0x0F, 0x00, 0x13, 0x00, 0x00],
+                rejected(AduParseError::ReplyEchoMismatch),
+            ),
+            (
+                WRITE_COILS,
+                &[0x0F, 0xFF, 0xFF, 0x00, 0x0A],
+                rejected(AduParseError::ReplyEchoMismatch),
             ),
             (
                 WRITE_COILS,
@@ -906,6 +928,16 @@ mod test {
                 WRITE_REGISTERS,
                 &[0x10, 0x00, 0x01],
                 rejected(AduParseError::InsufficientBytes),
+            ),
+            (
+                WRITE_REGISTERS,
+                &[0x10, 0x00, 0x01, 0x00, 0x00],
+                rejected(AduParseError::ReplyEchoMismatch),
+            ),
+            (
+                WRITE_REGISTERS,
+                &[0x10, 0xFF, 0xFF, 0x00, 0x02],
+                rejected(AduParseError::ReplyEchoMismatch),
             ),
             // Reads deliver one value per address, bits LSB first (caught if the bit order or
             // the addresses assigned to the values changed)
@@ -951,6 +983,44 @@ mod test {
                 },
                 &[0x04, 0x02, 0xFF, 0xFE],
                 Outcome::Registers(vec![Indexed::new(0xFFFF, 0xFFFE)]),
+            ),
+            // A read's byte count must match the bytes after it (caught if the count were
+            // ignored): too few, too many, and a count with no values, for each read function;
+            // then the bytes must be what the quantity needs
+            (
+                Sent::ReadCoils { start: 1, count: 2 },
+                &[0x01, 0x00, 0b01],
+                rejected(AduParseError::InsufficientBytesForByteCount(0, 1)),
+            ),
+            (
+                Sent::ReadDiscreteInputs { start: 1, count: 2 },
+                &[0x02, 0x02, 0b01],
+                rejected(AduParseError::InsufficientBytesForByteCount(2, 1)),
+            ),
+            (
+                Sent::ReadHoldingRegisters { start: 7, count: 1 },
+                &[0x03, 0xFF, 0x12, 0x34],
+                rejected(AduParseError::InsufficientBytesForByteCount(255, 2)),
+            ),
+            (
+                Sent::ReadInputRegisters { start: 7, count: 1 },
+                &[0x04, 0x02],
+                rejected(AduParseError::InsufficientBytesForByteCount(2, 0)),
+            ),
+            (
+                Sent::ReadCoils { start: 1, count: 9 },
+                &[0x01, 0x01, 0xFF],
+                rejected(AduParseError::InsufficientBytes),
+            ),
+            (
+                Sent::ReadHoldingRegisters { start: 7, count: 1 },
+                &[0x03, 0x03, 0x12, 0x34, 0x56],
+                rejected(AduParseError::TrailingBytes(1)),
+            ),
+            (
+                Sent::ReadInputRegisters { start: 7, count: 1 },
+                &[0x04],
+                rejected(AduParseError::InsufficientBytes),
             ),
         ]
     }

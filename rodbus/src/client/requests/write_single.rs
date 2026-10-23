@@ -9,7 +9,6 @@ use std::fmt::Display;
 use crate::client::message::Promise;
 use crate::common::function::FunctionCode;
 use crate::decode::AppDecodeLevel;
-use crate::error::AduParseError;
 use crate::error::RequestError;
 use crate::types::{coil_from_u16, coil_to_u16, Indexed};
 
@@ -50,7 +49,7 @@ where
         function: FunctionCode,
         decode: AppDecodeLevel,
     ) -> Result<(), RequestError> {
-        let response = self.parse_all(cursor)?;
+        let response = super::parse_echo(cursor, &self.request, T::parse)?;
 
         if decode.data_headers() {
             tracing::info!("PDU RX - {} {}", function, response);
@@ -60,15 +59,6 @@ where
 
         self.promise.success(response);
         Ok(())
-    }
-
-    fn parse_all(&self, mut cursor: ReadCursor) -> Result<T, RequestError> {
-        let response = T::parse(&mut cursor)?;
-        cursor.expect_empty()?;
-        if self.request != response {
-            return Err(AduParseError::ReplyEchoMismatch.into());
-        }
-        Ok(response)
     }
 }
 

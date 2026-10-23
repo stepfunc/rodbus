@@ -147,7 +147,8 @@ impl<'a> Request<'a> {
 
     /// Decodes a request and checks it in the order of the function codes' state diagrams
     /// (MODBUS Application Protocol Specification V1.1b3 6.1-6.6, 6.11, 6.12): first the values
-    /// it carries (its length, quantity and coil value), then the address range they reach
+    /// it carries (its length, byte count, quantity and coil value), then the address range they
+    /// reach
     ///
     /// A value check for a function goes before its range is validated, so that
     /// [`Rejection::Address`] only ever means the values were valid.
@@ -184,10 +185,10 @@ impl<'a> Request<'a> {
             }
             FunctionCode::WriteMultipleCoils => {
                 let unchecked = decode_range(cursor)?;
-                // the values' length follows from the quantity, so the byte count isn't needed
-                cursor.read_u8()?;
-                // reading the values checks only their length, then their quantity is checked
-                let values = BitIterator::parse_all(unchecked, cursor).map_err(Rejection::Value)?;
+                // reading the values checks only the byte count and their length, then their
+                // quantity is checked
+                let values =
+                    BitIterator::parse_counted(unchecked, cursor).map_err(Rejection::Value)?;
                 Ok(Request::WriteMultipleCoils(WriteCoils::new(
                     unchecked.of_write_coils()?,
                     values,
@@ -195,11 +196,10 @@ impl<'a> Request<'a> {
             }
             FunctionCode::WriteMultipleRegisters => {
                 let unchecked = decode_range(cursor)?;
-                // the values' length follows from the quantity, so the byte count isn't needed
-                cursor.read_u8()?;
-                // reading the values checks only their length, then their quantity is checked
+                // reading the values checks only the byte count and their length, then their
+                // quantity is checked
                 let values =
-                    RegisterIterator::parse_all(unchecked, cursor).map_err(Rejection::Value)?;
+                    RegisterIterator::parse_counted(unchecked, cursor).map_err(Rejection::Value)?;
                 Ok(Request::WriteMultipleRegisters(WriteRegisters::new(
                     unchecked.of_write_registers()?,
                     values,
@@ -462,7 +462,7 @@ mod tests {
 
         #[test]
         fn invalid_values_past_0xffff_are_refused_for_their_values_with_03() {
-            let checks: [(FunctionCode, Vec<u8>, RequestError); 8] = [
+            let checks: [(FunctionCode, Vec<u8>, RequestError); 10] = [
                 // one past each read's limit
                 (
                     FunctionCode::ReadCoils,
@@ -495,13 +495,24 @@ mod tests {
                 (
                     FunctionCode::WriteMultipleRegisters,
                     from_0xffff(&[0x04, 0x12, 0x34]),
-                    AduParseError::InsufficientBytes.into(),
+                    AduParseError::InsufficientBytesForByteCount(4, 2).into(),
+                ),
+                // both values, with a byte count that disagrees with them
+                (
+                    FunctionCode::WriteMultipleCoils,
+                    from_0xffff(&[0x02, 0b11]),
+                    AduParseError::InsufficientBytesForByteCount(2, 1).into(),
+                ),
+                (
+                    FunctionCode::WriteMultipleRegisters,
+                    from_0xffff(&[0x03, 0x12, 0x34, 0x56, 0x78]),
+                    AduParseError::InsufficientBytesForByteCount(3, 4).into(),
                 ),
                 // a byte too many after the coils
                 (
                     FunctionCode::WriteMultipleCoils,
                     from_0xffff(&[0x01, 0b11, 0x00]),
-                    AduParseError::TrailingBytes(1).into(),
+                    AduParseError::InsufficientBytesForByteCount(1, 2).into(),
                 ),
                 // no values, which no range can hold
                 (
@@ -543,40 +554,50 @@ mod tests {
         use crate::error::AduParseError;
         use crate::types::Indexed;
 
-        #[test]
-        fn fails_when_too_few_bytes_for_coil_byte_count() {
-            let mut cursor = ReadCursor::new(&[0x00, 0x01, 0x00, 0x08, 0x00]);
-            let err = Request::parse(FunctionCode::WriteMultipleCoils, &mut cursor)
-                .err()
-                .unwrap();
-            assert_eq!(err, AduParseError::InsufficientBytes.into());
+        /// How `Request::parse` refuses a Write Multiple Coils of eight coils from 1 whose byte
+        /// count and values are `rest`
+        fn refused(rest: &[u8]) -> Option<Rejection> {
+            let body = [&[0x00, 0x01, 0x00, 0x08][..], rest].concat();
+            Request::parse(
+                FunctionCode::WriteMultipleCoils,
+                &mut ReadCursor::new(&body),
+            )
+            .err()
+        }
+
+        /// The refusal of a request whose byte count disagrees with the bytes after it
+        fn byte_count(advertised: usize, remaining: usize) -> Option<Rejection> {
+            Some(AduParseError::InsufficientBytesForByteCount(advertised, remaining).into())
         }
 
         #[test]
-        fn fails_when_too_many_bytes_for_coil_byte_count() {
-            let mut cursor = ReadCursor::new(&[0x00, 0x01, 0x00, 0x08, 0x02]);
-            let err = Request::parse(FunctionCode::WriteMultipleCoils, &mut cursor)
-                .err()
-                .unwrap();
-            assert_eq!(err, AduParseError::InsufficientBytes.into());
+        fn fails_when_the_values_are_missing() {
+            assert_eq!(refused(&[0x01]), byte_count(1, 0));
+            assert_eq!(refused(&[0x02]), byte_count(2, 0));
         }
 
         #[test]
-        fn fails_when_specified_byte_count_not_present() {
-            let mut cursor = ReadCursor::new(&[0x00, 0x01, 0x00, 0x08, 0x01]);
-            let err = Request::parse(FunctionCode::WriteMultipleCoils, &mut cursor)
-                .err()
-                .unwrap();
-            assert_eq!(err, AduParseError::InsufficientBytes.into());
+        fn fails_when_a_byte_follows_the_values() {
+            assert_eq!(refused(&[0x01, 0xFF, 0xFF]), byte_count(1, 2));
+        }
+
+        // MODBUS Application Protocol Specification V1.1b3 6.11
+        #[test]
+        fn fails_when_the_byte_count_disagrees_with_complete_values() {
+            assert_eq!(refused(&[0x00, 0xFF]), byte_count(0, 1));
+            assert_eq!(refused(&[0x02, 0xFF]), byte_count(2, 1));
         }
 
         #[test]
-        fn fails_when_too_many_bytes_present() {
-            let mut cursor = ReadCursor::new(&[0x00, 0x01, 0x00, 0x08, 0x01, 0xFF, 0xFF]);
-            let err = Request::parse(FunctionCode::WriteMultipleCoils, &mut cursor)
-                .err()
-                .unwrap();
-            assert_eq!(err, AduParseError::TrailingBytes(1).into());
+        fn fails_when_the_byte_count_matches_the_bytes_but_not_the_quantity() {
+            assert_eq!(
+                refused(&[0x00]),
+                Some(AduParseError::InsufficientBytes.into())
+            );
+            assert_eq!(
+                refused(&[0x02, 0xFF, 0xFF]),
+                Some(AduParseError::TrailingBytes(1).into())
+            );
         }
 
         #[test]
@@ -607,40 +628,57 @@ mod tests {
         use crate::error::AduParseError;
         use crate::types::Indexed;
 
-        #[test]
-        fn fails_when_too_few_bytes_for_coil_byte_count() {
-            let mut cursor = ReadCursor::new(&[0x00, 0x01, 0x00, 0x01, 0x00]);
-            let err = Request::parse(FunctionCode::WriteMultipleRegisters, &mut cursor)
-                .err()
-                .unwrap();
-            assert_eq!(err, AduParseError::InsufficientBytes.into());
+        /// How `Request::parse` refuses a Write Multiple Registers of one register at 1 whose
+        /// byte count and values are `rest`
+        fn refused(rest: &[u8]) -> Option<Rejection> {
+            let body = [&[0x00, 0x01, 0x00, 0x01][..], rest].concat();
+            Request::parse(
+                FunctionCode::WriteMultipleRegisters,
+                &mut ReadCursor::new(&body),
+            )
+            .err()
+        }
+
+        /// The refusal of a request whose byte count disagrees with the bytes after it
+        fn byte_count(advertised: usize, remaining: usize) -> Option<Rejection> {
+            Some(AduParseError::InsufficientBytesForByteCount(advertised, remaining).into())
         }
 
         #[test]
-        fn fails_when_too_many_bytes_for_coil_byte_count() {
-            let mut cursor = ReadCursor::new(&[0x00, 0x01, 0x00, 0x01, 0x03]);
-            let err = Request::parse(FunctionCode::WriteMultipleRegisters, &mut cursor)
-                .err()
-                .unwrap();
-            assert_eq!(err, AduParseError::InsufficientBytes.into());
+        fn fails_when_the_values_are_missing() {
+            assert_eq!(refused(&[0x02]), byte_count(2, 0));
+            assert_eq!(refused(&[0x03]), byte_count(3, 0));
+            assert_eq!(refused(&[0x02, 0xFF]), byte_count(2, 1));
         }
 
         #[test]
-        fn fails_when_specified_byte_count_not_present() {
-            let mut cursor = ReadCursor::new(&[0x00, 0x01, 0x00, 0x01, 0x02, 0xFF]);
-            let err = Request::parse(FunctionCode::WriteMultipleRegisters, &mut cursor)
-                .err()
-                .unwrap();
-            assert_eq!(err, AduParseError::InsufficientBytes.into());
+        fn fails_when_a_byte_follows_the_values() {
+            assert_eq!(refused(&[0x02, 0xFF, 0xFF, 0xFF]), byte_count(2, 3));
+        }
+
+        // MODBUS Application Protocol Specification V1.1b3 6.12
+        #[test]
+        fn fails_when_the_byte_count_disagrees_with_complete_values() {
+            assert_eq!(refused(&[0x00, 0x12, 0x34]), byte_count(0, 2));
+            assert_eq!(refused(&[0x01, 0x12, 0x34]), byte_count(1, 2));
+            assert_eq!(refused(&[0x03, 0x12, 0x34]), byte_count(3, 2));
+            assert_eq!(refused(&[0xFF, 0x12, 0x34]), byte_count(255, 2));
         }
 
         #[test]
-        fn fails_when_too_many_bytes_present() {
-            let mut cursor = ReadCursor::new(&[0x00, 0x01, 0x00, 0x01, 0x02, 0xFF, 0xFF, 0xFF]);
-            let err = Request::parse(FunctionCode::WriteMultipleRegisters, &mut cursor)
-                .err()
-                .unwrap();
-            assert_eq!(err, AduParseError::TrailingBytes(1).into());
+        fn fails_when_the_byte_count_matches_the_bytes_but_not_the_quantity() {
+            assert_eq!(
+                refused(&[0x00]),
+                Some(AduParseError::InsufficientBytes.into())
+            );
+            assert_eq!(
+                refused(&[0x01, 0x12]),
+                Some(AduParseError::InsufficientBytes.into())
+            );
+            assert_eq!(
+                refused(&[0x03, 0x12, 0x34, 0x56]),
+                Some(AduParseError::TrailingBytes(1).into())
+            );
         }
 
         #[test]

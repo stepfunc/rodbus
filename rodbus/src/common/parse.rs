@@ -10,12 +10,15 @@ use crate::types::{coil_from_u16, AddressRange, Indexed};
 
 use scursor::ReadCursor;
 
+/// A range as a response carries it, decoded but not validated: only responses are parsed with
+/// [`Parse`], and a range in a response is a write's echo, which is valid only if it equals the
+/// request's (validated) range, so an invalid one is an echo mismatch, not a bad request
 impl Parse for AddressRange {
     fn parse(cursor: &mut ReadCursor) -> Result<Self, RequestError> {
-        Ok(AddressRange::try_from(
-            cursor.read_u16_be()?,
-            cursor.read_u16_be()?,
-        )?)
+        Ok(AddressRange {
+            start: cursor.read_u16_be()?,
+            count: cursor.read_u16_be()?,
+        })
     }
 }
 

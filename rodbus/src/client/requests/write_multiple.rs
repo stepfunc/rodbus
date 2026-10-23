@@ -9,7 +9,7 @@ use crate::common::function::FunctionCode;
 use crate::common::traits::{Parse, Serialize};
 use crate::decode::AppDecodeLevel;
 use crate::error::RequestError;
-use crate::error::{AduParseError, InvalidRange, InvalidRequest};
+use crate::error::{InvalidRange, InvalidRequest};
 use crate::types::{AddressRange, Indexed};
 
 use scursor::{ReadCursor, WriteCursor};
@@ -157,7 +157,7 @@ where
         function: FunctionCode,
         decode: AppDecodeLevel,
     ) -> Result<(), RequestError> {
-        let response = self.parse_all(cursor)?;
+        let response = super::parse_echo(cursor, &self.request.get().range, AddressRange::parse)?;
 
         if decode.data_headers() {
             tracing::info!("PDU RX - {} {}", function, response);
@@ -167,15 +167,6 @@ where
 
         self.promise.success(response);
         Ok(())
-    }
-
-    fn parse_all(&self, mut cursor: ReadCursor) -> Result<AddressRange, RequestError> {
-        let range = AddressRange::parse(&mut cursor)?;
-        if range != self.request.get().range {
-            return Err(RequestError::BadResponse(AduParseError::ReplyEchoMismatch));
-        }
-        cursor.expect_empty()?;
-        Ok(range)
     }
 }
 

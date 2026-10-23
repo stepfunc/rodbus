@@ -122,7 +122,34 @@ impl std::fmt::Display for UnitId {
     }
 }
 
+/// Reads the byte count that precedes a block of values and checks it against the bytes that
+/// follow it, which must be exactly the block
+///
+/// Only the count is checked here, not whether the block is the length its quantity needs, so that
+/// [`AduParseError::InsufficientBytesForByteCount`] keeps its meaning: the count and the bytes
+/// actually present disagree.
+fn read_byte_count(cursor: &mut ReadCursor) -> Result<(), RequestError> {
+    let advertised = usize::from(cursor.read_u8()?);
+    let remaining = cursor.remaining();
+    if advertised != remaining {
+        return Err(AduParseError::InsufficientBytesForByteCount(advertised, remaining).into());
+    }
+    Ok(())
+}
+
 impl<'a> BitIterator<'a> {
+    /// The bits of `range` from a block preceded by its byte count (read responses and Write
+    /// Multiple Coils): the count must match the bytes that follow it, then those bytes must be
+    /// the length the quantity needs
+    pub(crate) fn parse_counted(
+        range: AddressRange,
+        cursor: &'a mut ReadCursor,
+    ) -> Result<Self, RequestError> {
+        read_byte_count(cursor)?;
+        Self::parse_all(range, cursor)
+    }
+
+    /// The bits of `range` from exactly the bytes they need
     pub(crate) fn parse_all(
         range: AddressRange,
         cursor: &'a mut ReadCursor,
@@ -158,6 +185,18 @@ impl std::fmt::Display for BitIteratorDisplay<'_> {
 }
 
 impl<'a> RegisterIterator<'a> {
+    /// The registers of `range` from a block preceded by its byte count (read responses and Write
+    /// Multiple Registers): the count must match the bytes that follow it, then those bytes must
+    /// be the length the quantity needs
+    pub(crate) fn parse_counted(
+        range: AddressRange,
+        cursor: &'a mut ReadCursor,
+    ) -> Result<Self, RequestError> {
+        read_byte_count(cursor)?;
+        Self::parse_all(range, cursor)
+    }
+
+    /// The registers of `range` from exactly the bytes they need
     pub(crate) fn parse_all(
         range: AddressRange,
         cursor: &'a mut ReadCursor,
