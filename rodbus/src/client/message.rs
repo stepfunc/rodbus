@@ -12,12 +12,12 @@ use crate::error::*;
 use crate::exception::ExceptionCode;
 use crate::DecodeLevel;
 
-use crate::client::requests::read_bits::ReadBits;
-use crate::client::requests::read_registers::ReadRegisters;
-use crate::client::requests::write_multiple::MultipleWriteRequest;
+use crate::client::requests::read_bits::{self, ReadBits};
+use crate::client::requests::read_registers::{self, ReadRegisters};
+use crate::client::requests::write_multiple::{LimitedWrite, MultipleWriteRequest};
 use crate::client::requests::write_single::SingleWrite;
 use crate::common::traits::Serialize;
-use crate::types::{Indexed, UnitId};
+use crate::types::{AddressRange, Indexed, ReadBitsRange, ReadRegistersRange, UnitId};
 
 use scursor::{ReadCursor, WriteCursor};
 use std::time::Duration;
@@ -122,6 +122,58 @@ impl Request {
                 expected_function.as_error(),
             ))
         }
+    }
+}
+
+/// The requests of every front end ([`Channel`](crate::client::Channel), `CallbackSession` and
+/// [`FfiChannel`](crate::client::FfiChannel)), each made from its validated parameters and the
+/// promise that completes it
+impl RequestDetails {
+    pub(crate) fn read_coils(range: ReadBitsRange, promise: read_bits::Promise) -> Self {
+        Self::ReadCoils(ReadBits::new(range, promise))
+    }
+
+    pub(crate) fn read_discrete_inputs(range: ReadBitsRange, promise: read_bits::Promise) -> Self {
+        Self::ReadDiscreteInputs(ReadBits::new(range, promise))
+    }
+
+    pub(crate) fn read_holding_registers(
+        range: ReadRegistersRange,
+        promise: read_registers::Promise,
+    ) -> Self {
+        Self::ReadHoldingRegisters(ReadRegisters::new(range, promise))
+    }
+
+    pub(crate) fn read_input_registers(
+        range: ReadRegistersRange,
+        promise: read_registers::Promise,
+    ) -> Self {
+        Self::ReadInputRegisters(ReadRegisters::new(range, promise))
+    }
+
+    pub(crate) fn write_single_coil(value: Indexed<bool>, promise: Promise<Indexed<bool>>) -> Self {
+        Self::WriteSingleCoil(SingleWrite::new(value, promise))
+    }
+
+    pub(crate) fn write_single_register(
+        value: Indexed<u16>,
+        promise: Promise<Indexed<u16>>,
+    ) -> Self {
+        Self::WriteSingleRegister(SingleWrite::new(value, promise))
+    }
+
+    pub(crate) fn write_multiple_coils(
+        write: LimitedWrite<bool>,
+        promise: Promise<AddressRange>,
+    ) -> Self {
+        Self::WriteMultipleCoils(MultipleWriteRequest::new(write, promise))
+    }
+
+    pub(crate) fn write_multiple_registers(
+        write: LimitedWrite<u16>,
+        promise: Promise<AddressRange>,
+    ) -> Self {
+        Self::WriteMultipleRegisters(MultipleWriteRequest::new(write, promise))
     }
 }
 
@@ -313,6 +365,15 @@ where
                 PromiseInner::Boxed(callback) => callback(result),
             }
         }
+    }
+}
+
+impl<T> From<tokio::sync::oneshot::Sender<Result<T, RequestError>>> for Promise<T>
+where
+    T: Send + 'static,
+{
+    fn from(tx: tokio::sync::oneshot::Sender<Result<T, RequestError>>) -> Self {
+        Self::channel(tx)
     }
 }
 

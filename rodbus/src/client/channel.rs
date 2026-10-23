@@ -7,14 +7,14 @@
 use std::time::Duration;
 
 use crate::client::message::{Command, Promise, Request, RequestDetails, Setting};
-use crate::client::requests::read_bits::ReadBits;
-use crate::client::requests::read_registers::ReadRegisters;
-use crate::client::requests::write_multiple::{LimitedWrite, MultipleWriteRequest, WriteMultiple};
-use crate::client::requests::write_single::SingleWrite;
+use crate::client::requests::read_bits;
+use crate::client::requests::read_registers;
+use crate::client::requests::write_multiple::{LimitedWrite, WriteMultiple};
 use crate::common::cancellation::{ShutdownHandle, ShutdownSignal};
-use crate::common::traits::Serialize;
 use crate::error::*;
-use crate::types::{AddressRange, BitIterator, Indexed, RegisterIterator, UnitId};
+use crate::types::{
+    AddressRange, BitIterator, Indexed, ReadBitsRange, ReadRegistersRange, RegisterIterator, UnitId,
+};
 use crate::DecodeLevel;
 
 /// Async channel used to make requests. The associated task is shutdown when every handle is
@@ -181,14 +181,12 @@ impl Channel {
 
     /// Enable communications
     pub async fn enable(&self) -> Result<(), Shutdown> {
-        self.tx.send(Command::Setting(Setting::Enable)).await?;
-        Ok(())
+        self.send_setting(Setting::Enable).await
     }
 
     /// Disable communications
     pub async fn disable(&self) -> Result<(), Shutdown> {
-        self.tx.send(Command::Setting(Setting::Disable)).await?;
-        Ok(())
+        self.send_setting(Setting::Disable).await
     }
 
     /// Begin shutting down the channel task, even if one or more [`Channel`] handles are still alive
@@ -213,13 +211,8 @@ impl Channel {
         param: RequestParam,
         range: AddressRange,
     ) -> Result<Vec<Indexed<bool>>, RequestError> {
-        let (tx, rx) = tokio::sync::oneshot::channel::<Result<Vec<Indexed<bool>>, RequestError>>();
-        let request = wrap(
-            param,
-            RequestDetails::ReadCoils(ReadBits::channel(range.of_read_bits()?, tx)),
-        );
-        self.tx.send(request).await?;
-        rx.await?
+        self.request(param, range.of_read_bits()?, RequestDetails::read_coils)
+            .await
     }
 
     /// Read discrete inputs from the server
@@ -231,13 +224,12 @@ impl Channel {
         param: RequestParam,
         range: AddressRange,
     ) -> Result<Vec<Indexed<bool>>, RequestError> {
-        let (tx, rx) = tokio::sync::oneshot::channel::<Result<Vec<Indexed<bool>>, RequestError>>();
-        let request = wrap(
+        self.request(
             param,
-            RequestDetails::ReadDiscreteInputs(ReadBits::channel(range.of_read_bits()?, tx)),
-        );
-        self.tx.send(request).await?;
-        rx.await?
+            range.of_read_bits()?,
+            RequestDetails::read_discrete_inputs,
+        )
+        .await
     }
 
     /// Read holding registers from the server
@@ -249,16 +241,12 @@ impl Channel {
         param: RequestParam,
         range: AddressRange,
     ) -> Result<Vec<Indexed<u16>>, RequestError> {
-        let (tx, rx) = tokio::sync::oneshot::channel::<Result<Vec<Indexed<u16>>, RequestError>>();
-        let request = wrap(
+        self.request(
             param,
-            RequestDetails::ReadHoldingRegisters(ReadRegisters::channel(
-                range.of_read_registers()?,
-                tx,
-            )),
-        );
-        self.tx.send(request).await?;
-        rx.await?
+            range.of_read_registers()?,
+            RequestDetails::read_holding_registers,
+        )
+        .await
     }
 
     /// Read input registers from the server
@@ -270,16 +258,12 @@ impl Channel {
         param: RequestParam,
         range: AddressRange,
     ) -> Result<Vec<Indexed<u16>>, RequestError> {
-        let (tx, rx) = tokio::sync::oneshot::channel::<Result<Vec<Indexed<u16>>, RequestError>>();
-        let request = wrap(
+        self.request(
             param,
-            RequestDetails::ReadInputRegisters(ReadRegisters::channel(
-                range.of_read_registers()?,
-                tx,
-            )),
-        );
-        self.tx.send(request).await?;
-        rx.await?
+            range.of_read_registers()?,
+            RequestDetails::read_input_registers,
+        )
+        .await
     }
 
     /// Write a single coil on the server
@@ -288,13 +272,8 @@ impl Channel {
         param: RequestParam,
         request: Indexed<bool>,
     ) -> Result<Indexed<bool>, RequestError> {
-        let (tx, rx) = tokio::sync::oneshot::channel::<Result<Indexed<bool>, RequestError>>();
-        let request = wrap(
-            param,
-            RequestDetails::WriteSingleCoil(SingleWrite::new(request, Promise::channel(tx))),
-        );
-        self.tx.send(request).await?;
-        rx.await?
+        self.request(param, request, RequestDetails::write_single_coil)
+            .await
     }
 
     /// Write a single register on the server
@@ -303,13 +282,8 @@ impl Channel {
         param: RequestParam,
         request: Indexed<u16>,
     ) -> Result<Indexed<u16>, RequestError> {
-        let (tx, rx) = tokio::sync::oneshot::channel::<Result<Indexed<u16>, RequestError>>();
-        let request = wrap(
-            param,
-            RequestDetails::WriteSingleRegister(SingleWrite::new(request, Promise::channel(tx))),
-        );
-        self.tx.send(request).await?;
-        rx.await?
+        self.request(param, request, RequestDetails::write_single_register)
+            .await
     }
 
     /// Write multiple contiguous coils on the server
@@ -318,16 +292,12 @@ impl Channel {
         param: RequestParam,
         request: WriteMultiple<bool>,
     ) -> Result<AddressRange, RequestError> {
-        let (tx, rx) = tokio::sync::oneshot::channel::<Result<AddressRange, RequestError>>();
-        let request = wrap(
+        self.request(
             param,
-            RequestDetails::WriteMultipleCoils(MultipleWriteRequest::new(
-                LimitedWrite::coils(request)?,
-                Promise::channel(tx),
-            )),
-        );
-        self.tx.send(request).await?;
-        rx.await?
+            LimitedWrite::coils(request)?,
+            RequestDetails::write_multiple_coils,
+        )
+        .await
     }
 
     /// Write multiple contiguous registers on the server
@@ -336,23 +306,39 @@ impl Channel {
         param: RequestParam,
         request: WriteMultiple<u16>,
     ) -> Result<AddressRange, RequestError> {
-        let (tx, rx) = tokio::sync::oneshot::channel::<Result<AddressRange, RequestError>>();
-        let request = wrap(
+        self.request(
             param,
-            RequestDetails::WriteMultipleRegisters(MultipleWriteRequest::new(
-                LimitedWrite::registers(request)?,
-                Promise::channel(tx),
-            )),
-        );
-        self.tx.send(request).await?;
-        rx.await?
+            LimitedWrite::registers(request)?,
+            RequestDetails::write_multiple_registers,
+        )
+        .await
     }
 
     /// Dynamically change the protocol decoding level of the channel
     pub async fn set_decode_level(&self, level: DecodeLevel) -> Result<(), Shutdown> {
+        self.send_setting(Setting::DecodeLevel(level)).await
+    }
+
+    /// Queue a request made by `details` from its validated parameters `input` and a promise
+    /// that completes a oneshot channel, then wait for its result
+    async fn request<I, P, T>(
+        &self,
+        param: RequestParam,
+        input: I,
+        details: impl FnOnce(I, P) -> RequestDetails,
+    ) -> Result<T, RequestError>
+    where
+        P: From<tokio::sync::oneshot::Sender<Result<T, RequestError>>>,
+    {
+        let (tx, rx) = tokio::sync::oneshot::channel();
         self.tx
-            .send(Command::Setting(Setting::DecodeLevel(level)))
+            .send(wrap(param, details(input, P::from(tx))))
             .await?;
+        rx.await?
+    }
+
+    async fn send_setting(&self, setting: Setting) -> Result<(), Shutdown> {
+        self.tx.send(Command::Setting(setting)).await?;
         Ok(())
     }
 }
@@ -393,7 +379,7 @@ impl CallbackSession {
     where
         C: FnOnce(Result<BitIterator, RequestError>) + Send + Sync + 'static,
     {
-        self.read_bits(range, callback, RequestDetails::ReadCoils)
+        self.read_bits(range, callback, RequestDetails::read_coils)
             .await;
     }
 
@@ -405,7 +391,7 @@ impl CallbackSession {
     where
         C: FnOnce(Result<BitIterator, RequestError>) + Send + Sync + 'static,
     {
-        self.read_bits(range, callback, RequestDetails::ReadDiscreteInputs)
+        self.read_bits(range, callback, RequestDetails::read_discrete_inputs)
             .await;
     }
 
@@ -417,7 +403,7 @@ impl CallbackSession {
     where
         C: FnOnce(Result<RegisterIterator, RequestError>) + Send + Sync + 'static,
     {
-        self.read_registers(range, callback, RequestDetails::ReadHoldingRegisters)
+        self.read_registers(range, callback, RequestDetails::read_holding_registers)
             .await;
     }
 
@@ -429,7 +415,7 @@ impl CallbackSession {
     where
         C: FnOnce(Result<RegisterIterator, RequestError>) + Send + Sync + 'static,
     {
-        self.read_registers(range, callback, RequestDetails::ReadInputRegisters)
+        self.read_registers(range, callback, RequestDetails::read_input_registers)
             .await;
     }
 
@@ -438,9 +424,9 @@ impl CallbackSession {
     where
         C: FnOnce(Result<Indexed<bool>, RequestError>) + Send + Sync + 'static,
     {
-        self.send(wrap(
-            self.param,
-            RequestDetails::WriteSingleCoil(SingleWrite::new(value, Promise::new(callback))),
+        self.send(RequestDetails::write_single_coil(
+            value,
+            Promise::new(callback),
         ))
         .await;
     }
@@ -450,9 +436,9 @@ impl CallbackSession {
     where
         C: FnOnce(Result<Indexed<u16>, RequestError>) + Send + Sync + 'static,
     {
-        self.send(wrap(
-            self.param,
-            RequestDetails::WriteSingleRegister(SingleWrite::new(value, Promise::new(callback))),
+        self.send(RequestDetails::write_single_register(
+            value,
+            Promise::new(callback),
         ))
         .await;
     }
@@ -465,7 +451,7 @@ impl CallbackSession {
         self.write_multiple(
             LimitedWrite::registers(value),
             callback,
-            RequestDetails::WriteMultipleRegisters,
+            RequestDetails::write_multiple_registers,
         )
         .await;
     }
@@ -478,7 +464,7 @@ impl CallbackSession {
         self.write_multiple(
             LimitedWrite::coils(value),
             callback,
-            RequestDetails::WriteMultipleCoils,
+            RequestDetails::write_multiple_coils,
         )
         .await;
     }
@@ -486,32 +472,27 @@ impl CallbackSession {
     async fn read_bits<C, W>(&mut self, range: AddressRange, callback: C, wrap_req: W)
     where
         C: FnOnce(Result<BitIterator, RequestError>) + Send + Sync + 'static,
-        W: Fn(ReadBits) -> RequestDetails,
+        W: FnOnce(ReadBitsRange, read_bits::Promise) -> RequestDetails,
     {
-        let mut promise = crate::client::requests::read_bits::Promise::new(callback);
+        let mut promise = read_bits::Promise::new(callback);
         let range = match range.of_read_bits() {
             Ok(x) => x,
             Err(err) => return promise.failure(err.into()),
         };
-        self.send(wrap(self.param, wrap_req(ReadBits::new(range, promise))))
-            .await;
+        self.send(wrap_req(range, promise)).await;
     }
 
     async fn read_registers<C, W>(&mut self, range: AddressRange, callback: C, wrap_req: W)
     where
         C: FnOnce(Result<RegisterIterator, RequestError>) + Send + Sync + 'static,
-        W: Fn(ReadRegisters) -> RequestDetails,
+        W: FnOnce(ReadRegistersRange, read_registers::Promise) -> RequestDetails,
     {
-        let mut promise = crate::client::requests::read_registers::Promise::new(callback);
+        let mut promise = read_registers::Promise::new(callback);
         let range = match range.of_read_registers() {
             Ok(x) => x,
             Err(err) => return promise.failure(err.into()),
         };
-        self.send(wrap(
-            self.param,
-            wrap_req(ReadRegisters::new(range, promise)),
-        ))
-        .await;
+        self.send(wrap_req(range, promise)).await;
     }
 
     async fn write_multiple<T, C, W>(
@@ -520,25 +501,20 @@ impl CallbackSession {
         callback: C,
         wrap_req: W,
     ) where
-        WriteMultiple<T>: Serialize,
         C: FnOnce(Result<AddressRange, RequestError>) + Send + Sync + 'static,
-        W: Fn(MultipleWriteRequest<T>) -> RequestDetails,
+        W: FnOnce(LimitedWrite<T>, Promise<AddressRange>) -> RequestDetails,
     {
         let mut promise = Promise::new(callback);
         let write = match write {
             Ok(x) => x,
             Err(err) => return promise.failure(err.into()),
         };
-        self.send(wrap(
-            self.param,
-            wrap_req(MultipleWriteRequest::new(write, promise)),
-        ))
-        .await;
+        self.send(wrap_req(write, promise)).await;
     }
 
-    async fn send(&mut self, command: Command) {
+    async fn send(&mut self, details: RequestDetails) {
         // dropping the command will automatically fail requests with SHUTDOWN
-        self.tx.send(command).await.ok();
+        self.tx.send(wrap(self.param, details)).await.ok();
     }
 }
 

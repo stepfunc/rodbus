@@ -77,6 +77,12 @@ impl Promise {
     }
 }
 
+impl From<tokio::sync::oneshot::Sender<Result<Vec<Indexed<u16>>, RequestError>>> for Promise {
+    fn from(tx: tokio::sync::oneshot::Sender<Result<Vec<Indexed<u16>>, RequestError>>) -> Self {
+        Self::oneshot(tx)
+    }
+}
+
 pub(crate) struct ReadRegisters {
     pub(crate) request: ReadRegistersRange,
     promise: Promise,
@@ -87,6 +93,7 @@ impl ReadRegisters {
         Self { request, promise }
     }
 
+    #[cfg(test)]
     pub(crate) fn channel(
         request: ReadRegistersRange,
         tx: tokio::sync::oneshot::Sender<Result<Vec<Indexed<u16>>, RequestError>>,
