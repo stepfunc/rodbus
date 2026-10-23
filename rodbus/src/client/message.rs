@@ -327,13 +327,19 @@ where
 
 #[cfg(test)]
 mod test {
-    use crate::client::message::{Promise, RequestDetails};
-    use crate::client::requests::read_bits::ReadBits;
-    use crate::client::requests::read_registers::ReadRegisters;
+    use crate::client::message::{Promise, Request, RequestDetails};
+    use crate::client::requests::read_bits::{self, ReadBits};
+    use crate::client::requests::read_registers::{self, ReadRegisters};
+    use crate::client::requests::write_multiple::{MultipleWriteRequest, WriteMultiple};
     use crate::client::requests::write_single::SingleWrite;
-    use crate::{AddressRange, BitIterator, Indexed, RegisterIterator, RequestError};
+    use crate::types::{ReadBitsRange, ReadRegistersRange};
+    use crate::{
+        AddressRange, AduParseError, AppDecodeLevel, BitIterator, ExceptionCode, Indexed,
+        RegisterIterator, RequestError, UnitId,
+    };
     use std::collections::VecDeque;
     use std::sync::{Arc, Mutex};
+    use std::time::Duration;
 
     #[derive(Clone)]
     struct Errors {
@@ -410,6 +416,551 @@ mod test {
             let (error, remaining) = errors.pop();
             assert_eq!(error, Some(RequestError::Shutdown));
             assert_eq!(remaining, 0);
+        }
+    }
+
+    /// The request a response answers
+    #[derive(Clone, Copy, Debug)]
+    enum Sent {
+        ReadCoils { start: u16, count: u16 },
+        ReadDiscreteInputs { start: u16, count: u16 },
+        ReadHoldingRegisters { start: u16, count: u16 },
+        ReadInputRegisters { start: u16, count: u16 },
+        WriteSingleCoil(Indexed<bool>),
+        WriteSingleRegister(Indexed<u16>),
+        WriteMultipleCoils { start: u16, values: &'static [bool] },
+        WriteMultipleRegisters { start: u16, values: &'static [u16] },
+    }
+
+    /// How the request's promise delivers its result
+    #[derive(Clone, Copy, Debug)]
+    enum Completion {
+        /// a oneshot channel, as the async API uses
+        Oneshot,
+        /// a boxed callback, as `FfiChannel` and `CallbackSession` use
+        Callback,
+    }
+
+    /// What handling a response did to the request
+    #[derive(Debug, PartialEq)]
+    enum Outcome {
+        Bits(Vec<Indexed<bool>>),
+        Registers(Vec<Indexed<u16>>),
+        Coil(Indexed<bool>),
+        Register(Indexed<u16>),
+        Range(AddressRange),
+        /// `handle_response` returned the error and left the promise pending
+        Rejected(RequestError),
+    }
+
+    type Slot = Arc<Mutex<Option<Result<Outcome, RequestError>>>>;
+
+    fn put(slot: &Slot, result: Result<Outcome, RequestError>) {
+        *slot.lock().unwrap() = Some(result);
+    }
+
+    fn take(slot: &Slot) -> Option<Result<Outcome, RequestError>> {
+        slot.lock().unwrap().take()
+    }
+
+    /// The request is returned so that its promise isn't dropped (which fails it with
+    /// `Shutdown`) before the caller has looked at what it delivered
+    fn handle(details: RequestDetails, payload: &[u8]) -> (Request, Result<(), RequestError>) {
+        let mut request = Request::new(UnitId::new(1), Duration::from_secs(1), details);
+        let result = request.handle_response(payload, AppDecodeLevel::Nothing);
+        (request, result)
+    }
+
+    /// A response either completes the promise with a value and returns `Ok`, or returns the
+    /// error without completing the promise (the task fails it afterwards)
+    fn settle(
+        result: Result<(), RequestError>,
+        delivered: Option<Result<Outcome, RequestError>>,
+    ) -> Outcome {
+        match (result, delivered) {
+            (Ok(()), Some(Ok(value))) => value,
+            (Err(err), None) => Outcome::Rejected(err),
+            (result, delivered) => {
+                panic!("returned {result:?} but the promise delivered {delivered:?}")
+            }
+        }
+    }
+
+    fn read_bits_range(start: u16, count: u16) -> ReadBitsRange {
+        AddressRange::try_from(start, count)
+            .unwrap()
+            .of_read_bits()
+            .unwrap()
+    }
+
+    fn read_registers_range(start: u16, count: u16) -> ReadRegistersRange {
+        AddressRange::try_from(start, count)
+            .unwrap()
+            .of_read_registers()
+            .unwrap()
+    }
+
+    fn respond_to_bits(
+        range: ReadBitsRange,
+        make: fn(ReadBits) -> RequestDetails,
+        completion: Completion,
+        payload: &[u8],
+    ) -> Outcome {
+        match completion {
+            Completion::Oneshot => {
+                let (tx, mut rx) = tokio::sync::oneshot::channel();
+                let (_request, result) = handle(make(ReadBits::channel(range, tx)), payload);
+                settle(result, rx.try_recv().ok().map(|x| x.map(Outcome::Bits)))
+            }
+            Completion::Callback => {
+                let slot = Slot::default();
+                let sink = slot.clone();
+                let promise =
+                    read_bits::Promise::new(move |result: Result<BitIterator, RequestError>| {
+                        put(&sink, result.map(|values| Outcome::Bits(values.collect())));
+                    });
+                let (_request, result) = handle(make(ReadBits::new(range, promise)), payload);
+                settle(result, take(&slot))
+            }
+        }
+    }
+
+    fn respond_to_registers(
+        range: ReadRegistersRange,
+        make: fn(ReadRegisters) -> RequestDetails,
+        completion: Completion,
+        payload: &[u8],
+    ) -> Outcome {
+        match completion {
+            Completion::Oneshot => {
+                let (tx, mut rx) = tokio::sync::oneshot::channel();
+                let (_request, result) = handle(make(ReadRegisters::channel(range, tx)), payload);
+                settle(
+                    result,
+                    rx.try_recv().ok().map(|x| x.map(Outcome::Registers)),
+                )
+            }
+            Completion::Callback => {
+                let slot = Slot::default();
+                let sink = slot.clone();
+                let promise = read_registers::Promise::new(
+                    move |result: Result<RegisterIterator, RequestError>| {
+                        put(
+                            &sink,
+                            result.map(|values| Outcome::Registers(values.collect())),
+                        );
+                    },
+                );
+                let (_request, result) = handle(make(ReadRegisters::new(range, promise)), payload);
+                settle(result, take(&slot))
+            }
+        }
+    }
+
+    fn respond_to_write<T>(
+        make: impl FnOnce(Promise<T>) -> RequestDetails,
+        wrap: fn(T) -> Outcome,
+        completion: Completion,
+        payload: &[u8],
+    ) -> Outcome
+    where
+        T: Send + 'static,
+    {
+        match completion {
+            Completion::Oneshot => {
+                let (tx, mut rx) = tokio::sync::oneshot::channel();
+                let (_request, result) = handle(make(Promise::channel(tx)), payload);
+                settle(result, rx.try_recv().ok().map(|x| x.map(wrap)))
+            }
+            Completion::Callback => {
+                let slot = Slot::default();
+                let sink = slot.clone();
+                let promise = Promise::new(move |result: Result<T, RequestError>| {
+                    put(&sink, result.map(wrap));
+                });
+                let (_request, result) = handle(make(promise), payload);
+                settle(result, take(&slot))
+            }
+        }
+    }
+
+    fn respond(sent: Sent, completion: Completion, payload: &[u8]) -> Outcome {
+        match sent {
+            Sent::ReadCoils { start, count } => respond_to_bits(
+                read_bits_range(start, count),
+                RequestDetails::ReadCoils,
+                completion,
+                payload,
+            ),
+            Sent::ReadDiscreteInputs { start, count } => respond_to_bits(
+                read_bits_range(start, count),
+                RequestDetails::ReadDiscreteInputs,
+                completion,
+                payload,
+            ),
+            Sent::ReadHoldingRegisters { start, count } => respond_to_registers(
+                read_registers_range(start, count),
+                RequestDetails::ReadHoldingRegisters,
+                completion,
+                payload,
+            ),
+            Sent::ReadInputRegisters { start, count } => respond_to_registers(
+                read_registers_range(start, count),
+                RequestDetails::ReadInputRegisters,
+                completion,
+                payload,
+            ),
+            Sent::WriteSingleCoil(value) => respond_to_write(
+                |promise| RequestDetails::WriteSingleCoil(SingleWrite::new(value, promise)),
+                Outcome::Coil,
+                completion,
+                payload,
+            ),
+            Sent::WriteSingleRegister(value) => respond_to_write(
+                |promise| RequestDetails::WriteSingleRegister(SingleWrite::new(value, promise)),
+                Outcome::Register,
+                completion,
+                payload,
+            ),
+            Sent::WriteMultipleCoils { start, values } => respond_to_write(
+                |promise| {
+                    let request = WriteMultiple::from(start, values.to_vec()).unwrap();
+                    RequestDetails::WriteMultipleCoils(MultipleWriteRequest::new(request, promise))
+                },
+                Outcome::Range,
+                completion,
+                payload,
+            ),
+            Sent::WriteMultipleRegisters { start, values } => respond_to_write(
+                |promise| {
+                    let request = WriteMultiple::from(start, values.to_vec()).unwrap();
+                    RequestDetails::WriteMultipleRegisters(MultipleWriteRequest::new(
+                        request, promise,
+                    ))
+                },
+                Outcome::Range,
+                completion,
+                payload,
+            ),
+        }
+    }
+
+    fn rejected(err: AduParseError) -> Outcome {
+        Outcome::Rejected(RequestError::BadResponse(err))
+    }
+
+    fn exception(code: ExceptionCode) -> Outcome {
+        Outcome::Rejected(RequestError::Exception(code))
+    }
+
+    fn range(start: u16, count: u16) -> Outcome {
+        Outcome::Range(AddressRange::try_from(start, count).unwrap())
+    }
+
+    const READ_REGISTER: Sent = Sent::ReadHoldingRegisters { start: 0, count: 1 };
+    const WRITE_COIL: Sent = Sent::WriteSingleCoil(Indexed {
+        index: 0x0010,
+        value: true,
+    });
+    const WRITE_COIL_OFF: Sent = Sent::WriteSingleCoil(Indexed {
+        index: 0x0010,
+        value: false,
+    });
+    const WRITE_REGISTER: Sent = Sent::WriteSingleRegister(Indexed {
+        index: 0x0001,
+        value: 0x1234,
+    });
+    const WRITE_COILS: Sent = Sent::WriteMultipleCoils {
+        start: 0x0013,
+        values: &[
+            true, false, true, true, false, false, true, true, true, false,
+        ],
+    };
+    const WRITE_REGISTERS: Sent = Sent::WriteMultipleRegisters {
+        start: 0x0001,
+        values: &[0x000A, 0x0102],
+    };
+
+    fn rows() -> Vec<(Sent, &'static [u8], Outcome)> {
+        vec![
+            // A response that can't hold a function code
+            (
+                READ_REGISTER,
+                &[],
+                rejected(AduParseError::InsufficientBytes),
+            ),
+            // Function codes other than the request's or its exception code (caught if the
+            // function comparison or the error-bit check went)
+            (
+                READ_REGISTER,
+                &[0x04, 0x02, 0x12, 0x34],
+                rejected(AduParseError::UnknownResponseFunction(0x04, 0x03, 0x83)),
+            ),
+            (
+                READ_REGISTER,
+                &[0x84, 0x02],
+                rejected(AduParseError::UnknownResponseFunction(0x84, 0x03, 0x83)),
+            ),
+            (
+                WRITE_COIL,
+                &[0x2B, 0x00, 0x10, 0xFF, 0x00],
+                rejected(AduParseError::UnknownResponseFunction(0x2B, 0x05, 0x85)),
+            ),
+            (
+                WRITE_REGISTERS,
+                &[0x03, 0x02, 0x00, 0x00],
+                rejected(AduParseError::UnknownResponseFunction(0x03, 0x10, 0x90)),
+            ),
+            // Exceptions, known and unknown values (caught if the code were mapped wrongly)
+            (
+                Sent::ReadCoils { start: 0, count: 1 },
+                &[0x81, 0x01],
+                exception(ExceptionCode::IllegalFunction),
+            ),
+            (
+                READ_REGISTER,
+                &[0x83, 0x02],
+                exception(ExceptionCode::IllegalDataAddress),
+            ),
+            (
+                WRITE_COILS,
+                &[0x8F, 0x04],
+                exception(ExceptionCode::ServerDeviceFailure),
+            ),
+            (
+                WRITE_REGISTER,
+                &[0x86, 0x0B],
+                exception(ExceptionCode::GatewayTargetDeviceFailedToRespond),
+            ),
+            (
+                WRITE_REGISTER,
+                &[0x86, 0x00],
+                exception(ExceptionCode::Unknown(0x00)),
+            ),
+            (
+                READ_REGISTER,
+                &[0x83, 0x09],
+                exception(ExceptionCode::Unknown(0x09)),
+            ),
+            (
+                READ_REGISTER,
+                &[0x83, 0xFF],
+                exception(ExceptionCode::Unknown(0xFF)),
+            ),
+            // An exception with no code, or with bytes after it (the second caught if the
+            // exception's trailing-byte check went)
+            (
+                READ_REGISTER,
+                &[0x83],
+                rejected(AduParseError::InsufficientBytes),
+            ),
+            (
+                READ_REGISTER,
+                &[0x83, 0x02, 0x00],
+                rejected(AduParseError::TrailingBytes(1)),
+            ),
+            (
+                WRITE_COIL,
+                &[0x85, 0x02, 0x00, 0x00],
+                rejected(AduParseError::TrailingBytes(2)),
+            ),
+            // Write single coil: the echo is compared with the request (caught if the
+            // comparison went) and its value must be ON or OFF (caught if `coil_from_u16`
+            // accepted other values)
+            (
+                WRITE_COIL,
+                &[0x05, 0x00, 0x10, 0xFF, 0x00],
+                Outcome::Coil(Indexed::new(0x0010, true)),
+            ),
+            (
+                WRITE_COIL_OFF,
+                &[0x05, 0x00, 0x10, 0x00, 0x00],
+                Outcome::Coil(Indexed::new(0x0010, false)),
+            ),
+            (
+                WRITE_COIL,
+                &[0x05, 0x00, 0x11, 0xFF, 0x00],
+                rejected(AduParseError::ReplyEchoMismatch),
+            ),
+            (
+                WRITE_COIL,
+                &[0x05, 0x00, 0x10, 0x00, 0x00],
+                rejected(AduParseError::ReplyEchoMismatch),
+            ),
+            (
+                WRITE_COIL_OFF,
+                &[0x05, 0x00, 0x10, 0xFF, 0x00],
+                rejected(AduParseError::ReplyEchoMismatch),
+            ),
+            (
+                WRITE_COIL,
+                &[0x05, 0x00, 0x10, 0xFF, 0x01],
+                rejected(AduParseError::UnknownCoilState(0xFF01)),
+            ),
+            (
+                WRITE_COIL_OFF,
+                &[0x05, 0x00, 0x10, 0x00, 0x01],
+                rejected(AduParseError::UnknownCoilState(0x0001)),
+            ),
+            // Write single coil: bytes after the echo, or a truncated echo (caught if the
+            // trailing-byte check went, or the parse read past the end)
+            (
+                WRITE_COIL,
+                &[0x05, 0x00, 0x10, 0xFF, 0x00, 0x00],
+                rejected(AduParseError::TrailingBytes(1)),
+            ),
+            (
+                WRITE_COIL,
+                &[0x05, 0x00, 0x10, 0xFF],
+                rejected(AduParseError::InsufficientBytes),
+            ),
+            (
+                WRITE_COIL,
+                &[0x05, 0x00, 0x10],
+                rejected(AduParseError::InsufficientBytes),
+            ),
+            (
+                WRITE_COIL,
+                &[0x05],
+                rejected(AduParseError::InsufficientBytes),
+            ),
+            // Write single register: the same echo checks
+            (
+                WRITE_REGISTER,
+                &[0x06, 0x00, 0x01, 0x12, 0x34],
+                Outcome::Register(Indexed::new(0x0001, 0x1234)),
+            ),
+            (
+                WRITE_REGISTER,
+                &[0x06, 0x00, 0x02, 0x12, 0x34],
+                rejected(AduParseError::ReplyEchoMismatch),
+            ),
+            (
+                WRITE_REGISTER,
+                &[0x06, 0x00, 0x01, 0x12, 0x35],
+                rejected(AduParseError::ReplyEchoMismatch),
+            ),
+            (
+                WRITE_REGISTER,
+                &[0x06, 0x00, 0x01, 0x12, 0x34, 0x00],
+                rejected(AduParseError::TrailingBytes(1)),
+            ),
+            (
+                WRITE_REGISTER,
+                &[0x06, 0x00, 0x01, 0x12],
+                rejected(AduParseError::InsufficientBytes),
+            ),
+            // Write multiple coils: the echoed range is compared with the request's (caught if
+            // the comparison went), then nothing may follow it
+            (
+                WRITE_COILS,
+                &[0x0F, 0x00, 0x13, 0x00, 0x0A],
+                range(0x0013, 10),
+            ),
+            (
+                WRITE_COILS,
+                &[0x0F, 0x00, 0x14, 0x00, 0x0A],
+                rejected(AduParseError::ReplyEchoMismatch),
+            ),
+            (
+                WRITE_COILS,
+                &[0x0F, 0x00, 0x13, 0x00, 0x09],
+                rejected(AduParseError::ReplyEchoMismatch),
+            ),
+            (
+                WRITE_COILS,
+                &[0x0F, 0x00, 0x13, 0x00, 0x0A, 0x00],
+                rejected(AduParseError::TrailingBytes(1)),
+            ),
+            (
+                WRITE_COILS,
+                &[0x0F, 0x00, 0x13, 0x00],
+                rejected(AduParseError::InsufficientBytes),
+            ),
+            // Write multiple registers: the same echo checks
+            (
+                WRITE_REGISTERS,
+                &[0x10, 0x00, 0x01, 0x00, 0x02],
+                range(0x0001, 2),
+            ),
+            (
+                WRITE_REGISTERS,
+                &[0x10, 0x00, 0x00, 0x00, 0x02],
+                rejected(AduParseError::ReplyEchoMismatch),
+            ),
+            (
+                WRITE_REGISTERS,
+                &[0x10, 0x00, 0x01, 0x00, 0x03],
+                rejected(AduParseError::ReplyEchoMismatch),
+            ),
+            (
+                WRITE_REGISTERS,
+                &[0x10, 0x00, 0x01, 0x00, 0x02, 0x00, 0x00],
+                rejected(AduParseError::TrailingBytes(2)),
+            ),
+            (
+                WRITE_REGISTERS,
+                &[0x10, 0x00, 0x01],
+                rejected(AduParseError::InsufficientBytes),
+            ),
+            // Reads deliver one value per address, bits LSB first (caught if the bit order or
+            // the addresses assigned to the values changed)
+            (
+                Sent::ReadCoils {
+                    start: 1,
+                    count: 10,
+                },
+                &[0x01, 0x02, 0b0000_0101, 0b0000_0010],
+                Outcome::Bits(vec![
+                    Indexed::new(1, true),
+                    Indexed::new(2, false),
+                    Indexed::new(3, true),
+                    Indexed::new(4, false),
+                    Indexed::new(5, false),
+                    Indexed::new(6, false),
+                    Indexed::new(7, false),
+                    Indexed::new(8, false),
+                    Indexed::new(9, false),
+                    Indexed::new(10, true),
+                ]),
+            ),
+            (
+                Sent::ReadDiscreteInputs {
+                    start: 0xFFFE,
+                    count: 2,
+                },
+                &[0x02, 0x01, 0b0000_0010],
+                Outcome::Bits(vec![
+                    Indexed::new(0xFFFE, false),
+                    Indexed::new(0xFFFF, true),
+                ]),
+            ),
+            (
+                Sent::ReadHoldingRegisters { start: 7, count: 2 },
+                &[0x03, 0x04, 0x12, 0x34, 0xAB, 0xCD],
+                Outcome::Registers(vec![Indexed::new(7, 0x1234), Indexed::new(8, 0xABCD)]),
+            ),
+            (
+                Sent::ReadInputRegisters {
+                    start: 0xFFFF,
+                    count: 1,
+                },
+                &[0x04, 0x02, 0xFF, 0xFE],
+                Outcome::Registers(vec![Indexed::new(0xFFFF, 0xFFFE)]),
+            ),
+        ]
+    }
+
+    #[test]
+    fn responses_are_validated_before_the_request_completes() {
+        for completion in [Completion::Oneshot, Completion::Callback] {
+            for (sent, payload, expected) in rows() {
+                assert_eq!(
+                    respond(sent, completion, payload),
+                    expected,
+                    "{sent:?} answered with {payload:02X?} through {completion:?}"
+                );
+            }
         }
     }
 }
