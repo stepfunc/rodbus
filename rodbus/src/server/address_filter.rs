@@ -70,7 +70,7 @@ impl WildcardIPv4 {
     }
 }
 
-/// Address filter used to control which master address(es) may connect to an outstation.
+/// Address filter used to control which client address(es) may connect to a server.
 ///
 /// An IPv4 address and its IPv4-mapped IPv6 form (`::ffff:a.b.c.d`) are the same address, so IPv4
 /// filters match IPv4 clients on a server bound to an IPv6 address such as `[::]`.
