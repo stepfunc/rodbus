@@ -143,7 +143,7 @@ ambiguous, we record how we read it. Examples of how it validates the frames it 
 | For a request with a supported function code addressed to a unit it serves, other than a broadcast, a server checks a request's length, quantity, byte count and values before its address: invalid values are answered with exception 03 (Illegal Data Value), and a range past the end of the address space with 02 (Illegal Data Address), without calling your handler | Application Protocol 6.1-6.6, 6.11, 6.12, 7 |
 | The quantity limits (2000 coils or discrete inputs and 125 registers per read, 1968 coils and 123 registers per write) are enforced by the server on the requests it receives and by the client on the requests it sends | Application Protocol 6.1-6.4, 6.11, 6.12 |
 | A client checks every response against its request before completing it: the function code, and as each response requires, the byte count, the length and the echo of a write | Application Protocol 6.1-6.6, 6.11, 6.12, 7 |
-| On a serial line, a frame is accepted only with a valid CRC | Serial Line 2.5.1.2 |
+| On a serial line, a frame is accepted only with a valid CRC. Bytes that can't start a valid frame, by their function code, length or CRC, are dropped one at a time until one does, and a partial frame is dropped once the line has been silent for 3.5 character times or 50 ms, whichever is longer. Neither ends the session | Serial Line 2.5.1.1, 2.5.1.2 |
 | On a serial line, the library waits 3.5 character times (1.75 ms above 19200 baud) before it transmits, counted from the latest of opening the port, its last completed read and the estimated end of its own last transmission. These are times seen by the host, and the end of a transmission is estimated from the baud rate, so buffering in a driver or adapter can still shorten the silence on the line | Serial Line 2.5.1.1 |
 | A broadcast (address 0 on a serial line) is executed by the server only for writes, and never answered | Serial Line 2.1 |
 
@@ -177,8 +177,10 @@ See [TLS](../api/tls.mdx) for configuration.
   sending holds its place until it closes, the server shuts down, or a newer connection replaces it. TLS handshakes
   are performed one at a time, so a peer that stalls its handshake delays the next connections by up to the 5 second
   timeout. Establishing a TCP connection relies on the operating system's connect timeout.
-* **Serial line recovery.** A frame that the RTU reader can't parse, such as one with a bad CRC or a function code
-  the library doesn't support, ends the session, and the port is opened again after the retry delay.
+* **Serial line noise.** RTU frames have no start marker, so after noise the library finds the next frame by its
+  function code, length and CRC. A frame that arrives before the line goes silent, behind noise that announces a
+  longer frame, is dropped along with it. And like any receiver that checks a 16-bit CRC, the library can't tell noise
+  from a frame whose CRC happens to match.
 * **Logging.** With protocol decoding enabled, the library logs the bytes and values it sends and receives, including
   traffic that TLS protects on the wire. Decide where those logs go accordingly.
 * **Your code.** Request handlers, authorization handlers and callbacks are called by the library, which validates

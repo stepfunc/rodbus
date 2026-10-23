@@ -268,7 +268,7 @@ pub fn create_rtu_server_task<T: RequestHandler>(
         handlers,
         crate::server::task::AuthorizationType::None,
         crate::common::frame::FrameWriter::rtu(),
-        crate::common::frame::FramedReader::rtu_request(),
+        crate::common::frame::FramedReader::rtu_request(settings.baud_rate),
         rx,
         decode,
     );

@@ -38,7 +38,7 @@ impl SerialChannelTask {
             client_loop: ClientLoop::new(
                 rx,
                 FrameWriter::rtu(),
-                FramedReader::rtu_response(),
+                FramedReader::rtu_response(serial_settings.baud_rate),
                 decode,
                 None,
             ),
@@ -436,8 +436,7 @@ mod tests {
         watchdog(async {
             let (port, _commands) = PipePort::new(true).await;
 
-            // the end of file is an I/O error; only that arm is pinned here, as a bad frame
-            // ending an RTU session is expected to change
+            // the end of file is an I/O error, which ends an RTU session; bad frames don't
             let (result, elapsed, recorded) = port.run().await;
 
             assert_eq!(result, Ok(()));

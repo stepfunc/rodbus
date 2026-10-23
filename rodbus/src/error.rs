@@ -214,9 +214,13 @@ pub enum FrameParseError {
     FrameLengthTooBig(usize, usize), // actual size and the maximum size
     /// Received TCP frame within non-Modbus protocol id
     UnknownProtocolId(u16),
-    /// Unknown function code (only emitted in RTU parsing)
+    /// Unknown function code in an RTU frame
+    ///
+    /// Not returned by requests: an RTU reader drops bytes that can't start a frame
     UnknownFunctionCode(u8),
     /// RTU CRC validation failed
+    ///
+    /// Not returned by requests: an RTU reader drops bytes that can't start a frame
     CrcValidationFailure(u16, u16), // received CRC, expected CRC
 }
 

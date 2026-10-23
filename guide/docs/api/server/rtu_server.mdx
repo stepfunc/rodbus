@@ -13,6 +13,14 @@ a CRC to each transmitted frame.
 
 Multi-drop communications allow a single client to communicate with multiple servers sharing the same serial channel. Use broadcast messages to write requests simultaneously to all servers on a channel.
 
+## Receiving frames
+
+RTU frames have no start marker. When the bytes received can't start a valid frame, because of their function code,
+their length or their CRC, the library drops them one at a time until a valid frame starts. A partial frame is dropped
+once the line has been silent for 3.5 character times or 50 ms, whichever is longer. Neither ends the session or
+reopens the port; the library logs a warning when it starts dropping bytes, and again when a frame follows them.
+Clients and servers both receive frames this way.
+
 ## Special addresses
 
 ### Broadcast

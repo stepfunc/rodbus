@@ -56,8 +56,8 @@ enum Reply {
     Silence,
     /// nothing until the request timed out, then the answer, while no request is outstanding
     LateAfterTimeout(u16),
-    /// a frame the client can't parse, which ends the session: a non-Modbus protocol id over TCP,
-    /// a wrong CRC over RTU
+    /// a frame the client can't parse: a non-Modbus protocol id over TCP, which ends the session,
+    /// or a wrong CRC over RTU, whose bytes the client drops, so the request times out
     Garbage,
 }
 
@@ -162,6 +162,7 @@ impl Model {
         let tx_id = self.next_tx_id;
         self.next_tx_id = tx_id.wrapping_add(1);
         let result = match reply {
+            Reply::Garbage if self.link != Link::Tcp => Err(RequestError::ResponseTimeout),
             Reply::Garbage => {
                 let (_, error) = garbage(self.link, tx_id, unit);
                 let outcome = Outcome {
@@ -527,7 +528,7 @@ proptest! {
 
 /// Check that cases drawn as the property tests draw them run every kind of step, and end in
 /// every way, by the model
-fn assert_generator_reaches_everything(link: Link, kinds: &[Kind]) {
+fn assert_generator_reaches_everything(link: Link, kinds: &[Kind], endings_reached: &[Ending]) {
     let mut runner = TestRunner::deterministic();
     let strategy = (max_timeouts(), steps(link));
     let mut seen = std::collections::BTreeSet::new();
@@ -540,17 +541,25 @@ fn assert_generator_reaches_everything(link: Link, kinds: &[Kind]) {
         endings.push(ending);
     }
     assert_eq!(seen.into_iter().collect::<Vec<_>>(), kinds);
-    for ending in [
+    for ending in endings_reached {
+        assert!(endings.contains(ending), "no case ends {ending:?}");
+    }
+}
+
+/// The endings every link reaches, and a bad frame if `bad_frame`
+fn endings(bad_frame: bool) -> Vec<Ending> {
+    let mut endings = vec![
         Ending::Running,
         Ending::Ended(SessionError::MaxTimeouts(1)),
         Ending::Ended(SessionError::MaxTimeouts(2)),
         Ending::Ended(SessionError::MaxTimeouts(3)),
         Ending::Ended(SessionError::MaxTimeouts(4)),
-        Ending::Ended(SessionError::BadFrame),
         Ending::Ended(SessionError::Disabled),
-    ] {
-        assert!(endings.contains(&ending), "no case ends {ending:?}");
+    ];
+    if bad_frame {
+        endings.push(Ending::Ended(SessionError::BadFrame));
     }
+    endings
 }
 
 #[test]
@@ -570,12 +579,14 @@ fn the_tcp_generator_reaches_every_step_and_ending() {
             Kind::Enable,
             Kind::Disable,
         ],
+        &endings(true),
     );
 }
 
+/// RTU sessions drop the bytes of a bad frame rather than end
 #[cfg(feature = "serial")]
 #[test]
-fn the_rtu_generator_reaches_every_step_but_a_stale_transaction_and_every_ending() {
+fn the_rtu_generator_reaches_every_step_but_a_stale_transaction_and_every_ending_but_a_bad_frame() {
     assert_generator_reaches_everything(
         Link::Rtu,
         &[
@@ -590,6 +601,7 @@ fn the_rtu_generator_reaches_every_step_but_a_stale_transaction_and_every_ending
             Kind::Enable,
             Kind::Disable,
         ],
+        &endings(false),
     );
 }
 

@@ -161,7 +161,7 @@ mod tests {
                     ServerHandlerMap::single(UnitId::new(1), DefaultHandler.wrap()),
                     AuthorizationType::None,
                     FrameWriter::rtu(),
-                    FramedReader::rtu_request(),
+                    FramedReader::rtu_request(crate::serial::SerialSettings::default().baud_rate),
                     rx,
                     DecodeLevel::nothing(),
                 ),
@@ -204,8 +204,7 @@ mod tests {
                 mut retry,
             } = PipePort::new();
             let started = Instant::now();
-            // the end of file is an I/O error; only that arm is pinned here, as a bad frame
-            // ending an RTU session is expected to change
+            // the end of file is an I/O error, which ends an RTU session; bad frames don't
             peer.shutdown().await.unwrap();
             let run = spawn_run_port(task, port);
 

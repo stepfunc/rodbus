@@ -9,6 +9,7 @@ import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
 Create an RTU client channel using the `create_rtu_client` method. The client immediately attempts to open the serial port.
+It receives frames as described in [Receiving frames](../server/rtu_server.mdx#receiving-frames).
 
 :::note
 In Rust, you can use the `spawn_rtu_client_task` to create a channel and spawn the async task in the context of the current runtime.

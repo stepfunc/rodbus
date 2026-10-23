@@ -336,7 +336,7 @@ mod tests {
             ServerHandlerMap::single(UnitId::new(1), Values.wrap()),
             AuthorizationType::None,
             FrameWriter::rtu(),
-            FramedReader::rtu_request(),
+            FramedReader::rtu_request(crate::serial::SerialSettings::default().baud_rate),
             rx,
             DecodeLevel::nothing(),
         );
@@ -376,6 +376,64 @@ mod tests {
             );
             assert_eq!(
                 second_ended,
+                RequestError::Io(std::io::ErrorKind::UnexpectedEof)
+            );
+        })
+        .await;
+    }
+
+    /// Write `garbage`, then a read of the register at 0x10, and check the session answers it
+    #[cfg(feature = "serial")]
+    async fn answers_after(peer: &mut tokio::io::DuplexStream, garbage: &[u8]) {
+        let request = with_crc(&[0x01, 0x03, 0x00, 0x10, 0x00, 0x01]);
+        peer.write_all(garbage).await.unwrap();
+        peer.write_all(&request).await.unwrap();
+        let mut response = [0u8; 7];
+        peer.read_exact(&mut response).await.unwrap();
+        assert_eq!(response.to_vec(), with_crc(&[0x01, 0x03, 0x02, 0x00, 0x10]));
+    }
+
+    #[cfg(feature = "serial")]
+    #[tokio::test(start_paused = true)]
+    async fn an_rtu_session_answers_requests_after_bytes_that_cant_start_a_frame() {
+        crate::common::test_support::watchdog(async {
+            let (_commands, mut session) = rtu_values_session();
+            let (local, mut peer) = tokio::io::duplex(64);
+            let task =
+                tokio::spawn(async move { session.run(&mut PhysLayer::new_duplex(local)).await });
+
+            // 0xA5 isn't a function code, so each of these bytes is dropped on its own
+            answers_after(&mut peer, &[0xA5, 0xA5, 0xA5]).await;
+            // the session is still running
+            answers_after(&mut peer, &[0xA5]).await;
+
+            assert_nothing_more_was_sent(peer).await;
+            assert_eq!(
+                task.await.unwrap(),
+                RequestError::Io(std::io::ErrorKind::UnexpectedEof)
+            );
+        })
+        .await;
+    }
+
+    #[cfg(feature = "serial")]
+    #[tokio::test(start_paused = true)]
+    async fn an_rtu_session_drops_a_partial_request_once_the_line_is_silent() {
+        crate::common::test_support::watchdog(async {
+            let (_commands, mut session) = rtu_values_session();
+            let (local, mut peer) = tokio::io::duplex(64);
+            let task =
+                tokio::spawn(async move { session.run(&mut PhysLayer::new_duplex(local)).await });
+
+            // a write of registers that announces a 246-byte body, which never arrives
+            let partial = [0x01, 0x10, 0x00, 0x10, 0x00, 0x7B, 0xF6];
+            peer.write_all(&partial).await.unwrap();
+            tokio::time::sleep(Duration::from_secs(1)).await;
+            answers_after(&mut peer, &[]).await;
+
+            assert_nothing_more_was_sent(peer).await;
+            assert_eq!(
+                task.await.unwrap(),
                 RequestError::Io(std::io::ErrorKind::UnexpectedEof)
             );
         })
@@ -1130,7 +1188,12 @@ mod tests {
 
     #[cfg(feature = "serial")]
     fn rtu_session(units: &[u8], auth: AuthorizationType) -> (tokio::io::DuplexStream, Calls) {
-        spawn_session(units, auth, FrameWriter::rtu(), FramedReader::rtu_request())
+        spawn_session(
+            units,
+            auth,
+            FrameWriter::rtu(),
+            FramedReader::rtu_request(crate::serial::SerialSettings::default().baud_rate),
+        )
     }
 
     #[cfg(feature = "serial")]

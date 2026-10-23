@@ -524,7 +524,10 @@ mod tests {
 
         #[cfg(feature = "serial")]
         fn rtu() -> Self {
-            Self::new(FrameWriter::rtu(), FramedReader::rtu_response())
+            Self::new(
+                FrameWriter::rtu(),
+                FramedReader::rtu_response(crate::serial::SerialSettings::default().baud_rate),
+            )
         }
 
         fn new(writer: FrameWriter, reader: FramedReader) -> Self {
@@ -931,6 +934,81 @@ mod tests {
             // the same transaction id, from unit 1 and then from unit 2
             session.send(&mbap(tx_id, 1, &register_value(0x1111))).await;
             session.send(&mbap(tx_id, 2, &register_value(0x2222))).await;
+
+            assert_eq!(request.await.unwrap(), Ok(vec![Indexed::new(0x10, 0x2222)]));
+        })
+        .await;
+    }
+
+    #[cfg(feature = "serial")]
+    #[tokio::test(start_paused = true)]
+    async fn an_rtu_response_after_bytes_that_cant_start_a_frame_is_read() {
+        watchdog(async {
+            let (channel, mut session) = Setup::rtu().spawn();
+            let request = read_register(&channel, 2);
+
+            session.read::<8>().await;
+            // 0xA5 isn't a function code, so each of these bytes is dropped on its own
+            session.send(&[0xA5, 0xA5, 0xA5]).await;
+            session.send(&rtu(2, &register_value(0x2222))).await;
+
+            assert_eq!(request.await.unwrap(), Ok(vec![Indexed::new(0x10, 0x2222)]));
+        })
+        .await;
+    }
+
+    #[cfg(feature = "serial")]
+    #[tokio::test(start_paused = true)]
+    async fn an_rtu_request_times_out_under_continuing_noise_and_the_session_carries_on() {
+        watchdog(async {
+            let (channel, mut session) = Setup::rtu().spawn();
+            let request = {
+                let request = read_register(&channel, 2);
+                tokio::spawn(async move { (request.await.unwrap(), Instant::now()) })
+            };
+            session.read::<8>().await;
+            // the deadline started when the request was written, which the paused clock doesn't
+            // see take any time
+            let sent = Instant::now();
+            // a read response announcing 251 bytes, then a byte every 20 ms past the deadline, so
+            // the line never goes silent and the frame never completes
+            session.send(&[0x02, 0x03, 0xFB]).await;
+            while sent.elapsed() < TIMEOUT + Duration::from_millis(200) {
+                tokio::time::sleep(Duration::from_millis(20)).await;
+                session.send(&[0x55]).await;
+            }
+            let (result, completed) = request.await.unwrap();
+            assert_eq!(result, Err(RequestError::ResponseTimeout));
+            // at its deadline, while the noise went on; tokio rounds timers up to the millisecond
+            let elapsed = completed.duration_since(sent);
+            assert!(elapsed >= TIMEOUT, "{elapsed:?}");
+            assert!(elapsed <= TIMEOUT + Duration::from_millis(1), "{elapsed:?}");
+
+            // once the line goes silent, the same session reads the next response
+            tokio::time::sleep(Duration::from_secs(1)).await;
+            let request = read_register(&channel, 2);
+            session.read::<8>().await;
+            session.send(&rtu(2, &register_value(0x2222))).await;
+            assert_eq!(request.await.unwrap(), Ok(vec![Indexed::new(0x10, 0x2222)]));
+
+            drop(channel);
+            assert_eq!(session.ended().await, SessionError::Shutdown);
+        })
+        .await;
+    }
+
+    #[cfg(feature = "serial")]
+    #[tokio::test(start_paused = true)]
+    async fn an_rtu_client_drops_a_partial_frame_once_the_line_is_silent() {
+        watchdog(async {
+            let (channel, mut session) = Setup::rtu().spawn();
+            // while idle, a read response that announces more bytes than ever arrive
+            session.send(&[0x02, 0x03, 0xFB]).await;
+            tokio::time::sleep(Duration::from_secs(1)).await;
+            let request = read_register(&channel, 2);
+
+            session.read::<8>().await;
+            session.send(&rtu(2, &register_value(0x2222))).await;
 
             assert_eq!(request.await.unwrap(), Ok(vec![Indexed::new(0x10, 0x2222)]));
         })

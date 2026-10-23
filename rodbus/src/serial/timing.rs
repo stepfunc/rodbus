@@ -95,6 +95,18 @@ impl Drop for Transmission<'_> {
     }
 }
 
+/// The shortest silence after which an RTU reader drops a partial frame
+///
+/// A host sees bytes when its driver delivers them, often in bursts with gaps well above t3.5
+/// inside one frame, so a silence of t3.5 alone would drop frames that are still arriving.
+pub(crate) const MIN_RTU_SILENCE: tokio::time::Duration = tokio::time::Duration::from_millis(50);
+
+/// How long the line at `baud_rate` is silent before an RTU reader drops a partial frame: t3.5,
+/// but never less than [`MIN_RTU_SILENCE`]
+pub(crate) fn rtu_silence(baud_rate: u32) -> tokio::time::Duration {
+    inter_frame_delay(baud_rate).max(MIN_RTU_SILENCE)
+}
+
 /// The delay used above [`MAX_TIMED_BAUD_RATE`], or for a baud rate of zero
 const FIXED_INTER_FRAME_DELAY: tokio::time::Duration = tokio::time::Duration::from_micros(1750);
 

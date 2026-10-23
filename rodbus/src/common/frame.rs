@@ -13,7 +13,7 @@ use crate::common::traits::{Loggable, LoggableDisplay, Serialize};
 use crate::error::{FrameParseError, InternalError, RequestError};
 use crate::tcp::frame::{MbapDisplay, MbapHeader, MbapParser};
 use crate::types::UnitId;
-use crate::{DecodeLevel, ExceptionCode, FrameDecodeLevel};
+use crate::{DecodeLevel, ExceptionCode, FrameDecodeLevel, PhysDecodeLevel};
 
 use scursor::WriteCursor;
 
@@ -34,7 +34,7 @@ pub(crate) mod constants {
 pub(crate) enum ReadError {
     /// Reading from the I/O failed, or the I/O reached its end
     Io(std::io::ErrorKind),
-    /// The bytes received aren't a valid frame
+    /// The bytes received aren't a valid TCP frame; an RTU reader drops such bytes instead
     BadFrame(FrameParseError),
     /// A parser's read of bytes it had already checked were buffered failed
     ///
@@ -245,7 +245,7 @@ impl FrameParser {
     ) -> Result<Option<(Frame, FrameType)>, ReadError> {
         match self {
             #[cfg(feature = "serial")]
-            FrameParser::Rtu(x) => x.parse(cursor),
+            FrameParser::Rtu(x) => x.parse(cursor).map_err(ReadError::from),
             FrameParser::Tcp(x) => x.parse(cursor),
         }
     }
@@ -257,9 +257,34 @@ impl FrameParser {
     pub(crate) fn reset(&mut self) {
         match self {
             #[cfg(feature = "serial")]
-            // the RTU parser keeps nothing between calls
-            FrameParser::Rtu(_) => {}
+            FrameParser::Rtu(x) => x.reset(),
             FrameParser::Tcp(x) => x.reset(),
+        }
+    }
+
+    /// Log a frame the reader is about to return, which a parse just found
+    fn received(&mut self, frame: &Frame, frame_type: &FrameType, level: FrameDecodeLevel) {
+        match self {
+            #[cfg(feature = "serial")]
+            FrameParser::Rtu(x) => x.received(frame.header.destination()),
+            FrameParser::Tcp(_) => {}
+        }
+        if level.enabled() {
+            frame_type.log("RX", level, frame.payload());
+        }
+    }
+
+    /// Read more bytes into `buffer`, which holds no whole frame
+    async fn read_more(
+        &mut self,
+        buffer: &mut ReadBuffer,
+        io: &mut PhysLayer,
+        level: PhysDecodeLevel,
+    ) -> Result<(), std::io::Error> {
+        match self {
+            #[cfg(feature = "serial")]
+            FrameParser::Rtu(x) => x.read_more(buffer, io, level).await,
+            FrameParser::Tcp(_) => buffer.read_some(io, level).await.map(|_| ()),
         }
     }
 }
@@ -520,21 +545,7 @@ impl FramedReader {
         Self::new(FrameParser::Tcp(MbapParser::new()))
     }
 
-    #[cfg(feature = "serial")]
-    pub(crate) fn rtu_request() -> Self {
-        Self::new(FrameParser::Rtu(
-            crate::serial::frame::RtuParser::new_request_parser(),
-        ))
-    }
-
-    #[cfg(feature = "serial")]
-    pub(crate) fn rtu_response() -> Self {
-        Self::new(FrameParser::Rtu(
-            crate::serial::frame::RtuParser::new_response_parser(),
-        ))
-    }
-
-    fn new(parser: FrameParser) -> Self {
+    pub(crate) fn new(parser: FrameParser) -> Self {
         Self {
             parser,
             buffer: ReadBuffer::new(),
@@ -547,18 +558,6 @@ impl FramedReader {
         self.parser.reset();
     }
 
-    fn log_received(frame_type: &FrameType, level: FrameDecodeLevel, payload: &[u8]) {
-        #[cfg(feature = "serial")]
-        if let FrameType::Rtu(FrameDestination::UnitId(unit_id), _) = frame_type {
-            if unit_id.is_rtu_reserved() {
-                tracing::warn!("received reserved unit ID {}, violating Modbus RTU spec. Passing it through nevertheless.", unit_id);
-            }
-        }
-        if level.enabled() {
-            frame_type.log("RX", level, payload);
-        }
-    }
-
     /// Read from `io` until a whole frame is buffered, and return it
     ///
     /// An error leaves the reader where it occurred, possibly partway through a frame, so reset
@@ -569,17 +568,25 @@ impl FramedReader {
         decode_level: DecodeLevel,
     ) -> Result<Frame, ReadError> {
         loop {
-            match self.parser.parse(&mut self.buffer) {
-                Ok(Some((frame, frame_type))) => {
-                    Self::log_received(&frame_type, decode_level.frame, frame.payload());
+            match self.parser.parse(&mut self.buffer)? {
+                Some((frame, frame_type)) => {
+                    self.parser
+                        .received(&frame, &frame_type, decode_level.frame);
                     return Ok(frame);
                 }
-                Ok(None) => {
-                    self.buffer.read_some(io, decode_level.physical).await?;
+                None => {
+                    self.parser
+                        .read_more(&mut self.buffer, io, decode_level.physical)
+                        .await?
                 }
-                Err(err) => return Err(err),
             }
         }
+    }
+
+    /// The parser, for the RTU reader tests to inspect
+    #[cfg(all(test, feature = "serial"))]
+    pub(crate) fn parser(&self) -> &FrameParser {
+        &self.parser
     }
 }
 
