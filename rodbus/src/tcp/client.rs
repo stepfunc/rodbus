@@ -272,15 +272,13 @@ pub(crate) mod test_util {
     /// an error fails the attempt, while [`Fault::None`] and every attempt past the end of the
     /// script hand the test the other end of a new pipe, failing if the test dropped the receiver.
     pub(crate) struct MemoryConnector {
-        faults: &'static [Fault],
+        faults: Vec<Fault>,
         attempts: AtomicUsize,
         peers: mpsc::UnboundedSender<DuplexStream>,
     }
 
     impl MemoryConnector {
-        pub(crate) fn new(
-            faults: &'static [Fault],
-        ) -> (Self, mpsc::UnboundedReceiver<DuplexStream>) {
+        pub(crate) fn new(faults: Vec<Fault>) -> (Self, mpsc::UnboundedReceiver<DuplexStream>) {
             let (peers, rx) = mpsc::unbounded_channel();
             (
                 Self {
@@ -347,9 +345,10 @@ mod tests {
     use crate::retry::default_retry_strategy;
     use crate::tcp::accept::test_util::Fault;
     use crate::{AddressRange, RequestError, RetryStrategy, UnitId};
+    use proptest::prelude::*;
     use std::net::Ipv4Addr;
     use std::time::Duration;
-    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 
     /// A request timeout long enough that any test which observes a request completing before it
     /// elapses has necessarily observed cancellation rather than a timeout
@@ -400,58 +399,6 @@ mod tests {
         }
     }
 
-    struct FixedRetry(Duration);
-
-    impl RetryStrategy for FixedRetry {
-        fn reset(&mut self) {}
-
-        fn after_failed_connect(&mut self) -> Duration {
-            self.0
-        }
-
-        fn after_disconnect(&mut self) -> Duration {
-            self.0
-        }
-    }
-
-    #[tokio::test(start_paused = true)]
-    async fn the_channel_reconnects_after_the_retry_delay_when_the_peer_closes() {
-        const DELAY: Duration = Duration::from_secs(2);
-        crate::common::test_support::watchdog(async {
-            let (connector, mut peers) = test_util::MemoryConnector::new(&[]);
-            let (tx, mut states) = tokio::sync::mpsc::unbounded_channel();
-            let (channel, task) = test_util::memory_channel(
-                connector,
-                TcpTaskConnectionHandler::Tcp,
-                Box::new(FixedRetry(DELAY)),
-                ClientOptions::default(),
-                Box::new(StateRecorder { tx }),
-            );
-            tokio::spawn(task.run());
-            channel.enable().await.unwrap();
-
-            let first = peers.recv().await.unwrap();
-            for state in [
-                ClientState::Disabled,
-                ClientState::Connecting,
-                ClientState::Connected,
-            ] {
-                assert_eq!(states.recv().await, Some(state));
-            }
-
-            let closed_at = tokio::time::Instant::now();
-            drop(first);
-            assert_eq!(
-                states.recv().await,
-                Some(ClientState::WaitAfterDisconnect(DELAY))
-            );
-            let _second = peers.recv().await.unwrap();
-            assert_eq!(closed_at.elapsed(), DELAY);
-            assert_eq!(states.recv().await, Some(ClientState::Connecting));
-        })
-        .await;
-    }
-
     /// The delay a [`Recorder`] returns after a failed connection attempt
     const FAILED: Duration = Duration::from_secs(3);
     /// The delay a [`Recorder`] returns after a disconnect, distinct from [`FAILED`]
@@ -496,6 +443,154 @@ mod tests {
         }
     }
 
+    /// What a channel connects over
+    #[derive(Copy, Clone, Debug)]
+    enum Transport {
+        Tcp,
+        #[cfg(feature = "enable-tls")]
+        Tls,
+    }
+
+    impl Transport {
+        fn handler(self) -> TcpTaskConnectionHandler {
+            match self {
+                Self::Tcp => TcpTaskConnectionHandler::Tcp,
+                #[cfg(feature = "enable-tls")]
+                Self::Tls => TcpTaskConnectionHandler::Tls(
+                    crate::tcp::tls::test_util::client_config(crate::tcp::tls::MinTlsVersion::V1_2),
+                ),
+            }
+        }
+
+        /// The outcomes a connection attempt over this transport can have
+        fn outcomes(self) -> &'static [Outcome] {
+            match self {
+                Self::Tcp => &TCP_OUTCOMES,
+                #[cfg(feature = "enable-tls")]
+                Self::Tls => &TLS_OUTCOMES,
+            }
+        }
+    }
+
+    /// How one connection attempt of a channel goes
+    #[derive(Copy, Clone, Debug, PartialEq)]
+    enum Outcome {
+        /// the connection is refused
+        Refused,
+        /// the peer hangs up during the TLS handshake
+        #[cfg(feature = "enable-tls")]
+        HandshakeFails,
+        /// the channel connects, and the session then ends this way
+        Connected(Ending),
+    }
+
+    /// How a peer, or the test, ends an established session
+    #[derive(Copy, Clone, Debug, PartialEq)]
+    enum Ending {
+        /// the peer closes the connection
+        PeerCloses,
+        /// the peer sends something that isn't a frame, and stays open
+        BadFrame,
+        /// the peer reads a request and never answers it, which reaches the maximum of one
+        /// response timeout
+        MaxTimeouts,
+        /// the test disables the channel, then enables it again once it reports `Disabled`
+        DisabledAndReenabled,
+    }
+
+    const TCP_OUTCOMES: [Outcome; 5] = [
+        Outcome::Refused,
+        Outcome::Connected(Ending::PeerCloses),
+        Outcome::Connected(Ending::BadFrame),
+        Outcome::Connected(Ending::MaxTimeouts),
+        Outcome::Connected(Ending::DisabledAndReenabled),
+    ];
+
+    #[cfg(feature = "enable-tls")]
+    const TLS_OUTCOMES: [Outcome; 6] = [
+        Outcome::Refused,
+        Outcome::HandshakeFails,
+        Outcome::Connected(Ending::PeerCloses),
+        Outcome::Connected(Ending::BadFrame),
+        Outcome::Connected(Ending::MaxTimeouts),
+        Outcome::Connected(Ending::DisabledAndReenabled),
+    ];
+
+    /// The response timeout of the request that [`Ending::MaxTimeouts`] leaves unanswered
+    const TIMEOUT: Duration = Duration::from_secs(1);
+
+    /// What a peer sends that isn't a frame: protocol id 0xCAFE
+    const BAD_FRAME: [u8; 7] = [0x00, 0x01, 0xCA, 0xFE, 0x00, 0x01, 0x01];
+
+    const FAILED_CONNECT: [Event; 2] = [
+        Event::AfterFailedConnect,
+        Event::State(ClientState::WaitAfterFailedConnect(FAILED)),
+    ];
+
+    /// The peer of a connection acts once the test observes this rather than the reset that
+    /// follows, so a missing reset fails an assertion instead of waiting for an event that never
+    /// comes
+    const CONNECTED: [Event; 1] = [Event::State(ClientState::Connected)];
+
+    const DISCONNECTED: [Event; 3] = [
+        Event::Reset,
+        Event::AfterDisconnect,
+        Event::State(ClientState::WaitAfterDisconnect(DISCONNECT)),
+    ];
+
+    const DISABLED: [Event; 2] = [Event::Reset, Event::State(ClientState::Disabled)];
+
+    /// What a channel does in one connection attempt, which it begins by reporting `Connecting`
+    struct Expected {
+        /// the events that follow `Connecting` before the peer acts
+        opening: &'static [Event],
+        /// the events after the peer acts
+        closing: &'static [Event],
+        /// how long after `closing` the channel reports `Connecting` again
+        delay: Duration,
+    }
+
+    impl Outcome {
+        /// The model: what the channel does when an attempt has this outcome
+        fn expected(self) -> Expected {
+            match self {
+                Self::Refused => Expected {
+                    opening: &FAILED_CONNECT,
+                    closing: &[],
+                    delay: FAILED,
+                },
+                #[cfg(feature = "enable-tls")]
+                Self::HandshakeFails => Expected {
+                    opening: &[],
+                    closing: &FAILED_CONNECT,
+                    delay: FAILED,
+                },
+                Self::Connected(Ending::DisabledAndReenabled) => Expected {
+                    opening: &CONNECTED,
+                    closing: &DISABLED,
+                    delay: Duration::ZERO,
+                },
+                Self::Connected(Ending::PeerCloses | Ending::BadFrame | Ending::MaxTimeouts) => {
+                    Expected {
+                        opening: &CONNECTED,
+                        closing: &DISCONNECTED,
+                        delay: DISCONNECT,
+                    }
+                }
+            }
+        }
+
+        /// What the channel's connector does on this attempt
+        fn fault(self) -> Fault {
+            match self {
+                Self::Refused => Fault::Kind(std::io::ErrorKind::ConnectionRefused),
+                #[cfg(feature = "enable-tls")]
+                Self::HandshakeFails => Fault::None,
+                Self::Connected(_) => Fault::None,
+            }
+        }
+    }
+
     /// A running channel that connects through a scripted [`test_util::MemoryConnector`]
     struct Recorded {
         channel: Channel,
@@ -504,19 +599,15 @@ mod tests {
     }
 
     impl Recorded {
-        fn start(
-            faults: &'static [Fault],
-            connection_handler: TcpTaskConnectionHandler,
-            options: ClientOptions,
-        ) -> Self {
+        fn start(transport: Transport, faults: Vec<Fault>) -> Self {
             let (connector, peers) = test_util::MemoryConnector::new(faults);
             let (tx, events) = tokio::sync::mpsc::unbounded_channel();
             let recorder = Recorder { tx };
             let (channel, task) = test_util::memory_channel(
                 connector,
-                connection_handler,
+                transport.handler(),
                 Box::new(recorder.clone()),
-                options,
+                ClientOptions::default().max_response_timeouts(std::num::NonZeroUsize::new(1)),
                 Box::new(recorder),
             );
             tokio::spawn(task.run());
@@ -534,159 +625,219 @@ mod tests {
             }
         }
 
-        /// Wait for the next connection, and return it with the time it took
-        async fn next_peer(&mut self) -> (tokio::io::DuplexStream, Duration) {
-            let start = tokio::time::Instant::now();
+        /// The next event is `Connecting`, exactly `delay` after `since`. Returns when it came.
+        async fn expect_connecting(
+            &mut self,
+            since: tokio::time::Instant,
+            delay: Duration,
+        ) -> tokio::time::Instant {
+            self.expect(&[Event::State(ClientState::Connecting)]).await;
+            assert_eq!(since.elapsed(), delay);
+            tokio::time::Instant::now()
+        }
+
+        /// The peer of the connection the channel made as soon as it reported `Connecting`
+        async fn dialed(&mut self, connecting: tokio::time::Instant) -> tokio::io::DuplexStream {
             let peer = self.peers.recv().await.unwrap();
-            (peer, start.elapsed())
+            assert_eq!(connecting.elapsed(), Duration::ZERO);
+            peer
+        }
+
+        /// The next events are `closing`, with which the channel begins to wait, and they come
+        /// as soon as the peer acted at `acted`. Returns when the wait began.
+        async fn expect_closing(
+            &mut self,
+            acted: tokio::time::Instant,
+            closing: &[Event],
+        ) -> tokio::time::Instant {
+            self.expect(closing).await;
+            assert_eq!(acted.elapsed(), Duration::ZERO);
+            acted
+        }
+
+        /// Play one connection attempt, which the channel began by reporting `Connecting` at
+        /// `connecting`, with `outcome` as its peer, checking what the channel does until it
+        /// begins to wait. Returns when the wait began.
+        async fn attempt(
+            &mut self,
+            connecting: tokio::time::Instant,
+            transport: Transport,
+            outcome: Outcome,
+        ) -> tokio::time::Instant {
+            let expected = outcome.expected();
+            match outcome {
+                Outcome::Refused => {
+                    self.expect(expected.opening).await;
+                    self.expect_closing(connecting, expected.closing).await
+                }
+                #[cfg(feature = "enable-tls")]
+                Outcome::HandshakeFails => {
+                    drop(self.dialed(connecting).await);
+                    self.expect(expected.opening).await;
+                    self.expect_closing(connecting, expected.closing).await
+                }
+                Outcome::Connected(ending) => {
+                    let peer = self.dialed(connecting).await;
+                    match transport {
+                        Transport::Tcp => self.session(&expected, ending, peer).await,
+                        #[cfg(feature = "enable-tls")]
+                        Transport::Tls => {
+                            let peer = tls::accept(peer).await;
+                            self.session(&expected, ending, peer).await
+                        }
+                    }
+                }
+            }
+        }
+
+        /// Play the peer of an established session, which it ends with `ending` once the test
+        /// has observed the channel connect. Returns when the channel began to wait.
+        async fn session<S: AsyncRead + AsyncWrite + Unpin>(
+            &mut self,
+            expected: &Expected,
+            ending: Ending,
+            mut peer: S,
+        ) -> tokio::time::Instant {
+            self.expect(expected.opening).await;
+            match ending {
+                Ending::PeerCloses => drop(peer),
+                Ending::BadFrame => {
+                    peer.write_all(&BAD_FRAME).await.unwrap();
+                    peer.flush().await.unwrap();
+                }
+                Ending::MaxTimeouts => {
+                    let requester = self.channel.clone();
+                    let coils = tokio::spawn(async move {
+                        requester
+                            .read_coils(
+                                RequestParam::new(UnitId::new(1), TIMEOUT),
+                                AddressRange::try_from(7, 2).unwrap(),
+                            )
+                            .await
+                    });
+                    let mut request = [0u8; 12];
+                    peer.read_exact(&mut request).await.unwrap();
+                    let sent = tokio::time::Instant::now();
+                    assert_eq!(coils.await.unwrap(), Err(RequestError::ResponseTimeout));
+                    assert_eq!(sent.elapsed(), TIMEOUT);
+                }
+                Ending::DisabledAndReenabled => self.channel.disable().await.unwrap(),
+            }
+            // a peer that stayed open closes only after the channel has ended the session
+            let waiting_since = self
+                .expect_closing(tokio::time::Instant::now(), expected.closing)
+                .await;
+            if ending == Ending::DisabledAndReenabled {
+                self.channel.enable().await.unwrap();
+            }
+            waiting_since
         }
     }
 
-    /// The events of an attempt that connects, followed by the peer closing that connection.
-    /// Something observable follows the reset, so a missing one fails an assertion rather than
-    /// waiting for an event that never comes.
-    const CONNECTED_UNTIL_CLOSED: [Event; 5] = [
-        Event::State(ClientState::Connecting),
-        Event::State(ClientState::Connected),
-        Event::Reset,
-        Event::AfterDisconnect,
-        Event::State(ClientState::WaitAfterDisconnect(DISCONNECT)),
-    ];
+    /// Drive a channel through one connection attempt per entry of `outcomes`, checking every
+    /// state it reports and every call it makes to its retry strategy, in order. Each wait
+    /// begins as soon as the peer acts, and each next attempt dials exactly the expected delay
+    /// after that.
+    async fn check(transport: Transport, outcomes: &[Outcome]) {
+        let mut client = Recorded::start(
+            transport,
+            outcomes.iter().map(|outcome| outcome.fault()).collect(),
+        );
+        client.channel.enable().await.unwrap();
+        client.expect(&[Event::State(ClientState::Disabled)]).await;
 
-    /// What a peer sends that isn't a frame: protocol id 0xCAFE
-    const BAD_FRAME: [u8; 7] = [0x00, 0x01, 0xCA, 0xFE, 0x00, 0x01, 0x01];
+        let mut waiting_since = tokio::time::Instant::now();
+        let mut delay = Duration::ZERO;
+        for &outcome in outcomes {
+            let connecting = client.expect_connecting(waiting_since, delay).await;
+            waiting_since = client.attempt(connecting, transport, outcome).await;
+            delay = outcome.expected().delay;
+        }
+        // the connector connects every attempt past the script
+        let connecting = client.expect_connecting(waiting_since, delay).await;
+        drop(client.dialed(connecting).await);
+    }
+
+    /// Generates a transport and a sequence of attempts it can have
+    fn reconnects() -> impl Strategy<Value = (Transport, Vec<Outcome>)> {
+        proptest::sample::select(&TRANSPORTS[..]).prop_flat_map(|transport| {
+            (
+                Just(transport),
+                proptest::collection::vec(proptest::sample::select(transport.outcomes()), 1..8),
+            )
+        })
+    }
+
+    #[cfg(not(feature = "enable-tls"))]
+    const TRANSPORTS: [Transport; 1] = [Transport::Tcp];
+    #[cfg(feature = "enable-tls")]
+    const TRANSPORTS: [Transport; 2] = [Transport::Tcp, Transport::Tls];
+
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(64))]
+
+        #[test]
+        fn the_channel_follows_the_reconnect_model((transport, outcomes) in reconnects()) {
+            tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .start_paused(true)
+                .build()
+                .unwrap()
+                .block_on(crate::common::test_support::watchdog(check(transport, &outcomes)));
+        }
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn the_channel_reconnects_after_the_retry_delay_when_the_peer_closes() {
+        crate::common::test_support::watchdog(check(
+            Transport::Tcp,
+            &[Outcome::Connected(Ending::PeerCloses)],
+        ))
+        .await;
+    }
 
     #[tokio::test(start_paused = true)]
     async fn a_refused_connection_is_retried_after_the_failed_connect_delay() {
-        const REFUSED: Fault = Fault::Kind(std::io::ErrorKind::ConnectionRefused);
-        crate::common::test_support::watchdog(async {
-            let mut client = Recorded::start(
-                &[REFUSED],
-                TcpTaskConnectionHandler::Tcp,
-                ClientOptions::default(),
-            );
-            client.channel.enable().await.unwrap();
-
-            client
-                .expect(&[
-                    Event::State(ClientState::Disabled),
-                    Event::State(ClientState::Connecting),
-                    Event::AfterFailedConnect,
-                    Event::State(ClientState::WaitAfterFailedConnect(FAILED)),
-                ])
-                .await;
-            let (peer, waited) = client.next_peer().await;
-            assert_eq!(waited, FAILED);
-            drop(peer);
-            client.expect(&CONNECTED_UNTIL_CLOSED).await;
-        })
+        crate::common::test_support::watchdog(check(
+            Transport::Tcp,
+            &[Outcome::Refused, Outcome::Connected(Ending::PeerCloses)],
+        ))
         .await;
     }
 
     #[tokio::test(start_paused = true)]
     async fn a_bad_frame_from_the_peer_reconnects_after_the_disconnect_delay() {
-        crate::common::test_support::watchdog(async {
-            let mut client =
-                Recorded::start(&[], TcpTaskConnectionHandler::Tcp, ClientOptions::default());
-            client.channel.enable().await.unwrap();
-
-            // the peer stays open, so only the frame ends the session
-            let (mut first, _) = client.next_peer().await;
-            first.write_all(&BAD_FRAME).await.unwrap();
-            client
-                .expect(&[
-                    Event::State(ClientState::Disabled),
-                    Event::State(ClientState::Connecting),
-                    Event::State(ClientState::Connected),
-                    Event::Reset,
-                    Event::AfterDisconnect,
-                    Event::State(ClientState::WaitAfterDisconnect(DISCONNECT)),
-                ])
-                .await;
-
-            let (second, waited) = client.next_peer().await;
-            assert_eq!(waited, DISCONNECT);
-            drop(second);
-            client.expect(&CONNECTED_UNTIL_CLOSED).await;
-        })
+        crate::common::test_support::watchdog(check(
+            Transport::Tcp,
+            &[
+                Outcome::Connected(Ending::BadFrame),
+                Outcome::Connected(Ending::PeerCloses),
+            ],
+        ))
         .await;
     }
 
     #[tokio::test(start_paused = true)]
     async fn reaching_max_timeouts_reconnects_after_the_disconnect_delay() {
-        const TIMEOUT: Duration = Duration::from_secs(1);
-        crate::common::test_support::watchdog(async {
-            let mut client = Recorded::start(
-                &[],
-                TcpTaskConnectionHandler::Tcp,
-                ClientOptions::default().max_response_timeouts(std::num::NonZeroUsize::new(1)),
-            );
-            client.channel.enable().await.unwrap();
-            // a request sent while the channel is still connecting would fail at once
-            client
-                .expect(&[
-                    Event::State(ClientState::Disabled),
-                    Event::State(ClientState::Connecting),
-                    Event::State(ClientState::Connected),
-                ])
-                .await;
-
-            // the peer stays open and reads the request, but never answers it
-            let (mut first, _) = client.next_peer().await;
-            let requester = client.channel.clone();
-            let coils = tokio::spawn(async move {
-                requester
-                    .read_coils(
-                        RequestParam::new(UnitId::new(1), TIMEOUT),
-                        AddressRange::try_from(7, 2).unwrap(),
-                    )
-                    .await
-            });
-            let mut request = [0u8; 12];
-            first.read_exact(&mut request).await.unwrap();
-            assert_eq!(coils.await.unwrap(), Err(RequestError::ResponseTimeout));
-            client
-                .expect(&[
-                    Event::Reset,
-                    Event::AfterDisconnect,
-                    Event::State(ClientState::WaitAfterDisconnect(DISCONNECT)),
-                ])
-                .await;
-
-            let (second, waited) = client.next_peer().await;
-            assert_eq!(waited, DISCONNECT);
-            drop(second);
-            client.expect(&CONNECTED_UNTIL_CLOSED).await;
-        })
+        crate::common::test_support::watchdog(check(
+            Transport::Tcp,
+            &[
+                Outcome::Connected(Ending::MaxTimeouts),
+                Outcome::Connected(Ending::PeerCloses),
+            ],
+        ))
         .await;
     }
 
     #[tokio::test(start_paused = true)]
     async fn disabling_a_connected_channel_neither_consults_the_retry_strategy_nor_waits() {
-        crate::common::test_support::watchdog(async {
-            let mut client =
-                Recorded::start(&[], TcpTaskConnectionHandler::Tcp, ClientOptions::default());
-            client.channel.enable().await.unwrap();
-            let (_first, _) = client.next_peer().await;
-            client
-                .expect(&[
-                    Event::State(ClientState::Disabled),
-                    Event::State(ClientState::Connecting),
-                    Event::State(ClientState::Connected),
-                ])
-                .await;
-
-            client.channel.disable().await.unwrap();
-            client
-                .expect(&[Event::Reset, Event::State(ClientState::Disabled)])
-                .await;
-
-            client.channel.enable().await.unwrap();
-            let (second, waited) = client.next_peer().await;
-            assert_eq!(waited, Duration::ZERO);
-            drop(second);
-            client.expect(&CONNECTED_UNTIL_CLOSED).await;
-        })
+        crate::common::test_support::watchdog(check(
+            Transport::Tcp,
+            &[
+                Outcome::Connected(Ending::DisabledAndReenabled),
+                Outcome::Connected(Ending::PeerCloses),
+            ],
+        ))
         .await;
     }
 
@@ -717,7 +868,7 @@ mod tests {
 
     /// Shut a connected channel down with `shutdown` while a request is waiting for its response
     async fn shutdown_abandons_the_request_in_flight_with(shutdown: impl FnOnce(&Channel)) {
-        let (connector, mut peers) = test_util::MemoryConnector::new(&[]);
+        let (connector, mut peers) = test_util::MemoryConnector::new(Vec::new());
         let (tx, mut states) = tokio::sync::mpsc::unbounded_channel();
         let (channel, task) = test_util::memory_channel(
             connector,
@@ -792,7 +943,7 @@ mod tests {
         const REFUSED: Fault = Fault::Kind(std::io::ErrorKind::ConnectionRefused);
         crate::common::test_support::watchdog(async {
             // the first attempt is refused, so the task enters its retry delay
-            let (connector, mut peers) = test_util::MemoryConnector::new(&[REFUSED]);
+            let (connector, mut peers) = test_util::MemoryConnector::new(vec![REFUSED]);
             let (tx, mut states) = tokio::sync::mpsc::unbounded_channel();
             let (channel, task) = test_util::memory_channel(
                 connector,
@@ -828,7 +979,7 @@ mod tests {
     #[tokio::test(start_paused = true)]
     async fn queued_requests_fail_before_shutdown_listener_completes() {
         crate::common::test_support::watchdog(async {
-            let (connector, mut peers) = test_util::MemoryConnector::new(&[]);
+            let (connector, mut peers) = test_util::MemoryConnector::new(Vec::new());
             let (tx, mut states) = tokio::sync::mpsc::unbounded_channel();
             let (release_tx, release_rx) = tokio::sync::oneshot::channel();
 
@@ -916,7 +1067,7 @@ mod tests {
 
         /// Start a channel over an in-memory connection and return once its handshake is stalled
         async fn stalled_handshake() -> Stalled {
-            let (connector, mut peers) = MemoryConnector::new(&[]);
+            let (connector, mut peers) = MemoryConnector::new(Vec::new());
             let (tx, mut states) = tokio::sync::mpsc::unbounded_channel();
             let (channel, task) = memory_channel(
                 connector,
@@ -1053,47 +1204,35 @@ mod tests {
             .await;
         }
 
+        /// Complete the handshake over `pipe` as the server a channel with [`client_config`]
+        /// expects
+        pub(super) async fn accept(
+            pipe: tokio::io::DuplexStream,
+        ) -> tokio_rustls::server::TlsStream<tokio::io::DuplexStream> {
+            let server = sfio_rustls_config::server::self_signed(
+                both_versions(),
+                &cert("entity2_cert.pem"),
+                &cert("entity1_cert.pem"),
+                &cert("entity1_key.pem"),
+                None,
+            )
+            .unwrap();
+            tokio_rustls::TlsAcceptor::from(std::sync::Arc::new(server))
+                .accept(pipe)
+                .await
+                .unwrap()
+        }
+
         #[tokio::test(start_paused = true)]
         async fn a_failed_handshake_waits_as_a_failed_connect_and_a_completed_one_resets_the_retry()
         {
-            watchdog(async {
-                let mut client = Recorded::start(
-                    &[],
-                    TcpTaskConnectionHandler::Tls(client_config(MinTlsVersion::V1_2)),
-                    ClientOptions::default(),
-                );
-                client.channel.enable().await.unwrap();
-
-                // the peer hangs up during the handshake
-                let (first, _) = client.next_peer().await;
-                drop(first);
-                client
-                    .expect(&[
-                        Event::State(ClientState::Disabled),
-                        Event::State(ClientState::Connecting),
-                        Event::AfterFailedConnect,
-                        Event::State(ClientState::WaitAfterFailedConnect(FAILED)),
-                    ])
-                    .await;
-
-                // the peer completes the handshake as the server the client expects
-                let (second, waited) = client.next_peer().await;
-                assert_eq!(waited, FAILED);
-                let server = sfio_rustls_config::server::self_signed(
-                    both_versions(),
-                    &cert("entity2_cert.pem"),
-                    &cert("entity1_cert.pem"),
-                    &cert("entity1_key.pem"),
-                    None,
-                )
-                .unwrap();
-                let tls = tokio_rustls::TlsAcceptor::from(std::sync::Arc::new(server))
-                    .accept(second)
-                    .await
-                    .unwrap();
-                drop(tls);
-                client.expect(&CONNECTED_UNTIL_CLOSED).await;
-            })
+            watchdog(check(
+                Transport::Tls,
+                &[
+                    Outcome::HandshakeFails,
+                    Outcome::Connected(Ending::PeerCloses),
+                ],
+            ))
             .await;
         }
     }
