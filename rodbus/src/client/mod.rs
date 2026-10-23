@@ -101,7 +101,7 @@ impl HostAddr {
 /// The channel uses the provided [`RetryStrategy`] to pause between failed connection attempts
 ///
 /// * `host` - Address/port of the remote server. Can be a IP address or name on which to perform DNS resolution.
-/// * `max_queued_requests` - The maximum size of the request queue
+/// * `max_queued_requests` - The maximum size of the request queue (clamped to at least 1 and at most what the runtime supports)
 /// * `retry` - A boxed trait object that controls when the connection is retried on failure
 /// * `decode` - Decode log level
 /// * `listener` - Optional callback to monitor the TCP connection state
@@ -188,7 +188,7 @@ pub fn create_tcp_client_task_with_options(
 ///
 /// * `path` - Path to the serial device. Generally `/dev/tty0` on Linux and `COM1` on Windows.
 /// * `serial_settings` = Serial port settings
-/// * `max_queued_requests` - The maximum size of the request queue
+/// * `max_queued_requests` - The maximum size of the request queue (clamped to at least 1 and at most what the runtime supports)
 /// * `retry` - A boxed trait object that controls when opening the serial port is retried on failure
 /// * `decode` - Decode log level
 /// * `listener` - Optional callback to monitor the state of the serial port
@@ -226,7 +226,7 @@ pub fn spawn_rtu_client_task(
 ///
 /// * `path` - Path to the serial device. Generally `/dev/tty0` on Linux and `COM1` on Windows.
 /// * `serial_settings` = Serial port settings
-/// * `max_queued_requests` - The maximum size of the request queue
+/// * `max_queued_requests` - The maximum size of the request queue (clamped to at least 1 and at most what the runtime supports)
 /// * `retry` - A boxed trait object that controls when opening the serial port is retried on failure
 /// * `decode` - Decode log level
 /// * `listener` - Optional callback to monitor the state of the serial port
@@ -256,7 +256,7 @@ pub fn create_rtu_client_task(
 /// The channel uses the provided [`RetryStrategy`] to pause between failed connection attempts
 ///
 /// * `host` - Address/port of the remote server. Can be a IP address or name on which to perform DNS resolution.
-/// * `max_queued_requests` - The maximum size of the request queue
+/// * `max_queued_requests` - The maximum size of the request queue (clamped to at least 1 and at most what the runtime supports)
 /// * `retry` - A boxed trait object that controls when the connection is retried on failure
 /// * `tls_config` - TLS configuration
 /// * `decode` - Decode log level

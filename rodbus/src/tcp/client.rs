@@ -69,11 +69,11 @@ pub(crate) fn new_channel<C: Connect>(
     options: ClientOptions,
     listener: Box<dyn Listener<ClientState>>,
 ) -> (Channel, TcpChannelTask<C>, ShutdownSignal) {
-    let (tx, rx) = tokio::sync::mpsc::channel(options.max_queued_requests);
+    let (tx, rx) = crate::channel::bounded(options.max_queued_requests);
     let (shutdown, signal) = crate::common::cancellation::pair();
     let task = TcpChannelTask::new(
         host,
-        rx.into(),
+        rx,
         connection_handler,
         connect_retry,
         options,
