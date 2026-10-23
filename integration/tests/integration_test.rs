@@ -263,5 +263,10 @@ async fn test_requests_and_responses() {
 #[test]
 fn can_read_and_write_values() {
     let rt = Runtime::new().unwrap();
-    rt.block_on(test_requests_and_responses())
+    rt.block_on(async {
+        // the exchange runs over real sockets, so bound it in wall-clock time
+        tokio::time::timeout(Duration::from_secs(30), test_requests_and_responses())
+            .await
+            .expect("the exchange didn't finish within 30 s")
+    })
 }

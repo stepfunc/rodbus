@@ -111,7 +111,7 @@
 //!
 //! impl RequestHandler for CoilsOnlyHandler {
 //!    fn read_coil(&self, address: u16) -> Result<bool, ExceptionCode> {
-//!        self.coils.get(0).to_result()
+//!        self.coils.get(usize::from(address)).to_result()
 //!    }
 //! }
 //!
