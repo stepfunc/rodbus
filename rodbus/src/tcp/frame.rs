@@ -131,13 +131,16 @@ impl MbapParser {
     }
 }
 
+#[expect(
+    clippy::expect_used,
+    reason = "a TCP writer only formats headers from the TCP reader or FrameHeader::new_tcp_header, which always carry a transaction id"
+)]
 pub(crate) fn format_mbap(
     cursor: &mut WriteCursor,
     header: FrameHeader,
     function: FunctionField,
     msg: &dyn Serialize,
 ) -> Result<FrameInfo, RequestError> {
-    // this is matter of configuration and will always be present in TCP/TLS mode
     let tx_id = header.tx_id.expect("TCP requires tx id");
 
     let unit_id = header.destination.into_unit_id();
