@@ -125,7 +125,24 @@ module.exports = {
       },
     ],
   ],
-  plugins: [path.resolve(__dirname, './plugins/changelog')],
+  plugins: [
+    path.resolve(__dirname, './plugins/changelog'),
+    [
+      '@docusaurus/plugin-client-redirects',
+      {
+        redirects: [
+          {
+            from: '/docs/api/master/tls_client',
+            to: '/docs/api/client/tls_client',
+          },
+          {
+            from: '/docs/api/outstation/tls_server',
+            to: '/docs/api/server/tls_server',
+          },
+        ],
+      },
+    ],
+  ],
   themes: ['@docusaurus/theme-mermaid'],
   markdown: {
     mermaid: true,
