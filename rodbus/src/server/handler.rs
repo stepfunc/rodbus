@@ -569,4 +569,17 @@ mod tests {
         assert!(map.add(UnitId::new(2), DefaultHandler {}.wrap()).is_none());
         assert!(map.add(UnitId::new(1), DefaultHandler {}.wrap()).is_some());
     }
+
+    #[test]
+    fn a_present_value_converts_to_itself() {
+        assert_eq!(Some(&0x1234u16).to_result(), Ok(0x1234));
+    }
+
+    #[test]
+    fn a_missing_value_converts_to_illegal_data_address() {
+        assert_eq!(
+            None::<&u16>.to_result(),
+            Err(ExceptionCode::IllegalDataAddress)
+        );
+    }
 }

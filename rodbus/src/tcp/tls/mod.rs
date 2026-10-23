@@ -234,10 +234,12 @@ pub(crate) mod test_util {
 
 #[cfg(test)]
 mod tests {
+    use std::path::PathBuf;
     use std::time::Duration;
 
     use sfio_rustls_config::ProtocolVersions;
 
+    use super::test_util::{ca_chain, cert};
     use super::*;
 
     #[tokio::test(start_paused = true)]
@@ -271,5 +273,88 @@ mod tests {
             ProtocolVersions::from(MinTlsVersion::V1_3),
             ProtocolVersions::v13_only()
         );
+    }
+
+    /// Each way to build a TLS configuration
+    #[derive(Debug, Clone, Copy)]
+    enum Constructor {
+        ClientFullPki,
+        ClientSelfSigned,
+        Server(CertificateMode),
+    }
+
+    /// Each constructor with files it accepts: the peer certificate, the local certificate and
+    /// the private key
+    fn constructors() -> [(Constructor, [PathBuf; 3]); 4] {
+        let pki_client = [
+            ca_chain("ca_cert.pem"),
+            ca_chain("client_cert.pem"),
+            ca_chain("client_key.pem"),
+        ];
+        let pki_server = [
+            ca_chain("ca_cert.pem"),
+            ca_chain("server_cert.pem"),
+            ca_chain("server_key.pem"),
+        ];
+        let self_signed = [
+            cert("entity1_cert.pem"),
+            cert("entity2_cert.pem"),
+            cert("entity2_key.pem"),
+        ];
+        [
+            (Constructor::ClientFullPki, pki_client),
+            (Constructor::ClientSelfSigned, self_signed.clone()),
+            (
+                Constructor::Server(CertificateMode::AuthorityBased),
+                pki_server,
+            ),
+            (
+                Constructor::Server(CertificateMode::SelfSigned),
+                self_signed,
+            ),
+        ]
+    }
+
+    fn build(constructor: Constructor, [peer, local, key]: &[PathBuf; 3]) -> Result<(), TlsError> {
+        let min = MinTlsVersion::V1_2;
+        match constructor {
+            Constructor::ClientFullPki => {
+                TlsClientConfig::full_pki(None, peer, local, key, None, min).map(drop)
+            }
+            Constructor::ClientSelfSigned => {
+                TlsClientConfig::self_signed(peer, local, key, None, min).map(drop)
+            }
+            Constructor::Server(mode) => {
+                TlsServerConfig::new(peer, local, key, None, min, mode).map(drop)
+            }
+        }
+    }
+
+    #[test]
+    fn a_missing_file_is_a_bad_config_for_every_constructor() {
+        for (constructor, files) in constructors() {
+            assert!(build(constructor, &files).is_ok(), "{constructor:?}");
+            for missing in 0..files.len() {
+                let mut files = files.clone();
+                files[missing] = cert("missing.pem");
+                assert!(
+                    matches!(build(constructor, &files), Err(TlsError::BadConfig(_))),
+                    "{constructor:?} without file {missing}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn a_server_name_that_isnt_a_dns_name_is_rejected() {
+        let result = TlsClientConfig::full_pki(
+            Some("not a name".to_string()),
+            &ca_chain("ca_cert.pem"),
+            &ca_chain("client_cert.pem"),
+            &ca_chain("client_key.pem"),
+            None,
+            MinTlsVersion::V1_2,
+        );
+        assert!(matches!(result, Err(TlsError::InvalidDnsName)));
     }
 }
