@@ -136,3 +136,24 @@ where
         Ok(range)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn values_at_the_top_of_the_address_space() {
+        let request = WriteMultiple::from(0xFFFE, vec![0x1234u16, 0x5678]).unwrap();
+        let mut values = request.iter();
+        assert_eq!(values.len(), 2);
+        assert_eq!(values.size_hint(), (2, Some(2)));
+        assert_eq!(values.next(), Some(Indexed::new(0xFFFE, 0x1234)));
+        assert_eq!(values.len(), 1);
+        assert_eq!(values.next(), Some(Indexed::new(0xFFFF, 0x5678)));
+        assert_eq!(values.len(), 0);
+        assert_eq!(values.size_hint(), (0, Some(0)));
+        assert_eq!(values.next(), None);
+        assert_eq!(values.next(), None);
+        assert_eq!(values.len(), 0);
+    }
+}
