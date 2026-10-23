@@ -61,13 +61,13 @@ where
 mod tests {
     use std::time::Duration;
 
+    use tokio::time::Instant;
+
+    use crate::common::test_support::watchdog;
     use crate::server::{create_rtu_server_task, ServerHandlerMap};
     use crate::{DecodeLevel, UnitId};
 
     use super::*;
-
-    /// Bounds how long this test hangs if shutdown stops being immediate
-    const TEST_TIMEOUT: Duration = Duration::from_secs(5);
 
     /// A retry delay long enough that the task completing proves cancellation rather than the
     /// delay simply elapsing
@@ -95,29 +95,32 @@ mod tests {
         }
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn shutdown_interrupts_the_wait_before_reopening_the_port() {
-        let (failed_connect, mut failures) = tokio::sync::mpsc::unbounded_channel();
+        watchdog(async {
+            let (failed_connect, mut failures) = tokio::sync::mpsc::unbounded_channel();
 
-        // a path that cannot be opened, so the task fails and falls into its retry delay
-        let (handle, task) = create_rtu_server_task(
-            "/dev/rodbus-does-not-exist",
-            SerialSettings::default(),
-            Box::new(SignalingRetry { failed_connect }),
-            ServerHandlerMap::single(UnitId::new(1), DefaultHandler.wrap()),
-            DecodeLevel::nothing(),
-        );
-        let task = tokio::spawn(task.run());
+            // a path that cannot be opened, so the task fails and falls into its retry delay
+            let (handle, task) = create_rtu_server_task(
+                "/dev/rodbus-does-not-exist",
+                SerialSettings::default(),
+                Box::new(SignalingRetry { failed_connect }),
+                ServerHandlerMap::single(UnitId::new(1), DefaultHandler.wrap()),
+                DecodeLevel::nothing(),
+            );
+            let task = tokio::spawn(task.run());
 
-        // wait until opening the port has actually failed, otherwise the task might be cancelled
-        // before it ever reaches the delay and the test would prove nothing
-        failures.recv().await.unwrap();
+            // wait until opening the port has actually failed, otherwise the task might be
+            // cancelled before it ever reaches the delay and the test would prove nothing
+            failures.recv().await.unwrap();
+            let waiting_since = Instant::now();
 
-        handle.shutdown();
+            handle.shutdown();
 
-        tokio::time::timeout(TEST_TIMEOUT, task)
-            .await
-            .expect("shutdown did not interrupt the retry delay")
-            .unwrap();
+            task.await.unwrap();
+            // the paused clock would advance through the delay if nothing interrupted it
+            assert_eq!(waiting_since.elapsed(), Duration::ZERO);
+        })
+        .await;
     }
 }
