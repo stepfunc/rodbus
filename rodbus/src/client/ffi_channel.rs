@@ -5,10 +5,9 @@
 // Directive (EU) 2019/790 Art. 4(3), subject to LICENSE.txt Section 3.3.
 
 use crate::client::message::{Command, Promise, RequestDetails, Setting};
-use crate::client::requests::read_bits::{self, ReadBits};
-use crate::client::requests::read_registers::{self, ReadRegisters};
-use crate::client::requests::write_multiple::{LimitedWrite, MultipleWriteRequest};
-use crate::client::requests::write_single::SingleWrite;
+use crate::client::requests::read_bits;
+use crate::client::requests::read_registers;
+use crate::client::requests::write_multiple::LimitedWrite;
 use crate::client::{Channel, RequestParam, WriteMultiple};
 use crate::common::cancellation::ShutdownHandle;
 use crate::{
@@ -79,7 +78,7 @@ impl FfiChannel {
         C: FnOnce(Result<BitIterator, RequestError>) + Send + Sync + 'static,
     {
         self.queue(param, range.of_read_bits(), |range| {
-            RequestDetails::ReadCoils(ReadBits::new(range, read_bits::Promise::new(callback)))
+            RequestDetails::read_coils(range, read_bits::Promise::new(callback))
         })
     }
 
@@ -97,10 +96,7 @@ impl FfiChannel {
         C: FnOnce(Result<BitIterator, RequestError>) + Send + Sync + 'static,
     {
         self.queue(param, range.of_read_bits(), |range| {
-            RequestDetails::ReadDiscreteInputs(ReadBits::new(
-                range,
-                read_bits::Promise::new(callback),
-            ))
+            RequestDetails::read_discrete_inputs(range, read_bits::Promise::new(callback))
         })
     }
 
@@ -118,10 +114,7 @@ impl FfiChannel {
         C: FnOnce(Result<RegisterIterator, RequestError>) + Send + Sync + 'static,
     {
         self.queue(param, range.of_read_registers(), |range| {
-            RequestDetails::ReadHoldingRegisters(ReadRegisters::new(
-                range,
-                read_registers::Promise::new(callback),
-            ))
+            RequestDetails::read_holding_registers(range, read_registers::Promise::new(callback))
         })
     }
 
@@ -139,10 +132,7 @@ impl FfiChannel {
         C: FnOnce(Result<RegisterIterator, RequestError>) + Send + Sync + 'static,
     {
         self.queue(param, range.of_read_registers(), |range| {
-            RequestDetails::ReadInputRegisters(ReadRegisters::new(
-                range,
-                read_registers::Promise::new(callback),
-            ))
+            RequestDetails::read_input_registers(range, read_registers::Promise::new(callback))
         })
     }
 
@@ -158,7 +148,7 @@ impl FfiChannel {
     {
         self.send(crate::client::channel::wrap(
             param,
-            RequestDetails::WriteSingleCoil(SingleWrite::new(value, Promise::new(callback))),
+            RequestDetails::write_single_coil(value, Promise::new(callback)),
         ))
     }
 
@@ -174,7 +164,7 @@ impl FfiChannel {
     {
         self.send(crate::client::channel::wrap(
             param,
-            RequestDetails::WriteSingleRegister(SingleWrite::new(value, Promise::new(callback))),
+            RequestDetails::write_single_register(value, Promise::new(callback)),
         ))
     }
 
@@ -189,10 +179,7 @@ impl FfiChannel {
         C: FnOnce(Result<AddressRange, RequestError>) + Send + Sync + 'static,
     {
         self.queue(param, LimitedWrite::registers(value), |write| {
-            RequestDetails::WriteMultipleRegisters(MultipleWriteRequest::new(
-                write,
-                Promise::new(callback),
-            ))
+            RequestDetails::write_multiple_registers(write, Promise::new(callback))
         })
     }
 
@@ -207,10 +194,7 @@ impl FfiChannel {
         C: FnOnce(Result<AddressRange, RequestError>) + Send + Sync + 'static,
     {
         self.queue(param, LimitedWrite::coils(value), |write| {
-            RequestDetails::WriteMultipleCoils(MultipleWriteRequest::new(
-                write,
-                Promise::new(callback),
-            ))
+            RequestDetails::write_multiple_coils(write, Promise::new(callback))
         })
     }
 
