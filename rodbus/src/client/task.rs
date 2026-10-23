@@ -83,6 +83,30 @@ impl SessionError {
             _ => None,
         }
     }
+
+    /// What the transport does now that the session has ended
+    pub(crate) fn after(&self) -> AfterSession {
+        match self {
+            SessionError::Shutdown => AfterSession::End,
+            SessionError::Disabled => AfterSession::Idle,
+            SessionError::IoError(_) | SessionError::BadFrame | SessionError::MaxTimeouts(_) => {
+                AfterSession::Reconnect
+            }
+        }
+    }
+}
+
+/// What a transport does once a session on its port or connection ends
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub(crate) enum AfterSession {
+    /// Every handle was dropped: end the task
+    End,
+    /// The channel was disabled: close the port or connection and wait to be enabled, with no
+    /// retry delay
+    Idle,
+    /// The session failed: close the port or connection, then wait the retry strategy's
+    /// `after_disconnect` delay, failing requests meanwhile, before opening it again
+    Reconnect,
 }
 
 enum TimeoutCounterState {
@@ -877,6 +901,23 @@ mod tests {
             broadcast
         ));
         assert!(!answers(to(UnitId::new(1)), broadcast));
+    }
+
+    #[test]
+    fn shutdown_ends_the_task_disabling_idles_and_a_failure_reconnects() {
+        let cases = [
+            (SessionError::Shutdown, AfterSession::End),
+            (SessionError::Disabled, AfterSession::Idle),
+            (
+                SessionError::IoError(ErrorKind::UnexpectedEof),
+                AfterSession::Reconnect,
+            ),
+            (SessionError::BadFrame, AfterSession::Reconnect),
+            (SessionError::MaxTimeouts(1), AfterSession::Reconnect),
+        ];
+        for (end, after) in cases {
+            assert_eq!(end.after(), after, "{end:?}");
+        }
     }
 
     #[tokio::test(start_paused = true)]
