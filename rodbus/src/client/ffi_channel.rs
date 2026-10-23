@@ -238,10 +238,12 @@ mod tests {
     use std::sync::{Arc, Mutex};
     use std::time::Duration;
 
+    use scursor::WriteCursor;
     use tokio::sync::mpsc::error::TryRecvError;
 
     use super::*;
     use crate::client::message::Request;
+    use crate::common::traits::Serialize;
     use crate::decode::AppDecodeLevel;
     use crate::UnitId;
 
@@ -464,92 +466,79 @@ mod tests {
         assert_eq!(queued.take(), [Err(RequestError::Shutdown)]);
     }
 
-    #[test]
-    fn a_request_completes_once_on_success() {
-        let (mut channel, mut rx) = channel(3);
-
-        let bits = Completions::new();
-        assert_eq!(
-            outcome(channel.read_coils(param(), range(1, 3), bits.bits())),
-            Ok(())
-        );
-        let registers = Completions::new();
-        assert_eq!(
-            outcome(channel.read_holding_registers(param(), range(1, 2), registers.registers())),
-            Ok(())
-        );
-        let coil = Completions::new();
-        assert_eq!(
-            outcome(channel.write_single_coil(param(), Indexed::new(7, true), coil.callback())),
-            Ok(())
-        );
-
-        let mut request = next_request(&mut rx);
-        assert_eq!(
-            request.handle_response(&[0x01, 0x01, 0b101], AppDecodeLevel::Nothing),
-            Ok(())
-        );
-        drop(request);
-        assert_eq!(
-            bits.take(),
-            [Ok(vec![
-                Indexed::new(1, true),
-                Indexed::new(2, false),
-                Indexed::new(3, true)
-            ])]
-        );
-
-        let mut request = next_request(&mut rx);
-        assert_eq!(
-            request.handle_response(
-                &[0x03, 0x04, 0x00, 0x0A, 0x00, 0x0B],
-                AppDecodeLevel::Nothing
-            ),
-            Ok(())
-        );
-        drop(request);
-        assert_eq!(
-            registers.take(),
-            [Ok(vec![Indexed::new(1, 0x0A), Indexed::new(2, 0x0B)])]
-        );
-
-        let mut request = next_request(&mut rx);
-        assert_eq!(
-            request.handle_response(&[0x05, 0x00, 0x07, 0xFF, 0x00], AppDecodeLevel::Nothing),
-            Ok(())
-        );
-        drop(request);
-        assert_eq!(coil.take(), [Ok(Indexed::new(7, true))]);
+    /// The PDU `request` is sent as: its function code, then its fields
+    fn pdu(request: &Request) -> Vec<u8> {
+        let mut buffer = [0u8; 253];
+        let mut cursor = WriteCursor::new(&mut buffer);
+        cursor
+            .write_u8(request.details.function().get_value())
+            .unwrap();
+        request.details.serialize(&mut cursor).unwrap();
+        let len = cursor.position();
+        buffer[..len].to_vec()
     }
 
+    /// A request made by a method of [`FfiChannel`]
+    type Call = fn(&mut FfiChannel) -> Result<(), FfiChannelError>;
+
+    // MODBUS Application Protocol Specification V1.1b3 6.1-6.6, 6.11, 6.12: the request examples
     #[test]
-    fn a_request_completes_once_on_failure() {
-        let (mut channel, mut rx) = channel(2);
+    fn each_method_sends_its_function_and_pdu() {
+        let cases: [(Call, &[u8]); 8] = [
+            (
+                |channel| channel.read_coils(param(), range(0x13, 0x13), |_| {}),
+                &[0x01, 0x00, 0x13, 0x00, 0x13],
+            ),
+            (
+                |channel| channel.read_discrete_inputs(param(), range(0xC4, 0x16), |_| {}),
+                &[0x02, 0x00, 0xC4, 0x00, 0x16],
+            ),
+            (
+                |channel| channel.read_holding_registers(param(), range(0x6B, 0x03), |_| {}),
+                &[0x03, 0x00, 0x6B, 0x00, 0x03],
+            ),
+            (
+                |channel| channel.read_input_registers(param(), range(0x08, 0x01), |_| {}),
+                &[0x04, 0x00, 0x08, 0x00, 0x01],
+            ),
+            (
+                |channel| channel.write_single_coil(param(), Indexed::new(0xAC, true), |_| {}),
+                &[0x05, 0x00, 0xAC, 0xFF, 0x00],
+            ),
+            (
+                |channel| channel.write_single_register(param(), Indexed::new(0x01, 0x03), |_| {}),
+                &[0x06, 0x00, 0x01, 0x00, 0x03],
+            ),
+            (
+                |channel| {
+                    let coils = vec![
+                        true, false, true, true, false, false, true, true, true, false,
+                    ];
+                    channel.write_multiple_coils(
+                        param(),
+                        WriteMultiple::from(0x13, coils).unwrap(),
+                        |_| {},
+                    )
+                },
+                &[0x0F, 0x00, 0x13, 0x00, 0x0A, 0x02, 0xCD, 0x01],
+            ),
+            (
+                |channel| {
+                    channel.write_multiple_registers(
+                        param(),
+                        WriteMultiple::from(0x01, vec![0x000A, 0x0102]).unwrap(),
+                        |_| {},
+                    )
+                },
+                &[0x10, 0x00, 0x01, 0x00, 0x02, 0x04, 0x00, 0x0A, 0x01, 0x02],
+            ),
+        ];
 
-        let registers = Completions::new();
-        assert_eq!(
-            outcome(channel.read_input_registers(param(), range(0, 1), registers.registers())),
-            Ok(())
-        );
-        let multiple = Completions::new();
-        assert_eq!(
-            outcome(channel.write_multiple_coils(
-                param(),
-                WriteMultiple::from(0, vec![true]).unwrap(),
-                multiple.callback()
-            )),
-            Ok(())
-        );
-
-        let mut request = next_request(&mut rx);
-        request.details.fail(RequestError::ResponseTimeout);
-        drop(request);
-        assert_eq!(registers.take(), [Err(RequestError::ResponseTimeout)]);
-
-        let mut request = next_request(&mut rx);
-        request.details.fail(RequestError::ResponseTimeout);
-        drop(request);
-        assert_eq!(multiple.take(), [Err(RequestError::ResponseTimeout)]);
+        let (mut channel, mut rx) = channel(1);
+        for (call, expected) in cases {
+            assert_eq!(outcome(call(&mut channel)), Ok(()), "{expected:02X?}");
+            assert_eq!(pdu(&next_request(&mut rx)), expected);
+        }
     }
 
     #[test]

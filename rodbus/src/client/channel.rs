@@ -526,14 +526,22 @@ pub(crate) fn wrap(param: RequestParam, details: RequestDetails) -> Command {
 
 #[cfg(test)]
 mod tests {
+    use std::future::Future;
+
+    use scursor::WriteCursor;
     use tokio::sync::mpsc::error::TryRecvError;
 
     use super::*;
     use crate::common::test_support::watchdog;
+    use crate::common::traits::Serialize;
     use crate::decode::AppDecodeLevel;
 
     fn param() -> RequestParam {
         RequestParam::new(UnitId::new(1), Duration::from_secs(1))
+    }
+
+    fn range(start: u16, count: u16) -> AddressRange {
+        AddressRange::try_from(start, count).unwrap()
     }
 
     /// A [`Channel`] with no task: the test is the receiving end of its queue
@@ -543,15 +551,159 @@ mod tests {
         (Channel { tx, shutdown }, rx)
     }
 
-    /// Answers the next request in the queue with `payload`
-    async fn answer(rx: &mut tokio::sync::mpsc::Receiver<Command>, payload: &[u8]) {
-        let Some(Command::Request(mut request)) = rx.recv().await else {
+    /// The next request in the queue
+    async fn next_request(rx: &mut tokio::sync::mpsc::Receiver<Command>) -> Request {
+        let Some(Command::Request(request)) = rx.recv().await else {
             panic!("expected a request");
         };
+        request
+    }
+
+    /// Answers the next request in the queue with `payload`
+    async fn answer(rx: &mut tokio::sync::mpsc::Receiver<Command>, payload: &[u8]) {
+        let mut request = next_request(rx).await;
         assert_eq!(
             request.handle_response(payload, AppDecodeLevel::Nothing),
             Ok(())
         );
+    }
+
+    /// Takes the next request in the queue and drops it unanswered
+    async fn drop_next_request(rx: &mut tokio::sync::mpsc::Receiver<Command>) {
+        drop(next_request(rx).await);
+    }
+
+    /// The PDU `request` is sent as: its function code, then its fields
+    fn pdu(request: &Request) -> Vec<u8> {
+        let mut buffer = [0u8; 253];
+        let mut cursor = WriteCursor::new(&mut buffer);
+        cursor
+            .write_u8(request.details.function().get_value())
+            .unwrap();
+        request.details.serialize(&mut cursor).unwrap();
+        let len = cursor.position();
+        buffer[..len].to_vec()
+    }
+
+    /// The PDU of the request `call` queues; the request is then dropped unanswered
+    async fn sent<T>(
+        call: impl Future<Output = Result<T, RequestError>>,
+        rx: &mut tokio::sync::mpsc::Receiver<Command>,
+    ) -> Vec<u8> {
+        let (_, pdu) = tokio::join!(call, async { pdu(&next_request(rx).await) });
+        pdu
+    }
+
+    // MODBUS Application Protocol Specification V1.1b3 6.1-6.6, 6.11, 6.12: the request examples
+    #[tokio::test(start_paused = true)]
+    async fn each_method_sends_its_function_and_pdu() {
+        watchdog(async {
+            let (channel, mut rx) = channel();
+            assert_eq!(
+                sent(channel.read_coils(param(), range(0x13, 0x13)), &mut rx).await,
+                [0x01, 0x00, 0x13, 0x00, 0x13]
+            );
+            assert_eq!(
+                sent(
+                    channel.read_discrete_inputs(param(), range(0xC4, 0x16)),
+                    &mut rx
+                )
+                .await,
+                [0x02, 0x00, 0xC4, 0x00, 0x16]
+            );
+            assert_eq!(
+                sent(
+                    channel.read_holding_registers(param(), range(0x6B, 0x03)),
+                    &mut rx
+                )
+                .await,
+                [0x03, 0x00, 0x6B, 0x00, 0x03]
+            );
+            assert_eq!(
+                sent(
+                    channel.read_input_registers(param(), range(0x08, 0x01)),
+                    &mut rx
+                )
+                .await,
+                [0x04, 0x00, 0x08, 0x00, 0x01]
+            );
+            assert_eq!(
+                sent(
+                    channel.write_single_coil(param(), Indexed::new(0xAC, true)),
+                    &mut rx
+                )
+                .await,
+                [0x05, 0x00, 0xAC, 0xFF, 0x00]
+            );
+            assert_eq!(
+                sent(
+                    channel.write_single_register(param(), Indexed::new(0x01, 0x03)),
+                    &mut rx
+                )
+                .await,
+                [0x06, 0x00, 0x01, 0x00, 0x03]
+            );
+            let coils = vec![
+                true, false, true, true, false, false, true, true, true, false,
+            ];
+            assert_eq!(
+                sent(
+                    channel
+                        .write_multiple_coils(param(), WriteMultiple::from(0x13, coils).unwrap()),
+                    &mut rx
+                )
+                .await,
+                [0x0F, 0x00, 0x13, 0x00, 0x0A, 0x02, 0xCD, 0x01]
+            );
+            assert_eq!(
+                sent(
+                    channel.write_multiple_registers(
+                        param(),
+                        WriteMultiple::from(0x01, vec![0x000A, 0x0102]).unwrap()
+                    ),
+                    &mut rx
+                )
+                .await,
+                [0x10, 0x00, 0x01, 0x00, 0x02, 0x04, 0x00, 0x0A, 0x01, 0x02]
+            );
+        })
+        .await;
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_request_after_the_task_ended_fails_with_shutdown() {
+        watchdog(async {
+            let (channel, rx) = channel();
+            drop(rx);
+            assert_eq!(
+                channel.read_coils(param(), range(0, 1)).await,
+                Err(RequestError::Shutdown)
+            );
+        })
+        .await;
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_request_the_task_drops_unanswered_fails_with_shutdown() {
+        watchdog(async {
+            let (channel, mut rx) = channel();
+            let (result, ()) = tokio::join!(
+                channel.read_coils(param(), range(0, 1)),
+                drop_next_request(&mut rx)
+            );
+            assert_eq!(result, Err(RequestError::Shutdown));
+            let (result, ()) = tokio::join!(
+                channel.read_holding_registers(param(), range(0, 1)),
+                drop_next_request(&mut rx)
+            );
+            assert_eq!(result, Err(RequestError::Shutdown));
+            let (result, ()) = tokio::join!(
+                channel.write_single_coil(param(), Indexed::new(0, true)),
+                drop_next_request(&mut rx)
+            );
+            assert_eq!(result, Err(RequestError::Shutdown));
+        })
+        .await;
     }
 
     fn too_many(count: u16, limit: u16) -> RequestError {
