@@ -10,7 +10,7 @@ use std::ops::Range;
 use crate::common::buffer::ReadBuffer;
 use crate::common::function::FunctionCode;
 use crate::common::traits::{Loggable, LoggableDisplay, Serialize};
-use crate::error::RequestError;
+use crate::error::{InternalError, RequestError};
 use crate::tcp::frame::{MbapDisplay, MbapHeader, MbapParser};
 use crate::types::UnitId;
 use crate::{DecodeLevel, ExceptionCode, FrameDecodeLevel};
@@ -18,32 +18,40 @@ use crate::{DecodeLevel, ExceptionCode, FrameDecodeLevel};
 use scursor::WriteCursor;
 
 pub(crate) mod constants {
-    const fn max(lhs: usize, rhs: usize) -> usize {
-        if lhs > rhs {
-            lhs
-        } else {
-            rhs
-        }
-    }
-
-    pub(crate) const MAX_ADU_LENGTH: usize = 253;
-
-    #[cfg(feature = "serial")]
-    const fn serial_frame_size() -> usize {
-        crate::serial::frame::constants::MAX_FRAME_LENGTH
-    }
-
-    #[cfg(not(feature = "serial"))]
-    const fn serial_frame_size() -> usize {
-        0
-    }
+    /// The largest PDU (MODBUS Application Protocol Specification V1.1b3 4.1)
+    pub(crate) const MAX_PDU_LENGTH: usize = 253;
 
     /// the maximum size of a TCP or serial frame
-    pub(crate) const MAX_FRAME_LENGTH: usize = max(
-        crate::tcp::frame::constants::MAX_FRAME_LENGTH,
-        serial_frame_size(),
-    );
+    pub(crate) const MAX_FRAME_LENGTH: usize = crate::tcp::frame::constants::MAX_FRAME_LENGTH;
+
+    // an RTU frame fits in the buffer sized for the larger TCP frame
+    #[cfg(feature = "serial")]
+    const _: () = assert!(crate::serial::frame::constants::MAX_FRAME_LENGTH <= MAX_FRAME_LENGTH);
 }
+
+/// The length of a PDU, which is never more than [`constants::MAX_PDU_LENGTH`]
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct PduLength(usize);
+
+impl PduLength {
+    /// The length, or `None` if it is longer than the largest PDU
+    pub(crate) fn new(length: usize) -> Option<Self> {
+        (length <= constants::MAX_PDU_LENGTH).then_some(Self(length))
+    }
+
+    pub(crate) fn get(self) -> usize {
+        self.0
+    }
+
+    /// Read a PDU of this length from the buffer
+    pub(crate) fn read(self, cursor: &mut ReadBuffer) -> Result<Pdu<'_>, InternalError> {
+        // a read returns exactly the bytes it asks for
+        Ok(Pdu(cursor.read(self.0)?))
+    }
+}
+
+/// A PDU read by its [`PduLength`], so it is never longer than the largest
+pub(crate) struct Pdu<'a>(&'a [u8]);
 
 #[derive(PartialEq, Copy, Clone, Debug)]
 pub(crate) struct TxId {
@@ -147,27 +155,24 @@ impl FrameHeader {
 
 pub(crate) struct Frame {
     pub(crate) header: FrameHeader,
+    // the number of bytes copied into `pdu`
     length: usize,
-    pdu: [u8; constants::MAX_ADU_LENGTH],
+    pdu: [u8; constants::MAX_PDU_LENGTH],
 }
 
 impl Frame {
-    pub(crate) fn new(header: FrameHeader) -> Frame {
+    /// A frame holding a copy of `pdu`, which always fits
+    pub(crate) fn new(header: FrameHeader, pdu: Pdu<'_>) -> Frame {
+        let mut buffer = [0; constants::MAX_PDU_LENGTH];
+        let mut length: usize = 0;
+        for (dest, src) in buffer.iter_mut().zip(pdu.0) {
+            *dest = *src;
+            length = length.saturating_add(1);
+        }
         Frame {
             header,
-            length: 0,
-            pdu: [0; constants::MAX_ADU_LENGTH],
-        }
-    }
-
-    pub(crate) fn set(&mut self, src: &[u8]) -> bool {
-        match self.pdu.get_mut(..src.len()) {
-            Some(dest) => {
-                dest.copy_from_slice(src);
-                self.length = src.len();
-                true
-            }
-            None => false,
+            length,
+            pdu: buffer,
         }
     }
 
@@ -526,20 +531,52 @@ mod tests {
     use super::*;
 
     #[test]
-    fn set_refuses_a_pdu_longer_than_the_largest_and_keeps_the_frame() {
-        let mut frame = Frame::new(FrameHeader::new_tcp_header(UnitId::new(1), TxId::new(7)));
-        assert!(frame.set(&[0x03, 0x02, 0x00, 0x10]));
-        assert!(!frame.set(&[0xAA; constants::MAX_ADU_LENGTH + 1]));
-        assert_eq!(frame.payload(), [0x03, 0x02, 0x00, 0x10]);
+    fn pdu_length_refuses_a_length_longer_than_the_largest_pdu() {
+        assert_eq!(PduLength::new(constants::MAX_PDU_LENGTH + 1), None);
+        assert_eq!(PduLength::new(usize::MAX), None);
+        assert_eq!(
+            PduLength::new(constants::MAX_PDU_LENGTH).map(PduLength::get),
+            Some(constants::MAX_PDU_LENGTH)
+        );
+        assert_eq!(PduLength::new(0).map(PduLength::get), Some(0));
     }
 
     #[test]
-    fn set_takes_a_pdu_of_the_largest_length() {
-        let mut frame = Frame::new(FrameHeader::new_tcp_header(UnitId::new(1), TxId::new(7)));
-        assert!(frame.set(&[0xAA; constants::MAX_ADU_LENGTH]));
-        assert_eq!(frame.payload(), [0xAA; constants::MAX_ADU_LENGTH]);
-        assert!(frame.set(&[]));
+    fn a_frame_holds_exactly_the_pdu_its_length_reads() {
+        let header = FrameHeader::new_tcp_header(UnitId::new(1), TxId::new(7));
+        let bytes: Vec<u8> = (0..=u8::try_from(constants::MAX_PDU_LENGTH).unwrap()).collect();
+        let mut buffer = ReadBuffer::new();
+        assert_eq!(buffer.fill(&bytes), constants::MAX_PDU_LENGTH + 1);
+        // more bytes than the largest PDU are buffered, but no length can read them all
+        assert_eq!(PduLength::new(buffer.len()), None);
+
+        let largest = PduLength::new(constants::MAX_PDU_LENGTH).unwrap();
+        let frame = Frame::new(header, largest.read(&mut buffer).unwrap());
+        assert_eq!(frame.payload(), &bytes[..constants::MAX_PDU_LENGTH]);
+        assert_eq!(buffer.len(), 1);
+
+        let frame = Frame::new(
+            header,
+            PduLength::new(0).unwrap().read(&mut buffer).unwrap(),
+        );
         assert_eq!(frame.payload(), []);
+        let frame = Frame::new(
+            header,
+            PduLength::new(1).unwrap().read(&mut buffer).unwrap(),
+        );
+        assert_eq!(frame.payload(), [0xFD]);
+        assert!(buffer.is_empty());
+    }
+
+    #[test]
+    fn reading_a_pdu_longer_than_the_buffered_bytes_fails_and_consumes_nothing() {
+        let mut buffer = ReadBuffer::new();
+        buffer.fill(&[0x03, 0x02, 0x00]);
+        assert_eq!(
+            PduLength::new(4).unwrap().read(&mut buffer).err(),
+            Some(InternalError::InsufficientBytesForRead(4, 3))
+        );
+        assert_eq!(buffer.peek(), [0x03, 0x02, 0x00]);
     }
 
     #[test]
