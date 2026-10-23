@@ -263,22 +263,45 @@ impl<C: Connect> TcpChannelTask<C> {
 #[cfg(test)]
 pub(crate) mod test_util {
     use super::*;
+    use crate::tcp::accept::test_util::{Fault, PIPE};
+    use std::sync::atomic::{AtomicUsize, Ordering};
     use tokio::io::DuplexStream;
     use tokio::sync::mpsc;
 
-    /// The capacity of each direction of a [`MemoryConnector`]'s pipes, which holds a TLS flight
-    pub(crate) const PIPE: usize = 16 * 1024;
-
-    /// Connects a channel to in-memory peers: each attempt hands the test the other end of a new
-    /// pipe, and fails if the test has dropped the receiver
+    /// Connects a channel to in-memory peers. Each attempt applies the next entry of a script:
+    /// an error fails the attempt, while [`Fault::None`] and every attempt past the end of the
+    /// script hand the test the other end of a new pipe, failing if the test dropped the receiver.
     pub(crate) struct MemoryConnector {
+        faults: &'static [Fault],
+        attempts: AtomicUsize,
         peers: mpsc::UnboundedSender<DuplexStream>,
     }
 
     impl MemoryConnector {
-        pub(crate) fn new() -> (Self, mpsc::UnboundedReceiver<DuplexStream>) {
+        pub(crate) fn new(
+            faults: &'static [Fault],
+        ) -> (Self, mpsc::UnboundedReceiver<DuplexStream>) {
             let (peers, rx) = mpsc::unbounded_channel();
-            (Self { peers }, rx)
+            (
+                Self {
+                    faults,
+                    attempts: AtomicUsize::new(0),
+                    peers,
+                },
+                rx,
+            )
+        }
+
+        fn attempt(&self) -> std::io::Result<DuplexStream> {
+            let attempt = self.attempts.fetch_add(1, Ordering::Relaxed);
+            if let Some(err) = self.faults.get(attempt).and_then(|fault| fault.error()) {
+                return Err(err);
+            }
+            let (local, peer) = tokio::io::duplex(PIPE);
+            match self.peers.send(peer) {
+                Ok(()) => Ok(local),
+                Err(_) => Err(std::io::ErrorKind::ConnectionRefused.into()),
+            }
         }
     }
 
@@ -292,14 +315,7 @@ pub(crate) mod test_util {
         type Stream = DuplexStream;
 
         fn connect(&self) -> impl Future<Output = std::io::Result<DuplexStream>> + Send {
-            let (local, peer) = tokio::io::duplex(PIPE);
-            let sent = self.peers.send(peer);
-            async move {
-                match sent {
-                    Ok(()) => Ok(local),
-                    Err(_) => Err(std::io::ErrorKind::ConnectionRefused.into()),
-                }
-            }
+            std::future::ready(self.attempt())
         }
     }
 
@@ -309,13 +325,14 @@ pub(crate) mod test_util {
         connector: MemoryConnector,
         connection_handler: TcpTaskConnectionHandler,
         connect_retry: Box<dyn RetryStrategy>,
+        options: ClientOptions,
         listener: Box<dyn Listener<ClientState>>,
     ) -> (Channel, ClientTask) {
         let (channel, task, signal) = new_channel(
             connector,
             connection_handler,
             connect_retry,
-            ClientOptions::default(),
+            options,
             listener,
         );
         (channel, ClientTask::memory(task, signal))
@@ -328,10 +345,11 @@ mod tests {
     use crate::client::RequestParam;
     use crate::maybe_async::MaybeAsync;
     use crate::retry::default_retry_strategy;
+    use crate::tcp::accept::test_util::Fault;
     use crate::{AddressRange, RequestError, RetryStrategy, UnitId};
     use std::net::Ipv4Addr;
     use std::time::Duration;
-    use tokio::io::AsyncReadExt;
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
     /// A request timeout long enough that any test which observes a request completing before it
     /// elapses has necessarily observed cancellation rather than a timeout
@@ -412,12 +430,13 @@ mod tests {
     async fn the_channel_reconnects_after_the_retry_delay_when_the_peer_closes() {
         const DELAY: Duration = Duration::from_secs(2);
         crate::common::test_support::watchdog(async {
-            let (connector, mut peers) = test_util::MemoryConnector::new();
+            let (connector, mut peers) = test_util::MemoryConnector::new(&[]);
             let (tx, mut states) = tokio::sync::mpsc::unbounded_channel();
             let (channel, task) = test_util::memory_channel(
                 connector,
                 TcpTaskConnectionHandler::Tcp,
                 Box::new(FixedRetry(DELAY)),
+                ClientOptions::default(),
                 Box::new(StateRecorder { tx }),
             );
             tokio::spawn(task.run());
@@ -441,6 +460,244 @@ mod tests {
             let _second = peers.recv().await.unwrap();
             assert_eq!(closed_at.elapsed(), DELAY);
             assert_eq!(states.recv().await, Some(ClientState::Connecting));
+        })
+        .await;
+    }
+
+    /// The delay a [`Recorder`] returns after a failed connection attempt
+    const FAILED: Duration = Duration::from_secs(3);
+    /// The delay a [`Recorder`] returns after a disconnect, distinct from [`FAILED`]
+    const DISCONNECT: Duration = Duration::from_millis(100);
+
+    /// What a channel told its listener, or asked of its retry strategy
+    #[derive(Copy, Clone, Debug, PartialEq)]
+    enum Event {
+        State(ClientState),
+        Reset,
+        AfterFailedConnect,
+        AfterDisconnect,
+    }
+
+    /// Records, in order, the states a channel reports and the calls it makes to its retry
+    /// strategy
+    #[derive(Clone)]
+    struct Recorder {
+        tx: tokio::sync::mpsc::UnboundedSender<Event>,
+    }
+
+    impl Listener<ClientState> for Recorder {
+        fn update(&mut self, value: ClientState) -> MaybeAsync<()> {
+            self.tx.send(Event::State(value)).ok();
+            MaybeAsync::ready(())
+        }
+    }
+
+    impl RetryStrategy for Recorder {
+        fn reset(&mut self) {
+            self.tx.send(Event::Reset).ok();
+        }
+
+        fn after_failed_connect(&mut self) -> Duration {
+            self.tx.send(Event::AfterFailedConnect).ok();
+            FAILED
+        }
+
+        fn after_disconnect(&mut self) -> Duration {
+            self.tx.send(Event::AfterDisconnect).ok();
+            DISCONNECT
+        }
+    }
+
+    /// A running channel that connects through a scripted [`test_util::MemoryConnector`]
+    struct Recorded {
+        channel: Channel,
+        events: tokio::sync::mpsc::UnboundedReceiver<Event>,
+        peers: tokio::sync::mpsc::UnboundedReceiver<tokio::io::DuplexStream>,
+    }
+
+    impl Recorded {
+        fn start(
+            faults: &'static [Fault],
+            connection_handler: TcpTaskConnectionHandler,
+            options: ClientOptions,
+        ) -> Self {
+            let (connector, peers) = test_util::MemoryConnector::new(faults);
+            let (tx, events) = tokio::sync::mpsc::unbounded_channel();
+            let recorder = Recorder { tx };
+            let (channel, task) = test_util::memory_channel(
+                connector,
+                connection_handler,
+                Box::new(recorder.clone()),
+                options,
+                Box::new(recorder),
+            );
+            tokio::spawn(task.run());
+            Self {
+                channel,
+                events,
+                peers,
+            }
+        }
+
+        /// The next events are exactly `expected`
+        async fn expect(&mut self, expected: &[Event]) {
+            for event in expected {
+                assert_eq!(self.events.recv().await, Some(*event));
+            }
+        }
+
+        /// Wait for the next connection, and return it with the time it took
+        async fn next_peer(&mut self) -> (tokio::io::DuplexStream, Duration) {
+            let start = tokio::time::Instant::now();
+            let peer = self.peers.recv().await.unwrap();
+            (peer, start.elapsed())
+        }
+    }
+
+    /// The events of an attempt that connects, followed by the peer closing that connection.
+    /// Something observable follows the reset, so a missing one fails an assertion rather than
+    /// waiting for an event that never comes.
+    const CONNECTED_UNTIL_CLOSED: [Event; 5] = [
+        Event::State(ClientState::Connecting),
+        Event::State(ClientState::Connected),
+        Event::Reset,
+        Event::AfterDisconnect,
+        Event::State(ClientState::WaitAfterDisconnect(DISCONNECT)),
+    ];
+
+    /// What a peer sends that isn't a frame: protocol id 0xCAFE
+    const BAD_FRAME: [u8; 7] = [0x00, 0x01, 0xCA, 0xFE, 0x00, 0x01, 0x01];
+
+    #[tokio::test(start_paused = true)]
+    async fn a_refused_connection_is_retried_after_the_failed_connect_delay() {
+        const REFUSED: Fault = Fault::Kind(std::io::ErrorKind::ConnectionRefused);
+        crate::common::test_support::watchdog(async {
+            let mut client = Recorded::start(
+                &[REFUSED],
+                TcpTaskConnectionHandler::Tcp,
+                ClientOptions::default(),
+            );
+            client.channel.enable().await.unwrap();
+
+            client
+                .expect(&[
+                    Event::State(ClientState::Disabled),
+                    Event::State(ClientState::Connecting),
+                    Event::AfterFailedConnect,
+                    Event::State(ClientState::WaitAfterFailedConnect(FAILED)),
+                ])
+                .await;
+            let (peer, waited) = client.next_peer().await;
+            assert_eq!(waited, FAILED);
+            drop(peer);
+            client.expect(&CONNECTED_UNTIL_CLOSED).await;
+        })
+        .await;
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_bad_frame_from_the_peer_reconnects_after_the_disconnect_delay() {
+        crate::common::test_support::watchdog(async {
+            let mut client =
+                Recorded::start(&[], TcpTaskConnectionHandler::Tcp, ClientOptions::default());
+            client.channel.enable().await.unwrap();
+
+            // the peer stays open, so only the frame ends the session
+            let (mut first, _) = client.next_peer().await;
+            first.write_all(&BAD_FRAME).await.unwrap();
+            client
+                .expect(&[
+                    Event::State(ClientState::Disabled),
+                    Event::State(ClientState::Connecting),
+                    Event::State(ClientState::Connected),
+                    Event::Reset,
+                    Event::AfterDisconnect,
+                    Event::State(ClientState::WaitAfterDisconnect(DISCONNECT)),
+                ])
+                .await;
+
+            let (second, waited) = client.next_peer().await;
+            assert_eq!(waited, DISCONNECT);
+            drop(second);
+            client.expect(&CONNECTED_UNTIL_CLOSED).await;
+        })
+        .await;
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn reaching_max_timeouts_reconnects_after_the_disconnect_delay() {
+        const TIMEOUT: Duration = Duration::from_secs(1);
+        crate::common::test_support::watchdog(async {
+            let mut client = Recorded::start(
+                &[],
+                TcpTaskConnectionHandler::Tcp,
+                ClientOptions::default().max_response_timeouts(std::num::NonZeroUsize::new(1)),
+            );
+            client.channel.enable().await.unwrap();
+            // a request sent while the channel is still connecting would fail at once
+            client
+                .expect(&[
+                    Event::State(ClientState::Disabled),
+                    Event::State(ClientState::Connecting),
+                    Event::State(ClientState::Connected),
+                ])
+                .await;
+
+            // the peer stays open and reads the request, but never answers it
+            let (mut first, _) = client.next_peer().await;
+            let requester = client.channel.clone();
+            let coils = tokio::spawn(async move {
+                requester
+                    .read_coils(
+                        RequestParam::new(UnitId::new(1), TIMEOUT),
+                        AddressRange::try_from(7, 2).unwrap(),
+                    )
+                    .await
+            });
+            let mut request = [0u8; 12];
+            first.read_exact(&mut request).await.unwrap();
+            assert_eq!(coils.await.unwrap(), Err(RequestError::ResponseTimeout));
+            client
+                .expect(&[
+                    Event::Reset,
+                    Event::AfterDisconnect,
+                    Event::State(ClientState::WaitAfterDisconnect(DISCONNECT)),
+                ])
+                .await;
+
+            let (second, waited) = client.next_peer().await;
+            assert_eq!(waited, DISCONNECT);
+            drop(second);
+            client.expect(&CONNECTED_UNTIL_CLOSED).await;
+        })
+        .await;
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn disabling_a_connected_channel_neither_consults_the_retry_strategy_nor_waits() {
+        crate::common::test_support::watchdog(async {
+            let mut client =
+                Recorded::start(&[], TcpTaskConnectionHandler::Tcp, ClientOptions::default());
+            client.channel.enable().await.unwrap();
+            let (_first, _) = client.next_peer().await;
+            client
+                .expect(&[
+                    Event::State(ClientState::Disabled),
+                    Event::State(ClientState::Connecting),
+                    Event::State(ClientState::Connected),
+                ])
+                .await;
+
+            client.channel.disable().await.unwrap();
+            client
+                .expect(&[Event::Reset, Event::State(ClientState::Disabled)])
+                .await;
+
+            client.channel.enable().await.unwrap();
+            let (second, waited) = client.next_peer().await;
+            assert_eq!(waited, Duration::ZERO);
+            drop(second);
+            client.expect(&CONNECTED_UNTIL_CLOSED).await;
         })
         .await;
     }
@@ -666,7 +923,7 @@ mod tests {
         use super::*;
         use crate::common::test_support::watchdog;
         use crate::tcp::tls::client::create_tls_channel;
-        use crate::tcp::tls::test_util::{client_config, server_config};
+        use crate::tcp::tls::test_util::{both_versions, cert, client_config, server_config};
         use crate::tcp::tls::{MinTlsVersion, TLS_HANDSHAKE_TIMEOUT};
         use tokio::time::Instant;
 
@@ -682,12 +939,13 @@ mod tests {
 
         /// Start a channel over an in-memory connection and return once its handshake is stalled
         async fn stalled_handshake() -> Stalled {
-            let (connector, mut peers) = MemoryConnector::new();
+            let (connector, mut peers) = MemoryConnector::new(&[]);
             let (tx, mut states) = tokio::sync::mpsc::unbounded_channel();
             let (channel, task) = memory_channel(
                 connector,
                 TcpTaskConnectionHandler::Tls(client_config(MinTlsVersion::V1_2)),
                 Box::new(NeverRetry),
+                ClientOptions::default(),
                 Box::new(StateRecorder { tx }),
             );
             let task = tokio::spawn(task.run());
@@ -813,6 +1071,50 @@ mod tests {
                 stalled.task.await.unwrap();
                 assert_eq!(stalled.states.recv().await, Some(ClientState::Shutdown));
                 assert_eq!(stalled.hello_at.elapsed(), Duration::ZERO);
+            })
+            .await;
+        }
+
+        #[tokio::test(start_paused = true)]
+        async fn a_failed_handshake_waits_as_a_failed_connect_and_a_completed_one_resets_the_retry()
+        {
+            watchdog(async {
+                let mut client = Recorded::start(
+                    &[],
+                    TcpTaskConnectionHandler::Tls(client_config(MinTlsVersion::V1_2)),
+                    ClientOptions::default(),
+                );
+                client.channel.enable().await.unwrap();
+
+                // the peer hangs up during the handshake
+                let (first, _) = client.next_peer().await;
+                drop(first);
+                client
+                    .expect(&[
+                        Event::State(ClientState::Disabled),
+                        Event::State(ClientState::Connecting),
+                        Event::AfterFailedConnect,
+                        Event::State(ClientState::WaitAfterFailedConnect(FAILED)),
+                    ])
+                    .await;
+
+                // the peer completes the handshake as the server the client expects
+                let (second, waited) = client.next_peer().await;
+                assert_eq!(waited, FAILED);
+                let server = sfio_rustls_config::server::self_signed(
+                    both_versions(),
+                    &cert("entity2_cert.pem"),
+                    &cert("entity1_cert.pem"),
+                    &cert("entity1_key.pem"),
+                    None,
+                )
+                .unwrap();
+                let tls = tokio_rustls::TlsAcceptor::from(std::sync::Arc::new(server))
+                    .accept(second)
+                    .await
+                    .unwrap();
+                drop(tls);
+                client.expect(&CONNECTED_UNTIL_CLOSED).await;
             })
             .await;
         }
