@@ -11,7 +11,7 @@ use crate::common::cancellation::ShutdownSignal;
 use crate::common::phys::{PhysLayer, Socket};
 
 use crate::client::message::Command;
-use crate::client::task::{ClientLoop, SessionError, StateChange};
+use crate::client::task::{AfterSession, ClientLoop, StateChange};
 use crate::common::frame::{FrameWriter, FramedReader};
 use crate::error::Shutdown;
 use crate::retry::RetryStrategy;
@@ -217,13 +217,10 @@ impl<C: Connect> TcpChannelTask<C> {
         // we do this here so that the reset happens after a TLS handshake
         self.connect_retry.reset();
 
-        match self.client_loop.run(&mut phys).await {
-            // the mpsc was closed, end the task
-            SessionError::Shutdown => Err(StateChange::Shutdown),
-            // don't wait, we're disabled
-            SessionError::Disabled => Ok(()),
-            // re-establish the connection
-            SessionError::IoError(_) | SessionError::BadFrame | SessionError::MaxTimeouts(_) => {
+        match self.client_loop.run(&mut phys).await.after() {
+            AfterSession::End => Err(StateChange::Shutdown),
+            AfterSession::Idle => Ok(()),
+            AfterSession::Reconnect => {
                 drop(phys);
                 let delay = self.connect_retry.after_disconnect();
                 log_channel_event(
