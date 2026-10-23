@@ -8,20 +8,15 @@ use std::fmt::Display;
 
 use crate::client::message::Promise;
 use crate::common::function::FunctionCode;
+use crate::common::traits::{Parse, Serialize};
 use crate::decode::AppDecodeLevel;
 use crate::error::RequestError;
-use crate::types::{coil_from_u16, coil_to_u16, Indexed};
 
 use scursor::{ReadCursor, WriteCursor};
 
-pub(crate) trait SingleWriteOperation: Sized + PartialEq {
-    fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError>;
-    fn parse(cursor: &mut ReadCursor) -> Result<Self, RequestError>;
-}
-
 pub(crate) struct SingleWrite<T>
 where
-    T: SingleWriteOperation + Display + Send + 'static,
+    T: Serialize + Parse + PartialEq + Display + Send + 'static,
 {
     pub(crate) request: T,
     promise: Promise<T>,
@@ -29,7 +24,7 @@ where
 
 impl<T> SingleWrite<T>
 where
-    T: SingleWriteOperation + Display + Send + 'static,
+    T: Serialize + Parse + PartialEq + Display + Send + 'static,
 {
     pub(crate) fn new(request: T, promise: Promise<T>) -> Self {
         Self { request, promise }
@@ -49,7 +44,7 @@ where
         function: FunctionCode,
         decode: AppDecodeLevel,
     ) -> Result<(), RequestError> {
-        let response = super::parse_echo(cursor, &self.request, T::parse)?;
+        let response = super::parse_echo(cursor, &self.request)?;
 
         if decode.data_headers() {
             tracing::info!("PDU RX - {} {}", function, response);
@@ -59,33 +54,6 @@ where
 
         self.promise.success(response);
         Ok(())
-    }
-}
-
-impl SingleWriteOperation for Indexed<bool> {
-    fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
-        cursor.write_u16_be(self.index)?;
-        cursor.write_u16_be(coil_to_u16(self.value))?;
-        Ok(())
-    }
-
-    fn parse(cursor: &mut ReadCursor) -> Result<Self, RequestError> {
-        Ok(Indexed::new(
-            cursor.read_u16_be()?,
-            coil_from_u16(cursor.read_u16_be()?)?,
-        ))
-    }
-}
-
-impl SingleWriteOperation for Indexed<u16> {
-    fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
-        cursor.write_u16_be(self.index)?;
-        cursor.write_u16_be(self.value)?;
-        Ok(())
-    }
-
-    fn parse(cursor: &mut ReadCursor) -> Result<Self, RequestError> {
-        Ok(Indexed::new(cursor.read_u16_be()?, cursor.read_u16_be()?))
     }
 }
 

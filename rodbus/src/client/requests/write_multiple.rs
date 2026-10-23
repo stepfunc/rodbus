@@ -6,7 +6,7 @@
 
 use crate::client::message::Promise;
 use crate::common::function::FunctionCode;
-use crate::common::traits::{Parse, Serialize};
+use crate::common::traits::Serialize;
 use crate::decode::AppDecodeLevel;
 use crate::error::RequestError;
 use crate::error::{InvalidRange, InvalidRequest};
@@ -157,7 +157,7 @@ where
         function: FunctionCode,
         decode: AppDecodeLevel,
     ) -> Result<(), RequestError> {
-        let response = super::parse_echo(cursor, &self.request.get().range, AddressRange::parse)?;
+        let response = super::parse_echo(cursor, &self.request.get().range)?;
 
         if decode.data_headers() {
             tracing::info!("PDU RX - {} {}", function, response);
