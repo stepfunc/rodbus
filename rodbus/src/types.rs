@@ -218,8 +218,17 @@ impl<'a> RegisterIterator<'a> {
     pub(crate) fn collect_vec(self) -> Vec<Indexed<u16>> {
         let (chunks, _) = self.bytes.as_chunks::<2>();
         let mut result = Vec::with_capacity(chunks.len());
-        for (address, &chunk) in self.addresses.zip(chunks) {
-            result.push(Indexed::new(address, u16::from_be_bytes(chunk)));
+        if let Some((before_last, last)) = self.addresses.remaining() {
+            // both sides know their length, so these values are written without per-element checks
+            result.extend(
+                before_last
+                    .zip(chunks)
+                    .map(|(address, &chunk)| Indexed::new(address, u16::from_be_bytes(chunk))),
+            );
+            // the chunk after those just taken, unless they ran out first
+            if let Some(&chunk) = chunks.get(result.len()) {
+                result.push(Indexed::new(last, u16::from_be_bytes(chunk)));
+            }
         }
         result
     }
@@ -382,24 +391,37 @@ impl std::fmt::Display for AddressRange {
     }
 }
 
-/// The addresses of a range, counted in `u32` so that reaching 0xFFFF can't overflow
+/// The addresses of a range not yet yielded, kept as the next and the last so that 0xFFFF is
+/// reached without counting past it
 ///
 /// A range whose public fields were set past 0xFFFF ends at 0xFFFF.
 #[derive(Debug, Copy, Clone)]
 pub(crate) struct AddressIterator {
-    next: u32,
-    /// one past the last address, at most 0x1_0000
-    end: u32,
+    /// `None` for an empty range, and once the last address was yielded
+    remaining: Option<Addresses>,
+}
+
+/// The addresses from `next` through `last`, which is never below it
+#[derive(Debug, Copy, Clone)]
+struct Addresses {
+    next: u16,
+    last: u16,
 }
 
 impl AddressIterator {
     pub(crate) fn new(start: u16, count: u16) -> Self {
         Self {
-            next: u32::from(start),
-            end: u32::from(start)
-                .saturating_add(u32::from(count))
-                .min(0x1_0000),
+            remaining: count.checked_sub(1).map(|after_start| Addresses {
+                next: start,
+                last: start.saturating_add(after_start),
+            }),
         }
+    }
+
+    /// The addresses not yielded yet, if there are any: those before the last, and the last
+    fn remaining(self) -> Option<(std::ops::Range<u16>, u16)> {
+        self.remaining
+            .map(|Addresses { next, last }| (next..last, last))
     }
 }
 
@@ -407,17 +429,20 @@ impl Iterator for AddressIterator {
     type Item = u16;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.next >= self.end {
-            return None;
-        }
-        let address = u16::try_from(self.next).ok()?;
-        self.next = self.next.saturating_add(1);
-        Some(address)
+        let Addresses { next, last } = self.remaining?;
+        // there is no address after 0xFFFF, which is always the last
+        self.remaining = next
+            .checked_add(1)
+            .filter(|&after| after <= last)
+            .map(|after| Addresses { next: after, last });
+        Some(next)
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        let remaining = usize::try_from(self.end.saturating_sub(self.next)).ok();
-        (remaining.unwrap_or(usize::MAX), remaining)
+        self.remaining
+            .map_or((0, Some(0)), |Addresses { next, last }| {
+                (next..=last).size_hint()
+            })
     }
 }
 
@@ -1054,13 +1079,59 @@ mod tests {
     /// The registers of `range` parsed from exactly the `bytes` they need are `expected`, both
     /// iterated and collected into a `Vec`
     fn check_registers(range: AddressRange, bytes: &[u8], expected: &[Indexed<u16>]) {
-        let mut cursor = ReadCursor::new(bytes);
-        let registers = RegisterIterator::parse_all(range, &mut cursor).unwrap();
-        assert_eq!(registers.collect_vec(), expected);
-        check_iteration(registers, expected);
+        check_register_values(range, bytes, expected);
         check_length_errors(bytes, |cursor| {
             RegisterIterator::parse_all(range, cursor).map(|_| ())
         });
+    }
+
+    /// The registers of `range` parsed from `bytes` are `expected` when iterated, and collected
+    /// into a `Vec` after any number of them were taken, the rest
+    fn check_register_values(range: AddressRange, bytes: &[u8], expected: &[Indexed<u16>]) {
+        let mut cursor = ReadCursor::new(bytes);
+        let registers = RegisterIterator::parse_all(range, &mut cursor).unwrap();
+        check_iteration(registers, expected);
+        for taken in 0..=expected.len() {
+            let mut rest = registers;
+            for value in &expected[..taken] {
+                assert_eq!(rest.next(), Some(*value));
+            }
+            assert_eq!(rest.collect_vec(), &expected[taken..]);
+        }
+    }
+
+    #[test]
+    fn an_empty_range_has_no_registers() {
+        check_register_values(AddressRange { start: 7, count: 0 }, &[], &[]);
+        check_register_values(
+            AddressRange {
+                start: 0xFFFF,
+                count: 0,
+            },
+            &[],
+            &[],
+        );
+    }
+
+    #[test]
+    fn registers_of_a_range_built_past_0xffff_stop_at_0xffff() {
+        // from its fields: the bytes of two values, but only one address
+        check_register_values(
+            AddressRange {
+                start: 0xFFFF,
+                count: 2,
+            },
+            &[0x12, 0x34, 0x56, 0x78],
+            &[Indexed::new(0xFFFF, 0x1234)],
+        );
+        check_register_values(
+            AddressRange {
+                start: 0xFFFE,
+                count: 0xFFFF,
+            },
+            &vec![0xAB; 0x1FFFE],
+            &[Indexed::new(0xFFFE, 0xABAB), Indexed::new(0xFFFF, 0xABAB)],
+        );
     }
 
     mod properties {
