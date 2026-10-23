@@ -20,17 +20,11 @@ use crate::{ChannelLoggingMode, ClientOptions};
 use std::future::Future;
 use tokio::net::TcpStream;
 
-macro_rules! log_channel_event {
-    ($channel_logging:expr, $($arg:tt)*) => {
-        match $channel_logging {
-            ChannelLoggingMode::Verbose => {
-                tracing::info!($($arg)*);
-            }
-            ChannelLoggingMode::StateChanges => {
-                tracing::debug!($($arg)*);
-            }
-        }
-    };
+fn log_channel_event(mode: ChannelLoggingMode, args: std::fmt::Arguments<'_>) {
+    match mode {
+        ChannelLoggingMode::Verbose => tracing::info!("{args}"),
+        ChannelLoggingMode::StateChanges => tracing::debug!("{args}"),
+    }
 }
 
 pub(crate) fn spawn_tcp_channel(
@@ -232,7 +226,10 @@ impl<C: Connect> TcpChannelTask<C> {
             SessionError::IoError(_) | SessionError::BadFrame | SessionError::MaxTimeouts(_) => {
                 drop(phys);
                 let delay = self.connect_retry.after_disconnect();
-                log_channel_event!(self.channel_logging, "waiting {:?} to reconnect", delay);
+                log_channel_event(
+                    self.channel_logging,
+                    format_args!("waiting {delay:?} to reconnect"),
+                );
                 self.listener
                     .update(ClientState::WaitAfterDisconnect(delay))
                     .get()
@@ -245,11 +242,12 @@ impl<C: Connect> TcpChannelTask<C> {
     async fn handle_failed_connection(&mut self, err: std::io::Error) -> Result<(), StateChange> {
         let delay = self.connect_retry.after_failed_connect();
 
-        log_channel_event!(
+        log_channel_event(
             self.channel_logging,
-            "failed to connect: {} - waiting {} ms before next attempt",
-            err,
-            delay.as_millis()
+            format_args!(
+                "failed to connect: {err} - waiting {} ms before next attempt",
+                delay.as_millis()
+            ),
         );
 
         self.listener
