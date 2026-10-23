@@ -257,12 +257,12 @@ impl AuthorizationType {
         role: &str,
     ) -> Authorization {
         match request {
-            Request::ReadCoils(x) => handler.read_coils(unit_id, x.inner, role),
-            Request::ReadDiscreteInputs(x) => handler.read_discrete_inputs(unit_id, x.inner, role),
+            Request::ReadCoils(x) => handler.read_coils(unit_id, x.get(), role),
+            Request::ReadDiscreteInputs(x) => handler.read_discrete_inputs(unit_id, x.get(), role),
             Request::ReadHoldingRegisters(x) => {
-                handler.read_holding_registers(unit_id, x.inner, role)
+                handler.read_holding_registers(unit_id, x.get(), role)
             }
-            Request::ReadInputRegisters(x) => handler.read_input_registers(unit_id, x.inner, role),
+            Request::ReadInputRegisters(x) => handler.read_input_registers(unit_id, x.get(), role),
             Request::WriteSingleCoil(x) => handler.write_single_coil(unit_id, x.index, role),
             Request::WriteSingleRegister(x) => {
                 handler.write_single_register(unit_id, x.index, role)
