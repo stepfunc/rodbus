@@ -110,20 +110,70 @@ fn extract_modbus_role(cert: &rx509::x509::Certificate) -> Result<String, String
         .map_err(|err| format!("unable to parse cert extensions with rasn: {err:?}"))?;
 
     // Extract the ModbusRole extensions
-    let mut it = extensions.into_iter().filter_map(|ext| match ext.content {
+    let roles = extensions.into_iter().filter_map(|ext| match ext.content {
         rx509::x509::ext::SpecificExtension::ModbusRole(role) => Some(role.role),
         _ => None,
     });
 
-    // Extract the first ModbusRole extension
-    let role = it
-        .next()
-        .ok_or_else(|| "certificate doesn't have Modbus extension".to_string())?;
+    match single_role(roles) {
+        Ok(role) => Ok(role.to_string()),
+        Err(RoleError::Missing) => Err("certificate doesn't have Modbus extension".to_string()),
+        Err(RoleError::Multiple) => {
+            Err("certificate has more than one Modbus extension".to_string())
+        }
+        Err(RoleError::ContainsNul) => {
+            Err("certificate's Modbus role contains a NUL character".to_string())
+        }
+    }
+}
 
-    // Check that there is only one role extension
-    if it.next().is_some() {
-        return Err("certificate has more than one Modbus extension".to_string());
+/// Why a certificate's Modbus roles don't give one usable role
+#[derive(Debug, PartialEq)]
+enum RoleError {
+    Missing,
+    Multiple,
+    ContainsNul,
+}
+
+/// The one role among a certificate's Modbus role extensions
+///
+/// The whole string is the role (Modbus/TCP Security R-65). A NUL would cut it short wherever the
+/// role is handed on as a C string, so such a role is refused.
+fn single_role<'a>(mut roles: impl Iterator<Item = &'a str>) -> Result<&'a str, RoleError> {
+    let role = roles.next().ok_or(RoleError::Missing)?;
+    if roles.next().is_some() {
+        return Err(RoleError::Multiple);
+    }
+    if role.contains('\0') {
+        return Err(RoleError::ContainsNul);
+    }
+    Ok(role)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_single_role_is_used_whole() {
+        assert_eq!(single_role(["operator"].into_iter()), Ok("operator"));
     }
 
-    Ok(role.to_string())
+    #[test]
+    fn a_role_containing_nul_is_refused() {
+        assert_eq!(
+            single_role(["admin\0operator"].into_iter()),
+            Err(RoleError::ContainsNul)
+        );
+        assert_eq!(single_role(["\0"].into_iter()), Err(RoleError::ContainsNul));
+    }
+
+    #[test]
+    fn exactly_one_role_is_required() {
+        assert_eq!(single_role(std::iter::empty()), Err(RoleError::Missing));
+        assert_eq!(
+            single_role(["operator", "admin"].into_iter()),
+            Err(RoleError::Multiple)
+        );
+    }
 }
