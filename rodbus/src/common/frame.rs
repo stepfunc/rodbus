@@ -162,17 +162,18 @@ impl Frame {
     }
 
     pub(crate) fn set(&mut self, src: &[u8]) -> bool {
-        if src.len() > self.pdu.len() {
-            return false;
+        match self.pdu.get_mut(..src.len()) {
+            Some(dest) => {
+                dest.copy_from_slice(src);
+                self.length = src.len();
+                true
+            }
+            None => false,
         }
-
-        self.pdu[0..src.len()].copy_from_slice(src);
-        self.length = src.len();
-        true
     }
 
     pub(crate) fn payload(&self) -> &[u8] {
-        &self.pdu[0..self.length]
+        self.pdu.get(..self.length).unwrap_or_default()
     }
 }
 
@@ -320,7 +321,7 @@ impl FrameWriter {
         T: Serialize + Loggable,
     {
         match self.format_generic(header, FunctionField::Valid(function), body, decode_level) {
-            Ok(x) => Ok(&self.buffer[x]),
+            Ok(len) => Ok(self.frame(len)),
             Err(RequestError::Exception(ex)) => {
                 self.format_ex(header, FunctionField::Exception(function), ex, decode_level)
             }
@@ -338,9 +339,9 @@ impl FrameWriter {
     where
         T: Serialize + Loggable,
     {
-        let range =
+        let len =
             self.format_generic(header, FunctionField::Valid(function), body, decode_level)?;
-        Ok(&self.buffer[range])
+        Ok(self.frame(len))
     }
 
     pub(crate) fn format_ex(
@@ -356,9 +357,14 @@ impl FrameWriter {
             FunctionField::UnknownFunction(x) => FunctionField::UnknownFunction(x),
         };
 
-        let range = self.format_generic(header, function, &ex, decode_level)?;
+        let len = self.format_generic(header, function, &ex, decode_level)?;
 
-        Ok(&self.buffer[range])
+        Ok(self.frame(len))
+    }
+
+    /// The first `len` bytes of the buffer, where the last frame was formatted
+    fn frame(&self, len: usize) -> &[u8] {
+        self.buffer.get(..len).unwrap_or_default()
     }
 
     fn format_generic<T>(
@@ -367,17 +373,18 @@ impl FrameWriter {
         function: FunctionField,
         body: &T,
         decode_level: DecodeLevel,
-    ) -> Result<Range<usize>, RequestError>
+    ) -> Result<usize, RequestError>
     where
         T: Serialize + Loggable,
     {
-        let (frame_type, frame_bytes, pdu_body) = {
+        let (frame_type, len, pdu_body) = {
             let mut cursor = WriteCursor::new(self.buffer.as_mut());
             let info = self
                 .format_type
                 .format(&mut cursor, header, function, body)?;
             let end = cursor.position();
-            (info.frame_type, 0..end, &self.buffer[info.pdu_body])
+            let pdu_body = self.buffer.get(info.pdu_body).unwrap_or_default();
+            (info.frame_type, end, pdu_body)
         };
 
         if decode_level.app.enabled() {
@@ -389,7 +396,7 @@ impl FrameWriter {
         }
 
         if decode_level.frame.enabled() {
-            let frame_bytes = &self.buffer[frame_bytes.clone()];
+            let frame_bytes = self.frame(len);
             match frame_type {
                 FrameType::Mbap(header) => {
                     tracing::info!(
@@ -412,7 +419,7 @@ impl FrameWriter {
             }
         }
 
-        Ok(frame_bytes)
+        Ok(len)
     }
 
     pub(crate) fn tcp() -> Self {

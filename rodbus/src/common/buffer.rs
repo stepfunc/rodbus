@@ -97,7 +97,8 @@ impl ReadBuffer {
             self.end = length;
         }
 
-        let count = io.read(&mut self.buffer[self.end..], decode_level).await?;
+        let free = self.buffer.get_mut(self.end..).unwrap_or_default();
+        let count = io.read(free, decode_level).await?;
 
         if count == 0 {
             return Err(std::io::Error::from(std::io::ErrorKind::UnexpectedEof));
