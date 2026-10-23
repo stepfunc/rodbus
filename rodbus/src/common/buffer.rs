@@ -4,6 +4,8 @@
 // Text and data mining rights, including for AI training, are reserved under
 // Directive (EU) 2019/790 Art. 4(3), subject to LICENSE.txt Section 3.3.
 
+use std::cell::Cell;
+
 use crate::common::phys::PhysLayer;
 
 use crate::error::InternalError;
@@ -88,9 +90,14 @@ impl ReadBuffer {
         }
 
         // if we've reached capacity, but still need more data we have to shift
-        if self.end == self.buffer.len() && self.begin <= self.end {
+        if self.end == self.buffer.len() {
             let length = self.len();
-            self.buffer.copy_within(self.begin..self.end, 0);
+            // front to back, so each byte is read before the copy overwrites it
+            let cells = Cell::from_mut(self.buffer.as_mut_slice()).as_slice_of_cells();
+            let unread = cells.get(self.begin..self.end).unwrap_or_default();
+            for (dest, src) in cells.iter().zip(unread) {
+                dest.set(src.get());
+            }
             self.begin = 0;
             self.end = length;
         }

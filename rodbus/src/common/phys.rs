@@ -233,10 +233,13 @@ impl<'a> std::fmt::Display for PhysDisplay<'a> {
 const BYTES_PER_DECODE_LINE: usize = 18;
 
 pub(crate) fn format_bytes(f: &mut std::fmt::Formatter, bytes: &[u8]) -> std::fmt::Result {
-    for chunk in bytes.chunks(BYTES_PER_DECODE_LINE) {
+    let (lines, last) = bytes.as_chunks::<BYTES_PER_DECODE_LINE>();
+    // the bytes after the whole lines, if there are any, make a shorter last line
+    let last = (!last.is_empty()).then_some(last);
+    for line in lines.iter().map(|line| line.as_slice()).chain(last) {
         writeln!(f)?;
         let mut first = true;
-        for byte in chunk {
+        for byte in line {
             if !first {
                 f.write_char(' ')?;
             }
