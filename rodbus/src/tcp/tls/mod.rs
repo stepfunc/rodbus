@@ -115,6 +115,19 @@ pub(crate) enum HandshakeError {
     Failed(std::io::Error),
 }
 
+impl std::fmt::Display for HandshakeError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Timeout => write!(
+                f,
+                "TLS handshake didn't complete within {} seconds",
+                TLS_HANDSHAKE_TIMEOUT.as_secs()
+            ),
+            Self::Failed(err) => write!(f, "failed to establish TLS session: {err}"),
+        }
+    }
+}
+
 /// Run a handshake, giving up if it doesn't complete within [`TLS_HANDSHAKE_TIMEOUT`]
 pub(crate) async fn handshake<S>(
     handshake: impl std::future::Future<Output = std::io::Result<S>>,

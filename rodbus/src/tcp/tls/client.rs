@@ -179,7 +179,7 @@ impl TlsClientConfig {
     }
 
     pub(crate) async fn handle_connection<S: Socket>(
-        &mut self,
+        &self,
         socket: S,
         endpoint: &impl std::fmt::Display,
     ) -> std::io::Result<PhysLayer> {
