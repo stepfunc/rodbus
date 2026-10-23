@@ -93,8 +93,7 @@ impl MbapParser {
     pub(crate) fn parse(
         &mut self,
         cursor: &mut ReadBuffer,
-        decode_level: FrameDecodeLevel,
-    ) -> Result<Option<Frame>, RequestError> {
+    ) -> Result<Option<(Frame, FrameType)>, RequestError> {
         loop {
             match self.state {
                 ParseState::Header(header, adu_length) => {
@@ -104,15 +103,7 @@ impl MbapParser {
 
                     let frame = Self::parse_body(&header, adu_length, cursor)?;
                     self.state = ParseState::Begin;
-
-                    if decode_level.enabled() {
-                        tracing::info!(
-                            "MBAP RX - {}",
-                            MbapDisplay::new(decode_level, header, frame.payload())
-                        );
-                    }
-
-                    return Ok(Some(frame));
+                    return Ok(Some((frame, FrameType::Mbap(header))));
                 }
                 ParseState::Begin => {
                     if cursor.len() < constants::HEADER_LENGTH {

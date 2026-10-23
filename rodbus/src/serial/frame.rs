@@ -131,8 +131,7 @@ impl RtuParser {
     pub(crate) fn parse(
         &self,
         cursor: &mut ReadBuffer,
-        decode_level: FrameDecodeLevel,
-    ) -> Result<Option<Frame>, RequestError> {
+    ) -> Result<Option<(Frame, FrameType)>, RequestError> {
         let Some(frame_length) = self.frame_length(cursor.peek())? else {
             return Ok(None);
         };
@@ -158,10 +157,6 @@ impl RtuParser {
             FrameDestination::UnitId(unit_id)
         };
 
-        if unit_id.is_rtu_reserved() {
-            tracing::warn!("received reserved unit ID {}, violating Modbus RTU spec. Passing it through nevertheless.", unit_id);
-        }
-
         let mut frame = Frame::new(FrameHeader::new_rtu_header(destination));
         if !frame.set(pdu) {
             return Err(RequestError::Internal(InternalError::FrameTooBig(
@@ -170,14 +165,7 @@ impl RtuParser {
             )));
         }
 
-        if decode_level.enabled() {
-            tracing::info!(
-                "RTU RX - {}",
-                RtuDisplay::new(decode_level, destination, frame.payload(), received_crc)
-            );
-        }
-
-        Ok(Some(frame))
+        Ok(Some((frame, FrameType::Rtu(destination, received_crc))))
     }
 }
 
