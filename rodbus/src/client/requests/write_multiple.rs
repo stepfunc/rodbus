@@ -120,7 +120,7 @@ where
 
         if decode.data_headers() {
             tracing::info!("PDU RX - {} {}", function, response);
-        } else if decode.header() {
+        } else if decode.enabled() {
             tracing::info!("PDU RX - {}", function);
         }
 

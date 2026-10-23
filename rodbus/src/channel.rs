@@ -18,12 +18,6 @@ pub(crate) fn bounded<T>(capacity: usize) -> (tokio::sync::mpsc::Sender<T>, Rece
     (tx, Receiver(rx))
 }
 
-impl<T> From<tokio::sync::mpsc::Receiver<T>> for Receiver<T> {
-    fn from(value: tokio::sync::mpsc::Receiver<T>) -> Self {
-        Self(value)
-    }
-}
-
 impl<T> Receiver<T> {
     pub(crate) async fn recv(&mut self) -> Result<T, Shutdown> {
         self.0.recv().await.ok_or(Shutdown)
