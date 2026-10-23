@@ -5,7 +5,9 @@
 // Directive (EU) 2019/790 Art. 4(3), subject to LICENSE.txt Section 3.3.
 
 use crate::common::buffer::ReadBuffer;
-use crate::common::frame::{Frame, FrameHeader, FrameInfo, FrameType, FunctionField, TxId};
+use crate::common::frame::{
+    Frame, FrameHeader, FrameInfo, FrameType, FunctionField, PduLength, TxId,
+};
 use crate::common::traits::Serialize;
 use crate::decode::FrameDecodeLevel;
 use crate::error::{FrameParseError, InternalError, RequestError};
@@ -16,9 +18,9 @@ use scursor::WriteCursor;
 pub(crate) mod constants {
     pub(crate) const HEADER_LENGTH: usize = 7;
     pub(crate) const MAX_FRAME_LENGTH: usize =
-        HEADER_LENGTH + crate::common::frame::constants::MAX_ADU_LENGTH;
+        HEADER_LENGTH + crate::common::frame::constants::MAX_PDU_LENGTH;
     // cannot be < 1 b/c of the unit identifier
-    pub(crate) const MAX_LENGTH_FIELD: usize = crate::common::frame::constants::MAX_ADU_LENGTH + 1;
+    pub(crate) const MAX_LENGTH_FIELD: usize = crate::common::frame::constants::MAX_PDU_LENGTH + 1;
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -31,8 +33,8 @@ pub(crate) struct MbapHeader {
 #[derive(Clone, Copy)]
 enum ParseState {
     Begin,
-    // header and the ADU length
-    Header(MbapHeader, usize),
+    // header and the PDU length
+    Header(MbapHeader, PduLength),
 }
 
 pub(crate) struct MbapParser {
@@ -46,8 +48,8 @@ impl MbapParser {
         }
     }
 
-    // returns some header fields and the length of the ADU
-    fn parse_header(cursor: &mut ReadBuffer) -> Result<(MbapHeader, usize), RequestError> {
+    // returns some header fields and the length of the PDU
+    fn parse_header(cursor: &mut ReadBuffer) -> Result<(MbapHeader, PduLength), RequestError> {
         let tx_id = TxId::new(cursor.read_u16_be()?);
         let protocol_id = cursor.read_u16_be()?;
         let len_field = cursor.read_u16_be()?;
@@ -58,17 +60,15 @@ impl MbapParser {
             return Err(FrameParseError::UnknownProtocolId(protocol_id).into());
         }
 
-        if length > constants::MAX_LENGTH_FIELD {
-            return Err(
-                FrameParseError::FrameLengthTooBig(length, constants::MAX_LENGTH_FIELD).into(),
-            );
-        }
-
-        // The ADU length is the function code + body
+        // The PDU length is the function code + body
         // It must be > 0 b/c the 1-byte unit identifier counts towards length field
-        let adu_length = length
+        let pdu_length = length
             .checked_sub(1)
             .ok_or(FrameParseError::MbapLengthZero)?;
+        let pdu_length = PduLength::new(pdu_length).ok_or(FrameParseError::FrameLengthTooBig(
+            length,
+            constants::MAX_LENGTH_FIELD,
+        ))?;
 
         Ok((
             MbapHeader {
@@ -76,18 +76,19 @@ impl MbapParser {
                 len_field,
                 unit_id,
             },
-            adu_length,
+            pdu_length,
         ))
     }
 
     fn parse_body(
         header: &MbapHeader,
-        adu_length: usize,
+        pdu_length: PduLength,
         cursor: &mut ReadBuffer,
     ) -> Result<Frame, RequestError> {
-        let mut frame = Frame::new(FrameHeader::new_tcp_header(header.unit_id, header.tx_id));
-        frame.set(cursor.read(adu_length)?);
-        Ok(frame)
+        Ok(Frame::new(
+            FrameHeader::new_tcp_header(header.unit_id, header.tx_id),
+            pdu_length.read(cursor)?,
+        ))
     }
 
     #[cfg_attr(all(test, rodbus_no_panic), no_panic::no_panic)]
@@ -97,12 +98,12 @@ impl MbapParser {
     ) -> Result<Option<(Frame, FrameType)>, RequestError> {
         loop {
             match self.state {
-                ParseState::Header(header, adu_length) => {
-                    if cursor.len() < adu_length {
+                ParseState::Header(header, pdu_length) => {
+                    if cursor.len() < pdu_length.get() {
                         return Ok(None);
                     }
 
-                    let frame = Self::parse_body(&header, adu_length, cursor)?;
+                    let frame = Self::parse_body(&header, pdu_length, cursor)?;
                     self.state = ParseState::Begin;
                     return Ok(Some((frame, FrameType::Mbap(header))));
                 }
@@ -111,8 +112,8 @@ impl MbapParser {
                         return Ok(None);
                     }
 
-                    let (header, adu_len) = Self::parse_header(cursor)?;
-                    self.state = ParseState::Header(header, adu_len);
+                    let (header, pdu_length) = Self::parse_header(cursor)?;
+                    self.state = ParseState::Header(header, pdu_length);
                 }
             }
         }

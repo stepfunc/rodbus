@@ -6,7 +6,7 @@
 
 use crate::common::buffer::ReadBuffer;
 use crate::common::frame::{
-    Frame, FrameDestination, FrameHeader, FrameInfo, FrameType, FunctionField,
+    Frame, FrameDestination, FrameHeader, FrameInfo, FrameType, FunctionField, PduLength,
 };
 use crate::common::function::FunctionCode;
 use crate::common::traits::Serialize;
@@ -21,7 +21,7 @@ pub(crate) mod constants {
     pub(crate) const FUNCTION_CODE_LENGTH: usize = 1;
     pub(crate) const CRC_LENGTH: usize = 2;
     pub(crate) const MAX_FRAME_LENGTH: usize =
-        HEADER_LENGTH + crate::common::frame::constants::MAX_ADU_LENGTH + CRC_LENGTH;
+        HEADER_LENGTH + crate::common::frame::constants::MAX_PDU_LENGTH + CRC_LENGTH;
 }
 
 /// precomputes the CRC table as a constant!
@@ -91,9 +91,9 @@ impl RtuParser {
         Some(mode)
     }
 
-    /// The length of the frame that starts `bytes`, unit id and CRC included, or `None` until
-    /// enough of it is buffered to tell and all of it is buffered
-    fn frame_length(&self, bytes: &[u8]) -> Result<Option<usize>, FrameParseError> {
+    /// The length of the PDU of the frame that starts `bytes`, or `None` until enough of the
+    /// frame is buffered to tell and all of it is buffered
+    fn pdu_length(&self, bytes: &[u8]) -> Result<Option<PduLength>, FrameParseError> {
         let [_unit_id, function_code, body @ ..] = bytes else {
             return Ok(None);
         };
@@ -114,17 +114,15 @@ impl RtuParser {
             },
         };
 
-        if pdu_length > crate::common::frame::constants::MAX_ADU_LENGTH {
-            return Err(FrameParseError::FrameLengthTooBig(
-                pdu_length,
-                crate::common::frame::constants::MAX_ADU_LENGTH,
-            ));
-        }
+        let pdu_length = PduLength::new(pdu_length).ok_or(FrameParseError::FrameLengthTooBig(
+            pdu_length,
+            crate::common::frame::constants::MAX_PDU_LENGTH,
+        ))?;
 
         let frame_length = constants::HEADER_LENGTH
-            .saturating_add(pdu_length)
+            .saturating_add(pdu_length.get())
             .saturating_add(constants::CRC_LENGTH);
-        Ok((bytes.len() >= frame_length).then_some(frame_length))
+        Ok((bytes.len() >= frame_length).then_some(pdu_length))
     }
 
     /// Read the frame at the start of the buffer, consuming it once it is complete
@@ -133,37 +131,32 @@ impl RtuParser {
         &self,
         cursor: &mut ReadBuffer,
     ) -> Result<Option<(Frame, FrameType)>, RequestError> {
-        let Some(frame_length) = self.frame_length(cursor.peek())? else {
+        let Some(pdu_length) = self.pdu_length(cursor.peek())? else {
             return Ok(None);
         };
 
-        let (adu, received_crc) = cursor.read(frame_length)?.split_last_chunk().ok_or(
-            InternalError::InsufficientBytesForRead(constants::CRC_LENGTH, 0),
-        )?;
-        let received_crc = u16::from_le_bytes(*received_crc);
-        let expected_crc = CRC.checksum(adu);
-        if received_crc != expected_crc {
-            return Err(RequestError::BadFrame(
-                FrameParseError::CrcValidationFailure(received_crc, expected_crc),
-            ));
-        }
-
-        let (unit_id, pdu) = adu
-            .split_first()
-            .ok_or(InternalError::InsufficientBytesForRead(1, 0))?;
-        let unit_id = UnitId::new(*unit_id);
+        // the whole frame is buffered, so the reads below all succeed and consume all of it,
+        // even when its CRC is wrong
+        let unit_id = UnitId::new(cursor.read_u8()?);
         let destination = if unit_id == UnitId::broadcast() {
             FrameDestination::Broadcast
         } else {
             FrameDestination::UnitId(unit_id)
         };
+        let frame = Frame::new(
+            FrameHeader::new_rtu_header(destination),
+            pdu_length.read(cursor)?,
+        );
+        let received_crc = u16::from_le_bytes([cursor.read_u8()?, cursor.read_u8()?]);
 
-        let mut frame = Frame::new(FrameHeader::new_rtu_header(destination));
-        if !frame.set(pdu) {
-            return Err(RequestError::Internal(InternalError::FrameTooBig(
-                pdu.len(),
-                crate::common::frame::constants::MAX_ADU_LENGTH,
-            )));
+        let mut digest = CRC.digest();
+        digest.update(&[unit_id.value]);
+        digest.update(frame.payload());
+        let expected_crc = digest.finalize();
+        if received_crc != expected_crc {
+            return Err(RequestError::BadFrame(
+                FrameParseError::CrcValidationFailure(received_crc, expected_crc),
+            ));
         }
 
         Ok(Some((frame, FrameType::Rtu(destination, received_crc))))
