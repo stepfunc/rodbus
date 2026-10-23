@@ -5,8 +5,8 @@
 // Directive (EU) 2019/790 Art. 4(3), subject to LICENSE.txt Section 3.3.
 
 use crate::client::message::{Command, Promise, RequestDetails, Setting};
-use crate::client::requests::read_bits::ReadBits;
-use crate::client::requests::read_registers::ReadRegisters;
+use crate::client::requests::read_bits::{self, ReadBits};
+use crate::client::requests::read_registers::{self, ReadRegisters};
 use crate::client::requests::write_multiple::MultipleWriteRequest;
 use crate::client::requests::write_single::SingleWrite;
 use crate::client::{Channel, RequestParam, WriteMultiple};
@@ -78,7 +78,9 @@ impl FfiChannel {
     where
         C: FnOnce(Result<BitIterator, RequestError>) + Send + Sync + 'static,
     {
-        self.read_bits(param, range, callback, RequestDetails::ReadCoils)
+        self.read(param, range.of_read_bits(), |range| {
+            RequestDetails::ReadCoils(ReadBits::new(range, read_bits::Promise::new(callback)))
+        })
     }
 
     /// Read discrete inputs from the server
@@ -94,7 +96,12 @@ impl FfiChannel {
     where
         C: FnOnce(Result<BitIterator, RequestError>) + Send + Sync + 'static,
     {
-        self.read_bits(param, range, callback, RequestDetails::ReadDiscreteInputs)
+        self.read(param, range.of_read_bits(), |range| {
+            RequestDetails::ReadDiscreteInputs(ReadBits::new(
+                range,
+                read_bits::Promise::new(callback),
+            ))
+        })
     }
 
     /// Read holding registers from the server
@@ -110,7 +117,12 @@ impl FfiChannel {
     where
         C: FnOnce(Result<RegisterIterator, RequestError>) + Send + Sync + 'static,
     {
-        self.read_registers(param, range, callback, RequestDetails::ReadHoldingRegisters)
+        self.read(param, range.of_read_registers(), |range| {
+            RequestDetails::ReadHoldingRegisters(ReadRegisters::new(
+                range,
+                read_registers::Promise::new(callback),
+            ))
+        })
     }
 
     /// Read input registers from the server
@@ -126,7 +138,12 @@ impl FfiChannel {
     where
         C: FnOnce(Result<RegisterIterator, RequestError>) + Send + Sync + 'static,
     {
-        self.read_registers(param, range, callback, RequestDetails::ReadInputRegisters)
+        self.read(param, range.of_read_registers(), |range| {
+            RequestDetails::ReadInputRegisters(ReadRegisters::new(
+                range,
+                read_registers::Promise::new(callback),
+            ))
+        })
     }
 
     /// Write a single coil to the server
@@ -199,42 +216,16 @@ impl FfiChannel {
         ))
     }
 
-    fn read_bits<C, W>(
+    /// Queue a read once its range is valid. The callback only becomes a promise, which completes
+    /// it however the request ends, inside `request`, so a rejected range never calls it.
+    fn read<R>(
         &mut self,
         param: RequestParam,
-        range: AddressRange,
-        callback: C,
-        wrap_req: W,
-    ) -> Result<(), FfiChannelError>
-    where
-        C: FnOnce(Result<BitIterator, RequestError>) + Send + Sync + 'static,
-        W: Fn(ReadBits) -> RequestDetails,
-    {
-        let range = range.of_read_bits()?;
-        let promise = crate::client::requests::read_bits::Promise::new(callback);
-        self.send(crate::client::channel::wrap(
-            param,
-            wrap_req(ReadBits::new(range, promise)),
-        ))
-    }
-
-    fn read_registers<C, W>(
-        &mut self,
-        param: RequestParam,
-        range: AddressRange,
-        callback: C,
-        wrap_req: W,
-    ) -> Result<(), FfiChannelError>
-    where
-        C: FnOnce(Result<RegisterIterator, RequestError>) + Send + Sync + 'static,
-        W: Fn(ReadRegisters) -> RequestDetails,
-    {
-        let promise = crate::client::requests::read_registers::Promise::new(callback);
-        let range = range.of_read_registers()?;
-        self.send(crate::client::channel::wrap(
-            param,
-            wrap_req(ReadRegisters::new(range, promise)),
-        ))
+        range: Result<R, InvalidRange>,
+        request: impl FnOnce(R) -> RequestDetails,
+    ) -> Result<(), FfiChannelError> {
+        let range = range?;
+        self.send(crate::client::channel::wrap(param, request(range)))
     }
 
     fn send(&mut self, command: Command) -> Result<(), FfiChannelError> {
@@ -579,8 +570,10 @@ mod tests {
     }
 
     #[test]
-    fn bad_bit_read_ranges_are_rejected_before_queueing_without_a_callback() {
-        let cases = [
+    fn bad_read_ranges_are_rejected_before_queueing_without_a_callback() {
+        let (mut channel, mut rx) = channel(1);
+
+        let bit_cases = [
             (range(0, 0), InvalidRange::CountOfZero),
             (range(0xFFFF, 2), InvalidRange::AddressOverflow(0xFFFF, 2)),
             (
@@ -588,9 +581,7 @@ mod tests {
                 InvalidRange::CountTooLargeForType(2001, 2000),
             ),
         ];
-        let (mut channel, mut rx) = channel(1);
-
-        for (range, err) in cases {
+        for (range, err) in bit_cases {
             let bits = Completions::new();
             assert_eq!(
                 outcome(channel.read_coils(param(), range, bits.bits())),
@@ -602,6 +593,25 @@ mod tests {
             );
             assert_eq!(bits.take(), []);
         }
+
+        let register_cases = [
+            (range(0, 0), InvalidRange::CountOfZero),
+            (range(0xFFFF, 2), InvalidRange::AddressOverflow(0xFFFF, 2)),
+            (range(0, 126), InvalidRange::CountTooLargeForType(126, 125)),
+        ];
+        for (range, err) in register_cases {
+            let registers = Completions::new();
+            assert_eq!(
+                outcome(channel.read_holding_registers(param(), range, registers.registers())),
+                Err(Rejected::BadRange(err))
+            );
+            assert_eq!(
+                outcome(channel.read_input_registers(param(), range, registers.registers())),
+                Err(Rejected::BadRange(err))
+            );
+            assert_eq!(registers.take(), []);
+        }
+
         assert_eq!(rx.try_recv().err(), Some(TryRecvError::Empty));
     }
 }
