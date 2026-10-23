@@ -86,12 +86,11 @@ impl OpenPort {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, unix))]
 mod tests {
     use super::*;
 
     /// A pseudo-terminal's other end is a real port that `open` can reach by its path
-    #[cfg(unix)]
     #[tokio::test]
     async fn open_keeps_the_configured_baud_rate() {
         use tokio_serial::SerialPort;
