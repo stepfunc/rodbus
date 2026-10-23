@@ -4,7 +4,7 @@
 // Text and data mining rights, including for AI training, are reserved under
 // Directive (EU) 2019/790 Art. 4(3), subject to LICENSE.txt Section 3.3.
 
-use crate::common::frame::{FrameHeader, FrameWriter, FunctionField};
+use crate::common::frame::{ExceptionFor, FrameHeader, FrameWriter};
 use crate::common::function::FunctionCode;
 use crate::common::traits::{Loggable, Serialize};
 use crate::decode::AppDecodeLevel;
@@ -23,33 +23,39 @@ pub(crate) enum Request<'a> {
     ReadDiscreteInputs(ReadBitsRange),
     ReadHoldingRegisters(ReadRegistersRange),
     ReadInputRegisters(ReadRegistersRange),
-    WriteSingleCoil(Indexed<bool>),
-    WriteSingleRegister(Indexed<u16>),
-    WriteMultipleCoils(WriteCoils<'a>),
-    WriteMultipleRegisters(WriteRegisters<'a>),
+    Write(WriteRequest<'a>),
 }
 
-/// The requests that can be broadcast: the writes
-#[cfg(feature = "serial")]
+/// The requests that write, which are the only ones that can be broadcast
 #[derive(Debug)]
-pub(crate) enum BroadcastWrite<'a> {
+pub(crate) enum WriteRequest<'a> {
     SingleCoil(Indexed<bool>),
     SingleRegister(Indexed<u16>),
     MultipleCoils(WriteCoils<'a>),
     MultipleRegisters(WriteRegisters<'a>),
 }
 
-#[cfg(feature = "serial")]
-impl<'a> BroadcastWrite<'a> {
-    /// Execute a broadcast write against the handler; nothing replies to a broadcast, so an
-    /// exception from the handler goes nowhere
-    pub(crate) fn execute<T: RequestHandler>(&self, handler: &mut T) {
-        let _: Result<(), ExceptionCode> = match self {
-            BroadcastWrite::SingleCoil(x) => handler.write_single_coil(*x),
-            BroadcastWrite::SingleRegister(x) => handler.write_single_register(*x),
-            BroadcastWrite::MultipleCoils(x) => handler.write_multiple_coils(*x),
-            BroadcastWrite::MultipleRegisters(x) => handler.write_multiple_registers(*x),
-        };
+impl WriteRequest<'_> {
+    pub(crate) fn get_function(&self) -> FunctionCode {
+        match self {
+            WriteRequest::SingleCoil(_) => FunctionCode::WriteSingleCoil,
+            WriteRequest::SingleRegister(_) => FunctionCode::WriteSingleRegister,
+            WriteRequest::MultipleCoils(_) => FunctionCode::WriteMultipleCoils,
+            WriteRequest::MultipleRegisters(_) => FunctionCode::WriteMultipleRegisters,
+        }
+    }
+
+    /// Makes the write through the handler, the only place a write reaches it
+    pub(crate) fn execute<T: RequestHandler + ?Sized>(
+        &self,
+        handler: &mut T,
+    ) -> Result<(), ExceptionCode> {
+        match self {
+            WriteRequest::SingleCoil(x) => handler.write_single_coil(*x),
+            WriteRequest::SingleRegister(x) => handler.write_single_register(*x),
+            WriteRequest::MultipleCoils(x) => handler.write_multiple_coils(*x),
+            WriteRequest::MultipleRegisters(x) => handler.write_multiple_registers(*x),
+        }
     }
 }
 
@@ -60,24 +66,7 @@ impl<'a> Request<'a> {
             Request::ReadDiscreteInputs(_) => FunctionCode::ReadDiscreteInputs,
             Request::ReadHoldingRegisters(_) => FunctionCode::ReadHoldingRegisters,
             Request::ReadInputRegisters(_) => FunctionCode::ReadInputRegisters,
-            Request::WriteSingleCoil(_) => FunctionCode::WriteSingleCoil,
-            Request::WriteSingleRegister(_) => FunctionCode::WriteSingleRegister,
-            Request::WriteMultipleCoils(_) => FunctionCode::WriteMultipleCoils,
-            Request::WriteMultipleRegisters(_) => FunctionCode::WriteMultipleRegisters,
-        }
-    }
-
-    #[cfg(feature = "serial")]
-    pub(crate) fn into_broadcast_write(self) -> Option<BroadcastWrite<'a>> {
-        match self {
-            Request::ReadCoils(_) => None,
-            Request::ReadDiscreteInputs(_) => None,
-            Request::ReadHoldingRegisters(_) => None,
-            Request::ReadInputRegisters(_) => None,
-            Request::WriteSingleCoil(x) => Some(BroadcastWrite::SingleCoil(x)),
-            Request::WriteSingleRegister(x) => Some(BroadcastWrite::SingleRegister(x)),
-            Request::WriteMultipleCoils(x) => Some(BroadcastWrite::MultipleCoils(x)),
-            Request::WriteMultipleRegisters(x) => Some(BroadcastWrite::MultipleRegisters(x)),
+            Request::Write(write) => write.get_function(),
         }
     }
 
@@ -100,7 +89,7 @@ impl<'a> Request<'a> {
         {
             match result {
                 Ok(response) => writer.format_reply(header, function, &response, level),
-                Err(ex) => writer.format_ex(header, FunctionField::Exception(function), ex, level),
+                Err(ex) => writer.format_ex(header, ExceptionFor::Function(function), ex, level),
             }
         }
 
@@ -124,23 +113,21 @@ impl<'a> Request<'a> {
                 let registers = RegisterWriter::new(*range, |i| handler.read_input_register(i));
                 writer.format_reply(header, function, &registers, level)
             }
-            Request::WriteSingleCoil(request) => {
-                let result = handler.write_single_coil(*request).map(|_| *request);
-                write_result(function, header, writer, result, level)
-            }
-            Request::WriteSingleRegister(request) => {
-                let result = handler.write_single_register(*request).map(|_| *request);
-                write_result(function, header, writer, result, level)
-            }
-            Request::WriteMultipleCoils(items) => {
-                let result = handler.write_multiple_coils(*items).map(|_| items.range);
-                write_result(function, header, writer, result, level)
-            }
-            Request::WriteMultipleRegisters(items) => {
-                let result = handler
-                    .write_multiple_registers(*items)
-                    .map(|_| items.range);
-                write_result(function, header, writer, result, level)
+            // a successful write is answered with what it wrote
+            Request::Write(write) => {
+                let result = write.execute(handler);
+                match write {
+                    WriteRequest::SingleCoil(x) => {
+                        write_result(function, header, writer, result.map(|_| *x), level)
+                    }
+                    WriteRequest::SingleRegister(x) => {
+                        write_result(function, header, writer, result.map(|_| *x), level)
+                    }
+                    WriteRequest::MultipleCoils(WriteCoils { range, .. })
+                    | WriteRequest::MultipleRegisters(WriteRegisters { range, .. }) => {
+                        write_result(function, header, writer, result.map(|_| *range), level)
+                    }
+                }
             }
         }
     }
@@ -172,16 +159,18 @@ impl<'a> Request<'a> {
                 let index = cursor.read_u16_be()?;
                 let value = cursor.read_u16_be()?;
                 cursor.expect_empty()?;
-                Ok(Request::WriteSingleCoil(Indexed::new(
+                Ok(Request::Write(WriteRequest::SingleCoil(Indexed::new(
                     index,
                     coil_from_u16(value)?,
-                )))
+                ))))
             }
             FunctionCode::WriteSingleRegister => {
                 let index = cursor.read_u16_be()?;
                 let value = cursor.read_u16_be()?;
                 cursor.expect_empty()?;
-                Ok(Request::WriteSingleRegister(Indexed::new(index, value)))
+                Ok(Request::Write(WriteRequest::SingleRegister(Indexed::new(
+                    index, value,
+                ))))
             }
             FunctionCode::WriteMultipleCoils => {
                 let unchecked = decode_range(cursor)?;
@@ -189,9 +178,8 @@ impl<'a> Request<'a> {
                 // quantity is checked
                 let values =
                     BitIterator::parse_counted(unchecked, cursor).map_err(Rejection::Value)?;
-                Ok(Request::WriteMultipleCoils(WriteCoils::new(
-                    unchecked.of_write_coils()?,
-                    values,
+                Ok(Request::Write(WriteRequest::MultipleCoils(
+                    WriteCoils::new(unchecked.of_write_coils()?, values),
                 )))
             }
             FunctionCode::WriteMultipleRegisters => {
@@ -200,9 +188,8 @@ impl<'a> Request<'a> {
                 // quantity is checked
                 let values =
                     RegisterIterator::parse_counted(unchecked, cursor).map_err(Rejection::Value)?;
-                Ok(Request::WriteMultipleRegisters(WriteRegisters::new(
-                    unchecked.of_write_registers()?,
-                    values,
+                Ok(Request::Write(WriteRequest::MultipleRegisters(
+                    WriteRegisters::new(unchecked.of_write_registers()?, values),
                 )))
             }
         }
@@ -313,20 +300,20 @@ impl std::fmt::Display for RequestDisplay<'_, '_> {
                 Request::ReadInputRegisters(range) => {
                     write!(f, " {}", range.get())?;
                 }
-                Request::WriteSingleCoil(request) => {
+                Request::Write(WriteRequest::SingleCoil(request)) => {
                     write!(f, " {request}")?;
                 }
-                Request::WriteSingleRegister(request) => {
+                Request::Write(WriteRequest::SingleRegister(request)) => {
                     write!(f, " {request}")?;
                 }
-                Request::WriteMultipleCoils(items) => {
+                Request::Write(WriteRequest::MultipleCoils(items)) => {
                     write!(
                         f,
                         " {}",
                         BitIteratorDisplay::new(self.level, items.iterator)
                     )?;
                 }
-                Request::WriteMultipleRegisters(items) => {
+                Request::Write(WriteRequest::MultipleRegisters(items)) => {
                     write!(
                         f,
                         " {}",
@@ -385,8 +372,8 @@ mod tests {
         /// The range of a write `Request::parse` accepts, or `None` if it refuses it
         fn written_range(function: FunctionCode, body: &[u8]) -> Option<AddressRange> {
             match Request::parse(function, &mut ReadCursor::new(body)) {
-                Ok(Request::WriteMultipleCoils(write)) => Some(write.range),
-                Ok(Request::WriteMultipleRegisters(write)) => Some(write.range),
+                Ok(Request::Write(WriteRequest::MultipleCoils(write))) => Some(write.range),
+                Ok(Request::Write(WriteRequest::MultipleRegisters(write))) => Some(write.range),
                 _ => None,
             }
         }
@@ -605,7 +592,7 @@ mod tests {
             let mut cursor = ReadCursor::new(&[0x00, 0x01, 0x00, 0x03, 0x01, 0x05]);
             let coils = match Request::parse(FunctionCode::WriteMultipleCoils, &mut cursor).unwrap()
             {
-                Request::WriteMultipleCoils(write) => write,
+                Request::Write(WriteRequest::MultipleCoils(write)) => write,
                 _ => panic!("bad match"),
             };
 
@@ -687,7 +674,7 @@ mod tests {
                 ReadCursor::new(&[0x00, 0x01, 0x00, 0x02, 0x04, 0xCA, 0xFE, 0xBB, 0xDD]);
             let registers =
                 match Request::parse(FunctionCode::WriteMultipleRegisters, &mut cursor).unwrap() {
-                    Request::WriteMultipleRegisters(write) => write,
+                    Request::Write(WriteRequest::MultipleRegisters(write)) => write,
                     _ => panic!("bad match"),
                 };
 
@@ -798,12 +785,16 @@ mod tests {
                     Request::ReadInputRegisters(range) => {
                         Parsed::Read(FunctionCode::ReadInputRegisters, range.get())
                     }
-                    Request::WriteSingleCoil(value) => Parsed::WriteSingleCoil(value),
-                    Request::WriteSingleRegister(value) => Parsed::WriteSingleRegister(value),
-                    Request::WriteMultipleCoils(write) => {
+                    Request::Write(WriteRequest::SingleCoil(value)) => {
+                        Parsed::WriteSingleCoil(value)
+                    }
+                    Request::Write(WriteRequest::SingleRegister(value)) => {
+                        Parsed::WriteSingleRegister(value)
+                    }
+                    Request::Write(WriteRequest::MultipleCoils(write)) => {
                         Parsed::WriteMultipleCoils(write.range, write.iterator.collect())
                     }
-                    Request::WriteMultipleRegisters(write) => {
+                    Request::Write(WriteRequest::MultipleRegisters(write)) => {
                         Parsed::WriteMultipleRegisters(write.range, write.iterator.collect())
                     }
                 }

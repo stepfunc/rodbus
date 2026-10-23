@@ -11,12 +11,14 @@ use crate::server::AuthorizationHandler;
 use crate::{DecodeLevel, UnitId};
 
 use crate::common::frame::{
-    Frame, FrameDestination, FrameHeader, FrameWriter, FramedReader, FunctionField,
+    ExceptionFor, Frame, FrameDestination, FrameHeader, FrameWriter, FramedReader,
 };
 use crate::common::function::FunctionCode;
 use crate::error::*;
 use crate::exception::ExceptionCode;
 use crate::server::handler::{lock_handler, RequestHandler, ServerHandlerMap};
+#[cfg(feature = "enable-tls")]
+use crate::server::request::WriteRequest;
 use crate::server::request::{Request, RequestDisplay};
 
 use scursor::ReadCursor;
@@ -165,15 +167,16 @@ where
                 else {
                     return Ok(());
                 };
-                let function = request.get_function();
-                match request.into_broadcast_write() {
-                    None => {
-                        tracing::warn!("broadcast is not supported for {}", function);
-                    }
-                    Some(request) => {
+                match request {
+                    // nothing replies to a broadcast, so an exception from a handler goes nowhere
+                    Request::Write(write) => {
                         for handler in self.handlers.iter_mut() {
-                            request.execute(lock_handler(handler).as_mut());
+                            let _: Result<(), ExceptionCode> =
+                                write.execute(lock_handler(handler).as_mut());
                         }
+                    }
+                    read => {
+                        tracing::warn!("broadcast is not supported for {}", read.get_function());
                     }
                 }
             }
@@ -188,7 +191,7 @@ enum Refusal {
     /// The frame holds no function code, so there is nothing to answer
     Empty,
     /// Answered, unless broadcast, with this exception
-    Exception(FunctionField, ExceptionCode),
+    Exception(ExceptionFor, ExceptionCode),
 }
 
 /// Parses the request in a frame's `pdu`, addressed to `unit_id`, and checks that it's authorized
@@ -205,7 +208,7 @@ fn accept<'a>(
     let Some(function) = FunctionCode::get(value) else {
         tracing::warn!("received unknown function code: {}", value);
         return Err(Refusal::Exception(
-            FunctionField::unknown(value),
+            ExceptionFor::Unknown(value),
             ExceptionCode::IllegalFunction,
         ));
     };
@@ -215,7 +218,7 @@ fn accept<'a>(
         Err(rejection) => {
             tracing::warn!("error parsing {:?} request: {}", function, rejection);
             return Err(Refusal::Exception(
-                FunctionField::Exception(function),
+                ExceptionFor::Function(function),
                 rejection.exception(),
             ));
         }
@@ -228,7 +231,7 @@ fn accept<'a>(
     match auth.is_authorized(unit_id, &request) {
         Authorization::Allow => Ok(request),
         Authorization::Deny => Err(Refusal::Exception(
-            FunctionField::Exception(function),
+            ExceptionFor::Function(function),
             ExceptionCode::IllegalFunction,
         )),
     }
@@ -258,14 +261,18 @@ impl AuthorizationType {
                 handler.read_holding_registers(unit_id, x.get(), role)
             }
             Request::ReadInputRegisters(x) => handler.read_input_registers(unit_id, x.get(), role),
-            Request::WriteSingleCoil(x) => handler.write_single_coil(unit_id, x.index, role),
-            Request::WriteSingleRegister(x) => {
-                handler.write_single_register(unit_id, x.index, role)
-            }
-            Request::WriteMultipleCoils(x) => handler.write_multiple_coils(unit_id, x.range, role),
-            Request::WriteMultipleRegisters(x) => {
-                handler.write_multiple_registers(unit_id, x.range, role)
-            }
+            Request::Write(write) => match write {
+                WriteRequest::SingleCoil(x) => handler.write_single_coil(unit_id, x.index, role),
+                WriteRequest::SingleRegister(x) => {
+                    handler.write_single_register(unit_id, x.index, role)
+                }
+                WriteRequest::MultipleCoils(x) => {
+                    handler.write_multiple_coils(unit_id, x.range, role)
+                }
+                WriteRequest::MultipleRegisters(x) => {
+                    handler.write_multiple_registers(unit_id, x.range, role)
+                }
+            },
         }
     }
 
