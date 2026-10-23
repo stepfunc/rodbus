@@ -99,7 +99,10 @@ impl<T: RequestHandler> ServerTask<T> {
 }
 
 impl ServerHandle {
-    fn new(tx: tokio::sync::mpsc::Sender<ServerCommand>, shutdown: ShutdownHandle) -> Self {
+    pub(crate) fn new(
+        tx: tokio::sync::mpsc::Sender<ServerCommand>,
+        shutdown: ShutdownHandle,
+    ) -> Self {
         ServerHandle { tx, shutdown }
     }
 
