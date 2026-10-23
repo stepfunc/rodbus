@@ -542,7 +542,7 @@ mod tests {
 
         // now drop the task
         task.abort();
-        assert!(task.await.is_err());
+        assert!(task.await.unwrap_err().is_cancelled());
 
         // the promise will get dropped causing the request to fail with Shutdown
         let res = request_task.await.unwrap();
@@ -714,7 +714,7 @@ mod tests {
             other => panic!("Expected Read after providing response, got {:?}", other),
         }
 
-        assert!(success_task.await.unwrap().is_ok());
+        success_task.await.unwrap().unwrap();
 
         // Two more timeouts - should NOT terminate since counter was reset
         for _ in 0..2 {
@@ -878,7 +878,7 @@ mod tests {
             let mut phys = PhysLayer::new_duplex(first);
             let ended = client_loop.run(&mut phys).await;
             let (second, second_peer) = tokio::io::duplex(64);
-            let _ = ended_tx.send((ended, second_peer));
+            ended_tx.send((ended, second_peer)).ok();
             let mut phys = PhysLayer::new_duplex(second);
             client_loop.run(&mut phys).await
         });

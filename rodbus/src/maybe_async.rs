@@ -23,6 +23,12 @@ pub struct MaybeAsync<T> {
     inner: Value<T>,
 }
 
+impl<T> std::fmt::Debug for MaybeAsync<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("MaybeAsync").finish_non_exhaustive()
+    }
+}
+
 impl<T> MaybeAsync<T> {
     /// Retrieve the value, which might be available immediately or require awaiting
     pub async fn get(self) -> T {

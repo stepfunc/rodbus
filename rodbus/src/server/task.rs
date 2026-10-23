@@ -5,7 +5,9 @@
 // Directive (EU) 2019/790 Art. 4(3), subject to LICENSE.txt Section 3.3.
 
 use crate::common::phys::PhysLayer;
-use crate::server::{Authorization, AuthorizationHandler};
+use crate::server::Authorization;
+#[cfg(feature = "enable-tls")]
+use crate::server::AuthorizationHandler;
 use crate::{DecodeLevel, UnitId};
 
 use crate::common::frame::{
@@ -18,6 +20,7 @@ use crate::server::handler::{lock_handler, RequestHandler, ServerHandlerMap};
 use crate::server::request::{Request, RequestDisplay};
 
 use scursor::ReadCursor;
+#[cfg(feature = "enable-tls")]
 use std::sync::Arc;
 
 /// Commands that can be sent to a running server task
@@ -224,7 +227,7 @@ where
                 )?;
                 io.write(reply, self.decode.physical).await?;
             }
-            FrameDestination::Broadcast => match request.into_broadcast_request() {
+            FrameDestination::Broadcast => match request.into_broadcast_write() {
                 None => {
                     tracing::warn!("broadcast is not supported for {}", function);
                 }
@@ -244,12 +247,13 @@ where
 pub(crate) enum AuthorizationType {
     /// Requests do not require authorization checks (TCP / RTU)
     None,
-    /// Requests are authorized using a user-supplied handler
-    #[allow(dead_code)] // when tls feature is disabled
+    /// Requests are authorized using a user-supplied handler (TLS)
+    #[cfg(feature = "enable-tls")]
     Handler(Arc<dyn AuthorizationHandler>, String),
 }
 
 impl AuthorizationType {
+    #[cfg(feature = "enable-tls")]
     fn check_authorization(
         handler: &dyn AuthorizationHandler,
         unit_id: UnitId,
@@ -275,9 +279,10 @@ impl AuthorizationType {
     }
 
     pub(crate) fn is_authorized(&self, unit_id: UnitId, request: &Request) -> Authorization {
-        match self {
-            AuthorizationType::None => Authorization::Allow,
-            AuthorizationType::Handler(handler, role) => {
+        match (self, unit_id, request) {
+            (AuthorizationType::None, _, _) => Authorization::Allow,
+            #[cfg(feature = "enable-tls")]
+            (AuthorizationType::Handler(handler, role), unit_id, request) => {
                 let result = Self::check_authorization(handler.as_ref(), unit_id, request, role);
                 if let Authorization::Deny = result {
                     tracing::warn!(
@@ -294,7 +299,7 @@ impl AuthorizationType {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Mutex;
+    use std::sync::{Arc, Mutex};
 
     use super::*;
     use crate::common::frame::{FrameWriter, FramedReader};
@@ -425,10 +430,10 @@ mod tests {
     }
 
     /// Refuses every request
-    #[cfg(feature = "serial")]
+    #[cfg(all(feature = "serial", feature = "enable-tls"))]
     struct DenyAll;
 
-    #[cfg(feature = "serial")]
+    #[cfg(all(feature = "serial", feature = "enable-tls"))]
     impl AuthorizationHandler for DenyAll {}
 
     /// A session serving `units` over a pipe; returns the peer and the handlers' calls
@@ -649,7 +654,7 @@ mod tests {
         .await;
     }
 
-    #[cfg(feature = "serial")]
+    #[cfg(all(feature = "serial", feature = "enable-tls"))]
     #[tokio::test]
     async fn a_refused_rtu_broadcast_gets_no_reply_and_a_refused_request_gets_an_exception() {
         crate::common::test_support::watchdog(async {

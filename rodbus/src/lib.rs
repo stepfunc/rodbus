@@ -5,8 +5,8 @@
 // Directive (EU) 2019/790 Art. 4(3), subject to LICENSE.txt Section 3.3.
 
 #![doc = include_str!("../README.md")]
-// deny unwrap, expect, the panic macros, indexing, unchecked arithmetic and as conversions;
-// clippy.toml allows unwrap, expect, panic and indexing in test code
+// deny unwrap, expect, the panic macros, indexing, unchecked arithmetic, as conversions, output
+// and discarded values; clippy.toml allows unwrap, expect, panic and indexing in test code
 #![deny(
     clippy::unwrap_used,
     clippy::expect_used,
@@ -18,7 +18,26 @@
     clippy::todo,
     clippy::unimplemented,
     clippy::panic_in_result_fn,
-    clippy::unwrap_in_result
+    clippy::unwrap_in_result,
+    clippy::string_slice,
+    clippy::exit,
+    clippy::mem_forget,
+    clippy::print_stdout,
+    clippy::print_stderr,
+    clippy::dbg_macro,
+    clippy::infinite_loop,
+    clippy::large_futures,
+    clippy::large_stack_arrays,
+    clippy::iter_over_hash_type,
+    clippy::float_cmp,
+    clippy::lossy_float_literal,
+    clippy::assertions_on_result_states,
+    clippy::let_underscore_untyped,
+    clippy::let_underscore_future,
+    let_underscore_drop,
+    clippy::allow_attributes,
+    clippy::allow_attributes_without_reason,
+    missing_debug_implementations
 )]
 //! # Example Client
 //!

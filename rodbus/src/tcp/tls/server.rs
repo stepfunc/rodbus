@@ -23,6 +23,12 @@ pub struct TlsServerConfig {
     inner: Arc<rustls::ServerConfig>,
 }
 
+impl std::fmt::Debug for TlsServerConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("TlsServerConfig").finish_non_exhaustive()
+    }
+}
+
 impl TlsServerConfig {
     /// Create a TLS server config
     pub fn new(

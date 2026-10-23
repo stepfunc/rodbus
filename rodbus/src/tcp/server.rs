@@ -290,7 +290,7 @@ where
             shutdown.run_until_cancelled(task.run(&mut phys)).await;
 
             // unless the server ended the session, tell it the session is over
-            let _ = notify_close.send(SessionClose(id)).await;
+            notify_close.send(SessionClose(id)).await.ok();
 
             tracing::info!("session shutdown");
         };
@@ -665,7 +665,8 @@ mod tests {
             )
             .await;
 
-            assert!(served.is_err());
+            // the wait timed out
+            served.unwrap_err();
             assert_eq!(
                 commands.try_recv().err(),
                 Some(tokio::sync::mpsc::error::TryRecvError::Empty)

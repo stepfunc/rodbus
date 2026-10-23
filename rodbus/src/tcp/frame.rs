@@ -284,7 +284,7 @@ mod tests {
         let msg = MockBody {
             body: &[0xCA, 0xFE],
         };
-        let _ = format_mbap(
+        format_mbap(
             &mut cursor,
             UnitId::new(42),
             TxId::new(7),

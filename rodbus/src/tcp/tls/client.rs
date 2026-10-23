@@ -30,6 +30,14 @@ pub struct TlsClientConfig {
     config: Arc<rustls::ClientConfig>,
 }
 
+impl std::fmt::Debug for TlsClientConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("TlsClientConfig")
+            .field("server_name", &self.server_name)
+            .finish_non_exhaustive()
+    }
+}
+
 pub(crate) fn spawn_tls_channel(
     host: HostAddr,
     connect_retry: Box<dyn RetryStrategy>,
