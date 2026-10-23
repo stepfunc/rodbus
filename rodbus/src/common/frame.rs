@@ -481,3 +481,25 @@ impl FramedReader {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn set_refuses_a_pdu_longer_than_the_largest_and_keeps_the_frame() {
+        let mut frame = Frame::new(FrameHeader::new_tcp_header(UnitId::new(1), TxId::new(7)));
+        assert!(frame.set(&[0x03, 0x02, 0x00, 0x10]));
+        assert!(!frame.set(&[0xAA; constants::MAX_ADU_LENGTH + 1]));
+        assert_eq!(frame.payload(), [0x03, 0x02, 0x00, 0x10]);
+    }
+
+    #[test]
+    fn set_takes_a_pdu_of_the_largest_length() {
+        let mut frame = Frame::new(FrameHeader::new_tcp_header(UnitId::new(1), TxId::new(7)));
+        assert!(frame.set(&[0xAA; constants::MAX_ADU_LENGTH]));
+        assert_eq!(frame.payload(), [0xAA; constants::MAX_ADU_LENGTH]);
+        assert!(frame.set(&[]));
+        assert_eq!(frame.payload(), []);
+    }
+}
