@@ -952,6 +952,44 @@ mod test {
                 &[0x04, 0x02, 0xFF, 0xFE],
                 Outcome::Registers(vec![Indexed::new(0xFFFF, 0xFFFE)]),
             ),
+            // A read's byte count must match the bytes after it (caught if the count were
+            // ignored): too few, too many, and a count with no values, for each read function;
+            // then the bytes must be what the quantity needs
+            (
+                Sent::ReadCoils { start: 1, count: 2 },
+                &[0x01, 0x00, 0b01],
+                rejected(AduParseError::InsufficientBytesForByteCount(0, 1)),
+            ),
+            (
+                Sent::ReadDiscreteInputs { start: 1, count: 2 },
+                &[0x02, 0x02, 0b01],
+                rejected(AduParseError::InsufficientBytesForByteCount(2, 1)),
+            ),
+            (
+                Sent::ReadHoldingRegisters { start: 7, count: 1 },
+                &[0x03, 0xFF, 0x12, 0x34],
+                rejected(AduParseError::InsufficientBytesForByteCount(255, 2)),
+            ),
+            (
+                Sent::ReadInputRegisters { start: 7, count: 1 },
+                &[0x04, 0x02],
+                rejected(AduParseError::InsufficientBytesForByteCount(2, 0)),
+            ),
+            (
+                Sent::ReadCoils { start: 1, count: 9 },
+                &[0x01, 0x01, 0xFF],
+                rejected(AduParseError::InsufficientBytes),
+            ),
+            (
+                Sent::ReadHoldingRegisters { start: 7, count: 1 },
+                &[0x03, 0x03, 0x12, 0x34, 0x56],
+                rejected(AduParseError::TrailingBytes(1)),
+            ),
+            (
+                Sent::ReadInputRegisters { start: 7, count: 1 },
+                &[0x04],
+                rejected(AduParseError::InsufficientBytes),
+            ),
         ]
     }
 

@@ -439,6 +439,7 @@ mod tests {
     use crate::common::test_support::with_crc;
     use crate::common::test_support::{mbap, watchdog};
     use crate::decode::AppDecodeLevel;
+    use crate::error::AduParseError;
     use crate::types::{AddressRange, UnitId};
     use crate::Indexed;
 
@@ -965,6 +966,28 @@ mod tests {
             session.send(&mbap(0, 2, &register_value(0x2222))).await;
             assert_eq!(request.await.unwrap(), Ok(vec![Indexed::new(0x10, 0x2222)]));
             assert_eq!(start.elapsed(), Duration::from_millis(100));
+        })
+        .await;
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_tcp_read_response_whose_byte_count_disagrees_with_its_values_fails_the_read() {
+        watchdog(async {
+            let (channel, mut session) = Setup::tcp().spawn();
+            let request = read_register(&channel, 1);
+            let tx_id = session.tcp_request().await;
+            // the one register, counted as three bytes
+            session
+                .send(&mbap(tx_id, 1, &[0x03, 0x03, 0x12, 0x34]))
+                .await;
+            assert_eq!(
+                request.await.unwrap(),
+                Err(RequestError::BadResponse(
+                    AduParseError::InsufficientBytesForByteCount(3, 2)
+                ))
+            );
+            // the session continues
+            a_read_of_coils_is_answered(&channel, &mut session).await;
         })
         .await;
     }

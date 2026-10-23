@@ -81,7 +81,7 @@ fn request(function: FunctionCode, pdu: &[u8]) -> bool {
     }
 }
 
-/// a read response's values as the client parses them, for a range from the input
+/// a read response's byte count and values as the client parses them, for a range from the input
 #[no_panic::no_panic]
 fn read_response(start: u16, count: u16, pdu: &[u8]) -> usize {
     let Ok(range) = AddressRange::try_from(start, count) else {
@@ -89,14 +89,14 @@ fn read_response(start: u16, count: u16, pdu: &[u8]) -> usize {
     };
     let mut values: usize = 0;
     let mut cursor = ReadCursor::new(pdu);
-    if let Ok(bits) = BitIterator::parse_all(range, &mut cursor) {
+    if let Ok(bits) = BitIterator::parse_counted(range, &mut cursor) {
         for bit in bits {
             std::hint::black_box(bit);
             values = values.saturating_add(1);
         }
     }
     let mut cursor = ReadCursor::new(pdu);
-    if let Ok(registers) = RegisterIterator::parse_all(range, &mut cursor) {
+    if let Ok(registers) = RegisterIterator::parse_counted(range, &mut cursor) {
         for register in registers {
             std::hint::black_box(register);
             values = values.saturating_add(1);

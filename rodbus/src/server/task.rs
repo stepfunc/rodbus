@@ -765,6 +765,53 @@ mod tests {
         .await;
     }
 
+    /// Multiple writes that carry every value their quantity needs, but whose byte count
+    /// disagrees with them, and their replies: 03, also when the range runs past 0xFFFF (MODBUS
+    /// Application Protocol Specification V1.1b3 6.11, 6.12)
+    ///
+    /// Only MBAP carries these: an RTU frame's length comes from its byte count.
+    const BYTE_COUNT_DISAGREES: [(&[u8], &[u8]); 5] = [
+        // eight coils from 0x20 in one byte, counted as five
+        (&[0x0F, 0x00, 0x20, 0x00, 0x08, 0x05, 0xFF], &[0x8F, 0x03]),
+        // one register at 0x20, counted as five bytes and as none
+        (
+            &[0x10, 0x00, 0x20, 0x00, 0x01, 0x05, 0x12, 0x34],
+            &[0x90, 0x03],
+        ),
+        (
+            &[0x10, 0x00, 0x20, 0x00, 0x01, 0x00, 0x12, 0x34],
+            &[0x90, 0x03],
+        ),
+        // two coils and two registers from 0xFFFF, counted one byte short and one over
+        (&[0x0F, 0xFF, 0xFF, 0x00, 0x02, 0x02, 0b11], &[0x8F, 0x03]),
+        (
+            &[0x10, 0xFF, 0xFF, 0x00, 0x02, 0x03, 0x12, 0x34, 0x56, 0x78],
+            &[0x90, 0x03],
+        ),
+    ];
+
+    #[tokio::test]
+    async fn tcp_writes_whose_byte_count_disagrees_with_their_values_are_refused_with_03() {
+        crate::common::test_support::watchdog(async {
+            let (mut peer, calls) = tcp_session(&[1]);
+            for (tx_id, (request, reply)) in (1..).zip(BYTE_COUNT_DISAGREES) {
+                assert_eq!(
+                    exchange(&mut peer, &mbap(tx_id, 1, request), 9).await,
+                    mbap(tx_id, 1, reply)
+                );
+            }
+            // the session still answers
+            let read = mbap(0x100, 1, &[0x03, 0x00, 0x10, 0x00, 0x01]);
+            assert_eq!(
+                exchange(&mut peer, &read, 11).await,
+                mbap(0x100, 1, &[0x03, 0x02, 0x01, 0x10])
+            );
+            assert_nothing_more_was_sent(peer).await;
+            assert_eq!(*calls.lock().unwrap(), [Call::Read(1, 0x10)]);
+        })
+        .await;
+    }
+
     /// A Write Multiple Coils of `count` coils from `start`, all off
     fn write_coils(start: u16, count: u16) -> Vec<u8> {
         let len = usize::from(count).div_ceil(8);
