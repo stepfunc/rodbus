@@ -183,8 +183,7 @@ impl TlsClientConfig {
         socket: S,
         endpoint: &impl std::fmt::Display,
     ) -> std::io::Result<PhysLayer> {
-        let connector = tokio_rustls::TlsConnector::from(self.config.clone());
-        match handshake(connector.connect(self.server_name.clone(), socket)).await {
+        match self.connect(socket).await {
             Err(HandshakeError::Timeout) => {
                 tracing::warn!(
                     "TLS handshake with {} didn't complete within {} seconds",
@@ -199,6 +198,18 @@ impl TlsClientConfig {
             }
             Ok(stream) => Ok(S::into_tls_phys(tokio_rustls::TlsStream::from(stream))),
         }
+    }
+
+    /// Run the client side of the TLS handshake over a connected socket
+    pub(super) async fn connect<S>(
+        &self,
+        socket: S,
+    ) -> Result<tokio_rustls::client::TlsStream<S>, HandshakeError>
+    where
+        S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin,
+    {
+        let connector = tokio_rustls::TlsConnector::from(self.config.clone());
+        handshake(connector.connect(self.server_name.clone(), socket)).await
     }
 }
 

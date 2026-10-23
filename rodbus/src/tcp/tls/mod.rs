@@ -5,6 +5,8 @@
 // Directive (EU) 2019/790 Art. 4(3), subject to LICENSE.txt Section 3.3.
 
 pub(crate) mod client;
+#[cfg(test)]
+mod handshake_tests;
 pub(crate) mod server;
 
 pub(crate) use client::*;
@@ -160,6 +162,13 @@ pub(crate) mod test_util {
             .join(name)
     }
 
+    /// One of the repository's test certificates or keys issued by its test authority
+    pub(crate) fn ca_chain(name: &str) -> PathBuf {
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../certs/ca_chain")
+            .join(name)
+    }
+
     /// The rodbus server under test presents entity1 and expects entity2
     pub(crate) fn server_config(min: MinTlsVersion) -> TlsServerConfig {
         TlsServerConfig::new(
@@ -225,21 +234,11 @@ pub(crate) mod test_util {
 
 #[cfg(test)]
 mod tests {
-    use std::future::Future;
-    use std::net::{Ipv4Addr, SocketAddr};
-    use std::sync::Arc;
     use std::time::Duration;
 
     use sfio_rustls_config::ProtocolVersions;
-    use tokio::net::{TcpListener, TcpStream};
-    use tokio_rustls::rustls;
-    use tokio_rustls::rustls::{AlertDescription, PeerIncompatible, ProtocolVersion};
 
-    use super::test_util::*;
     use super::*;
-    use crate::client::HostAddr;
-
-    const TIMEOUT: Duration = Duration::from_secs(5);
 
     #[tokio::test(start_paused = true)]
     async fn a_handshake_that_never_completes_times_out() {
@@ -249,13 +248,13 @@ mod tests {
         assert_eq!(start.elapsed(), TLS_HANDSHAKE_TIMEOUT);
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn a_failed_handshake_is_reported_at_once() {
         let start = tokio::time::Instant::now();
         let failure = std::io::ErrorKind::ConnectionReset;
         let result = handshake(async { std::io::Result::<()>::Err(failure.into()) }).await;
         assert!(matches!(result, Err(HandshakeError::Failed(err)) if err.kind() == failure));
-        assert!(start.elapsed() < TLS_HANDSHAKE_TIMEOUT);
+        assert_eq!(start.elapsed(), Duration::ZERO);
     }
 
     #[test]
@@ -272,128 +271,5 @@ mod tests {
             ProtocolVersions::from(MinTlsVersion::V1_3),
             ProtocolVersions::v13_only()
         );
-    }
-
-    #[tokio::test]
-    async fn server_refuses_a_client_below_its_minimum() {
-        let (server_ok, client) =
-            server_handshake(MinTlsVersion::V1_3, ProtocolVersions::v12_only()).await;
-        assert!(!server_ok);
-        assert_eq!(
-            client,
-            Err(rustls::Error::AlertReceived(
-                AlertDescription::ProtocolVersion
-            ))
-        );
-    }
-
-    #[tokio::test]
-    async fn client_refuses_a_server_below_its_minimum() {
-        let (client_ok, server) =
-            client_handshake(MinTlsVersion::V1_3, ProtocolVersions::v12_only()).await;
-        assert!(!client_ok);
-        assert_eq!(
-            server,
-            Err(rustls::Error::PeerIncompatible(
-                PeerIncompatible::Tls12NotOfferedOrEnabled
-            ))
-        );
-    }
-
-    #[tokio::test]
-    async fn server_with_minimum_v1_2_negotiates_v1_3_with_a_capable_client() {
-        let (server_ok, client) = server_handshake(MinTlsVersion::V1_2, both_versions()).await;
-        assert!(server_ok);
-        assert_eq!(client, Ok(ProtocolVersion::TLSv1_3));
-    }
-
-    #[tokio::test]
-    async fn client_with_minimum_v1_2_negotiates_v1_3_with_a_capable_server() {
-        let (client_ok, server) = client_handshake(MinTlsVersion::V1_2, both_versions()).await;
-        assert!(client_ok);
-        assert_eq!(server, Ok(ProtocolVersion::TLSv1_3));
-    }
-
-    /// Handshake between the rodbus server configured with `min` and a client offering `versions`.
-    /// Returns whether the server completed it, and the client's outcome
-    async fn server_handshake(
-        min: MinTlsVersion,
-        versions: ProtocolVersions,
-    ) -> (bool, Result<ProtocolVersion, rustls::Error>) {
-        within(async {
-            let (listener, addr) = bind().await;
-            let client = tokio::spawn(peer_client(addr, versions));
-            let (socket, _) = listener.accept().await.unwrap();
-            let server = server_config(min).handle_connection(socket, None).await;
-            (server.is_ok(), client.await.unwrap())
-        })
-        .await
-    }
-
-    /// Handshake between the rodbus client configured with `min` and a server offering `versions`.
-    /// Returns whether the client completed it, and the server's outcome
-    async fn client_handshake(
-        min: MinTlsVersion,
-        versions: ProtocolVersions,
-    ) -> (bool, Result<ProtocolVersion, rustls::Error>) {
-        within(async {
-            let (listener, addr) = bind().await;
-            let server = tokio::spawn(peer_server(listener, versions));
-            let socket = TcpStream::connect(addr).await.unwrap();
-            let client = client_config(min)
-                .handle_connection(socket, &HostAddr::ip(addr.ip(), addr.port()))
-                .await;
-            (client.is_ok(), server.await.unwrap())
-        })
-        .await
-    }
-
-    /// A client configured directly with `versions`, so the mapping under test isn't involved
-    async fn peer_client(
-        addr: SocketAddr,
-        versions: ProtocolVersions,
-    ) -> Result<ProtocolVersion, rustls::Error> {
-        let stream = connect(addr, versions).await.map_err(tls_error)?;
-        Ok(stream.get_ref().1.protocol_version().unwrap())
-    }
-
-    /// A server configured directly with `versions`, so the mapping under test isn't involved
-    async fn peer_server(
-        listener: TcpListener,
-        versions: ProtocolVersions,
-    ) -> Result<ProtocolVersion, rustls::Error> {
-        let config = sfio_rustls_config::server::self_signed(
-            versions,
-            &cert("entity2_cert.pem"),
-            &cert("entity1_cert.pem"),
-            &cert("entity1_key.pem"),
-            None,
-        )
-        .unwrap();
-        let (socket, _) = listener.accept().await.unwrap();
-        let stream = tokio_rustls::TlsAcceptor::from(Arc::new(config))
-            .accept(socket)
-            .await
-            .map_err(tls_error)?;
-        Ok(stream.get_ref().1.protocol_version().unwrap())
-    }
-
-    /// tokio-rustls reports TLS failures as an `io::Error` wrapping the `rustls::Error`
-    fn tls_error(err: std::io::Error) -> rustls::Error {
-        *err.into_inner()
-            .and_then(|inner| inner.downcast::<rustls::Error>().ok())
-            .expect("a TLS error")
-    }
-
-    async fn bind() -> (TcpListener, SocketAddr) {
-        let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).await.unwrap();
-        let addr = listener.local_addr().unwrap();
-        (listener, addr)
-    }
-
-    async fn within<T>(future: impl Future<Output = T>) -> T {
-        tokio::time::timeout(TIMEOUT, future)
-            .await
-            .expect("the handshake didn't finish in time")
     }
 }
