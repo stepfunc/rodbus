@@ -532,4 +532,14 @@ mod tests {
         assert!(frame.set(&[]));
         assert_eq!(frame.payload(), []);
     }
+
+    #[test]
+    fn transaction_ids_count_up_and_wrap_to_zero() {
+        let mut tx_id = TxId::new(0xFFFE);
+        let ids: Vec<u16> = (0..4).map(|_| tx_id.next().to_u16()).collect();
+        assert_eq!(ids, [0xFFFE, 0xFFFF, 0, 1]);
+        let mut tx_id = TxId::default();
+        assert_eq!(tx_id.next(), TxId::new(0));
+        assert_eq!(tx_id.next(), TxId::new(1));
+    }
 }

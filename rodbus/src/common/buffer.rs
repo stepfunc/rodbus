@@ -209,4 +209,36 @@ mod tests {
 
         assert_eq!(buffer.read(3).unwrap(), &[0x03, 0x04, 0x05]);
     }
+
+    #[test]
+    fn reads_what_is_buffered_and_refuses_more() {
+        let mut buffer = ReadBuffer::new();
+        let (io, mut io_handle) = sfio_tokio_mock_io::mock();
+        let mut phys = PhysLayer::new_mock(io);
+        {
+            let mut task = task::spawn(buffer.read_some(&mut phys, PhysDecodeLevel::Nothing));
+            io_handle.read(&[1, 2, 3, 4, 5]);
+            assert_ready_eq!(task.poll().map(Result::unwrap), 5);
+        }
+        assert_eq!(buffer.read(2).unwrap(), &[1, 2]);
+        assert_eq!(
+            buffer.read(4),
+            Err(InternalError::InsufficientBytesForRead(4, 3))
+        );
+        assert_eq!(
+            buffer.read(usize::MAX),
+            Err(InternalError::InsufficientBytesForRead(usize::MAX, 3))
+        );
+        assert!(buffer.read(0).unwrap().is_empty());
+        // refused and empty reads consume nothing
+        assert_eq!(buffer.len(), 3);
+        assert_eq!(buffer.read_u8(), Ok(3));
+        assert_eq!(buffer.read(2).unwrap(), &[4, 5]);
+        assert!(buffer.is_empty());
+        assert!(buffer.read(0).unwrap().is_empty());
+        assert_eq!(
+            buffer.read_u8(),
+            Err(InternalError::InsufficientBytesForRead(1, 0))
+        );
+    }
 }
