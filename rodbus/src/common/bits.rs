@@ -4,8 +4,24 @@
 // Text and data mining rights, including for AI training, are reserved under
 // Directive (EU) 2019/790 Art. 4(3), subject to LICENSE.txt Section 3.3.
 
+use std::convert::TryFrom;
+
+use crate::error::InternalError;
+
+/// The number of bytes `num_bits` bits pack into, eight to a byte
+fn bytes_for_bits(num_bits: usize) -> usize {
+    num_bits.div_ceil(8)
+}
+
+/// The number of bytes `count` bits pack into
 pub(crate) fn num_bytes_for_bits(count: u16) -> usize {
-    usize::from(count).div_ceil(8)
+    bytes_for_bits(count.into())
+}
+
+/// The byte count of `num_bits` packed bits, if it fits the byte that carries it
+pub(crate) fn calc_bytes_for_bits(num_bits: usize) -> Result<u8, InternalError> {
+    let count = bytes_for_bits(num_bits);
+    u8::try_from(count).map_err(|_| InternalError::BadByteCount(count))
 }
 
 #[cfg(test)]
