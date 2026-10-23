@@ -17,8 +17,9 @@ use crate::types::*;
 /// validation is performed inside the server task itself and [`ExceptionCode::IllegalDataAddress`]
 /// is returned automatically in this case.
 ///
-/// If an implementation returns a slice smaller than the requested range, this will result
-/// in [`ExceptionCode::ServerDeviceFailure`] being returned to the client.
+/// A read calls its method for each address in the requested range, in order, and stops at the
+/// first call that returns an [`ExceptionCode`]. The server then answers the whole request with
+/// that exception.
 pub trait RequestHandler: Send + 'static {
     /// Moves a server handler implementation into a `Arc<Mutex<Box<ServerHandler>>>`
     /// suitable for passing to the server
@@ -54,7 +55,7 @@ pub trait RequestHandler: Send + 'static {
         Err(ExceptionCode::IllegalFunction)
     }
 
-    /// Write a single coil value
+    /// Write a single register value
     fn write_single_register(&mut self, _value: Indexed<u16>) -> Result<(), ExceptionCode> {
         Err(ExceptionCode::IllegalFunction)
     }
@@ -178,7 +179,7 @@ pub enum Authorization {
 /// `role` is the client certificate's Modbus role, which must be a single role extension. The
 /// server refuses a connection whose role contains a NUL character.
 pub trait AuthorizationHandler: Send + Sync + 'static {
-    /// Moves an authorization handler implementation into a `Arc<Mutex<Box<AuthorizationHandler>>>`
+    /// Moves an authorization handler implementation into an `Arc<dyn AuthorizationHandler>`
     /// suitable for passing to the server
     fn wrap(self) -> Arc<dyn AuthorizationHandler>
     where
@@ -364,6 +365,24 @@ mod tests {
         );
         assert_eq!(
             handler.write_single_register(Indexed::new(0, 0)),
+            Err(ExceptionCode::IllegalFunction)
+        );
+        let range = AddressRange::try_from(0, 1).unwrap();
+        let coil = [0x01];
+        let mut cursor = scursor::ReadCursor::new(&coil);
+        let coils = WriteCoils::new(range, BitIterator::parse_all(range, &mut cursor).unwrap());
+        assert_eq!(
+            handler.write_multiple_coils(coils),
+            Err(ExceptionCode::IllegalFunction)
+        );
+        let register = [0x12, 0x34];
+        let mut cursor = scursor::ReadCursor::new(&register);
+        let registers = WriteRegisters::new(
+            range,
+            RegisterIterator::parse_all(range, &mut cursor).unwrap(),
+        );
+        assert_eq!(
+            handler.write_multiple_registers(registers),
             Err(ExceptionCode::IllegalFunction)
         );
     }

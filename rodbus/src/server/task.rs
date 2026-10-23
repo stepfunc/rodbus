@@ -309,6 +309,8 @@ impl AuthorizationType {
 #[cfg(test)]
 mod tests {
     use std::sync::{Arc, Mutex};
+    #[cfg(feature = "serial")]
+    use std::time::Duration;
 
     use super::*;
     use crate::common::frame::{FrameWriter, FramedReader};
@@ -316,7 +318,7 @@ mod tests {
     #[cfg(feature = "serial")]
     use crate::common::test_support::with_crc;
     use crate::server::handler::ServerHandlerMap;
-    use crate::server::WriteRegisters;
+    use crate::server::{WriteCoils, WriteRegisters};
     use crate::Indexed;
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
@@ -331,19 +333,30 @@ mod tests {
         }
     }
 
+    /// An RTU session serving [`Values`] as unit 1, and the sender of its commands, which the
+    /// server's handle holds
+    #[cfg(feature = "serial")]
+    fn rtu_values_session() -> (
+        tokio::sync::mpsc::Sender<ServerCommand>,
+        SessionTask<Values>,
+    ) {
+        let (commands, rx) = tokio::sync::mpsc::channel(1);
+        let session = SessionTask::new(
+            ServerHandlerMap::single(UnitId::new(1), Values.wrap()),
+            AuthorizationType::None,
+            FrameWriter::rtu(),
+            FramedReader::rtu_request(),
+            rx,
+            DecodeLevel::nothing(),
+        );
+        (commands, session)
+    }
+
     #[cfg(feature = "serial")]
     #[tokio::test]
     async fn a_partial_request_doesnt_reach_the_reopened_port() {
         crate::common::test_support::watchdog(async {
-            let (_commands, rx) = tokio::sync::mpsc::channel(1);
-            let mut session = SessionTask::new(
-                ServerHandlerMap::single(UnitId::new(1), Values.wrap()),
-                AuthorizationType::None,
-                FrameWriter::rtu(),
-                FramedReader::rtu_request(),
-                rx,
-                DecodeLevel::nothing(),
-            );
+            let (_commands, mut session) = rtu_values_session();
             let (first, mut first_peer) = tokio::io::duplex(64);
             let (second_tx, second_rx) = tokio::sync::oneshot::channel();
             let task = tokio::spawn(async move {
@@ -378,20 +391,111 @@ mod tests {
         .await;
     }
 
+    #[cfg(feature = "serial")]
+    #[tokio::test(start_paused = true)]
+    async fn an_rtu_session_ends_when_the_handle_is_dropped() {
+        crate::common::test_support::watchdog(async {
+            let (commands, mut session) = rtu_values_session();
+            // the port stays open and quiet
+            let (local, _peer) = tokio::io::duplex(64);
+            let task =
+                tokio::spawn(async move { session.run(&mut PhysLayer::new_duplex(local)).await });
+            // let the session wait for a request first
+            tokio::time::sleep(Duration::from_secs(1)).await;
+            drop(commands);
+            assert_eq!(task.await.unwrap(), RequestError::Shutdown);
+        })
+        .await;
+    }
+
+    /// How long the retry sleeps below last unless something ends them
+    #[cfg(feature = "serial")]
+    const RETRY_DELAY: Duration = Duration::from_secs(3600);
+
+    /// When the retry sleeps below get a command or lose the handle
+    #[cfg(feature = "serial")]
+    const DURING_THE_SLEEP: Duration = Duration::from_secs(60);
+
+    #[cfg(feature = "serial")]
+    #[tokio::test(start_paused = true)]
+    async fn a_retry_sleep_applies_commands_and_lasts_its_duration() {
+        crate::common::test_support::watchdog(async {
+            let (commands, mut session) = rtu_values_session();
+            let level = DecodeLevel::nothing().application(crate::AppDecodeLevel::DataValues);
+            let start = tokio::time::Instant::now();
+            // the task returns the sender, so the handle outlives the sleep
+            let handle = tokio::spawn(async move {
+                tokio::time::sleep(DURING_THE_SLEEP).await;
+                commands
+                    .send(ServerCommand::ChangeDecoding(level))
+                    .await
+                    .unwrap();
+                commands
+            });
+            assert_eq!(session.sleep_for(RETRY_DELAY).await, Ok(()));
+            // the paused clock may round the timer up to the next millisecond
+            assert_eq!(start.elapsed().as_secs(), RETRY_DELAY.as_secs());
+            assert_eq!(session.decode, level);
+            drop(handle.await.unwrap());
+        })
+        .await;
+    }
+
+    #[cfg(feature = "serial")]
+    #[tokio::test(start_paused = true)]
+    async fn a_retry_sleep_ends_when_the_handle_is_dropped() {
+        crate::common::test_support::watchdog(async {
+            let (commands, mut session) = rtu_values_session();
+            let start = tokio::time::Instant::now();
+            tokio::spawn(async move {
+                tokio::time::sleep(DURING_THE_SLEEP).await;
+                drop(commands);
+            });
+            assert_eq!(session.sleep_for(RETRY_DELAY).await, Err(Shutdown));
+            assert_eq!(start.elapsed().as_secs(), DURING_THE_SLEEP.as_secs());
+        })
+        .await;
+    }
+
     /// The address a holding register read fails at
     const BAD_ADDRESS: u16 = 0x0BAD;
+
+    /// [`BAD_ADDRESS`] as it appears in a request
+    const BAD: [u8; 2] = BAD_ADDRESS.to_be_bytes();
+
+    /// The address before [`BAD_ADDRESS`] as it appears in a request
+    const BEFORE_BAD: [u8; 2] = (BAD_ADDRESS - 1).to_be_bytes();
+
+    /// Requests to unit 1 that its handler refuses, and the exception replies, the same over
+    /// every framing
+    ///
+    /// The second reply replaces a register already written to the reply, so the framing
+    /// (MBAP length or RTU CRC) must be formatted again.
+    const HANDLER_EXCEPTIONS: [(&[u8], &[u8]); 3] = [
+        // the handler refuses the only register
+        (&[0x03, BAD[0], BAD[1], 0x00, 0x01], &[0x83, 0x02]),
+        // the handler refuses the second register, after the first was written to the reply
+        (
+            &[0x03, BEFORE_BAD[0], BEFORE_BAD[1], 0x00, 0x02],
+            &[0x83, 0x02],
+        ),
+        // the handler refuses a write
+        (&[0x06, BAD[0], BAD[1], 0x12, 0x34], &[0x86, 0x02]),
+    ];
 
     /// A handler call: a read of (unit, address) or a write of (unit, address, value)
     #[derive(Debug, PartialEq)]
     enum Call {
         Read(u8, u16),
-        Write(u8, u16, u16),
+        WriteCoil(u8, u16, bool),
+        WriteRegister(u8, u16, u16),
     }
 
     type Calls = Arc<Mutex<Vec<Call>>>;
 
     /// Holding registers hold their unit in the high byte and their address in the low byte;
-    /// reads and writes are recorded, and both fail at [`BAD_ADDRESS`]
+    /// reads and writes are recorded, and holding register reads and single register writes
+    /// fail at [`BAD_ADDRESS`]
     struct Unit {
         unit: u8,
         calls: Calls,
@@ -412,10 +516,22 @@ mod tests {
             Ok(u16::from_be_bytes([self.unit, address.to_be_bytes()[1]]))
         }
 
+        fn write_single_coil(&mut self, value: Indexed<bool>) -> Result<(), ExceptionCode> {
+            self.record(Call::WriteCoil(self.unit, value.index, value.value));
+            Ok(())
+        }
+
         fn write_single_register(&mut self, value: Indexed<u16>) -> Result<(), ExceptionCode> {
-            self.record(Call::Write(self.unit, value.index, value.value));
+            self.record(Call::WriteRegister(self.unit, value.index, value.value));
             if value.index == BAD_ADDRESS {
                 return Err(ExceptionCode::IllegalDataAddress);
+            }
+            Ok(())
+        }
+
+        fn write_multiple_coils(&mut self, values: WriteCoils) -> Result<(), ExceptionCode> {
+            for value in values.iterator {
+                self.record(Call::WriteCoil(self.unit, value.index, value.value));
             }
             Ok(())
         }
@@ -425,7 +541,7 @@ mod tests {
             values: WriteRegisters,
         ) -> Result<(), ExceptionCode> {
             for value in values.iterator {
-                self.record(Call::Write(self.unit, value.index, value.value));
+                self.record(Call::WriteRegister(self.unit, value.index, value.value));
             }
             Ok(())
         }
@@ -521,42 +637,95 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn tcp_writes_reach_the_handler_and_are_echoed() {
+        crate::common::test_support::watchdog(async {
+            let (mut peer, calls) = tcp_session(&[1]);
+            let echoes: [(&[u8], &[u8]); 5] = [
+                // a coil on, then another off
+                (
+                    &[0x05, 0x00, 0x20, 0xFF, 0x00],
+                    &[0x05, 0x00, 0x20, 0xFF, 0x00],
+                ),
+                (
+                    &[0x05, 0x00, 0x21, 0x00, 0x00],
+                    &[0x05, 0x00, 0x21, 0x00, 0x00],
+                ),
+                (
+                    &[0x06, 0x00, 0x30, 0x12, 0x34],
+                    &[0x06, 0x00, 0x30, 0x12, 0x34],
+                ),
+                // three coils from 0x40: on, off, on; the reply echoes the start and quantity
+                (
+                    &[0x0F, 0x00, 0x40, 0x00, 0x03, 0x01, 0b101],
+                    &[0x0F, 0x00, 0x40, 0x00, 0x03],
+                ),
+                // two registers from 0x50; the reply echoes the start and quantity
+                (
+                    &[0x10, 0x00, 0x50, 0x00, 0x02, 0x04, 0x56, 0x78, 0x9A, 0xBC],
+                    &[0x10, 0x00, 0x50, 0x00, 0x02],
+                ),
+            ];
+            for (tx_id, (request, reply)) in (1..).zip(echoes) {
+                let reply = mbap(tx_id, 1, reply);
+                assert_eq!(
+                    exchange(&mut peer, &mbap(tx_id, 1, request), reply.len()).await,
+                    reply
+                );
+            }
+            assert_nothing_more_was_sent(peer).await;
+            assert_eq!(
+                *calls.lock().unwrap(),
+                [
+                    Call::WriteCoil(1, 0x20, true),
+                    Call::WriteCoil(1, 0x21, false),
+                    Call::WriteRegister(1, 0x30, 0x1234),
+                    Call::WriteCoil(1, 0x40, true),
+                    Call::WriteCoil(1, 0x41, false),
+                    Call::WriteCoil(1, 0x42, true),
+                    Call::WriteRegister(1, 0x50, 0x5678),
+                    Call::WriteRegister(1, 0x51, 0x9ABC),
+                ]
+            );
+        })
+        .await;
+    }
+
+    #[tokio::test]
     async fn tcp_replies_with_exceptions_in_mbap_frames() {
         crate::common::test_support::watchdog(async {
             let (mut peer, _) = tcp_session(&[1]);
-            let [bad_high, bad_low] = BAD_ADDRESS.to_be_bytes();
-            // the handler refuses the only register
-            let request = mbap(7, 1, &[0x03, bad_high, bad_low, 0x00, 0x01]);
+            let tcp_only: [(&[u8], &[u8]); 2] = [
+                // a function the server doesn't implement
+                (&[0x07], &[0x87, 0x01]),
+                // a request that doesn't parse
+                (&[0x03, 0x00], &[0x83, 0x03]),
+            ];
+            for (tx_id, (request, reply)) in
+                (7..).zip(HANDLER_EXCEPTIONS.into_iter().chain(tcp_only))
+            {
+                assert_eq!(
+                    exchange(&mut peer, &mbap(tx_id, 1, request), 9).await,
+                    mbap(tx_id, 1, reply)
+                );
+            }
+            assert_nothing_more_was_sent(peer).await;
+        })
+        .await;
+    }
+
+    #[tokio::test]
+    async fn an_mbap_frame_without_a_pdu_gets_no_reply_and_the_session_continues() {
+        crate::common::test_support::watchdog(async {
+            let (mut peer, calls) = tcp_session(&[1]);
+            // the length field is 1: the unit id and nothing else
+            peer.write_all(&mbap(1, 1, &[])).await.unwrap();
+            let request = mbap(2, 1, &[0x03, 0x00, 0x10, 0x00, 0x01]);
             assert_eq!(
-                exchange(&mut peer, &request, 9).await,
-                mbap(7, 1, &[0x83, 0x02])
-            );
-            // the handler refuses the second register, after the first was written to the reply
-            let [high, low] = (BAD_ADDRESS - 1).to_be_bytes();
-            let request = mbap(8, 1, &[0x03, high, low, 0x00, 0x02]);
-            assert_eq!(
-                exchange(&mut peer, &request, 9).await,
-                mbap(8, 1, &[0x83, 0x02])
-            );
-            // the handler refuses a write
-            let request = mbap(11, 1, &[0x06, bad_high, bad_low, 0x12, 0x34]);
-            assert_eq!(
-                exchange(&mut peer, &request, 9).await,
-                mbap(11, 1, &[0x86, 0x02])
-            );
-            // a function the server doesn't implement
-            let request = mbap(9, 1, &[0x07]);
-            assert_eq!(
-                exchange(&mut peer, &request, 9).await,
-                mbap(9, 1, &[0x87, 0x01])
-            );
-            // a request that doesn't parse
-            let request = mbap(10, 1, &[0x03, 0x00]);
-            assert_eq!(
-                exchange(&mut peer, &request, 9).await,
-                mbap(10, 1, &[0x83, 0x03])
+                exchange(&mut peer, &request, 11).await,
+                mbap(2, 1, &[0x03, 0x02, 0x01, 0x10])
             );
             assert_nothing_more_was_sent(peer).await;
+            assert_eq!(*calls.lock().unwrap(), [Call::Read(1, 0x10)]);
         })
         .await;
     }
@@ -578,23 +747,13 @@ mod tests {
                     with_crc(&[unit, 0x03, 0x02, unit, 0x10])
                 );
             }
-            let [bad_high, bad_low] = BAD_ADDRESS.to_be_bytes();
-            let request = with_crc(&[1, 0x03, bad_high, bad_low, 0x00, 0x01]);
-            assert_eq!(
-                exchange(&mut peer, &request, 5).await,
-                with_crc(&[1, 0x83, 0x02])
-            );
-            let [high, low] = (BAD_ADDRESS - 1).to_be_bytes();
-            let request = with_crc(&[1, 0x03, high, low, 0x00, 0x02]);
-            assert_eq!(
-                exchange(&mut peer, &request, 5).await,
-                with_crc(&[1, 0x83, 0x02])
-            );
-            let request = with_crc(&[1, 0x06, bad_high, bad_low, 0x12, 0x34]);
-            assert_eq!(
-                exchange(&mut peer, &request, 5).await,
-                with_crc(&[1, 0x86, 0x02])
-            );
+            for (request, reply) in HANDLER_EXCEPTIONS {
+                let request = with_crc(&[&[1], request].concat());
+                assert_eq!(
+                    exchange(&mut peer, &request, 5).await,
+                    with_crc(&[&[1], reply].concat())
+                );
+            }
             assert_nothing_more_was_sent(peer).await;
         })
         .await;
@@ -615,23 +774,33 @@ mod tests {
     async fn an_rtu_broadcast_write_reaches_every_unit_without_a_reply() {
         crate::common::test_support::watchdog(async {
             let (mut peer, calls) = rtu_session(&[1, 2], AuthorizationType::None);
-            peer.write_all(&with_crc(&[0, 0x06, 0x00, 0x20, 0x12, 0x34]))
-                .await
-                .unwrap();
-            peer.write_all(&with_crc(&[
-                0, 0x10, 0x00, 0x30, 0x00, 0x01, 0x02, 0x56, 0x78,
-            ]))
-            .await
-            .unwrap();
+            let broadcasts: [&[u8]; 4] = [
+                &[0, 0x05, 0x00, 0x40, 0xFF, 0x00],
+                &[0, 0x06, 0x00, 0x20, 0x12, 0x34],
+                // three coils from 0x50: on, off, on
+                &[0, 0x0F, 0x00, 0x50, 0x00, 0x03, 0x01, 0b101],
+                &[0, 0x10, 0x00, 0x30, 0x00, 0x01, 0x02, 0x56, 0x78],
+            ];
+            for broadcast in broadcasts {
+                peer.write_all(&with_crc(broadcast)).await.unwrap();
+            }
             assert_nothing_was_sent(&mut peer).await;
             assert_nothing_more_was_sent(peer).await;
             assert_eq!(
                 *calls.lock().unwrap(),
                 [
-                    Call::Write(1, 0x20, 0x1234),
-                    Call::Write(2, 0x20, 0x1234),
-                    Call::Write(1, 0x30, 0x5678),
-                    Call::Write(2, 0x30, 0x5678),
+                    Call::WriteCoil(1, 0x40, true),
+                    Call::WriteCoil(2, 0x40, true),
+                    Call::WriteRegister(1, 0x20, 0x1234),
+                    Call::WriteRegister(2, 0x20, 0x1234),
+                    Call::WriteCoil(1, 0x50, true),
+                    Call::WriteCoil(1, 0x51, false),
+                    Call::WriteCoil(1, 0x52, true),
+                    Call::WriteCoil(2, 0x50, true),
+                    Call::WriteCoil(2, 0x51, false),
+                    Call::WriteCoil(2, 0x52, true),
+                    Call::WriteRegister(1, 0x30, 0x5678),
+                    Call::WriteRegister(2, 0x30, 0x5678),
                     Call::Read(1, 0x10),
                 ]
             );
