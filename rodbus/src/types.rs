@@ -1054,13 +1054,59 @@ mod tests {
     /// The registers of `range` parsed from exactly the `bytes` they need are `expected`, both
     /// iterated and collected into a `Vec`
     fn check_registers(range: AddressRange, bytes: &[u8], expected: &[Indexed<u16>]) {
-        let mut cursor = ReadCursor::new(bytes);
-        let registers = RegisterIterator::parse_all(range, &mut cursor).unwrap();
-        assert_eq!(registers.collect_vec(), expected);
-        check_iteration(registers, expected);
+        check_register_values(range, bytes, expected);
         check_length_errors(bytes, |cursor| {
             RegisterIterator::parse_all(range, cursor).map(|_| ())
         });
+    }
+
+    /// The registers of `range` parsed from `bytes` are `expected` when iterated, and collected
+    /// into a `Vec` after any number of them were taken, the rest
+    fn check_register_values(range: AddressRange, bytes: &[u8], expected: &[Indexed<u16>]) {
+        let mut cursor = ReadCursor::new(bytes);
+        let registers = RegisterIterator::parse_all(range, &mut cursor).unwrap();
+        check_iteration(registers, expected);
+        for taken in 0..=expected.len() {
+            let mut rest = registers;
+            for value in &expected[..taken] {
+                assert_eq!(rest.next(), Some(*value));
+            }
+            assert_eq!(rest.collect_vec(), &expected[taken..]);
+        }
+    }
+
+    #[test]
+    fn an_empty_range_has_no_registers() {
+        check_register_values(AddressRange { start: 7, count: 0 }, &[], &[]);
+        check_register_values(
+            AddressRange {
+                start: 0xFFFF,
+                count: 0,
+            },
+            &[],
+            &[],
+        );
+    }
+
+    #[test]
+    fn registers_of_a_range_built_past_0xffff_stop_at_0xffff() {
+        // from its fields: the bytes of two values, but only one address
+        check_register_values(
+            AddressRange {
+                start: 0xFFFF,
+                count: 2,
+            },
+            &[0x12, 0x34, 0x56, 0x78],
+            &[Indexed::new(0xFFFF, 0x1234)],
+        );
+        check_register_values(
+            AddressRange {
+                start: 0xFFFE,
+                count: 0xFFFF,
+            },
+            &vec![0xAB; 0x1FFFE],
+            &[Indexed::new(0xFFFE, 0xABAB), Indexed::new(0xFFFF, 0xABAB)],
+        );
     }
 
     mod properties {
