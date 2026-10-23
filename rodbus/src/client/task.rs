@@ -187,14 +187,17 @@ impl ClientLoop {
         }
     }
 
+    /// Run requests over `io` until the session ends, leaving no partial frame behind for the next
     pub(crate) async fn run(&mut self, io: &mut PhysLayer) -> SessionError {
         self.timeout_counter.reset();
-        loop {
+        let err = loop {
             if let Err(err) = self.poll(io).await {
                 tracing::warn!("ending session: {err}");
-                return err;
+                break err;
             }
-        }
+        };
+        self.reader.reset();
+        err
     }
 
     async fn poll(&mut self, io: &mut PhysLayer) -> Result<(), SessionError> {
@@ -389,7 +392,7 @@ mod tests {
     use crate::{ExceptionCode, Indexed, ReadBitsRange};
 
     use sfio_tokio_mock_io::Event;
-    use tokio::io::AsyncReadExt;
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
     fn spawn_client_loop_with_max_timeouts(
         max_timeouts: Option<NonZeroUsize>,
@@ -811,6 +814,100 @@ mod tests {
             assert_eq!(request.await.unwrap(), Err(RequestError::ResponseTimeout));
             assert_eq!(start.elapsed(), TIMEOUT);
         })
+        .await;
+    }
+
+    /// A client loop that runs over one pipe, then over a second, keeping its reader
+    ///
+    /// Returns the channel, the peers of the two pipes (the second once the first session has
+    /// ended) and how the first session ended.
+    fn spawn_client_loop_over_two_pipes() -> (
+        Channel,
+        tokio::io::DuplexStream,
+        tokio::sync::oneshot::Receiver<(SessionError, tokio::io::DuplexStream)>,
+    ) {
+        let (tx, rx) = tokio::sync::mpsc::channel(16);
+        let (first, first_peer) = tokio::io::duplex(64);
+        let (ended_tx, ended_rx) = tokio::sync::oneshot::channel();
+        let mut client_loop = ClientLoop::new(
+            rx.into(),
+            FrameWriter::tcp(),
+            FramedReader::tcp(),
+            DecodeLevel::nothing(),
+            None,
+        );
+        tokio::spawn(async move {
+            let mut phys = PhysLayer::new_duplex(first);
+            let ended = client_loop.run(&mut phys).await;
+            let (second, second_peer) = tokio::io::duplex(64);
+            let _ = ended_tx.send((ended, second_peer));
+            let mut phys = PhysLayer::new_duplex(second);
+            client_loop.run(&mut phys).await
+        });
+        let channel = Channel {
+            tx,
+            shutdown: crate::common::cancellation::pair().0,
+        };
+        (channel, first_peer, ended_rx)
+    }
+
+    fn read_register(
+        channel: &Channel,
+    ) -> tokio::task::JoinHandle<Result<Vec<Indexed<u16>>, RequestError>> {
+        let channel = channel.clone();
+        tokio::spawn(async move {
+            channel
+                .read_holding_registers(
+                    RequestParam::new(UnitId::new(1), TIMEOUT),
+                    AddressRange::try_from(0x10, 1).unwrap(),
+                )
+                .await
+        })
+    }
+
+    /// The first connection ends after the peer sent `partial` of a response; a request over the
+    /// second connection is answered in full
+    async fn a_partial_response_doesnt_reach_the_next_connection(partial: &[u8]) {
+        crate::common::test_support::watchdog(async {
+            let (channel, mut first, ended) = spawn_client_loop_over_two_pipes();
+
+            let request = read_register(&channel);
+            let mut sent = [0u8; 12];
+            first.read_exact(&mut sent).await.unwrap();
+            first.write_all(partial).await.unwrap();
+            drop(first);
+            // the client reads what was written before it sees the end of the connection
+            let (ended, mut second) = ended.await.unwrap();
+            assert_eq!(ended, SessionError::IoError(ErrorKind::UnexpectedEof));
+            assert_eq!(
+                request.await.unwrap(),
+                Err(RequestError::Io(ErrorKind::UnexpectedEof))
+            );
+
+            let request = read_register(&channel);
+            second.read_exact(&mut sent).await.unwrap();
+            let [tx_high, tx_low, ..] = sent;
+            second
+                .write_all(&[tx_high, tx_low, 0, 0, 0, 5, 1, 3, 2, 0x12, 0x34])
+                .await
+                .unwrap();
+            assert_eq!(request.await.unwrap(), Ok(vec![Indexed::new(0x10, 0x1234)]));
+        })
+        .await;
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn unparsed_bytes_dont_reach_the_next_connection() {
+        // less than an MBAP header: the bytes stay in the buffer
+        a_partial_response_doesnt_reach_the_next_connection(&[0x00, 0x00, 0x00, 0x00, 0x00]).await;
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_parsed_header_doesnt_reach_the_next_connection() {
+        // a whole MBAP header, which the parser takes, and part of the body
+        a_partial_response_doesnt_reach_the_next_connection(&[
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x05, 0x01, 0x03,
+        ])
         .await;
     }
 }

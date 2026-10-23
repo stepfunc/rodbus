@@ -449,6 +449,12 @@ impl FramedReader {
         }
     }
 
+    /// Forget a partial frame, so that the next connection starts clean
+    pub(crate) fn reset(&mut self) {
+        self.buffer.reset();
+        self.parser.reset();
+    }
+
     pub(crate) async fn next_frame(
         &mut self,
         io: &mut PhysLayer,

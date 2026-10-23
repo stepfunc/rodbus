@@ -18,6 +18,12 @@ impl ReadBuffer {
         }
     }
 
+    /// Discard everything buffered
+    pub(crate) fn reset(&mut self) {
+        self.begin = 0;
+        self.end = 0;
+    }
+
     pub(crate) fn len(&self) -> usize {
         self.end - self.begin
     }
