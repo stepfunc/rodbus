@@ -2,10 +2,9 @@ use sfio_rustls_config::ClientNameVerification;
 use std::path::Path;
 use std::sync::Arc;
 
-use tokio::net::TcpStream;
 use tokio_rustls::rustls;
 
-use crate::common::phys::PhysLayer;
+use crate::common::phys::{PhysLayer, Socket};
 use crate::server::task::AuthorizationType;
 use crate::server::AuthorizationHandler;
 use crate::tcp::tls::{
@@ -51,9 +50,9 @@ impl TlsServerConfig {
         })
     }
 
-    pub(crate) async fn handle_connection(
+    pub(crate) async fn handle_connection<S: Socket>(
         &mut self,
-        socket: TcpStream,
+        socket: S,
         auth_handler: Option<Arc<dyn AuthorizationHandler>>,
     ) -> Result<(PhysLayer, AuthorizationType), String> {
         let connector = tokio_rustls::TlsAcceptor::from(self.inner.clone());
@@ -89,7 +88,7 @@ impl TlsServerConfig {
                     }
                 };
 
-                let layer = PhysLayer::new_tls(tokio_rustls::TlsStream::from(stream));
+                let layer = S::into_tls_phys(tokio_rustls::TlsStream::from(stream));
 
                 Ok((layer, auth_type))
             }

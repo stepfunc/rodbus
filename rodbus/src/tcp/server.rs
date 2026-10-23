@@ -4,7 +4,7 @@ use tracing::Instrument;
 
 use crate::common::cancellation::ShutdownSignal;
 use crate::common::frame::{FrameWriter, FramedReader};
-use crate::common::phys::PhysLayer;
+use crate::common::phys::{PhysLayer, Socket};
 use crate::decode::DecodeLevel;
 use crate::server::handler::{RequestHandler, ServerHandlerMap};
 use crate::server::task::{AuthorizationType, ServerCommand};
@@ -91,12 +91,12 @@ pub(crate) enum TcpServerConnectionHandler {
 }
 
 impl TcpServerConnectionHandler {
-    async fn handle(
+    async fn handle<S: Socket>(
         &mut self,
-        socket: tokio::net::TcpStream,
+        socket: S,
     ) -> Result<(PhysLayer, AuthorizationType), String> {
         match self {
-            Self::Tcp => Ok((PhysLayer::new_tcp(socket), AuthorizationType::None)),
+            Self::Tcp => Ok((socket.into_phys(), AuthorizationType::None)),
             #[cfg(feature = "enable-tls")]
             Self::Tls(config, auth_handler) => {
                 let res = config.handle_connection(socket, auth_handler.clone()).await;
@@ -138,7 +138,16 @@ where
         }
     }
 
-    pub(crate) async fn run(&mut self, mut commands: tokio::sync::mpsc::Receiver<ServerCommand>) {
+    /// Run until the handle is dropped or shutdown is requested
+    pub(crate) async fn run_until_shutdown(
+        &mut self,
+        commands: tokio::sync::mpsc::Receiver<ServerCommand>,
+        shutdown: &ShutdownSignal,
+    ) {
+        shutdown.run_until_cancelled(self.run(commands)).await;
+    }
+
+    async fn run(&mut self, mut commands: tokio::sync::mpsc::Receiver<ServerCommand>) {
         loop {
             let Some((socket, addr)) = self
                 .sessions
@@ -157,9 +166,7 @@ where
                 continue;
             }
 
-            if let Err(err) = socket.set_nodelay(true) {
-                tracing::warn!("unable to enable TCP_NODELAY: {}", err);
-            }
+            socket.set_nodelay();
 
             // A TLS handshake runs here, one at a time and within its timeout, so that only a
             // connection that completes it becomes a session and can displace another
@@ -294,7 +301,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::common::test_support::{watchdog, with_the_clock_held};
+    use crate::common::test_support::watchdog;
     use crate::server::create_tcp_server_task;
     use crate::tcp::accept::test_util::{
         expect_attempt_gaps, Fault, FaultyListener, RESET, UNKNOWN,
@@ -335,13 +342,14 @@ mod tests {
     }
 
     /// Spawn a server with one session on `listener`, wired as `create_tcp_server_task` wires it
-    fn spawn_server_with<L: Listen + 'static>(
-        listener: L,
+    /// and run by `ServerTask::run`
+    fn spawn_server_with(
+        listener: FaultyListener,
         connection_handler: TcpServerConnectionHandler,
     ) -> (crate::server::ServerHandle, tokio::task::JoinHandle<()>) {
         let (tx, rx) = tokio::sync::mpsc::channel(1);
         let (shutdown, signal) = crate::common::cancellation::pair();
-        let mut task = ServerTask::new(
+        let task = ServerTask::new(
             1,
             listener,
             handlers(),
@@ -350,10 +358,11 @@ mod tests {
             DecodeLevel::nothing(),
             signal.clone(),
         );
-        let task = tokio::spawn(async move {
-            signal.run_until_cancelled(task.run(rx)).await;
-        });
-        (crate::server::ServerHandle::new(tx, shutdown), task)
+        let task = crate::server::ServerTask::memory(task, rx, signal);
+        (
+            crate::server::ServerHandle::new(tx, shutdown),
+            tokio::spawn(task.run()),
+        )
     }
 
     /// Read `peer` until the other end closes it
@@ -439,17 +448,16 @@ mod tests {
     #[tokio::test(start_paused = true)]
     async fn accepts_after_accept_errors() {
         watchdog(async {
-            let (listener, mut attempts) = FaultyListener::new(&[EMFILE, RESET, UNKNOWN]).await;
-            let mut client = tokio::net::TcpStream::connect(listener.local_addr())
-                .await
-                .unwrap();
+            let (listener, mut peers) = FaultyListener::new(&[EMFILE, RESET, UNKNOWN]);
+            let (mut client, addr) = peers.connect();
             let (handle, task) = spawn_server_on(listener);
 
             expect_attempt_gaps(
-                &mut attempts,
+                &mut peers.attempts,
                 &[ACCEPT_ERROR_DELAY, Duration::ZERO, ACCEPT_ERROR_DELAY],
             )
             .await;
+            peers.accepts(addr).await;
             assert_eq!(read_coils(&mut client).await, ILLEGAL_FUNCTION);
             assert!(!task.is_finished());
 
@@ -462,17 +470,13 @@ mod tests {
     #[tokio::test(start_paused = true)]
     async fn commands_and_closed_sessions_during_the_accept_error_delay_keep_its_deadline() {
         watchdog(async {
-            let (listener, mut attempts) = FaultyListener::new(&[Fault::None, UNKNOWN]).await;
-            let mut client = tokio::net::TcpStream::connect(listener.local_addr())
-                .await
-                .unwrap();
+            let (listener, mut peers) = FaultyListener::new(&[Fault::None, UNKNOWN]);
+            let (mut client, _) = peers.connect();
             let (mut handle, _task) = spawn_server_on(listener);
 
-            // the first attempt accepts the client and starts its session; the second fails. The
-            // test waits on nothing but the server from here on, so the paused clock can't jump
-            // to the retry before the events below.
-            attempts.recv().await.unwrap();
-            let failed_at = attempts.recv().await.unwrap();
+            // the first attempt accepts the client and starts its session; the second fails
+            peers.attempts.recv().await.unwrap();
+            let failed_at = peers.attempts.recv().await.unwrap();
 
             // each wakes the server's select during the delay, dropping the pending accept
             tokio::time::advance(Duration::from_millis(300)).await;
@@ -484,10 +488,10 @@ mod tests {
             // a session sends its close event in the same poll that drops its socket, so once the
             // client sees the close, that event is queued
             client.shutdown().await.unwrap();
-            assert_eq!(with_the_clock_held(read_to_close(&mut client)).await, []);
+            assert_eq!(read_to_close(&mut client).await, []);
             assert_eq!(failed_at.elapsed(), Duration::from_millis(600));
 
-            let retried_at = attempts.recv().await.unwrap();
+            let retried_at = peers.attempts.recv().await.unwrap();
             assert_eq!(retried_at.duration_since(failed_at), ACCEPT_ERROR_DELAY);
         })
         .await;
@@ -496,17 +500,17 @@ mod tests {
     #[tokio::test(start_paused = true)]
     async fn shutdown_during_the_accept_error_delay_stops_the_server() {
         watchdog(async {
-            let (listener, mut attempts) = FaultyListener::new(&[UNKNOWN]).await;
+            let (listener, mut peers) = FaultyListener::new(&[UNKNOWN]);
             let (handle, task) = spawn_server_on(listener);
 
-            let failed_at = attempts.recv().await.unwrap();
+            let failed_at = peers.attempts.recv().await.unwrap();
             tokio::time::advance(Duration::from_millis(500)).await;
             assert!(!task.is_finished());
 
             handle.shutdown();
             task.await.unwrap();
             assert!(failed_at.elapsed() < ACCEPT_ERROR_DELAY);
-            assert_eq!(attempts.recv().await, None);
+            assert_eq!(peers.attempts.recv().await, None);
         })
         .await;
     }
@@ -514,17 +518,17 @@ mod tests {
     #[tokio::test(start_paused = true)]
     async fn dropping_the_handle_during_the_accept_error_delay_stops_the_server() {
         watchdog(async {
-            let (listener, mut attempts) = FaultyListener::new(&[UNKNOWN]).await;
+            let (listener, mut peers) = FaultyListener::new(&[UNKNOWN]);
             let (handle, task) = spawn_server_on(listener);
 
-            let failed_at = attempts.recv().await.unwrap();
+            let failed_at = peers.attempts.recv().await.unwrap();
             tokio::time::advance(Duration::from_millis(500)).await;
             assert!(!task.is_finished());
 
             drop(handle);
             task.await.unwrap();
             assert!(failed_at.elapsed() < ACCEPT_ERROR_DELAY);
-            assert_eq!(attempts.recv().await, None);
+            assert_eq!(peers.attempts.recv().await, None);
         })
         .await;
     }
@@ -533,14 +537,14 @@ mod tests {
     async fn dropping_the_handle_during_connection_errors_stops_the_server() {
         static RESETS: [Fault; 1000] = [RESET; 1000];
         watchdog(async {
-            let (listener, mut attempts) = FaultyListener::new(&RESETS).await;
+            let (listener, mut peers) = FaultyListener::new(&RESETS);
             let (handle, task) = spawn_server_on(listener);
 
-            attempts.recv().await.unwrap();
+            peers.attempts.recv().await.unwrap();
             drop(handle);
             task.await.unwrap();
             let mut count = 1;
-            while attempts.recv().await.is_some() {
+            while peers.attempts.recv().await.is_some() {
                 count += 1;
             }
             assert!(count < RESETS.len(), "{count}");
@@ -652,88 +656,61 @@ mod tests {
     #[cfg(feature = "enable-tls")]
     mod tls {
         use super::*;
-        use crate::tcp::tls::test_util::{both_versions, connect, server_config};
+        use crate::tcp::accept::test_util::Peers;
+        use crate::tcp::tls::test_util::{
+            both_versions, connect, handshake_as_client, server_config,
+        };
         use crate::tcp::tls::{MinTlsVersion, TLS_HANDSHAKE_TIMEOUT};
-        use tokio::net::TcpStream;
-        use tokio::sync::mpsc;
+        use tokio::io::DuplexStream;
         use tokio::time::Instant;
-
-        /// Accepts from a real listener, reporting when it accepted each peer
-        struct ReportingListener {
-            inner: TcpListener,
-            accepted: mpsc::UnboundedSender<(Instant, SocketAddr)>,
-        }
-
-        impl Listen for ReportingListener {
-            async fn accept(&mut self) -> std::io::Result<(TcpStream, SocketAddr)> {
-                let (stream, addr) = self.inner.accept().await?;
-                self.accepted.send((Instant::now(), addr)).unwrap();
-                Ok((stream, addr))
-            }
-        }
 
         struct Server {
             handle: crate::server::ServerHandle,
             task: tokio::task::JoinHandle<()>,
-            addr: SocketAddr,
-            accepted: mpsc::UnboundedReceiver<(Instant, SocketAddr)>,
+            peers: Peers,
         }
 
-        /// A TLS server with one session
-        async fn spawn_tls_server() -> Server {
-            let inner = TcpListener::bind("127.0.0.1:0").await.unwrap();
-            let addr = inner.local_addr().unwrap();
-            let (accepted, rx) = mpsc::unbounded_channel();
+        /// A TLS server with one session, over in-memory connections
+        fn spawn_tls_server() -> Server {
+            let (listener, peers) = FaultyListener::new(&[]);
             let (handle, task) = spawn_server_with(
-                ReportingListener { inner, accepted },
+                listener,
                 TcpServerConnectionHandler::Tls(server_config(MinTlsVersion::V1_2), None),
             );
             Server {
                 handle,
                 task,
-                addr,
-                accepted: rx,
+                peers,
             }
         }
 
         impl Server {
-            /// Wait for the server to accept `peer`, and return when it did
-            async fn accepts(&mut self, peer: &TcpStream) -> Instant {
-                let (at, addr) = self.accepted.recv().await.unwrap();
-                assert_eq!(addr, peer.local_addr().unwrap());
-                at
+            /// Connect a peer, and return it once the server has accepted it, with when it did
+            async fn connect(&mut self) -> (DuplexStream, Instant) {
+                let (stream, addr) = self.peers.connect();
+                let accepted_at = self.peers.accepts(addr).await;
+                (stream, accepted_at)
             }
 
-            /// Connect a peer that never sends its ClientHello, and return it once the server has
-            /// accepted it, with when it did. The clock is held so that the handshake's timer
-            /// can't run while the connection is set up.
-            async fn connect_and_stall(&mut self) -> (TcpStream, Instant) {
-                with_the_clock_held(async {
-                    let stalled = TcpStream::connect(self.addr).await.unwrap();
-                    let accepted_at = self.accepts(&stalled).await;
-                    (stalled, accepted_at)
-                })
-                .await
+            /// Connect a client and complete its handshake
+            async fn connect_tls(&mut self) -> tokio_rustls::client::TlsStream<DuplexStream> {
+                let (stream, _) = self.connect().await;
+                handshake_as_client(stream, both_versions()).await.unwrap()
             }
-        }
-
-        async fn connect_tls(addr: SocketAddr) -> tokio_rustls::client::TlsStream<TcpStream> {
-            connect(addr, both_versions()).await.unwrap()
         }
 
         #[tokio::test(start_paused = true)]
         async fn a_stalled_handshake_ends_after_the_timeout_and_the_next_connection_is_served() {
             watchdog(async {
-                let mut server = spawn_tls_server().await;
-                let (mut stalled, accepted_at) = server.connect_and_stall().await;
+                let mut server = spawn_tls_server();
+                // a peer that never sends its ClientHello
+                let (mut stalled, accepted_at) = server.connect().await;
 
                 // the handshake's timer is the only one, so the clock moves straight to it
                 assert_eq!(read_to_close(&mut stalled).await, []);
                 assert_eq!(accepted_at.elapsed(), TLS_HANDSHAKE_TIMEOUT);
 
-                // a real handshake needs real time
-                tokio::time::resume();
-                let mut client = connect_tls(server.addr).await;
+                let mut client = server.connect_tls().await;
                 assert_eq!(read_coils(&mut client).await, ILLEGAL_FUNCTION);
             })
             .await;
@@ -742,61 +719,49 @@ mod tests {
         #[tokio::test(start_paused = true)]
         async fn a_session_is_served_while_another_connection_stalls_its_handshake() {
             watchdog(async {
-                let mut server = spawn_tls_server().await;
-                let mut client = with_the_clock_held(connect_tls(server.addr)).await;
-                server.accepts(client.get_ref().0).await;
-                assert_eq!(
-                    with_the_clock_held(read_coils(&mut client)).await,
-                    ILLEGAL_FUNCTION
-                );
+                let mut server = spawn_tls_server();
+                let mut client = server.connect_tls().await;
+                assert_eq!(read_coils(&mut client).await, ILLEGAL_FUNCTION);
 
-                let (mut stalled, accepted_at) = server.connect_and_stall().await;
+                let (mut stalled, accepted_at) = server.connect().await;
 
                 // the stalled handshake has started and can't have ended
-                assert_eq!(
-                    with_the_clock_held(read_coils(&mut client)).await,
-                    ILLEGAL_FUNCTION
-                );
+                assert_eq!(read_coils(&mut client).await, ILLEGAL_FUNCTION);
                 assert_eq!(accepted_at.elapsed(), Duration::ZERO);
 
                 assert_eq!(read_to_close(&mut stalled).await, []);
                 assert_eq!(accepted_at.elapsed(), TLS_HANDSHAKE_TIMEOUT);
-                assert_eq!(
-                    with_the_clock_held(read_coils(&mut client)).await,
-                    ILLEGAL_FUNCTION
-                );
+                assert_eq!(read_coils(&mut client).await, ILLEGAL_FUNCTION);
             })
             .await;
         }
 
-        #[tokio::test]
+        #[tokio::test(start_paused = true)]
         async fn a_connection_that_fails_its_handshake_doesnt_displace_a_session() {
             watchdog(async {
-                let mut server = spawn_tls_server().await;
-                let mut client = connect_tls(server.addr).await;
-                server.accepts(client.get_ref().0).await;
+                let mut server = spawn_tls_server();
+                let mut client = server.connect_tls().await;
                 assert_eq!(read_coils(&mut client).await, ILLEGAL_FUNCTION);
 
                 // Modbus instead of a ClientHello; the server closes it once the handshake fails
-                let mut plain = TcpStream::connect(server.addr).await.unwrap();
-                server.accepts(&plain).await;
+                let (mut plain, accepted_at) = server.connect().await;
                 plain.write_all(&READ_COILS).await.unwrap();
-                let mut buffer = [0u8; 64];
-                while let Ok(1..) = plain.read(&mut buffer).await {}
+                read_to_close(&mut plain).await;
+                assert_eq!(accepted_at.elapsed(), Duration::ZERO);
 
                 assert_eq!(read_coils(&mut client).await, ILLEGAL_FUNCTION);
             })
             .await;
         }
 
-        #[tokio::test]
+        #[tokio::test(start_paused = true)]
         async fn a_completed_handshake_displaces_the_oldest_session() {
             watchdog(async {
-                let server = spawn_tls_server().await;
-                let mut older = connect_tls(server.addr).await;
+                let mut server = spawn_tls_server();
+                let mut older = server.connect_tls().await;
                 assert_eq!(read_coils(&mut older).await, ILLEGAL_FUNCTION);
 
-                let mut newer = connect_tls(server.addr).await;
+                let mut newer = server.connect_tls().await;
                 assert_eq!(read_coils(&mut newer).await, ILLEGAL_FUNCTION);
 
                 // the older session ended without a close_notify
@@ -809,11 +774,41 @@ mod tests {
             .await;
         }
 
+        /// The production server over real sockets: a newer TLS session displaces the older
+        #[tokio::test]
+        async fn a_completed_handshake_displaces_the_oldest_session_over_tcp() {
+            watchdog(async {
+                let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+                let addr = listener.local_addr().unwrap();
+                let (_handle, task) = crate::server::create_tls_server_task(
+                    1,
+                    listener,
+                    handlers(),
+                    server_config(MinTlsVersion::V1_2),
+                    AddressFilter::Any,
+                    DecodeLevel::nothing(),
+                );
+                tokio::spawn(task.run());
+
+                let mut older = connect(addr, both_versions()).await.unwrap();
+                assert_eq!(read_coils(&mut older).await, ILLEGAL_FUNCTION);
+                let mut newer = connect(addr, both_versions()).await.unwrap();
+                assert_eq!(read_coils(&mut newer).await, ILLEGAL_FUNCTION);
+
+                let mut buffer = [0u8; 1];
+                assert_eq!(
+                    older.read(&mut buffer).await.map_err(|err| err.kind()),
+                    Err(std::io::ErrorKind::UnexpectedEof)
+                );
+            })
+            .await;
+        }
+
         #[tokio::test(start_paused = true)]
         async fn dropping_the_handle_during_a_stalled_handshake_stops_the_server() {
             watchdog(async {
-                let mut server = spawn_tls_server().await;
-                let (mut stalled, accepted_at) = server.connect_and_stall().await;
+                let mut server = spawn_tls_server();
+                let (mut stalled, accepted_at) = server.connect().await;
 
                 // a command during the handshake is applied without ending it
                 server
@@ -834,8 +829,8 @@ mod tests {
         #[tokio::test(start_paused = true)]
         async fn shutdown_during_a_stalled_handshake_stops_the_server() {
             watchdog(async {
-                let mut server = spawn_tls_server().await;
-                let (mut stalled, accepted_at) = server.connect_and_stall().await;
+                let mut server = spawn_tls_server();
+                let (mut stalled, accepted_at) = server.connect().await;
 
                 server.handle.shutdown();
                 server.task.await.unwrap();
