@@ -1172,7 +1172,7 @@ mod test {
         use super::*;
         use crate::common::traits::Serialize;
         use crate::server::response::{BitWriter, RegisterWriter};
-        use crate::types::strategies::ranges;
+        use crate::types::strategies::{packed_bits, packed_registers, values};
 
         /// The kinds of request
         #[derive(Clone, Copy, Debug)]
@@ -1262,26 +1262,6 @@ mod test {
                 .collect()
         }
 
-        /// Bits eight to a byte, the first in the lowest bit, the last byte padded with zeros
-        fn pack_bits(bits: &[bool]) -> Vec<u8> {
-            bits.chunks(8)
-                .map(|chunk| {
-                    chunk
-                        .iter()
-                        .enumerate()
-                        .fold(0u8, |byte, (bit, value)| byte | (u8::from(*value) << bit))
-                })
-                .collect()
-        }
-
-        /// Registers high byte first
-        fn pack_registers(values: &[u16]) -> Vec<u8> {
-            values
-                .iter()
-                .flat_map(|value| value.to_be_bytes())
-                .collect()
-        }
-
         /// A read's response: its function code, the byte count, then `block`
         fn read_response(function: u8, block: &[u8]) -> Vec<u8> {
             [&[function, u8::try_from(block.len()).unwrap()], block].concat()
@@ -1315,7 +1295,7 @@ mod test {
             Answered {
                 sent: sent(start, count),
                 function,
-                response: read_response(function, &pack_bits(&bits)),
+                response: read_response(function, &packed_bits(&bits)),
                 served: Some(served(function, &writer)),
                 delivered: Outcome::Bits(indexed(start, bits.iter().copied())),
             }
@@ -1334,7 +1314,7 @@ mod test {
             Answered {
                 sent: sent(start, count),
                 function,
-                response: read_response(function, &pack_registers(&values)),
+                response: read_response(function, &packed_registers(&values)),
                 served: Some(served(function, &writer)),
                 delivered: Outcome::Registers(indexed(start, values.iter().copied())),
             }
@@ -1349,16 +1329,6 @@ mod test {
                 served: None,
                 delivered: range(start, count),
             }
-        }
-
-        /// A valid range of a count from `counts`, with a random value for each address
-        fn values<T: Arbitrary>(
-            counts: std::ops::RangeInclusive<u16>,
-        ) -> impl Strategy<Value = (u16, Vec<T>)> {
-            ranges(counts).prop_flat_map(|range| {
-                let values = prop::collection::vec(any::<T>(), usize::from(range.count));
-                (Just(range.start), values)
-            })
         }
 
         /// Requests of `kind` with their correct responses: reads of up to 2000 bits or 125

@@ -50,6 +50,7 @@ use crate::server::handler::test_util::{Check, Recorder, Target};
 use crate::server::handler::{RequestHandler, ServerHandlerMap};
 use crate::server::task::AuthorizationType;
 use crate::server::{WriteCoils, WriteRegisters};
+use crate::types::strategies::{packed_bits, packed_registers};
 #[cfg(feature = "enable-tls")]
 use crate::AddressRange;
 use crate::{Indexed, UnitId};
@@ -540,19 +541,6 @@ fn exception(function: u8, code: u8) -> Vec<u8> {
     vec![function | 0x80, code]
 }
 
-/// Coils packed into bytes, eight to a byte, the first in the lowest bit
-fn pack(bits: &[bool]) -> Vec<u8> {
-    bits.chunks(8)
-        .map(|chunk| {
-            chunk
-                .iter()
-                .zip(BIT_MASKS)
-                .filter(|(on, _)| **on)
-                .fold(0, |byte, (_, mask)| byte | mask)
-        })
-        .collect()
-}
-
 /// `values` after a function code and their byte count
 fn counted_reply(function: u8, values: &[u8]) -> Vec<u8> {
     [&[function, u8::try_from(values.len()).unwrap()], values].concat()
@@ -597,11 +585,8 @@ fn execute(
                 }
             }
             let values = match table {
-                Table::Coils | Table::DiscreteInputs => pack(&bits),
-                Table::HoldingRegisters | Table::InputRegisters => registers
-                    .iter()
-                    .flat_map(|register| register.to_be_bytes())
-                    .collect(),
+                Table::Coils | Table::DiscreteInputs => packed_bits(&bits),
+                Table::HoldingRegisters | Table::InputRegisters => packed_registers(&registers),
             };
             Ok(counted_reply(*function, &values))
         }

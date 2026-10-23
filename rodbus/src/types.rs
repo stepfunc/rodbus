@@ -557,7 +557,7 @@ impl Default for ClientOptions {
     }
 }
 
-/// Generators of address ranges for property tests
+/// Generators and models for property tests
 #[cfg(test)]
 pub(crate) mod strategies {
     use std::ops::RangeInclusive;
@@ -576,6 +576,38 @@ pub(crate) mod strategies {
             let start = u16::try_from(highest).unwrap().saturating_sub(gap);
             AddressRange::try_from(start, count).unwrap()
         })
+    }
+
+    /// A range of a count from `counts`, as [`ranges`] makes it, with a random value for each
+    /// address
+    pub(crate) fn values<T: Arbitrary>(
+        counts: RangeInclusive<u16>,
+    ) -> impl Strategy<Value = (u16, Vec<T>)> {
+        ranges(counts).prop_flat_map(|range| {
+            let values = prop::collection::vec(any::<T>(), usize::from(range.count));
+            (Just(range.start), values)
+        })
+    }
+
+    /// `bits` eight to a byte, the first in its lowest bit, and the last byte padded with zeros
+    pub(crate) fn packed_bits(bits: &[bool]) -> Vec<u8> {
+        bits.chunks(8)
+            .map(|chunk| {
+                chunk
+                    .iter()
+                    .rev()
+                    .fold(0, |byte, &bit| (byte << 1) | u8::from(bit))
+            })
+            .collect()
+    }
+
+    /// `values` high byte first
+    pub(crate) fn packed_registers(values: &[u16]) -> Vec<u8> {
+        values
+            .iter()
+            .flat_map(|value| [value / 256, value % 256])
+            .map(|byte| u8::try_from(byte).unwrap())
+            .collect()
     }
 }
 
