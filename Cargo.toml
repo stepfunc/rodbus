@@ -50,3 +50,6 @@ unused_crate_dependencies = "deny"
 
 [profile.release]
 lto=true
+# each crate as one codegen unit can optimize better than split up, so the shipped FFI and JNI
+# libraries come out smaller, at the cost of slower release builds
+codegen-units=1
