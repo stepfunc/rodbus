@@ -2124,7 +2124,11 @@ mod tests {
             let stream = frames.concat();
             let chunks = reads.split(&stream);
 
-            let modelled = model(direction, &stream, usize::MAX).frames;
+            let Model {
+                frames: modelled,
+                discarded: trailing,
+                ..
+            } = model(direction, &stream, usize::MAX);
             // the model reads every frame before the corrupted one, and with none, every frame
             let payloads: Vec<&[u8]> = modelled
                 .iter()
@@ -2137,6 +2141,7 @@ mod tests {
                 None => prop_assert_eq!(&payloads, &pdus),
             }
 
+            let expected_reports = modelled_reports(&modelled, trailing);
             let expected: Vec<Outcome> = modelled
                 .into_iter()
                 .map(|x| Outcome::Frame {
@@ -2145,8 +2150,29 @@ mod tests {
                     payload: x.frame.payload,
                 })
                 .collect();
-            prop_assert_eq!(read_chunks(direction.reader(), &chunks), expected);
+            prop_assert_eq!(
+                read_reported(&mut direction.reader(), &chunks),
+                (expected, expected_reports)
+            );
             Ok(())
+        }
+
+        /// What a reader reports reading the [`Model`]'s frames: a run of dropped bytes is
+        /// reported when it starts and when the frame after it ends it, and a run the stream ends
+        /// in is reported started, as the reader reports it before it waits for more bytes
+        fn modelled_reports(
+            frames: &[ModelFrame],
+            trailing: Option<(usize, DiscardReason)>,
+        ) -> Vec<DiscardReport> {
+            let mut reports = Vec::new();
+            for (count, reason) in frames.iter().filter_map(|x| x.dropped_before) {
+                reports.push(started(reason));
+                reports.push(ended(count));
+            }
+            if let Some((_, reason)) = trailing {
+                reports.push(started(reason));
+            }
+            reports
         }
 
         /// Reads the [`formatted`] frames with the line silent after each, and checks the reader
@@ -2229,14 +2255,16 @@ mod tests {
             prop_oneof![prop::collection::vec(any::<u8>(), 0..=600), strung]
         }
 
-        /// Any chunking reads the same frames, then the same first error, as one read
+        /// Any chunking reads the same frames, then the same first error, and reports the same
+        /// dropped bytes, as one read
         fn check_chunking(bytes: &[u8], reads: &Reads) -> Result<(), TestCaseError> {
             for direction in [Direction::Request, Direction::Response] {
-                let whole = read_chunks(direction.reader(), &[bytes]);
-                let chunked = read_chunks(direction.reader(), &reads.split(bytes));
+                let (whole, whole_reports) = read_reported(&mut direction.reader(), &[bytes]);
+                let (chunked, chunked_reports) =
+                    read_reported(&mut direction.reader(), &reads.split(bytes));
                 prop_assert_eq!(
-                    ignoring_reads(chunked),
-                    ignoring_reads(whole),
+                    (ignoring_reads(chunked), chunked_reports),
+                    (ignoring_reads(whole), whole_reports),
                     "{:?}",
                     direction
                 );
