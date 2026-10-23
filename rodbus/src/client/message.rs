@@ -400,6 +400,7 @@ mod test {
         AddressRange, AduParseError, AppDecodeLevel, BitIterator, ExceptionCode, Indexed,
         RegisterIterator, RequestError, UnitId,
     };
+    use std::borrow::Cow;
     use std::collections::VecDeque;
     use std::sync::{Arc, Mutex};
     use std::time::Duration;
@@ -483,16 +484,34 @@ mod test {
     }
 
     /// The request a response answers
-    #[derive(Clone, Copy, Debug)]
+    #[derive(Clone, Debug)]
     enum Sent {
-        ReadCoils { start: u16, count: u16 },
-        ReadDiscreteInputs { start: u16, count: u16 },
-        ReadHoldingRegisters { start: u16, count: u16 },
-        ReadInputRegisters { start: u16, count: u16 },
+        ReadCoils {
+            start: u16,
+            count: u16,
+        },
+        ReadDiscreteInputs {
+            start: u16,
+            count: u16,
+        },
+        ReadHoldingRegisters {
+            start: u16,
+            count: u16,
+        },
+        ReadInputRegisters {
+            start: u16,
+            count: u16,
+        },
         WriteSingleCoil(Indexed<bool>),
         WriteSingleRegister(Indexed<u16>),
-        WriteMultipleCoils { start: u16, values: &'static [bool] },
-        WriteMultipleRegisters { start: u16, values: &'static [u16] },
+        WriteMultipleCoils {
+            start: u16,
+            values: Cow<'static, [bool]>,
+        },
+        WriteMultipleRegisters {
+            start: u16,
+            values: Cow<'static, [u16]>,
+        },
     }
 
     /// How the request's promise delivers its result
@@ -505,7 +524,7 @@ mod test {
     }
 
     /// What handling a response did to the request
-    #[derive(Debug, PartialEq)]
+    #[derive(Clone, Debug, PartialEq)]
     enum Outcome {
         Bits(Vec<Indexed<bool>>),
         Registers(Vec<Indexed<u16>>),
@@ -516,35 +535,74 @@ mod test {
         Rejected(RequestError),
     }
 
-    type Slot = Arc<Mutex<Option<Result<Outcome, RequestError>>>>;
+    /// What a promise delivered, in order
+    type Delivered = Vec<Result<Outcome, RequestError>>;
 
-    fn put(slot: &Slot, result: Result<Outcome, RequestError>) {
-        *slot.lock().unwrap() = Some(result);
+    /// What a boxed callback delivered
+    type Slot = Arc<Mutex<Delivered>>;
+
+    fn record(slot: &Slot, result: Result<Outcome, RequestError>) {
+        slot.lock().unwrap().push(result);
     }
 
-    fn take(slot: &Slot) -> Option<Result<Outcome, RequestError>> {
-        slot.lock().unwrap().take()
+    /// What the callback delivered since the last call
+    fn drain(slot: &Slot) -> Delivered {
+        std::mem::take(&mut *slot.lock().unwrap())
     }
 
-    /// The request is returned so that its promise isn't dropped (which fails it with
-    /// `Shutdown`) before the caller has looked at what it delivered
-    fn handle(details: RequestDetails, payload: &[u8]) -> (Request, Result<(), RequestError>) {
+    /// What the oneshot delivered since the last call
+    fn received<T>(
+        rx: &mut tokio::sync::oneshot::Receiver<Result<T, RequestError>>,
+        wrap: fn(T) -> Outcome,
+    ) -> Delivered {
+        rx.try_recv()
+            .ok()
+            .map(|x| x.map(wrap))
+            .into_iter()
+            .collect()
+    }
+
+    /// Handles `payload` as the response to the request, then fails the request as the task does
+    /// after an error, and drops it
+    ///
+    /// The promise must be completed exactly once: by the response, which returns `Ok`, or else by
+    /// the failure afterwards, with the error the response returned.
+    fn exchange(
+        details: RequestDetails,
+        payload: &[u8],
+        mut delivered: impl FnMut() -> Delivered,
+    ) -> Outcome {
         let mut request = Request::new(UnitId::new(1), Duration::from_secs(1), details);
         let result = request.handle_response(payload, AppDecodeLevel::Nothing);
-        (request, result)
-    }
-
-    /// A response either completes the promise with a value and returns `Ok`, or returns the
-    /// error without completing the promise (the task fails it afterwards)
-    fn settle(
-        result: Result<(), RequestError>,
-        delivered: Option<Result<Outcome, RequestError>>,
-    ) -> Outcome {
-        match (result, delivered) {
-            (Ok(()), Some(Ok(value))) => value,
-            (Err(err), None) => Outcome::Rejected(err),
-            (result, delivered) => {
-                panic!("returned {result:?} but the promise delivered {delivered:?}")
+        let by_response = delivered();
+        request
+            .details
+            .fail(result.err().unwrap_or(RequestError::Shutdown));
+        drop(request);
+        let afterwards = delivered();
+        match result {
+            Ok(()) => {
+                assert_eq!(
+                    afterwards,
+                    vec![],
+                    "a completed request was completed again"
+                );
+                let mut by_response = by_response.into_iter();
+                match (by_response.next(), by_response.next()) {
+                    (Some(Ok(value)), None) => value,
+                    (first, second) => {
+                        panic!("accepted, but the promise delivered {first:?} then {second:?}")
+                    }
+                }
+            }
+            Err(err) => {
+                assert_eq!(
+                    by_response,
+                    vec![],
+                    "a rejected response completed the request"
+                );
+                assert_eq!(afterwards, vec![Err(err)]);
+                Outcome::Rejected(err)
             }
         }
     }
@@ -572,18 +630,20 @@ mod test {
         match completion {
             Completion::Oneshot => {
                 let (tx, mut rx) = tokio::sync::oneshot::channel();
-                let (_request, result) = handle(make(ReadBits::channel(range, tx)), payload);
-                settle(result, rx.try_recv().ok().map(|x| x.map(Outcome::Bits)))
+                exchange(make(ReadBits::channel(range, tx)), payload, || {
+                    received(&mut rx, Outcome::Bits)
+                })
             }
             Completion::Callback => {
                 let slot = Slot::default();
                 let sink = slot.clone();
                 let promise =
                     read_bits::Promise::new(move |result: Result<BitIterator, RequestError>| {
-                        put(&sink, result.map(|values| Outcome::Bits(values.collect())));
+                        record(&sink, result.map(|values| Outcome::Bits(values.collect())));
                     });
-                let (_request, result) = handle(make(ReadBits::new(range, promise)), payload);
-                settle(result, take(&slot))
+                exchange(make(ReadBits::new(range, promise)), payload, || {
+                    drain(&slot)
+                })
             }
         }
     }
@@ -597,25 +657,24 @@ mod test {
         match completion {
             Completion::Oneshot => {
                 let (tx, mut rx) = tokio::sync::oneshot::channel();
-                let (_request, result) = handle(make(ReadRegisters::channel(range, tx)), payload);
-                settle(
-                    result,
-                    rx.try_recv().ok().map(|x| x.map(Outcome::Registers)),
-                )
+                exchange(make(ReadRegisters::channel(range, tx)), payload, || {
+                    received(&mut rx, Outcome::Registers)
+                })
             }
             Completion::Callback => {
                 let slot = Slot::default();
                 let sink = slot.clone();
                 let promise = read_registers::Promise::new(
                     move |result: Result<RegisterIterator, RequestError>| {
-                        put(
+                        record(
                             &sink,
                             result.map(|values| Outcome::Registers(values.collect())),
                         );
                     },
                 );
-                let (_request, result) = handle(make(ReadRegisters::new(range, promise)), payload);
-                settle(result, take(&slot))
+                exchange(make(ReadRegisters::new(range, promise)), payload, || {
+                    drain(&slot)
+                })
             }
         }
     }
@@ -632,62 +691,62 @@ mod test {
         match completion {
             Completion::Oneshot => {
                 let (tx, mut rx) = tokio::sync::oneshot::channel();
-                let (_request, result) = handle(make(Promise::channel(tx)), payload);
-                settle(result, rx.try_recv().ok().map(|x| x.map(wrap)))
+                exchange(make(Promise::channel(tx)), payload, || {
+                    received(&mut rx, wrap)
+                })
             }
             Completion::Callback => {
                 let slot = Slot::default();
                 let sink = slot.clone();
                 let promise = Promise::new(move |result: Result<T, RequestError>| {
-                    put(&sink, result.map(wrap));
+                    record(&sink, result.map(wrap));
                 });
-                let (_request, result) = handle(make(promise), payload);
-                settle(result, take(&slot))
+                exchange(make(promise), payload, || drain(&slot))
             }
         }
     }
 
-    fn respond(sent: Sent, completion: Completion, payload: &[u8]) -> Outcome {
+    fn respond(sent: &Sent, completion: Completion, payload: &[u8]) -> Outcome {
         match sent {
             Sent::ReadCoils { start, count } => respond_to_bits(
-                read_bits_range(start, count),
+                read_bits_range(*start, *count),
                 RequestDetails::ReadCoils,
                 completion,
                 payload,
             ),
             Sent::ReadDiscreteInputs { start, count } => respond_to_bits(
-                read_bits_range(start, count),
+                read_bits_range(*start, *count),
                 RequestDetails::ReadDiscreteInputs,
                 completion,
                 payload,
             ),
             Sent::ReadHoldingRegisters { start, count } => respond_to_registers(
-                read_registers_range(start, count),
+                read_registers_range(*start, *count),
                 RequestDetails::ReadHoldingRegisters,
                 completion,
                 payload,
             ),
             Sent::ReadInputRegisters { start, count } => respond_to_registers(
-                read_registers_range(start, count),
+                read_registers_range(*start, *count),
                 RequestDetails::ReadInputRegisters,
                 completion,
                 payload,
             ),
             Sent::WriteSingleCoil(value) => respond_to_write(
-                |promise| RequestDetails::WriteSingleCoil(SingleWrite::new(value, promise)),
+                |promise| RequestDetails::WriteSingleCoil(SingleWrite::new(*value, promise)),
                 Outcome::Coil,
                 completion,
                 payload,
             ),
             Sent::WriteSingleRegister(value) => respond_to_write(
-                |promise| RequestDetails::WriteSingleRegister(SingleWrite::new(value, promise)),
+                |promise| RequestDetails::WriteSingleRegister(SingleWrite::new(*value, promise)),
                 Outcome::Register,
                 completion,
                 payload,
             ),
             Sent::WriteMultipleCoils { start, values } => respond_to_write(
                 |promise| {
-                    let request = WriteMultiple::from(start, values.to_vec()).unwrap();
+                    let request = WriteMultiple::from(*start, values.to_vec()).unwrap();
                     let request = LimitedWrite::coils(request).unwrap();
                     RequestDetails::WriteMultipleCoils(MultipleWriteRequest::new(request, promise))
                 },
@@ -697,7 +756,7 @@ mod test {
             ),
             Sent::WriteMultipleRegisters { start, values } => respond_to_write(
                 |promise| {
-                    let request = WriteMultiple::from(start, values.to_vec()).unwrap();
+                    let request = WriteMultiple::from(*start, values.to_vec()).unwrap();
                     let request = LimitedWrite::registers(request).unwrap();
                     RequestDetails::WriteMultipleRegisters(MultipleWriteRequest::new(
                         request, promise,
@@ -737,13 +796,13 @@ mod test {
     });
     const WRITE_COILS: Sent = Sent::WriteMultipleCoils {
         start: 0x0013,
-        values: &[
+        values: Cow::Borrowed(&[
             true, false, true, true, false, false, true, true, true, false,
-        ],
+        ]),
     };
     const WRITE_REGISTERS: Sent = Sent::WriteMultipleRegisters {
         start: 0x0001,
-        values: &[0x000A, 0x0102],
+        values: Cow::Borrowed(&[0x000A, 0x0102]),
     };
 
     fn rows() -> Vec<(Sent, &'static [u8], Outcome)> {
@@ -1091,11 +1150,794 @@ mod test {
         for completion in [Completion::Oneshot, Completion::Callback] {
             for (sent, payload, expected) in rows() {
                 assert_eq!(
-                    respond(sent, completion, payload),
+                    respond(&sent, completion, payload),
                     expected,
                     "{sent:?} answered with {payload:02X?} through {completion:?}"
                 );
             }
+        }
+    }
+
+    /// Responses to every kind of request, built from the layouts in MODBUS Application Protocol
+    /// Specification V1.1b3 6.1-6.6, 6.11, 6.12 and the exception response of 7, then corrupted,
+    /// with the error each corruption must fail with decided by the model, not the parser
+    mod properties {
+        use std::collections::BTreeSet;
+
+        use proptest::prelude::*;
+        use proptest::strategy::{Union, ValueTree};
+        use proptest::test_runner::TestRunner;
+        use scursor::WriteCursor;
+
+        use super::*;
+        use crate::common::traits::Serialize;
+        use crate::server::response::{BitWriter, RegisterWriter};
+        use crate::types::strategies::ranges;
+
+        /// The kinds of request
+        #[derive(Clone, Copy, Debug)]
+        enum Kind {
+            ReadCoils,
+            ReadDiscreteInputs,
+            ReadHoldingRegisters,
+            ReadInputRegisters,
+            WriteSingleCoil,
+            WriteSingleRegister,
+            WriteMultipleCoils,
+            WriteMultipleRegisters,
+        }
+
+        const KINDS: [Kind; 8] = [
+            Kind::ReadCoils,
+            Kind::ReadDiscreteInputs,
+            Kind::ReadHoldingRegisters,
+            Kind::ReadInputRegisters,
+            Kind::WriteSingleCoil,
+            Kind::WriteSingleRegister,
+            Kind::WriteMultipleCoils,
+            Kind::WriteMultipleRegisters,
+        ];
+
+        /// A request, the response a correct server sends to it, and what that response delivers
+        #[derive(Clone, Debug)]
+        struct Answered {
+            sent: Sent,
+            /// the request's function code
+            function: u8,
+            /// the response, encoded here
+            response: Vec<u8>,
+            /// the same response from the server's writer, for a read
+            served: Option<Vec<u8>>,
+            delivered: Outcome,
+        }
+
+        /// The parts of a response a corruption can change
+        #[derive(Clone, Copy, Debug, PartialEq)]
+        enum Layout {
+            /// the function code, the byte count, then the block of values
+            Read,
+            /// the function code, then the echoed address and coil value
+            WriteSingleCoil,
+            /// the function code, then the echoed address and register value
+            WriteSingleRegister,
+            /// the function code, then the echoed starting address and quantity
+            WriteMultiple,
+        }
+
+        impl Answered {
+            fn layout(&self) -> Layout {
+                match self.sent {
+                    Sent::ReadCoils { .. }
+                    | Sent::ReadDiscreteInputs { .. }
+                    | Sent::ReadHoldingRegisters { .. }
+                    | Sent::ReadInputRegisters { .. } => Layout::Read,
+                    Sent::WriteSingleCoil(_) => Layout::WriteSingleCoil,
+                    Sent::WriteSingleRegister(_) => Layout::WriteSingleRegister,
+                    Sent::WriteMultipleCoils { .. } | Sent::WriteMultipleRegisters { .. } => {
+                        Layout::WriteMultiple
+                    }
+                }
+            }
+
+            /// A read response's byte count
+            fn byte_count(&self) -> u8 {
+                self.response[1]
+            }
+
+            /// A read response's block of values
+            fn block(&self) -> &[u8] {
+                &self.response[2..]
+            }
+
+            fn exception_function(&self) -> u8 {
+                self.function | 0x80
+            }
+        }
+
+        /// `values` at consecutive addresses from `start`
+        fn indexed<T>(start: u16, values: impl IntoIterator<Item = T>) -> Vec<Indexed<T>> {
+            (start..=u16::MAX)
+                .zip(values)
+                .map(|(address, value)| Indexed::new(address, value))
+                .collect()
+        }
+
+        /// Bits eight to a byte, the first in the lowest bit, the last byte padded with zeros
+        fn pack_bits(bits: &[bool]) -> Vec<u8> {
+            bits.chunks(8)
+                .map(|chunk| {
+                    chunk
+                        .iter()
+                        .enumerate()
+                        .fold(0u8, |byte, (bit, value)| byte | (u8::from(*value) << bit))
+                })
+                .collect()
+        }
+
+        /// Registers high byte first
+        fn pack_registers(values: &[u16]) -> Vec<u8> {
+            values
+                .iter()
+                .flat_map(|value| value.to_be_bytes())
+                .collect()
+        }
+
+        /// A read's response: its function code, the byte count, then `block`
+        fn read_response(function: u8, block: &[u8]) -> Vec<u8> {
+            [&[function, u8::try_from(block.len()).unwrap()], block].concat()
+        }
+
+        /// A write's response: its function code, then the four bytes it echoes
+        fn echo(function: u8, first: [u8; 2], second: [u8; 2]) -> Vec<u8> {
+            [[function].as_slice(), &first, &second].concat()
+        }
+
+        /// A read's response as the server's writer serializes it after the function code
+        fn served(function: u8, writer: &dyn Serialize) -> Vec<u8> {
+            let mut buffer = [0u8; 256];
+            let mut cursor = WriteCursor::new(&mut buffer);
+            cursor.write_u8(function).unwrap();
+            writer.serialize(&mut cursor).unwrap();
+            let len = cursor.position();
+            buffer[..len].to_vec()
+        }
+
+        fn answer_bits(
+            sent: fn(u16, u16) -> Sent,
+            function: u8,
+            start: u16,
+            bits: Vec<bool>,
+        ) -> Answered {
+            let count = u16::try_from(bits.len()).unwrap();
+            let writer = BitWriter::new(read_bits_range(start, count), |address| {
+                Ok(bits[usize::from(address.checked_sub(start).unwrap())])
+            });
+            Answered {
+                sent: sent(start, count),
+                function,
+                response: read_response(function, &pack_bits(&bits)),
+                served: Some(served(function, &writer)),
+                delivered: Outcome::Bits(indexed(start, bits.iter().copied())),
+            }
+        }
+
+        fn answer_registers(
+            sent: fn(u16, u16) -> Sent,
+            function: u8,
+            start: u16,
+            values: Vec<u16>,
+        ) -> Answered {
+            let count = u16::try_from(values.len()).unwrap();
+            let writer = RegisterWriter::new(read_registers_range(start, count), |address| {
+                Ok(values[usize::from(address.checked_sub(start).unwrap())])
+            });
+            Answered {
+                sent: sent(start, count),
+                function,
+                response: read_response(function, &pack_registers(&values)),
+                served: Some(served(function, &writer)),
+                delivered: Outcome::Registers(indexed(start, values.iter().copied())),
+            }
+        }
+
+        fn answer_multiple_write(sent: Sent, function: u8, start: u16, count: usize) -> Answered {
+            let count = u16::try_from(count).unwrap();
+            Answered {
+                sent,
+                function,
+                response: echo(function, start.to_be_bytes(), count.to_be_bytes()),
+                served: None,
+                delivered: range(start, count),
+            }
+        }
+
+        /// A valid range of a count from `counts`, with a random value for each address
+        fn values<T: Arbitrary>(
+            counts: std::ops::RangeInclusive<u16>,
+        ) -> impl Strategy<Value = (u16, Vec<T>)> {
+            ranges(counts).prop_flat_map(|range| {
+                let values = prop::collection::vec(any::<T>(), usize::from(range.count));
+                (Just(range.start), values)
+            })
+        }
+
+        /// Requests of `kind` with their correct responses: reads of up to 2000 bits or 125
+        /// registers, writes of up to 1968 coils or 123 registers
+        fn answered(kind: Kind) -> BoxedStrategy<Answered> {
+            match kind {
+                Kind::ReadCoils => values(1..=2000)
+                    .prop_map(|(start, bits)| {
+                        let sent = |start, count| Sent::ReadCoils { start, count };
+                        answer_bits(sent, 0x01, start, bits)
+                    })
+                    .boxed(),
+                Kind::ReadDiscreteInputs => values(1..=2000)
+                    .prop_map(|(start, bits)| {
+                        let sent = |start, count| Sent::ReadDiscreteInputs { start, count };
+                        answer_bits(sent, 0x02, start, bits)
+                    })
+                    .boxed(),
+                Kind::ReadHoldingRegisters => values(1..=125)
+                    .prop_map(|(start, values)| {
+                        let sent = |start, count| Sent::ReadHoldingRegisters { start, count };
+                        answer_registers(sent, 0x03, start, values)
+                    })
+                    .boxed(),
+                Kind::ReadInputRegisters => values(1..=125)
+                    .prop_map(|(start, values)| {
+                        let sent = |start, count| Sent::ReadInputRegisters { start, count };
+                        answer_registers(sent, 0x04, start, values)
+                    })
+                    .boxed(),
+                Kind::WriteSingleCoil => any::<(u16, bool)>()
+                    .prop_map(|(index, value)| {
+                        let state = if value { [0xFF, 0x00] } else { [0x00, 0x00] };
+                        Answered {
+                            sent: Sent::WriteSingleCoil(Indexed::new(index, value)),
+                            function: 0x05,
+                            response: echo(0x05, index.to_be_bytes(), state),
+                            served: None,
+                            delivered: Outcome::Coil(Indexed::new(index, value)),
+                        }
+                    })
+                    .boxed(),
+                Kind::WriteSingleRegister => any::<(u16, u16)>()
+                    .prop_map(|(index, value)| Answered {
+                        sent: Sent::WriteSingleRegister(Indexed::new(index, value)),
+                        function: 0x06,
+                        response: echo(0x06, index.to_be_bytes(), value.to_be_bytes()),
+                        served: None,
+                        delivered: Outcome::Register(Indexed::new(index, value)),
+                    })
+                    .boxed(),
+                Kind::WriteMultipleCoils => values::<bool>(1..=1968)
+                    .prop_map(|(start, values)| {
+                        let count = values.len();
+                        let values = Cow::Owned(values);
+                        let sent = Sent::WriteMultipleCoils { start, values };
+                        answer_multiple_write(sent, 0x0F, start, count)
+                    })
+                    .boxed(),
+                Kind::WriteMultipleRegisters => values::<u16>(1..=123)
+                    .prop_map(|(start, values)| {
+                        let count = values.len();
+                        let values = Cow::Owned(values);
+                        let sent = Sent::WriteMultipleRegisters { start, values };
+                        answer_multiple_write(sent, 0x10, start, count)
+                    })
+                    .boxed(),
+            }
+        }
+
+        /// A change to a correct response
+        #[derive(Clone, Debug)]
+        enum Corruption {
+            /// only this many of its first bytes, fewer than all
+            Truncate(usize),
+            /// these bytes after it
+            Extend(Vec<u8>),
+            /// this function code, neither the request's nor its exception's, in place of the
+            /// request's
+            Function(u8),
+            /// in its place, an exception response with this code, then these bytes
+            Exception { code: u8, trailing: Vec<u8> },
+            /// in its place, an exception response with no code
+            ExceptionWithoutCode,
+            /// a write's echo with its byte `index` (0 to 3) xored with `flip` (not zero)
+            Echo { index: usize, flip: u8 },
+            /// a multiple write's echo replaced with a range no request has: no values, or past
+            /// 0xFFFF
+            ImpossibleRange { start: u16, count: u16 },
+            /// a read's byte count replaced with this other value
+            ByteCount(u8),
+            /// a read's block of values without its last bytes, this many, and the byte count to
+            /// match
+            Shorten(u8),
+            /// a read's block of values with these bytes after it, and the byte count to match
+            Lengthen(Vec<u8>),
+        }
+
+        /// The kinds of [`Corruption`]
+        #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+        enum Change {
+            Truncate,
+            Extend,
+            Function,
+            Exception,
+            ExceptionWithoutCode,
+            Echo,
+            ImpossibleRange,
+            ByteCount,
+            Shorten,
+            Lengthen,
+        }
+
+        impl Corruption {
+            fn change(&self) -> Change {
+                match self {
+                    Corruption::Truncate(_) => Change::Truncate,
+                    Corruption::Extend(_) => Change::Extend,
+                    Corruption::Function(_) => Change::Function,
+                    Corruption::Exception { .. } => Change::Exception,
+                    Corruption::ExceptionWithoutCode => Change::ExceptionWithoutCode,
+                    Corruption::Echo { .. } => Change::Echo,
+                    Corruption::ImpossibleRange { .. } => Change::ImpossibleRange,
+                    Corruption::ByteCount(_) => Change::ByteCount,
+                    Corruption::Shorten(_) => Change::Shorten,
+                    Corruption::Lengthen(_) => Change::Lengthen,
+                }
+            }
+        }
+
+        /// A change of one of a write's four echoed bytes, often the high byte of a coil's value
+        /// flipped whole, which turns ON into OFF and OFF into ON
+        fn echo_changes() -> BoxedStrategy<Corruption> {
+            (0usize..4, prop_oneof![Just(0xFFu8), 1..=u8::MAX])
+                .prop_map(|(index, flip)| Corruption::Echo { index, flip })
+                .boxed()
+        }
+
+        fn impossible_ranges() -> BoxedStrategy<Corruption> {
+            let empty = any::<u16>().prop_map(|start| (start, 0));
+            let past_the_end = (2..=u16::MAX).prop_flat_map(|count| {
+                // the lowest start from which `count` values pass 0xFFFF, counted in u32
+                let lowest = 0x1_0001u32.checked_sub(u32::from(count)).unwrap();
+                (u16::try_from(lowest).unwrap()..=u16::MAX, Just(count))
+            });
+            prop_oneof![empty, past_the_end]
+                .prop_map(|(start, count)| Corruption::ImpossibleRange { start, count })
+                .boxed()
+        }
+
+        /// The changes that apply to `answered`'s response
+        fn corruptions(answered: &Answered) -> BoxedStrategy<Corruption> {
+            let function = answered.function;
+            let exception = answered.exception_function();
+            let other_functions: Vec<u8> = (0..=u8::MAX)
+                .filter(|code| *code != function && *code != exception)
+                .collect();
+            let trailing = prop_oneof![
+                2 => Just(vec![]),
+                1 => prop::collection::vec(any::<u8>(), 1..=3),
+            ];
+            let mut changes = vec![
+                (0..answered.response.len())
+                    .prop_map(Corruption::Truncate)
+                    .boxed(),
+                prop::collection::vec(any::<u8>(), 1..=8)
+                    .prop_map(Corruption::Extend)
+                    .boxed(),
+                prop::sample::select(other_functions)
+                    .prop_map(Corruption::Function)
+                    .boxed(),
+                (any::<u8>(), trailing)
+                    .prop_map(|(code, trailing)| Corruption::Exception { code, trailing })
+                    .boxed(),
+                Just(Corruption::ExceptionWithoutCode).boxed(),
+            ];
+            match answered.layout() {
+                Layout::Read => {
+                    let count = answered.byte_count();
+                    // off by one or two, or by anything
+                    let near: Vec<u8> = [
+                        count.checked_sub(2),
+                        count.checked_sub(1),
+                        count.checked_add(1),
+                        count.checked_add(2),
+                    ]
+                    .into_iter()
+                    .flatten()
+                    .collect();
+                    let others: Vec<u8> = (0..=u8::MAX).filter(|other| *other != count).collect();
+                    changes.push(
+                        prop_oneof![prop::sample::select(near), prop::sample::select(others)]
+                            .prop_map(Corruption::ByteCount)
+                            .boxed(),
+                    );
+                    changes.push((1..=count.min(3)).prop_map(Corruption::Shorten).boxed());
+                    changes.push(
+                        prop::collection::vec(any::<u8>(), 1..=3)
+                            .prop_map(Corruption::Lengthen)
+                            .boxed(),
+                    );
+                }
+                Layout::WriteSingleCoil | Layout::WriteSingleRegister => {
+                    changes.push(echo_changes());
+                }
+                Layout::WriteMultiple => {
+                    changes.push(echo_changes());
+                    changes.push(impossible_ranges());
+                }
+            }
+            Union::new(changes).boxed()
+        }
+
+        /// `answered`'s response with `corruption` applied
+        fn apply(answered: &Answered, corruption: &Corruption) -> Vec<u8> {
+            let response = answered.response.as_slice();
+            let function = answered.function;
+            let exception = answered.exception_function();
+            match corruption {
+                Corruption::Truncate(len) => response[..*len].to_vec(),
+                Corruption::Extend(bytes) => [response, bytes].concat(),
+                Corruption::Function(other) => [&[*other], &response[1..]].concat(),
+                Corruption::Exception { code, trailing } => {
+                    [&[exception, *code], trailing.as_slice()].concat()
+                }
+                Corruption::ExceptionWithoutCode => vec![exception],
+                Corruption::Echo { index, flip } => {
+                    let mut changed = response.to_vec();
+                    changed[index.checked_add(1).unwrap()] ^= flip;
+                    changed
+                }
+                Corruption::ImpossibleRange { start, count } => {
+                    echo(function, start.to_be_bytes(), count.to_be_bytes())
+                }
+                Corruption::ByteCount(count) => {
+                    let mut changed = response.to_vec();
+                    changed[1] = *count;
+                    changed
+                }
+                Corruption::Shorten(by) => {
+                    let block = answered.block();
+                    let kept = block.len().checked_sub(usize::from(*by)).unwrap();
+                    read_response(function, &block[..kept])
+                }
+                Corruption::Lengthen(bytes) => {
+                    read_response(function, &[answered.block(), bytes].concat())
+                }
+            }
+        }
+
+        /// The error `answered`'s response with `corruption` applied must fail with
+        fn expected(answered: &Answered, corruption: &Corruption) -> RequestError {
+            let layout = answered.layout();
+            let count = usize::from(answered.byte_count());
+            let error = match corruption {
+                // a read's response is short of its byte count once that's present
+                Corruption::Truncate(len) if layout == Layout::Read && *len >= 2 => {
+                    AduParseError::InsufficientBytesForByteCount(count, len.checked_sub(2).unwrap())
+                }
+                Corruption::Truncate(_) => AduParseError::InsufficientBytes,
+                Corruption::Extend(bytes) if layout == Layout::Read => {
+                    AduParseError::InsufficientBytesForByteCount(
+                        count,
+                        count.checked_add(bytes.len()).unwrap(),
+                    )
+                }
+                Corruption::Extend(bytes) => AduParseError::TrailingBytes(bytes.len()),
+                Corruption::Function(other) => AduParseError::UnknownResponseFunction(
+                    *other,
+                    answered.function,
+                    answered.exception_function(),
+                ),
+                Corruption::Exception { code, trailing } if trailing.is_empty() => {
+                    return RequestError::Exception(ExceptionCode::from(*code));
+                }
+                Corruption::Exception { trailing, .. } => {
+                    AduParseError::TrailingBytes(trailing.len())
+                }
+                Corruption::ExceptionWithoutCode => AduParseError::InsufficientBytes,
+                // a coil's value must be ON or OFF before it's compared with the request's
+                Corruption::Echo { index, .. }
+                    if layout == Layout::WriteSingleCoil && *index >= 2 =>
+                {
+                    let changed = apply(answered, corruption);
+                    match u16::from_be_bytes([changed[3], changed[4]]) {
+                        0xFF00 | 0x0000 => AduParseError::ReplyEchoMismatch,
+                        other => AduParseError::UnknownCoilState(other),
+                    }
+                }
+                Corruption::Echo { .. } | Corruption::ImpossibleRange { .. } => {
+                    AduParseError::ReplyEchoMismatch
+                }
+                Corruption::ByteCount(other) => {
+                    AduParseError::InsufficientBytesForByteCount(usize::from(*other), count)
+                }
+                Corruption::Shorten(_) => AduParseError::InsufficientBytes,
+                Corruption::Lengthen(bytes) => AduParseError::TrailingBytes(bytes.len()),
+            };
+            RequestError::BadResponse(error)
+        }
+
+        /// Requests of `kind`, their correct responses, and a corruption of each
+        fn cases(kind: Kind) -> impl Strategy<Value = (Answered, Corruption)> {
+            answered(kind).prop_flat_map(|answered| {
+                let corruptions = corruptions(&answered);
+                (Just(answered), corruptions)
+            })
+        }
+
+        /// The correct response, from this module's encoder and from the server's writer,
+        /// delivers exactly the request's values or echo, through either kind of promise; the
+        /// corrupted response fails with the error the model expects and leaves the promise to
+        /// the failure that follows
+        fn check(answered: &Answered, corruption: &Corruption) {
+            let corrupted = apply(answered, corruption);
+            let rejected = Outcome::Rejected(expected(answered, corruption));
+            for completion in [Completion::Oneshot, Completion::Callback] {
+                let sent = &answered.sent;
+                assert_eq!(
+                    respond(sent, completion, &answered.response),
+                    answered.delivered
+                );
+                if let Some(served) = &answered.served {
+                    assert_eq!(served, &answered.response);
+                    assert_eq!(respond(sent, completion, served), answered.delivered);
+                }
+                assert_eq!(respond(sent, completion, &corrupted), rejected);
+            }
+        }
+
+        proptest! {
+            #![proptest_config(ProptestConfig::with_cases(256))]
+
+            // MODBUS Application Protocol Specification V1.1b3 6.1
+            #[test]
+            fn read_coils_responses_match_the_model((answered, corruption) in cases(Kind::ReadCoils)) {
+                check(&answered, &corruption);
+            }
+
+            // MODBUS Application Protocol Specification V1.1b3 6.2
+            #[test]
+            fn read_discrete_inputs_responses_match_the_model(
+                (answered, corruption) in cases(Kind::ReadDiscreteInputs),
+            ) {
+                check(&answered, &corruption);
+            }
+
+            // MODBUS Application Protocol Specification V1.1b3 6.3
+            #[test]
+            fn read_holding_registers_responses_match_the_model(
+                (answered, corruption) in cases(Kind::ReadHoldingRegisters),
+            ) {
+                check(&answered, &corruption);
+            }
+
+            // MODBUS Application Protocol Specification V1.1b3 6.4
+            #[test]
+            fn read_input_registers_responses_match_the_model(
+                (answered, corruption) in cases(Kind::ReadInputRegisters),
+            ) {
+                check(&answered, &corruption);
+            }
+
+            // MODBUS Application Protocol Specification V1.1b3 6.5
+            #[test]
+            fn write_single_coil_responses_match_the_model(
+                (answered, corruption) in cases(Kind::WriteSingleCoil),
+            ) {
+                check(&answered, &corruption);
+            }
+
+            // MODBUS Application Protocol Specification V1.1b3 6.6
+            #[test]
+            fn write_single_register_responses_match_the_model(
+                (answered, corruption) in cases(Kind::WriteSingleRegister),
+            ) {
+                check(&answered, &corruption);
+            }
+
+            // MODBUS Application Protocol Specification V1.1b3 6.11
+            #[test]
+            fn write_multiple_coils_responses_match_the_model(
+                (answered, corruption) in cases(Kind::WriteMultipleCoils),
+            ) {
+                check(&answered, &corruption);
+            }
+
+            // MODBUS Application Protocol Specification V1.1b3 6.12
+            #[test]
+            fn write_multiple_registers_responses_match_the_model(
+                (answered, corruption) in cases(Kind::WriteMultipleRegisters),
+            ) {
+                check(&answered, &corruption);
+            }
+        }
+
+        /// The block of values after a read response's function code and byte count, when the
+        /// function code is `function` and the count and the block are both `len`
+        fn read_block(function: u8, len: usize, payload: &[u8]) -> Option<&[u8]> {
+            match payload {
+                [code, count, block @ ..]
+                    if *code == function && usize::from(*count) == len && block.len() == len =>
+                {
+                    Some(block)
+                }
+                _ => None,
+            }
+        }
+
+        /// What `payload` delivers as the response to `answered`'s request, if the model accepts
+        /// it: a read's function code, the byte count its quantity needs and exactly that many
+        /// bytes (bits are taken from the lowest of each byte, the padding ignored), or a write's
+        /// exact echo
+        fn accepted(answered: &Answered, payload: &[u8]) -> Option<Outcome> {
+            let function = answered.function;
+            match &answered.sent {
+                Sent::ReadCoils { start, count } | Sent::ReadDiscreteInputs { start, count } => {
+                    let count = usize::from(*count);
+                    let block = read_block(function, count.div_ceil(8), payload)?;
+                    let bits = block
+                        .iter()
+                        .flat_map(|byte| (0..8).map(move |bit| (byte >> bit) & 1 == 1));
+                    Some(Outcome::Bits(indexed(*start, bits.take(count))))
+                }
+                Sent::ReadHoldingRegisters { start, count }
+                | Sent::ReadInputRegisters { start, count } => {
+                    let len = usize::from(*count).checked_mul(2)?;
+                    let block = read_block(function, len, payload)?;
+                    let registers = block
+                        .chunks(2)
+                        .map(|pair| u16::from_be_bytes([pair[0], pair[1]]));
+                    Some(Outcome::Registers(indexed(*start, registers)))
+                }
+                Sent::WriteSingleCoil(_)
+                | Sent::WriteSingleRegister(_)
+                | Sent::WriteMultipleCoils { .. }
+                | Sent::WriteMultipleRegisters { .. } => {
+                    (payload == answered.response).then(|| answered.delivered.clone())
+                }
+            }
+        }
+
+        /// Payloads of up to 260 bytes: any bytes; the request's function code or its exception's,
+        /// then any bytes; some of the correct response, then any bytes; or the correct response
+        /// with one byte replaced (often by itself), often one of the first two
+        fn payloads(answered: &Answered) -> BoxedStrategy<Vec<u8>> {
+            let codes = vec![answered.function, answered.exception_function()];
+            let len = answered.response.len();
+            let prefix = answered.response.clone();
+            let replaced = answered.response.clone();
+            prop_oneof![
+                prop::collection::vec(any::<u8>(), 0..=260),
+                (
+                    prop::sample::select(codes),
+                    prop::collection::vec(any::<u8>(), 0..=259)
+                )
+                    .prop_map(|(code, tail)| [&[code], tail.as_slice()].concat()),
+                (0..=len, prop::collection::vec(any::<u8>(), 0..=4))
+                    .prop_map(move |(kept, tail)| [&prefix[..kept], tail.as_slice()].concat()),
+                (prop_oneof![0usize..2, 0..len], any::<u8>()).prop_map(move |(index, byte)| {
+                    let mut payload = replaced.clone();
+                    payload[index] = byte;
+                    payload
+                }),
+            ]
+            .boxed()
+        }
+
+        /// A request of any kind and a payload to answer it with
+        fn arbitrary_payloads() -> impl Strategy<Value = (Answered, Vec<u8>)> {
+            prop::sample::select(KINDS.to_vec())
+                .prop_flat_map(answered)
+                .prop_flat_map(|answered| {
+                    let payloads = payloads(&answered);
+                    (Just(answered), payloads)
+                })
+        }
+
+        proptest! {
+            #![proptest_config(ProptestConfig::with_cases(512))]
+
+            #[test]
+            fn any_payload_completes_the_request_once_and_only_if_the_model_accepts_it(
+                (answered, payload) in arbitrary_payloads(),
+            ) {
+                let accepted = accepted(&answered, &payload);
+                for completion in [Completion::Oneshot, Completion::Callback] {
+                    let outcome = respond(&answered.sent, completion, &payload);
+                    match &accepted {
+                        Some(delivered) => assert_eq!(&outcome, delivered),
+                        None => assert!(
+                            matches!(outcome, Outcome::Rejected(_)),
+                            "the model rejects what delivered {outcome:?}"
+                        ),
+                    }
+                }
+            }
+        }
+
+        /// The kinds of error a corruption fails with
+        #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+        enum Failure {
+            InsufficientBytes,
+            ByteCount,
+            TrailingBytes,
+            Function,
+            Exception,
+            EchoMismatch,
+            CoilState,
+        }
+
+        fn failure(err: RequestError) -> Failure {
+            match err {
+                RequestError::Exception(_) => Failure::Exception,
+                RequestError::BadResponse(AduParseError::InsufficientBytes) => {
+                    Failure::InsufficientBytes
+                }
+                RequestError::BadResponse(AduParseError::InsufficientBytesForByteCount(..)) => {
+                    Failure::ByteCount
+                }
+                RequestError::BadResponse(AduParseError::TrailingBytes(_)) => {
+                    Failure::TrailingBytes
+                }
+                RequestError::BadResponse(AduParseError::UnknownResponseFunction(..)) => {
+                    Failure::Function
+                }
+                RequestError::BadResponse(AduParseError::ReplyEchoMismatch) => {
+                    Failure::EchoMismatch
+                }
+                RequestError::BadResponse(AduParseError::UnknownCoilState(_)) => Failure::CoilState,
+                other => panic!("the model expects no {other:?}"),
+            }
+        }
+
+        /// Cases drawn as the properties draw them make every change with every error it can
+        /// fail with, and arbitrary payloads are both accepted and rejected
+        #[test]
+        fn the_generators_reach_every_corruption_and_both_outcomes() {
+            let mut runner = TestRunner::deterministic();
+            let mut seen = BTreeSet::new();
+            for kind in KINDS {
+                let strategy = cases(kind);
+                for _ in 0..256 {
+                    let (answered, corruption) = strategy.new_tree(&mut runner).unwrap().current();
+                    let failure = failure(expected(&answered, &corruption));
+                    seen.insert((corruption.change(), failure));
+                }
+            }
+            assert_eq!(
+                seen.into_iter().collect::<Vec<_>>(),
+                [
+                    (Change::Truncate, Failure::InsufficientBytes),
+                    (Change::Truncate, Failure::ByteCount),
+                    (Change::Extend, Failure::ByteCount),
+                    (Change::Extend, Failure::TrailingBytes),
+                    (Change::Function, Failure::Function),
+                    (Change::Exception, Failure::TrailingBytes),
+                    (Change::Exception, Failure::Exception),
+                    (Change::ExceptionWithoutCode, Failure::InsufficientBytes),
+                    (Change::Echo, Failure::EchoMismatch),
+                    (Change::Echo, Failure::CoilState),
+                    (Change::ImpossibleRange, Failure::EchoMismatch),
+                    (Change::ByteCount, Failure::ByteCount),
+                    (Change::Shorten, Failure::InsufficientBytes),
+                    (Change::Lengthen, Failure::TrailingBytes),
+                ]
+            );
+
+            let strategy = arbitrary_payloads();
+            let mut accepted_any = false;
+            let mut rejected_any = false;
+            for _ in 0..512 {
+                let (answered, payload) = strategy.new_tree(&mut runner).unwrap().current();
+                match accepted(&answered, &payload) {
+                    Some(_) => accepted_any = true,
+                    None => rejected_any = true,
+                }
+            }
+            assert!(accepted_any && rejected_any);
         }
     }
 }
