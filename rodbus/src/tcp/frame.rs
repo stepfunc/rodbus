@@ -6,7 +6,7 @@
 
 use crate::common::buffer::ReadBuffer;
 use crate::common::frame::{
-    Frame, FrameHeader, FrameInfo, FrameType, FunctionField, PduLength, TxId,
+    Frame, FrameHeader, FrameInfo, FrameType, FunctionField, PduLength, ReadError, TxId,
 };
 use crate::common::traits::Serialize;
 use crate::decode::FrameDecodeLevel;
@@ -49,7 +49,7 @@ impl MbapParser {
     }
 
     // returns some header fields and the length of the PDU
-    fn parse_header(cursor: &mut ReadBuffer) -> Result<(MbapHeader, PduLength), RequestError> {
+    fn parse_header(cursor: &mut ReadBuffer) -> Result<(MbapHeader, PduLength), ReadError> {
         let tx_id = TxId::new(cursor.read_u16_be()?);
         let protocol_id = cursor.read_u16_be()?;
         let len_field = cursor.read_u16_be()?;
@@ -84,7 +84,7 @@ impl MbapParser {
         header: &MbapHeader,
         pdu_length: PduLength,
         cursor: &mut ReadBuffer,
-    ) -> Result<Frame, RequestError> {
+    ) -> Result<Frame, ReadError> {
         Ok(Frame::new(
             FrameHeader::new_tcp_header(header.unit_id, header.tx_id),
             pdu_length.read(cursor)?,
@@ -95,7 +95,7 @@ impl MbapParser {
     pub(crate) fn parse(
         &mut self,
         cursor: &mut ReadBuffer,
-    ) -> Result<Option<(Frame, FrameType)>, RequestError> {
+    ) -> Result<Option<(Frame, FrameType)>, ReadError> {
         loop {
             match self.state {
                 ParseState::Header(header, pdu_length) => {
@@ -264,7 +264,7 @@ mod tests {
 
         io_handle.read(input);
         if let Poll::Ready(frame) = task.poll() {
-            frame.err().unwrap()
+            frame.err().unwrap().into()
         } else {
             panic!("Task not ready");
         }
@@ -410,7 +410,7 @@ mod tests {
                         },
                     )),
                     Poll::Ready(Err(error)) => {
-                        outcomes.push((index, Outcome::Error(error)));
+                        outcomes.push((index, Outcome::Error(error.into())));
                         return outcomes;
                     }
                 }

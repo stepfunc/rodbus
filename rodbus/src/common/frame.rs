@@ -8,9 +8,9 @@ use crate::common::phys::PhysLayer;
 use std::ops::Range;
 
 use crate::common::buffer::ReadBuffer;
-use crate::common::function::FunctionCode;
+use crate::common::function::{as_exception, FunctionCode};
 use crate::common::traits::{Loggable, LoggableDisplay, Serialize};
-use crate::error::{InternalError, RequestError};
+use crate::error::{FrameParseError, InternalError, RequestError};
 use crate::tcp::frame::{MbapDisplay, MbapHeader, MbapParser};
 use crate::types::UnitId;
 use crate::{DecodeLevel, ExceptionCode, FrameDecodeLevel};
@@ -27,6 +27,48 @@ pub(crate) mod constants {
     // an RTU frame fits in the buffer sized for the larger TCP frame
     #[cfg(feature = "serial")]
     const _: () = assert!(crate::serial::frame::constants::MAX_FRAME_LENGTH <= MAX_FRAME_LENGTH);
+}
+
+/// Why the reader returned no frame; each ends the session
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) enum ReadError {
+    /// Reading from the I/O failed, or the I/O reached its end
+    Io(std::io::ErrorKind),
+    /// The bytes received aren't a valid frame
+    BadFrame(FrameParseError),
+    /// A parser's read of bytes it had already checked were buffered failed
+    ///
+    /// Unreachable: each read follows a check that the bytes are there. If one ever failed, the
+    /// reader's position in the stream would be unknown, so it is treated like a bad frame.
+    Internal(InternalError),
+}
+
+impl From<std::io::Error> for ReadError {
+    fn from(err: std::io::Error) -> Self {
+        Self::Io(err.kind())
+    }
+}
+
+impl From<FrameParseError> for ReadError {
+    fn from(err: FrameParseError) -> Self {
+        Self::BadFrame(err)
+    }
+}
+
+impl From<InternalError> for ReadError {
+    fn from(err: InternalError) -> Self {
+        Self::Internal(err)
+    }
+}
+
+impl From<ReadError> for RequestError {
+    fn from(err: ReadError) -> Self {
+        match err {
+            ReadError::Io(kind) => Self::Io(kind),
+            ReadError::BadFrame(err) => Self::BadFrame(err),
+            ReadError::Internal(err) => Self::Internal(err),
+        }
+    }
 }
 
 /// The length of a PDU, which is never more than [`constants::MAX_PDU_LENGTH`]
@@ -192,7 +234,7 @@ impl FrameParser {
     /// Parse bytes using the provided cursor. Advancing the cursor always implies that the bytes
     /// are consumed and can be discarded,
     ///
-    /// `Err` implies the input data is invalid
+    /// `Err` implies the input data is invalid (never [`ReadError::Io`])
     /// `Ok(None)` implies that more data is required to complete parsing
     /// `Ok(Some(..))` will contain a fully parsed frame and will advance the cursor appropriately
     ///
@@ -200,7 +242,7 @@ impl FrameParser {
     pub(crate) fn parse(
         &mut self,
         cursor: &mut ReadBuffer,
-    ) -> Result<Option<(Frame, FrameType)>, RequestError> {
+    ) -> Result<Option<(Frame, FrameType)>, ReadError> {
         match self {
             #[cfg(feature = "serial")]
             FrameParser::Rtu(x) => x.parse(cursor),
@@ -340,8 +382,8 @@ impl FunctionField {
     pub(crate) fn get_value(&self) -> u8 {
         match self {
             FunctionField::Valid(x) => x.get_value(),
-            FunctionField::Exception(x) => x.get_value() | 0x80,
-            FunctionField::UnknownFunction(x) => x | 0x80,
+            FunctionField::Exception(x) => x.as_error(),
+            FunctionField::UnknownFunction(x) => as_exception(*x),
         }
     }
 }
@@ -514,7 +556,7 @@ impl FramedReader {
         &mut self,
         io: &mut PhysLayer,
         decode_level: DecodeLevel,
-    ) -> Result<Frame, RequestError> {
+    ) -> Result<Frame, ReadError> {
         loop {
             match self.parser.parse(&mut self.buffer) {
                 Ok(Some((frame, frame_type))) => {
