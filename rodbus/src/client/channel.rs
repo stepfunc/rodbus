@@ -165,12 +165,12 @@ impl Channel {
         decode: DecodeLevel,
         listener: Option<Box<dyn crate::client::Listener<crate::client::PortState>>>,
     ) -> (Self, ClientTask) {
-        let (tx, rx) = tokio::sync::mpsc::channel(max_queued_requests);
+        let (tx, rx) = crate::channel::bounded(max_queued_requests);
         let (shutdown, signal) = crate::common::cancellation::pair();
         let task = crate::serial::client::SerialChannelTask::new(
             path,
             serial_settings,
-            rx.into(),
+            rx,
             retry,
             decode,
             listener.unwrap_or_else(|| crate::client::NullListener::create()),

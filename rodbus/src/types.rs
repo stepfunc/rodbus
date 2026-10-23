@@ -464,7 +464,8 @@ impl ClientOptions {
 
     /// Set the maximum number of queued requests
     ///
-    /// Note: defaults to 16
+    /// Note: defaults to 16. A value of 0 is treated as 1, and values above what the runtime
+    /// supports (`tokio::sync::Semaphore::MAX_PERMITS`) as that maximum.
     pub fn max_queued_requests(self, max_queued_requests: usize) -> Self {
         Self {
             max_queued_requests,
