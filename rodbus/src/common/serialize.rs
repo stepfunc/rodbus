@@ -270,6 +270,7 @@ mod tests {
     use crate::common::test_support::{SINGLE_COIL_WRITES, SINGLE_REGISTER_WRITE};
     use crate::error::{AduParseError, InvalidRange};
     use crate::server::request::{Rejection, Request, WriteRequest};
+    use crate::types::strategies::{packed_bits, packed_registers};
 
     fn bytes_of(value: &dyn Serialize) -> Vec<u8> {
         let mut buffer = [0u8; 300];
@@ -336,7 +337,7 @@ mod tests {
         }
 
         fn packed(values: &[bool]) -> Vec<u8> {
-            model_packed_bits(values)
+            counted(packed_bits(values))
         }
 
         fn single_written(request: Request) -> Option<Indexed<bool>> {
@@ -377,7 +378,7 @@ mod tests {
         }
 
         fn packed(values: &[u16]) -> Vec<u8> {
-            model_packed_registers(values)
+            counted(packed_registers(values))
         }
 
         fn single_written(request: Request) -> Option<Indexed<u16>> {
@@ -637,30 +638,8 @@ mod tests {
         assert_eq!(bytes_of(&writer), expected);
     }
 
-    /// The byte count, then `bits` eight to a byte, the first in its lowest bit, and the last
-    /// byte padded with zeros
-    fn model_packed_bits(bits: &[bool]) -> Vec<u8> {
-        let packed: Vec<u8> = bits
-            .chunks(8)
-            .map(|chunk| {
-                chunk
-                    .iter()
-                    .rev()
-                    .fold(0, |byte, &bit| (byte << 1) | u8::from(bit))
-            })
-            .collect();
-        std::iter::once(u8::try_from(packed.len()).unwrap())
-            .chain(packed)
-            .collect()
-    }
-
-    /// The byte count, then `values` high byte first
-    fn model_packed_registers(values: &[u16]) -> Vec<u8> {
-        let packed: Vec<u8> = values
-            .iter()
-            .flat_map(|value| [value / 256, value % 256])
-            .map(|byte| u8::try_from(byte).unwrap())
-            .collect();
+    /// The byte count of `packed`, then `packed`
+    fn counted(packed: Vec<u8>) -> Vec<u8> {
         std::iter::once(u8::try_from(packed.len()).unwrap())
             .chain(packed)
             .collect()
@@ -670,17 +649,7 @@ mod tests {
         use proptest::prelude::*;
 
         use super::*;
-        use crate::types::strategies::ranges;
-
-        /// A range of a count from `counts`, with a random value for each address
-        fn values<T: Arbitrary>(
-            counts: std::ops::RangeInclusive<u16>,
-        ) -> impl Strategy<Value = (u16, Vec<T>)> {
-            ranges(counts).prop_flat_map(|range| {
-                let values = prop::collection::vec(any::<T>(), usize::from(range.count));
-                (Just(range.start), values)
-            })
-        }
+        use crate::types::strategies::values;
 
         proptest! {
             #![proptest_config(ProptestConfig::with_cases(256))]
@@ -690,7 +659,7 @@ mod tests {
             fn bits_are_packed_from_the_lowest_bit_of_each_byte_and_padded_with_zeros(
                 (start, bits) in values::<bool>(1..=2000),
             ) {
-                check_packed_bits(start, &bits, &model_packed_bits(&bits));
+                check_packed_bits(start, &bits, &counted(packed_bits(&bits)));
             }
 
             // MODBUS Application Protocol Specification V1.1b3 6.3, 6.4, 6.12
@@ -698,7 +667,7 @@ mod tests {
             fn registers_are_written_big_endian(
                 (start, values) in values::<u16>(1..=125),
             ) {
-                check_packed_registers(start, &values, &model_packed_registers(&values));
+                check_packed_registers(start, &values, &counted(packed_registers(&values)));
             }
 
             // MODBUS Application Protocol Specification V1.1b3 6.5, 6.6
