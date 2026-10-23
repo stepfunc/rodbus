@@ -246,3 +246,33 @@ pub(crate) fn format_bytes(f: &mut std::fmt::Formatter, bytes: &[u8]) -> std::fm
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn lines(level: PhysDecodeLevel, count: u8) -> Vec<String> {
+        let bytes: Vec<u8> = (0..count).collect();
+        PhysDisplay::new(level, &bytes)
+            .to_string()
+            .split('\n')
+            .map(String::from)
+            .collect()
+    }
+
+    const FIRST: &str = "00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F 10 11";
+    const SECOND: &str = "12 13 14 15 16 17 18 19 1A 1B 1C 1D 1E 1F 20 21 22 23";
+
+    #[test]
+    fn data_is_shown_in_hex_eighteen_bytes_to_a_line() {
+        assert_eq!(lines(PhysDecodeLevel::Data, 0), ["0 bytes"]);
+        assert_eq!(lines(PhysDecodeLevel::Data, 1), ["1 bytes", "00"]);
+        assert_eq!(lines(PhysDecodeLevel::Data, 18), ["18 bytes", FIRST]);
+        assert_eq!(lines(PhysDecodeLevel::Data, 19), ["19 bytes", FIRST, "12"]);
+        assert_eq!(
+            lines(PhysDecodeLevel::Data, 36),
+            ["36 bytes", FIRST, SECOND]
+        );
+        assert_eq!(lines(PhysDecodeLevel::Length, 36), ["36 bytes"]);
+    }
+}
