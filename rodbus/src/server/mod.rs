@@ -129,7 +129,8 @@ impl ServerHandle {
 ///
 /// Each incoming connection will spawn a new task to handle it.
 ///
-/// * `max_sessions` - Maximum number of concurrent sessions
+/// * `max_sessions` - Maximum number of concurrent sessions. When a new connection would exceed it,
+///   the oldest session is closed. Zero is treated as one.
 /// * `addr` - A socket address to bound to
 /// * `handlers` - A map of handlers keyed by a unit id
 /// * `decode` - Decode log level
@@ -158,7 +159,8 @@ pub async fn spawn_tcp_server_task<T: RequestHandler>(
 /// It is the caller's responsibility to run the returned [`ServerTask`] on a runtime, e.g.
 /// `tokio::spawn(task.run())`. Each incoming connection will spawn a new task to handle it.
 ///
-/// * `max_sessions` - Maximum number of concurrent sessions
+/// * `max_sessions` - Maximum number of concurrent sessions. When a new connection would exceed it,
+///   the oldest session is closed. Zero is treated as one.
 /// * `listener` - A pre-bound TCP listener
 /// * `handlers` - A map of handlers keyed by a unit id
 /// * `filter` - Address filter which may be used to restrict the connecting IP address
@@ -264,7 +266,9 @@ pub fn create_rtu_server_task<T: RequestHandler>(
 ///
 /// Each incoming connection will spawn a new task to handle it.
 ///
-/// * `max_sessions` - Maximum number of concurrent sessions
+/// * `max_sessions` - Maximum number of concurrent sessions. A connection becomes a session once its
+///   TLS handshake completes; if that exceeds the maximum, the oldest session is closed. Handshakes
+///   run one at a time, each limited to 5 seconds. Zero is treated as one.
 /// * `addr` - A socket address to bound to
 /// * `handlers` - A map of handlers keyed by a unit id
 /// * `filter` - Address filter which may be used to restrict the connecting IP address
@@ -299,7 +303,9 @@ pub async fn spawn_tls_server_task<T: RequestHandler>(
 /// allows all operations for any authenticated client. It is the caller's responsibility to run
 /// the returned [`ServerTask`] on a runtime, e.g. `tokio::spawn(task.run())`.
 ///
-/// * `max_sessions` - Maximum number of concurrent sessions
+/// * `max_sessions` - Maximum number of concurrent sessions. A connection becomes a session once its
+///   TLS handshake completes; if that exceeds the maximum, the oldest session is closed. Handshakes
+///   run one at a time, each limited to 5 seconds. Zero is treated as one.
 /// * `listener` - A pre-bound TCP listener
 /// * `handlers` - A map of handlers keyed by a unit id
 /// * `tls_config` - TLS configuration
@@ -332,7 +338,9 @@ pub fn create_tls_server_task<T: RequestHandler>(
 ///
 /// Each incoming connection will spawn a new task to handle it.
 ///
-/// * `max_sessions` - Maximum number of concurrent sessions
+/// * `max_sessions` - Maximum number of concurrent sessions. A connection becomes a session once its
+///   TLS handshake completes; if that exceeds the maximum, the oldest session is closed. Handshakes
+///   run one at a time, each limited to 5 seconds. Zero is treated as one.
 /// * `addr` - A socket address to bound to
 /// * `handlers` - A map of handlers keyed by a unit id
 /// * `auth_handler` - Handler used to authorize requests
@@ -369,7 +377,9 @@ pub async fn spawn_tls_server_task_with_authz<T: RequestHandler>(
 /// authorization of requests against the supplied handler. It is the caller's responsibility to
 /// run the returned [`ServerTask`] on a runtime, e.g. `tokio::spawn(task.run())`.
 ///
-/// * `max_sessions` - Maximum number of concurrent sessions
+/// * `max_sessions` - Maximum number of concurrent sessions. A connection becomes a session once its
+///   TLS handshake completes; if that exceeds the maximum, the oldest session is closed. Handshakes
+///   run one at a time, each limited to 5 seconds. Zero is treated as one.
 /// * `listener` - A pre-bound TCP listener
 /// * `handlers` - A map of handlers keyed by a unit id
 /// * `auth_handler` - Handler used to authorize requests

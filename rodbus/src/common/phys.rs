@@ -20,6 +20,9 @@ pub(crate) enum PhysLayerImpl {
     Tls(Box<tokio_rustls::TlsStream<tokio::net::TcpStream>>),
     #[cfg(test)]
     Mock(sfio_tokio_mock_io::Mock),
+    /// unlike `Mock`, writes stay pending while the pipe is full
+    #[cfg(test)]
+    Duplex(tokio::io::DuplexStream),
 }
 
 impl std::fmt::Debug for PhysLayer {
@@ -32,6 +35,8 @@ impl std::fmt::Debug for PhysLayer {
             PhysLayerImpl::Tls(_) => f.write_str("Tls"),
             #[cfg(test)]
             PhysLayerImpl::Mock(_) => f.write_str("Mock"),
+            #[cfg(test)]
+            PhysLayerImpl::Duplex(_) => f.write_str("Duplex"),
         }
     }
 }
@@ -65,6 +70,13 @@ impl PhysLayer {
         }
     }
 
+    #[cfg(test)]
+    pub(crate) fn new_duplex(stream: tokio::io::DuplexStream) -> Self {
+        Self {
+            layer: PhysLayerImpl::Duplex(stream),
+        }
+    }
+
     pub(crate) async fn read(
         &mut self,
         buffer: &mut [u8],
@@ -78,6 +90,8 @@ impl PhysLayer {
             PhysLayerImpl::Tls(x) => x.read(buffer).await?,
             #[cfg(test)]
             PhysLayerImpl::Mock(x) => x.read(buffer).await?,
+            #[cfg(test)]
+            PhysLayerImpl::Duplex(x) => x.read(buffer).await?,
         };
 
         if decode_level.enabled() {
@@ -114,6 +128,8 @@ impl PhysLayer {
             PhysLayerImpl::Tls(x) => x.write_all(data).await,
             #[cfg(test)]
             PhysLayerImpl::Mock(x) => x.write_all(data).await,
+            #[cfg(test)]
+            PhysLayerImpl::Duplex(x) => x.write_all(data).await,
         }
     }
 }

@@ -11,6 +11,7 @@ use crate::server::task::{AuthorizationType, ServerCommand};
 use crate::tcp::accept::{Acceptor, Listen};
 
 use crate::server::AddressFilter;
+use std::future::Future;
 use std::net::SocketAddr;
 use tokio::net::TcpListener;
 
@@ -20,10 +21,24 @@ use crate::server::AuthorizationHandler;
 /// event sent back to the server task when a session ends
 struct SessionClose(u128);
 
+/// A running session, which ends when its record is dropped
+struct SessionRecord {
+    commands: tokio::sync::mpsc::Sender<ServerCommand>,
+    task: tokio::task::AbortHandle,
+}
+
+impl Drop for SessionRecord {
+    fn drop(&mut self) {
+        // closing the command channel isn't enough: a session only reads it between requests, and
+        // a session writing to a peer that doesn't read would never get there
+        self.task.abort();
+    }
+}
+
 struct SessionTracker {
     max_sessions: usize,
     id: u128,
-    sessions: BTreeMap<u128, tokio::sync::mpsc::Sender<ServerCommand>>,
+    sessions: BTreeMap<u128, SessionRecord>,
 }
 
 impl SessionTracker {
@@ -41,36 +56,31 @@ impl SessionTracker {
         }
     }
 
-    fn get_next_id(&mut self) -> u128 {
+    fn next_id(&mut self) -> u128 {
         let ret = self.id;
         self.id += 1;
         ret
     }
 
-    pub(crate) fn add(&mut self, sender: tokio::sync::mpsc::Sender<ServerCommand>) -> u128 {
+    fn add(&mut self, id: u128, session: SessionRecord) {
         if self.sessions.len() >= self.max_sessions {
             if let Some(oldest) = self.sessions.keys().next().copied() {
                 tracing::warn!(
                     "exceeded max connections, closing oldest session: {}",
                     oldest
                 );
-                // when the record drops, and there are no more senders,
-                // the other end will stop the task
                 self.sessions.remove(&oldest);
             }
         }
 
-        let id = self.get_next_id();
-        self.sessions.insert(id, sender);
-        id
+        self.sessions.insert(id, session);
     }
 
-    pub(crate) fn remove(&mut self, id: u128) {
+    fn remove(&mut self, id: u128) {
         self.sessions.remove(&id);
     }
 }
 
-#[derive(Clone)]
 pub(crate) enum TcpServerConnectionHandler {
     Tcp,
     #[cfg(feature = "enable-tls")]
@@ -101,15 +111,9 @@ impl TcpServerConnectionHandler {
 
 pub(crate) struct ServerTask<T: RequestHandler, L = TcpListener> {
     acceptor: Acceptor<L>,
-    handlers: ServerHandlerMap<T>,
-    tracker: SessionTracker,
     connection_handler: TcpServerConnectionHandler,
     filter: AddressFilter,
-    decode: DecodeLevel,
-    tx: tokio::sync::mpsc::Sender<SessionClose>,
-    rx: tokio::sync::mpsc::Receiver<SessionClose>,
-    /// sessions are spawned, so each gets a clone to observe cancellation directly
-    shutdown: ShutdownSignal,
+    sessions: Sessions<T>,
 }
 
 impl<T, L> ServerTask<T, L>
@@ -126,14 +130,80 @@ where
         decode: DecodeLevel,
         shutdown: ShutdownSignal,
     ) -> Self {
-        let (tx, rx) = tokio::sync::mpsc::channel(8);
-
         Self {
             acceptor: Acceptor::new(listener),
-            handlers,
-            tracker: SessionTracker::new(max_sessions),
             connection_handler,
             filter,
+            sessions: Sessions::new(max_sessions, handlers, decode, shutdown),
+        }
+    }
+
+    pub(crate) async fn run(&mut self, mut commands: tokio::sync::mpsc::Receiver<ServerCommand>) {
+        loop {
+            let Some((socket, addr)) = self
+                .sessions
+                .serve(&mut commands, self.acceptor.accept())
+                .await
+            else {
+                return;
+            };
+
+            if !self.filter.matches(addr.ip()) {
+                tracing::warn!(
+                    "IP address {:?} does not match filter {:?}, closing connection",
+                    addr.ip(),
+                    self.filter
+                );
+                continue;
+            }
+
+            if let Err(err) = socket.set_nodelay(true) {
+                tracing::warn!("unable to enable TCP_NODELAY: {}", err);
+            }
+
+            // A TLS handshake runs here, one at a time and within its timeout, so that only a
+            // connection that completes it becomes a session and can displace another
+            let Some(result) = self
+                .sessions
+                .serve(&mut commands, self.connection_handler.handle(socket))
+                .await
+            else {
+                return;
+            };
+
+            match result {
+                Ok((phys, auth)) => self.sessions.start(phys, auth, addr),
+                Err(err) => tracing::warn!("error from {}: {}", addr, err),
+            }
+        }
+    }
+}
+
+/// The server's sessions, and what a new session starts with
+struct Sessions<T: RequestHandler> {
+    handlers: ServerHandlerMap<T>,
+    tracker: SessionTracker,
+    decode: DecodeLevel,
+    tx: tokio::sync::mpsc::Sender<SessionClose>,
+    rx: tokio::sync::mpsc::Receiver<SessionClose>,
+    /// sessions are spawned, so each gets a clone to observe cancellation directly
+    shutdown: ShutdownSignal,
+}
+
+impl<T> Sessions<T>
+where
+    T: RequestHandler,
+{
+    fn new(
+        max_sessions: usize,
+        handlers: ServerHandlerMap<T>,
+        decode: DecodeLevel,
+        shutdown: ShutdownSignal,
+    ) -> Self {
+        let (tx, rx) = tokio::sync::mpsc::channel(8);
+        Self {
+            handlers,
+            tracker: SessionTracker::new(max_sessions),
             decode,
             tx,
             rx,
@@ -141,7 +211,29 @@ where
         }
     }
 
-    async fn apply_command(&mut self, command: ServerCommand) {
+    /// Run `operation` to completion, meanwhile applying commands and forgetting closed sessions
+    ///
+    /// Returns `None`, dropping the operation, once the handle is dropped
+    async fn serve<F: Future>(
+        &mut self,
+        commands: &mut tokio::sync::mpsc::Receiver<ServerCommand>,
+        operation: F,
+    ) -> Option<F::Output> {
+        let mut operation = std::pin::pin!(operation);
+        loop {
+            tokio::select! {
+                output = &mut operation => return Some(output),
+                command = commands.recv() => match command {
+                    Some(command) => self.apply_command(command),
+                    None => return None, // the handle was dropped
+                },
+                // never None: we keep a sender
+                Some(SessionClose(id)) = self.rx.recv() => self.tracker.remove(id),
+            }
+        }
+    }
+
+    fn apply_command(&mut self, command: ServerCommand) {
         // first, change it locally so that it is applied to new sessions
         match command {
             ServerCommand::ChangeDecoding(level) => {
@@ -150,71 +242,41 @@ where
             }
         }
 
-        for sender in self.tracker.sessions.values_mut() {
-            // best effort to send the command to each session this isn't critical so we wouldn't
-            // want to slow the server down by awaiting it
-            let _ = sender.send(command).await;
-        }
-    }
-
-    pub(crate) async fn run(&mut self, mut commands: tokio::sync::mpsc::Receiver<ServerCommand>) {
-        loop {
-            tokio::select! {
-               command = commands.recv() => {
-                    match command {
-                        Some(command) => self.apply_command(command).await,
-                        None => return, // the handle was dropped
-                    }
-               }
-               shutdown = self.rx.recv() => {
-                   // this will never be None b/c we always keep a tx live
-                   let id = shutdown.unwrap().0;
-
-                   self.tracker.remove(id);
-               }
-               (socket, addr) = self.acceptor.accept() => {
-                    if self.filter.matches(addr.ip()) {
-                        if let Err(err) = socket.set_nodelay(true) {
-                            tracing::warn!("unable to enable TCP_NODELAY: {}", err);
-                        }
-                        self.handle(socket, addr).await
-                    } else {
-                        tracing::warn!("IP address {:?} does not match filter {:?}, closing connection", addr.ip(), self.filter);
-                    }
-               }
+        for (id, session) in self.tracker.sessions.iter() {
+            // best effort: a session that is blocked, e.g. writing to a peer that doesn't read,
+            // misses the command rather than stopping the server
+            if let Err(err) = session.commands.try_send(command) {
+                tracing::warn!("unable to send a command to session {}: {}", id, err);
             }
         }
     }
 
-    async fn handle(&mut self, socket: tokio::net::TcpStream, addr: SocketAddr) {
-        let (tx, rx) = tokio::sync::mpsc::channel(8); // all we do is change settings, so a constant is fine
-        let id = self.tracker.add(tx);
+    fn start(&mut self, mut phys: PhysLayer, auth: AuthorizationType, addr: SocketAddr) {
+        let id = self.tracker.next_id();
         tracing::info!(
             "accepted connection from: {} - assigned session id: {}",
             addr,
             id
         );
 
-        #[allow(unused_mut)]
-        let mut notify_close = self.tx.clone();
-        let connection_handler = self.connection_handler.clone();
+        let (tx, rx) = tokio::sync::mpsc::channel(8); // all we do is change settings, so a constant is fine
+        let notify_close = self.tx.clone();
         let handler_map = self.handlers.clone();
         let decode_level = self.decode;
         let shutdown = self.shutdown.clone();
 
         let session = async move {
-            shutdown
-                .run_until_cancelled(run_session(
-                    socket,
-                    addr,
-                    connection_handler,
-                    decode_level,
-                    handler_map,
-                    rx,
-                ))
-                .await;
+            let mut task = crate::server::task::SessionTask::new(
+                handler_map,
+                auth,
+                FrameWriter::tcp(),
+                FramedReader::tcp(),
+                rx,
+                decode_level,
+            );
+            shutdown.run_until_cancelled(task.run(&mut phys)).await;
 
-            // no matter what happens, we send the id back to the server
+            // unless the server ended the session, tell it the session is over
             let _ = notify_close.send(SessionClose(id)).await;
 
             tracing::info!("session shutdown");
@@ -224,34 +286,8 @@ where
             session.instrument(tracing::info_span!("Session", "id" = ?id, "remote" = ?addr));
 
         // spawn the session off onto another task
-        tokio::spawn(session);
-    }
-}
-
-async fn run_session<T: RequestHandler>(
-    socket: tokio::net::TcpStream,
-    addr: SocketAddr,
-    mut handler: TcpServerConnectionHandler,
-    decode: DecodeLevel,
-    handlers: ServerHandlerMap<T>,
-    commands: tokio::sync::mpsc::Receiver<ServerCommand>,
-) {
-    match handler.handle(socket).await {
-        Err(err) => {
-            tracing::warn!("error from {}: {}", addr, err);
-        }
-        Ok((mut phys, auth)) => {
-            let _ = crate::server::task::SessionTask::new(
-                handlers,
-                auth,
-                FrameWriter::tcp(),
-                FramedReader::tcp(),
-                commands,
-                decode,
-            )
-            .run(&mut phys)
-            .await;
-        }
+        let task = tokio::spawn(session).abort_handle();
+        self.tracker.add(id, SessionRecord { commands: tx, task });
     }
 }
 
@@ -266,7 +302,7 @@ mod tests {
     use crate::tcp::accept::ACCEPT_ERROR_DELAY;
     use crate::UnitId;
     use std::time::Duration;
-    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 
     /// Bounds how long a test will hang if shutdown stops being immediate
     const TEST_TIMEOUT: Duration = Duration::from_secs(5);
@@ -284,16 +320,24 @@ mod tests {
     }
 
     /// Send [`READ_COILS`] and return the response
-    async fn read_coils(client: &mut tokio::net::TcpStream) -> [u8; 9] {
+    async fn read_coils<S: AsyncRead + AsyncWrite + Unpin>(client: &mut S) -> [u8; 9] {
         client.write_all(&READ_COILS).await.unwrap();
         let mut response = [0u8; 9];
         client.read_exact(&mut response).await.unwrap();
         response
     }
 
-    /// Spawn a plain TCP server on `listener`, wired as `create_tcp_server_task` wires it
+    /// Spawn a plain TCP server on `listener` with one session
     fn spawn_server_on(
         listener: FaultyListener,
+    ) -> (crate::server::ServerHandle, tokio::task::JoinHandle<()>) {
+        spawn_server_with(listener, TcpServerConnectionHandler::Tcp)
+    }
+
+    /// Spawn a server with one session on `listener`, wired as `create_tcp_server_task` wires it
+    fn spawn_server_with<L: Listen + 'static>(
+        listener: L,
+        connection_handler: TcpServerConnectionHandler,
     ) -> (crate::server::ServerHandle, tokio::task::JoinHandle<()>) {
         let (tx, rx) = tokio::sync::mpsc::channel(1);
         let (shutdown, signal) = crate::common::cancellation::pair();
@@ -301,7 +345,7 @@ mod tests {
             1,
             listener,
             handlers(),
-            TcpServerConnectionHandler::Tcp,
+            connection_handler,
             AddressFilter::Any,
             DecodeLevel::nothing(),
             signal.clone(),
@@ -312,21 +356,27 @@ mod tests {
         (crate::server::ServerHandle::new(tx, shutdown), task)
     }
 
-    /// Wait until the server closes `client`, without letting a paused clock advance
+    /// Run `future` without letting a paused clock advance
     ///
-    /// Awaiting the socket would leave the runtime idle, and an idle runtime advances a paused
-    /// clock to its next timer. Polling keeps a task ready instead. A session sends its close event
-    /// in the same poll that drops its socket, so once this returns that event is queued.
-    async fn await_close_with_the_clock_held(client: &tokio::net::TcpStream) {
-        let mut buffer = [0u8; 1];
+    /// Awaiting socket I/O leaves the runtime idle, and an idle runtime advances a paused clock to
+    /// its next timer. Yielding between polls keeps a task ready instead, while the runtime still
+    /// polls for I/O and runs the other tasks.
+    async fn with_the_clock_held<F: Future>(future: F) -> F::Output {
+        let mut future = std::pin::pin!(future);
         loop {
-            match client.try_read(&mut buffer) {
-                Err(err) if err.kind() == std::io::ErrorKind::WouldBlock => {
-                    tokio::task::yield_now().await
-                }
-                result => return assert_eq!(result.unwrap(), 0),
+            tokio::select! {
+                biased;
+                output = &mut future => return output,
+                _ = tokio::task::yield_now() => {}
             }
         }
+    }
+
+    /// Read `peer` until the other end closes it
+    async fn read_to_close<S: AsyncRead + Unpin>(peer: &mut S) -> Vec<u8> {
+        let mut received = Vec::new();
+        peer.read_to_end(&mut received).await.unwrap();
+        received
     }
 
     /// A descriptor-limit error, retried after the delay
@@ -447,8 +497,10 @@ mod tests {
                 .await
                 .unwrap();
             tokio::time::advance(Duration::from_millis(300)).await;
+            // a session sends its close event in the same poll that drops its socket, so once the
+            // client sees the close, that event is queued
             client.shutdown().await.unwrap();
-            await_close_with_the_clock_held(&client).await;
+            assert_eq!(with_the_clock_held(read_to_close(&mut client)).await, []);
             assert_eq!(failed_at.elapsed(), Duration::from_millis(600));
 
             let retried_at = attempts.recv().await.unwrap();
@@ -510,5 +562,303 @@ mod tests {
             assert!(count < RESETS.len(), "{count}");
         })
         .await;
+    }
+
+    /// The size of the pipe under a session started by [`start_a_blocked_session`]
+    const PIPE: usize = 4;
+
+    fn sessions(max_sessions: usize) -> Sessions<DefaultHandler> {
+        let (_shutdown, signal) = crate::common::cancellation::pair();
+        Sessions::new(max_sessions, handlers(), DecodeLevel::nothing(), signal)
+    }
+
+    fn duplex_session(sessions: &mut Sessions<DefaultHandler>) -> tokio::io::DuplexStream {
+        let (local, peer) = tokio::io::duplex(PIPE);
+        let addr = SocketAddr::from(([127, 0, 0, 1], 502));
+        sessions.start(PhysLayer::new_duplex(local), AuthorizationType::None, addr);
+        peer
+    }
+
+    /// Start a session and leave it blocked writing its answer to [`READ_COILS`]
+    ///
+    /// The answer doesn't fit in the pipe, and the peer reads one byte of it, which shows that
+    /// the session got to the write. Returns the peer and that byte.
+    async fn start_a_blocked_session(
+        sessions: &mut Sessions<DefaultHandler>,
+    ) -> (tokio::io::DuplexStream, u8) {
+        let mut peer = duplex_session(sessions);
+        peer.write_all(&READ_COILS).await.unwrap();
+        let mut first = [0u8; 1];
+        peer.read_exact(&mut first).await.unwrap();
+        (peer, first[0])
+    }
+
+    /// What the peer of a session blocked by [`start_a_blocked_session`] receives if the session
+    /// ends without writing anything more
+    async fn received_by_a_blocked_session(
+        peer: &mut tokio::io::DuplexStream,
+        first: u8,
+    ) -> Vec<u8> {
+        let mut received = vec![first];
+        received.extend(read_to_close(peer).await);
+        received
+    }
+
+    #[tokio::test]
+    async fn an_evicted_session_ends_while_its_write_is_pending() {
+        watchdog(async {
+            let mut sessions = sessions(1);
+            let (mut evicted, first) = start_a_blocked_session(&mut sessions).await;
+
+            let mut newer = duplex_session(&mut sessions);
+
+            assert_eq!(
+                received_by_a_blocked_session(&mut evicted, first).await,
+                ILLEGAL_FUNCTION[..PIPE]
+            );
+            assert_eq!(read_coils(&mut newer).await, ILLEGAL_FUNCTION);
+        })
+        .await;
+    }
+
+    #[tokio::test]
+    async fn dropping_the_sessions_ends_a_session_whose_write_is_pending() {
+        watchdog(async {
+            let mut sessions = sessions(1);
+            let (mut peer, first) = start_a_blocked_session(&mut sessions).await;
+
+            drop(sessions);
+
+            assert_eq!(
+                received_by_a_blocked_session(&mut peer, first).await,
+                ILLEGAL_FUNCTION[..PIPE]
+            );
+        })
+        .await;
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn commands_dont_wait_for_a_session_whose_write_is_pending() {
+        watchdog(async {
+            let mut sessions = sessions(1);
+            let (_peer, _) = start_a_blocked_session(&mut sessions).await;
+
+            // more commands than a session's queue holds
+            let (tx, mut commands) = tokio::sync::mpsc::channel(32);
+            for _ in 0..20 {
+                tx.try_send(ServerCommand::ChangeDecoding(DecodeLevel::nothing()))
+                    .unwrap();
+            }
+
+            let served = tokio::time::timeout(
+                Duration::from_secs(1),
+                sessions.serve(&mut commands, std::future::pending::<()>()),
+            )
+            .await;
+
+            assert!(served.is_err());
+            assert_eq!(
+                commands.try_recv().err(),
+                Some(tokio::sync::mpsc::error::TryRecvError::Empty)
+            );
+        })
+        .await;
+    }
+
+    #[cfg(feature = "enable-tls")]
+    mod tls {
+        use super::*;
+        use crate::tcp::tls::test_util::{both_versions, connect, server_config};
+        use crate::tcp::tls::{MinTlsVersion, TLS_HANDSHAKE_TIMEOUT};
+        use tokio::net::TcpStream;
+        use tokio::sync::mpsc;
+        use tokio::time::Instant;
+
+        /// Accepts from a real listener, reporting when it accepted each peer
+        struct ReportingListener {
+            inner: TcpListener,
+            accepted: mpsc::UnboundedSender<(Instant, SocketAddr)>,
+        }
+
+        impl Listen for ReportingListener {
+            async fn accept(&mut self) -> std::io::Result<(TcpStream, SocketAddr)> {
+                let (stream, addr) = self.inner.accept().await?;
+                self.accepted.send((Instant::now(), addr)).unwrap();
+                Ok((stream, addr))
+            }
+        }
+
+        struct Server {
+            handle: crate::server::ServerHandle,
+            task: tokio::task::JoinHandle<()>,
+            addr: SocketAddr,
+            accepted: mpsc::UnboundedReceiver<(Instant, SocketAddr)>,
+        }
+
+        /// A TLS server with one session
+        async fn spawn_tls_server() -> Server {
+            let inner = TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let addr = inner.local_addr().unwrap();
+            let (accepted, rx) = mpsc::unbounded_channel();
+            let (handle, task) = spawn_server_with(
+                ReportingListener { inner, accepted },
+                TcpServerConnectionHandler::Tls(server_config(MinTlsVersion::V1_2), None),
+            );
+            Server {
+                handle,
+                task,
+                addr,
+                accepted: rx,
+            }
+        }
+
+        impl Server {
+            /// Wait for the server to accept `peer`, and return when it did
+            async fn accepts(&mut self, peer: &TcpStream) -> Instant {
+                let (at, addr) = self.accepted.recv().await.unwrap();
+                assert_eq!(addr, peer.local_addr().unwrap());
+                at
+            }
+
+            /// Connect a peer that never sends its ClientHello, and return it once the server has
+            /// accepted it, with when it did. The clock is held so that the handshake's timer
+            /// can't run while the connection is set up.
+            async fn connect_and_stall(&mut self) -> (TcpStream, Instant) {
+                with_the_clock_held(async {
+                    let stalled = TcpStream::connect(self.addr).await.unwrap();
+                    let accepted_at = self.accepts(&stalled).await;
+                    (stalled, accepted_at)
+                })
+                .await
+            }
+        }
+
+        async fn connect_tls(addr: SocketAddr) -> tokio_rustls::client::TlsStream<TcpStream> {
+            connect(addr, both_versions()).await.unwrap()
+        }
+
+        #[tokio::test(start_paused = true)]
+        async fn a_stalled_handshake_ends_after_the_timeout_and_the_next_connection_is_served() {
+            watchdog(async {
+                let mut server = spawn_tls_server().await;
+                let (mut stalled, accepted_at) = server.connect_and_stall().await;
+
+                // the handshake's timer is the only one, so the clock moves straight to it
+                assert_eq!(read_to_close(&mut stalled).await, []);
+                assert_eq!(accepted_at.elapsed(), TLS_HANDSHAKE_TIMEOUT);
+
+                // a real handshake needs real time
+                tokio::time::resume();
+                let mut client = connect_tls(server.addr).await;
+                assert_eq!(read_coils(&mut client).await, ILLEGAL_FUNCTION);
+            })
+            .await;
+        }
+
+        #[tokio::test(start_paused = true)]
+        async fn a_session_is_served_while_another_connection_stalls_its_handshake() {
+            watchdog(async {
+                let mut server = spawn_tls_server().await;
+                let mut client = with_the_clock_held(connect_tls(server.addr)).await;
+                server.accepts(client.get_ref().0).await;
+                assert_eq!(
+                    with_the_clock_held(read_coils(&mut client)).await,
+                    ILLEGAL_FUNCTION
+                );
+
+                let (mut stalled, accepted_at) = server.connect_and_stall().await;
+
+                // the stalled handshake has started and can't have ended
+                assert_eq!(
+                    with_the_clock_held(read_coils(&mut client)).await,
+                    ILLEGAL_FUNCTION
+                );
+                assert_eq!(accepted_at.elapsed(), Duration::ZERO);
+
+                assert_eq!(read_to_close(&mut stalled).await, []);
+                assert_eq!(accepted_at.elapsed(), TLS_HANDSHAKE_TIMEOUT);
+                assert_eq!(
+                    with_the_clock_held(read_coils(&mut client)).await,
+                    ILLEGAL_FUNCTION
+                );
+            })
+            .await;
+        }
+
+        #[tokio::test]
+        async fn a_connection_that_fails_its_handshake_doesnt_displace_a_session() {
+            watchdog(async {
+                let mut server = spawn_tls_server().await;
+                let mut client = connect_tls(server.addr).await;
+                server.accepts(client.get_ref().0).await;
+                assert_eq!(read_coils(&mut client).await, ILLEGAL_FUNCTION);
+
+                // Modbus instead of a ClientHello; the server closes it once the handshake fails
+                let mut plain = TcpStream::connect(server.addr).await.unwrap();
+                server.accepts(&plain).await;
+                plain.write_all(&READ_COILS).await.unwrap();
+                let mut buffer = [0u8; 64];
+                while let Ok(1..) = plain.read(&mut buffer).await {}
+
+                assert_eq!(read_coils(&mut client).await, ILLEGAL_FUNCTION);
+            })
+            .await;
+        }
+
+        #[tokio::test]
+        async fn a_completed_handshake_displaces_the_oldest_session() {
+            watchdog(async {
+                let server = spawn_tls_server().await;
+                let mut older = connect_tls(server.addr).await;
+                assert_eq!(read_coils(&mut older).await, ILLEGAL_FUNCTION);
+
+                let mut newer = connect_tls(server.addr).await;
+                assert_eq!(read_coils(&mut newer).await, ILLEGAL_FUNCTION);
+
+                // the older session ended without a close_notify
+                let mut buffer = [0u8; 1];
+                assert_eq!(
+                    older.read(&mut buffer).await.map_err(|err| err.kind()),
+                    Err(std::io::ErrorKind::UnexpectedEof)
+                );
+            })
+            .await;
+        }
+
+        #[tokio::test(start_paused = true)]
+        async fn dropping_the_handle_during_a_stalled_handshake_stops_the_server() {
+            watchdog(async {
+                let mut server = spawn_tls_server().await;
+                let (mut stalled, accepted_at) = server.connect_and_stall().await;
+
+                // a command during the handshake is applied without ending it
+                server
+                    .handle
+                    .set_decode_level(DecodeLevel::nothing())
+                    .await
+                    .unwrap();
+                assert!(!server.task.is_finished());
+
+                drop(server.handle);
+                server.task.await.unwrap();
+                assert_eq!(accepted_at.elapsed(), Duration::ZERO);
+                assert_eq!(read_to_close(&mut stalled).await, []);
+            })
+            .await;
+        }
+
+        #[tokio::test(start_paused = true)]
+        async fn shutdown_during_a_stalled_handshake_stops_the_server() {
+            watchdog(async {
+                let mut server = spawn_tls_server().await;
+                let (mut stalled, accepted_at) = server.connect_and_stall().await;
+
+                server.handle.shutdown();
+                server.task.await.unwrap();
+                assert_eq!(accepted_at.elapsed(), Duration::ZERO);
+                assert_eq!(read_to_close(&mut stalled).await, []);
+            })
+            .await;
+        }
     }
 }
