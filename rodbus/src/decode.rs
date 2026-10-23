@@ -125,32 +125,26 @@ impl From<AppDecodeLevel> for DecodeLevel {
 
 impl AppDecodeLevel {
     pub(crate) fn enabled(&self) -> bool {
-        self.header()
-    }
-
-    pub(crate) fn header(&self) -> bool {
         match self {
             AppDecodeLevel::Nothing => false,
-            AppDecodeLevel::FunctionCode => true,
-            AppDecodeLevel::DataHeaders => true,
-            AppDecodeLevel::DataValues => true,
+            AppDecodeLevel::FunctionCode
+            | AppDecodeLevel::DataHeaders
+            | AppDecodeLevel::DataValues => true,
         }
     }
 
     pub(crate) fn data_headers(&self) -> bool {
         match self {
-            AppDecodeLevel::Nothing => false,
-            AppDecodeLevel::FunctionCode => false,
-            AppDecodeLevel::DataHeaders => true,
-            AppDecodeLevel::DataValues => true,
+            AppDecodeLevel::Nothing | AppDecodeLevel::FunctionCode => false,
+            AppDecodeLevel::DataHeaders | AppDecodeLevel::DataValues => true,
         }
     }
 
     pub(crate) fn data_values(&self) -> bool {
         match self {
-            AppDecodeLevel::Nothing => false,
-            AppDecodeLevel::FunctionCode => false,
-            AppDecodeLevel::DataHeaders => false,
+            AppDecodeLevel::Nothing
+            | AppDecodeLevel::FunctionCode
+            | AppDecodeLevel::DataHeaders => false,
             AppDecodeLevel::DataValues => true,
         }
     }
@@ -158,21 +152,15 @@ impl AppDecodeLevel {
 
 impl FrameDecodeLevel {
     pub(crate) fn enabled(&self) -> bool {
-        self.header_enabled()
-    }
-
-    pub(crate) fn header_enabled(&self) -> bool {
         match self {
             FrameDecodeLevel::Nothing => false,
-            FrameDecodeLevel::Header => true,
-            FrameDecodeLevel::Payload => true,
+            FrameDecodeLevel::Header | FrameDecodeLevel::Payload => true,
         }
     }
 
     pub(crate) fn payload_enabled(&self) -> bool {
         match self {
-            FrameDecodeLevel::Nothing => false,
-            FrameDecodeLevel::Header => false,
+            FrameDecodeLevel::Nothing | FrameDecodeLevel::Header => false,
             FrameDecodeLevel::Payload => true,
         }
     }
@@ -180,21 +168,15 @@ impl FrameDecodeLevel {
 
 impl PhysDecodeLevel {
     pub(crate) fn enabled(&self) -> bool {
-        self.length_enabled()
-    }
-
-    pub(crate) fn length_enabled(&self) -> bool {
         match self {
             PhysDecodeLevel::Nothing => false,
-            PhysDecodeLevel::Length => true,
-            PhysDecodeLevel::Data => true,
+            PhysDecodeLevel::Length | PhysDecodeLevel::Data => true,
         }
     }
 
     pub(crate) fn data_enabled(&self) -> bool {
         match self {
-            PhysDecodeLevel::Nothing => false,
-            PhysDecodeLevel::Length => false,
+            PhysDecodeLevel::Nothing | PhysDecodeLevel::Length => false,
             PhysDecodeLevel::Data => true,
         }
     }
