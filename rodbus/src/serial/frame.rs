@@ -174,12 +174,12 @@ impl RtuParser {
 
 pub(crate) fn format_rtu_pdu(
     cursor: &mut WriteCursor,
-    header: FrameHeader,
+    destination: FrameDestination,
     function: FunctionField,
     msg: &dyn Serialize,
 ) -> Result<FrameInfo, RequestError> {
     let start_frame = cursor.position();
-    cursor.write_u8(header.destination.value())?;
+    cursor.write_u8(destination.value())?;
     cursor.write_u8(function.get_value())?;
     let start_pdu_body = cursor.position();
     msg.serialize(cursor)?;
@@ -193,7 +193,7 @@ pub(crate) fn format_rtu_pdu(
     cursor.write_u16_le(crc)?;
 
     Ok(FrameInfo::new(
-        FrameType::Rtu(header.destination, crc),
+        FrameType::Rtu(destination, crc),
         start_pdu_body..end_pdu_body,
     ))
 }
@@ -575,10 +575,10 @@ mod tests {
                 match task.poll() {
                     Poll::Pending => break,
                     Poll::Ready(Ok(frame)) => {
-                        assert_eq!(frame.header.tx_id, None);
+                        assert!(matches!(frame.header, FrameHeader::Rtu(_)));
                         outcomes.push(Outcome::Frame {
                             chunk,
-                            destination: frame.header.destination,
+                            destination: frame.header.destination(),
                             payload: frame.payload().to_vec(),
                         });
                     }
@@ -632,11 +632,11 @@ mod tests {
             frame_on(0, frame),
             Outcome::Frame {
                 chunk: 0,
-                destination: received.header.destination,
+                destination: received.header.destination(),
                 payload: received.payload().to_vec(),
             }
         );
-        assert_eq!(received.header.tx_id, None);
+        assert!(matches!(received.header, FrameHeader::Rtu(_)));
     }
 
     #[test]
@@ -945,13 +945,7 @@ mod tests {
             id => FrameDestination::new_unit_id(id),
         };
         let msg = MockMessage { frame };
-        let info = format_rtu_pdu(
-            &mut cursor,
-            FrameHeader::new_rtu_header(destination),
-            function,
-            &msg,
-        )
-        .unwrap();
+        let info = format_rtu_pdu(&mut cursor, destination, function, &msg).unwrap();
         let end = cursor.position();
         assert_eq!(&buffer[offset..end], frame);
         let crc = u16::from_le_bytes([frame[frame.len() - 2], frame[frame.len() - 1]]);
@@ -1006,7 +1000,7 @@ mod tests {
         let mut cursor = WriteCursor::new(&mut buffer);
         let result = format_rtu_pdu(
             &mut cursor,
-            FrameHeader::new_rtu_header(FrameDestination::new_unit_id(UNIT_ID)),
+            FrameDestination::new_unit_id(UNIT_ID),
             FunctionField::Valid(FunctionCode::ReadCoils),
             &MockMessage {
                 frame: READ_COILS_REQUEST,
@@ -1026,7 +1020,7 @@ mod tests {
         let mut cursor = WriteCursor::new(&mut buffer);
         let result = format_rtu_pdu(
             &mut cursor,
-            FrameHeader::new_rtu_header(FrameDestination::new_unit_id(UNIT_ID)),
+            FrameDestination::new_unit_id(UNIT_ID),
             FunctionField::Valid(FunctionCode::ReadCoils),
             &FailingMessage,
         );

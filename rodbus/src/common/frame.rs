@@ -92,7 +92,7 @@ pub(crate) enum FrameDestination {
 }
 
 impl FrameDestination {
-    #[cfg(test)]
+    #[cfg(all(test, feature = "serial"))]
     pub(crate) fn new_unit_id(value: u8) -> Self {
         Self::UnitId(UnitId::new(value))
     }
@@ -122,26 +122,34 @@ impl std::fmt::Display for FrameDestination {
     }
 }
 
-#[derive(Debug, Copy, Clone)]
-pub(crate) struct FrameHeader {
-    pub(crate) destination: FrameDestination,
-    /// Transaction ids are not used in RTU
-    pub(crate) tx_id: Option<TxId>,
+/// Who a frame is for, in the form its transport carries it
+///
+/// A reply is formatted for the transport its request's header names.
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub(crate) enum FrameHeader {
+    /// MBAP: the unit and the transaction id
+    Tcp { unit_id: UnitId, tx_id: TxId },
+    /// RTU: the address, which may be the broadcast address
+    #[cfg(feature = "serial")]
+    Rtu(FrameDestination),
 }
 
 impl FrameHeader {
     pub(crate) fn new_tcp_header(unit_id: UnitId, tx_id: TxId) -> Self {
-        FrameHeader {
-            destination: FrameDestination::UnitId(unit_id),
-            tx_id: Some(tx_id),
-        }
+        Self::Tcp { unit_id, tx_id }
     }
 
     #[cfg(feature = "serial")]
     pub(crate) fn new_rtu_header(destination: FrameDestination) -> Self {
-        FrameHeader {
-            destination,
-            tx_id: None,
+        Self::Rtu(destination)
+    }
+
+    /// The unit the frame is for, or broadcast (RTU only)
+    pub(crate) fn destination(&self) -> FrameDestination {
+        match self {
+            Self::Tcp { unit_id, .. } => FrameDestination::UnitId(*unit_id),
+            #[cfg(feature = "serial")]
+            Self::Rtu(destination) => *destination,
         }
     }
 }
@@ -237,30 +245,44 @@ impl FrameInfo {
     }
 }
 
-enum FormatType {
+/// The transport a client's requests are framed for
+enum RequestFormat {
     Tcp,
     #[cfg(feature = "serial")]
     Rtu,
 }
 
-impl FormatType {
-    fn format(
-        &self,
-        cursor: &mut WriteCursor,
-        header: FrameHeader,
-        function: FunctionField,
-        body: &dyn Serialize,
-    ) -> Result<FrameInfo, RequestError> {
+impl RequestFormat {
+    fn header(&self, unit_id: UnitId, tx_id: TxId) -> FrameHeader {
         match self {
-            FormatType::Tcp => crate::tcp::frame::format_mbap(cursor, header, function, body),
+            Self::Tcp => FrameHeader::new_tcp_header(unit_id, tx_id),
+            // a request to address 0 is a broadcast, which nothing answers
             #[cfg(feature = "serial")]
-            FormatType::Rtu => crate::serial::frame::format_rtu_pdu(cursor, header, function, body),
+            Self::Rtu => FrameHeader::new_rtu_header(FrameDestination::UnitId(unit_id)),
+        }
+    }
+}
+
+fn format(
+    cursor: &mut WriteCursor,
+    header: FrameHeader,
+    function: FunctionField,
+    body: &dyn Serialize,
+) -> Result<FrameInfo, RequestError> {
+    match header {
+        FrameHeader::Tcp { unit_id, tx_id } => {
+            crate::tcp::frame::format_mbap(cursor, unit_id, tx_id, function, body)
+        }
+        #[cfg(feature = "serial")]
+        FrameHeader::Rtu(destination) => {
+            crate::serial::frame::format_rtu_pdu(cursor, destination, function, body)
         }
     }
 }
 
 pub(crate) struct FrameWriter {
-    format_type: FormatType,
+    /// Replies are framed by their request's header; this frames requests
+    request_format: RequestFormat,
     buffer: [u8; constants::MAX_FRAME_LENGTH],
 }
 
@@ -303,9 +325,9 @@ impl FunctionField {
 }
 
 impl FrameWriter {
-    fn new(format_type: FormatType) -> Self {
+    fn new(request_format: RequestFormat) -> Self {
         Self {
-            format_type,
+            request_format,
             buffer: [0; constants::MAX_FRAME_LENGTH],
         }
     }
@@ -329,19 +351,22 @@ impl FrameWriter {
         }
     }
 
+    /// Format a request to `unit_id`, returning its header and bytes
     pub(crate) fn format_request<T>(
         &mut self,
-        header: FrameHeader,
+        unit_id: UnitId,
+        tx_id: TxId,
         function: FunctionCode,
         body: &T,
         decode_level: DecodeLevel,
-    ) -> Result<&[u8], RequestError>
+    ) -> Result<(FrameHeader, &[u8]), RequestError>
     where
         T: Serialize + Loggable,
     {
+        let header = self.request_format.header(unit_id, tx_id);
         let len =
             self.format_generic(header, FunctionField::Valid(function), body, decode_level)?;
-        Ok(self.frame(len))
+        Ok((header, self.frame(len)))
     }
 
     pub(crate) fn format_ex(
@@ -379,9 +404,7 @@ impl FrameWriter {
     {
         let (frame_type, len, pdu_body) = {
             let mut cursor = WriteCursor::new(self.buffer.as_mut());
-            let info = self
-                .format_type
-                .format(&mut cursor, header, function, body)?;
+            let info = format(&mut cursor, header, function, body)?;
             let end = cursor.position();
             let pdu_body = self.buffer.get(info.pdu_body).unwrap_or_default();
             (info.frame_type, end, pdu_body)
@@ -423,12 +446,12 @@ impl FrameWriter {
     }
 
     pub(crate) fn tcp() -> Self {
-        Self::new(FormatType::Tcp)
+        Self::new(RequestFormat::Tcp)
     }
 
     #[cfg(feature = "serial")]
     pub(crate) fn rtu() -> Self {
-        Self::new(FormatType::Rtu)
+        Self::new(RequestFormat::Rtu)
     }
 }
 

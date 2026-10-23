@@ -80,7 +80,7 @@ where
         ex: ExceptionCode,
     ) -> Result<(), RequestError> {
         // do not answer on broadcast
-        if header.destination != FrameDestination::Broadcast {
+        if header.destination() != FrameDestination::Broadcast {
             let bytes = self.writer.format_ex(header, func, ex, self.decode)?;
             io.write(bytes, self.decode.physical).await?;
         }
@@ -191,9 +191,9 @@ where
         // check authorization
         if let Authorization::Deny = self
             .auth
-            .is_authorized(frame.header.destination.into_unit_id(), &request)
+            .is_authorized(frame.header.destination().into_unit_id(), &request)
         {
-            if !frame.header.destination.is_broadcast() {
+            if !frame.header.destination().is_broadcast() {
                 self.reply_with_error(
                     io,
                     frame.header,
@@ -206,7 +206,7 @@ where
         }
 
         // if no addresses match, then don't respond
-        match frame.header.destination {
+        match frame.header.destination() {
             FrameDestination::UnitId(unit_id) => {
                 let handler = match self.handlers.get(unit_id) {
                     None => {

@@ -13,9 +13,9 @@ use crate::common::phys::PhysLayer;
 use tokio::time::Instant;
 
 use crate::client::message::{Command, Request, Setting};
-use crate::common::frame::{FrameDestination, FrameHeader, FrameWriter, FramedReader, TxId};
+use crate::common::frame::{FrameHeader, FrameWriter, FramedReader, TxId};
 use crate::error::*;
-use crate::{DecodeLevel, UnitId};
+use crate::DecodeLevel;
 
 /**
 * We execute requests in a session until one of the following occurs
@@ -131,16 +131,13 @@ impl TimeoutCounter {
     }
 }
 
-/// Whether a frame with `header` is the response to a request to `unit` sent with `tx_id`
+/// Whether a frame with `header` is the response to the request sent with `request`
 ///
 /// The unit must match on TCP as well as RTU, since one TCP server may serve several units; TCP
-/// also pairs by transaction id. No frame answers a broadcast.
-fn answers(header: FrameHeader, unit: UnitId, tx_id: TxId) -> bool {
-    let from_unit = header.destination == FrameDestination::UnitId(unit);
-    match header.tx_id {
-        Some(received) => received == tx_id && from_unit,
-        None => from_unit,
-    }
+/// also pairs by transaction id. No frame answers a broadcast: a request to address 0 has the
+/// header `Rtu(UnitId(0))`, while a frame from address 0 is read as `Rtu(Broadcast)`.
+fn answers(header: FrameHeader, request: FrameHeader) -> bool {
+    header == request
 }
 
 pub(crate) struct ClientLoop {
@@ -288,8 +285,9 @@ impl ClientLoop {
         request: &mut Request,
         tx_id: TxId,
     ) -> Result<(), RequestError> {
-        let bytes = self.writer.format_request(
-            FrameHeader::new_tcp_header(request.id, tx_id),
+        let (header, bytes) = self.writer.format_request(
+            request.id,
+            tx_id,
             request.details.function(),
             &request.details,
             self.decode,
@@ -317,7 +315,7 @@ impl ClientLoop {
                 }
             };
 
-            if !answers(frame.header, request.id, tx_id) {
+            if !answers(frame.header, header) {
                 tracing::warn!(
                     "ignoring {:?} while expecting a response from unit {} with {:?}",
                     frame.header,
@@ -404,6 +402,8 @@ mod tests {
 
     use super::*;
     use crate::client::{Channel, RequestParam};
+    #[cfg(feature = "serial")]
+    use crate::common::frame::FrameDestination;
     use crate::common::function::FunctionCode;
     use crate::common::traits::{Loggable, Serialize};
     use crate::decode::*;
@@ -454,9 +454,14 @@ mod tests {
         T: Serialize + Loggable + Sized,
     {
         let mut fmt = FrameWriter::tcp();
-        let header = FrameHeader::new_tcp_header(UnitId::new(1), TxId::new(0));
-        let bytes = fmt
-            .format_request(header, function, payload, DecodeLevel::nothing())
+        let (_, bytes) = fmt
+            .format_request(
+                UnitId::new(1),
+                TxId::new(0),
+                function,
+                payload,
+                DecodeLevel::nothing(),
+            )
             .unwrap();
         Vec::from(bytes)
     }
@@ -948,20 +953,15 @@ mod tests {
     fn a_tcp_frame_answers_only_with_the_same_transaction_and_unit() {
         let tx_id = TxId::new(7);
         let unit = UnitId::new(2);
-        assert!(answers(
-            FrameHeader::new_tcp_header(unit, tx_id),
-            unit,
-            tx_id
-        ));
+        let request = FrameHeader::new_tcp_header(unit, tx_id);
+        assert!(answers(FrameHeader::new_tcp_header(unit, tx_id), request));
         assert!(!answers(
             FrameHeader::new_tcp_header(unit, TxId::new(8)),
-            unit,
-            tx_id
+            request
         ));
         assert!(!answers(
             FrameHeader::new_tcp_header(UnitId::new(1), tx_id),
-            unit,
-            tx_id
+            request
         ));
     }
 
@@ -969,30 +969,26 @@ mod tests {
     fn tcp_units_0_and_255_are_ordinary_units() {
         let tx_id = TxId::new(7);
         for unit in [UnitId::new(0), UnitId::new(0xFF)] {
-            assert!(answers(
-                FrameHeader::new_tcp_header(unit, tx_id),
-                unit,
-                tx_id
-            ));
+            let request = FrameHeader::new_tcp_header(unit, tx_id);
+            assert!(answers(FrameHeader::new_tcp_header(unit, tx_id), request));
         }
     }
 
     #[cfg(feature = "serial")]
     #[test]
     fn an_rtu_frame_answers_only_from_the_same_unit() {
-        let tx_id = TxId::new(7);
+        // a request to a unit, and a frame read from that unit, carry its address
+        let to = |unit| FrameHeader::new_rtu_header(FrameDestination::UnitId(unit));
         let unit = UnitId::new(2);
-        let from = |unit| FrameHeader::new_rtu_header(FrameDestination::UnitId(unit));
-        assert!(answers(from(unit), unit, tx_id));
-        assert!(!answers(from(UnitId::new(1)), unit, tx_id));
-        // nothing answers a broadcast
-        let broadcast = UnitId::broadcast();
+        assert!(answers(to(unit), to(unit)));
+        assert!(!answers(to(UnitId::new(1)), to(unit)));
+        // nothing answers a broadcast: a frame from address 0 is read as a broadcast
+        let broadcast = to(UnitId::broadcast());
         assert!(!answers(
             FrameHeader::new_rtu_header(FrameDestination::Broadcast),
-            broadcast,
-            tx_id
+            broadcast
         ));
-        assert!(!answers(from(UnitId::new(1)), broadcast, tx_id));
+        assert!(!answers(to(UnitId::new(1)), broadcast));
     }
 
     /// Read one holding register from `unit` in the background, with [`TIMEOUT`]
