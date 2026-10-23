@@ -7,9 +7,9 @@ use crate::common::phys::PhysLayer;
 use tokio::time::Instant;
 
 use crate::client::message::{Command, Request, Setting};
-use crate::common::frame::{FrameHeader, FrameWriter, FramedReader, TxId};
+use crate::common::frame::{FrameDestination, FrameHeader, FrameWriter, FramedReader, TxId};
 use crate::error::*;
-use crate::DecodeLevel;
+use crate::{DecodeLevel, UnitId};
 
 /**
 * We execute requests in a session until one of the following occurs
@@ -122,6 +122,18 @@ impl TimeoutCounter {
                 }
             }
         }
+    }
+}
+
+/// Whether a frame with `header` is the response to a request to `unit` sent with `tx_id`
+///
+/// The unit must match on TCP as well as RTU, since one TCP server may serve several units; TCP
+/// also pairs by transaction id. No frame answers a broadcast.
+fn answers(header: FrameHeader, unit: UnitId, tx_id: TxId) -> bool {
+    let from_unit = header.destination == FrameDestination::UnitId(unit);
+    match header.tx_id {
+        Some(received) => received == tx_id && from_unit,
+        None => from_unit,
     }
 }
 
@@ -288,7 +300,7 @@ impl ClientLoop {
             res = io.write(bytes, self.decode.physical) => res?,
         }
 
-        // loop until we get a response with the correct tx id or we timeout
+        // loop until we get the response to this request or we timeout
         let response = loop {
             let frame = tokio::select! {
                 _ = tokio::time::sleep_until(deadline) => {
@@ -299,12 +311,14 @@ impl ClientLoop {
                 }
             };
 
-            if let Some(received_tx_id) = frame.header.tx_id {
-                // Check that the received transaction ID matches (only in TCP MBAP)
-                if received_tx_id != tx_id {
-                    tracing::warn!("received {:?} while expecting {:?}", received_tx_id, tx_id);
-                    continue; // next iteration of loop
-                }
+            if !answers(frame.header, request.id, tx_id) {
+                tracing::warn!(
+                    "ignoring {:?} while expecting a response from unit {} with {:?}",
+                    frame.header,
+                    request.id,
+                    tx_id
+                );
+                continue;
             }
 
             break frame;
@@ -723,8 +737,21 @@ mod tests {
         tokio::task::JoinHandle<SessionError>,
         tokio::io::DuplexStream,
     ) {
+        spawn_client_loop_on_a_pipe_of(PIPE, writer, reader)
+    }
+
+    /// A client loop over a pipe that holds `capacity` bytes in each direction
+    fn spawn_client_loop_on_a_pipe_of(
+        capacity: usize,
+        writer: FrameWriter,
+        reader: FramedReader,
+    ) -> (
+        Channel,
+        tokio::task::JoinHandle<SessionError>,
+        tokio::io::DuplexStream,
+    ) {
         let (tx, rx) = tokio::sync::mpsc::channel(16);
-        let (local, peer) = tokio::io::duplex(PIPE);
+        let (local, peer) = tokio::io::duplex(capacity);
         let mut client_loop =
             ClientLoop::new(rx.into(), writer, reader, DecodeLevel::nothing(), None);
         let join_handle = tokio::spawn(async move {
@@ -908,6 +935,168 @@ mod tests {
         a_partial_response_doesnt_reach_the_next_connection(&[
             0x00, 0x00, 0x00, 0x00, 0x00, 0x05, 0x01, 0x03,
         ])
+        .await;
+    }
+
+    #[test]
+    fn a_tcp_frame_answers_only_with_the_same_transaction_and_unit() {
+        let tx_id = TxId::new(7);
+        let unit = UnitId::new(2);
+        assert!(answers(
+            FrameHeader::new_tcp_header(unit, tx_id),
+            unit,
+            tx_id
+        ));
+        assert!(!answers(
+            FrameHeader::new_tcp_header(unit, TxId::new(8)),
+            unit,
+            tx_id
+        ));
+        assert!(!answers(
+            FrameHeader::new_tcp_header(UnitId::new(1), tx_id),
+            unit,
+            tx_id
+        ));
+    }
+
+    #[test]
+    fn tcp_units_0_and_255_are_ordinary_units() {
+        let tx_id = TxId::new(7);
+        for unit in [UnitId::new(0), UnitId::new(0xFF)] {
+            assert!(answers(
+                FrameHeader::new_tcp_header(unit, tx_id),
+                unit,
+                tx_id
+            ));
+        }
+    }
+
+    #[cfg(feature = "serial")]
+    #[test]
+    fn an_rtu_frame_answers_only_from_the_same_unit() {
+        let tx_id = TxId::new(7);
+        let unit = UnitId::new(2);
+        let from = |unit| FrameHeader::new_rtu_header(FrameDestination::UnitId(unit));
+        assert!(answers(from(unit), unit, tx_id));
+        assert!(!answers(from(UnitId::new(1)), unit, tx_id));
+        // nothing answers a broadcast
+        let broadcast = UnitId::broadcast();
+        assert!(!answers(
+            FrameHeader::new_rtu_header(FrameDestination::Broadcast),
+            broadcast,
+            tx_id
+        ));
+        assert!(!answers(from(UnitId::new(1)), broadcast, tx_id));
+    }
+
+    /// Read one holding register from `unit` in the background, with [`TIMEOUT`]
+    fn read_register_from(
+        channel: Channel,
+        unit: u8,
+    ) -> tokio::task::JoinHandle<Result<Vec<Indexed<u16>>, RequestError>> {
+        tokio::spawn(async move {
+            channel
+                .read_holding_registers(
+                    RequestParam::new(UnitId::new(unit), TIMEOUT),
+                    AddressRange::try_from(0x10, 1).unwrap(),
+                )
+                .await
+        })
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_tcp_response_from_another_unit_is_skipped() {
+        crate::common::test_support::watchdog(async {
+            let (channel, _task, mut peer) =
+                spawn_client_loop_on_a_pipe_of(64, FrameWriter::tcp(), FramedReader::tcp());
+            let request = read_register_from(channel, 2);
+
+            let mut sent = [0u8; 12];
+            peer.read_exact(&mut sent).await.unwrap();
+            let [tx_high, tx_low, ..] = sent;
+            // the same transaction id, from unit 1 and then from unit 2
+            for (unit, value) in [(1, 0x1111u16), (2, 0x2222)] {
+                let [high, low] = value.to_be_bytes();
+                peer.write_all(&[tx_high, tx_low, 0, 0, 0, 5, unit, 3, 2, high, low])
+                    .await
+                    .unwrap();
+            }
+
+            assert_eq!(request.await.unwrap(), Ok(vec![Indexed::new(0x10, 0x2222)]));
+        })
+        .await;
+    }
+
+    #[cfg(feature = "serial")]
+    fn rtu_response(unit: u8, value: u16) -> Vec<u8> {
+        let [high, low] = value.to_be_bytes();
+        let mut frame = vec![unit, 3, 2, high, low];
+        let crc = crc::Crc::<u16>::new(&crc::CRC_16_MODBUS).checksum(&frame);
+        frame.extend_from_slice(&crc.to_le_bytes());
+        frame
+    }
+
+    #[cfg(feature = "serial")]
+    #[tokio::test(start_paused = true)]
+    async fn an_rtu_response_from_another_unit_is_skipped() {
+        crate::common::test_support::watchdog(async {
+            let (channel, _task, mut peer) = spawn_client_loop_on_a_pipe_of(
+                64,
+                FrameWriter::rtu(),
+                FramedReader::rtu_response(),
+            );
+            let request = read_register_from(channel, 2);
+
+            let mut sent = [0u8; 8];
+            peer.read_exact(&mut sent).await.unwrap();
+            // a late reply from unit 1, then unit 2's
+            peer.write_all(&rtu_response(1, 0x1111)).await.unwrap();
+            peer.write_all(&rtu_response(2, 0x2222)).await.unwrap();
+
+            assert_eq!(request.await.unwrap(), Ok(vec![Indexed::new(0x10, 0x2222)]));
+        })
+        .await;
+    }
+
+    #[cfg(feature = "serial")]
+    #[tokio::test(start_paused = true)]
+    async fn an_rtu_request_answered_only_by_another_unit_times_out() {
+        crate::common::test_support::watchdog(async {
+            let (channel, _task, mut peer) = spawn_client_loop_on_a_pipe_of(
+                64,
+                FrameWriter::rtu(),
+                FramedReader::rtu_response(),
+            );
+            let start = Instant::now();
+            let request = read_register_from(channel, 2);
+
+            let mut sent = [0u8; 8];
+            peer.read_exact(&mut sent).await.unwrap();
+            peer.write_all(&rtu_response(1, 0x1111)).await.unwrap();
+
+            assert_eq!(request.await.unwrap(), Err(RequestError::ResponseTimeout));
+            assert_eq!(start.elapsed(), TIMEOUT);
+        })
+        .await;
+    }
+
+    #[cfg(feature = "serial")]
+    #[tokio::test(start_paused = true)]
+    async fn a_stray_reply_doesnt_complete_a_broadcast() {
+        crate::common::test_support::watchdog(async {
+            let (channel, _task, mut peer) = spawn_client_loop_on_a_pipe_of(
+                64,
+                FrameWriter::rtu(),
+                FramedReader::rtu_response(),
+            );
+            let request = read_register_from(channel, 0);
+
+            let mut sent = [0u8; 8];
+            peer.read_exact(&mut sent).await.unwrap();
+            peer.write_all(&rtu_response(1, 0x1111)).await.unwrap();
+
+            assert_eq!(request.await.unwrap(), Err(RequestError::ResponseTimeout));
+        })
         .await;
     }
 }
