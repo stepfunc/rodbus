@@ -510,6 +510,28 @@ impl Default for ClientOptions {
     }
 }
 
+/// Generators of address ranges for property tests
+#[cfg(test)]
+pub(crate) mod strategies {
+    use std::ops::RangeInclusive;
+
+    use proptest::prelude::*;
+
+    use super::AddressRange;
+
+    /// A valid range of a count from `counts`, ending at the top of the address space, a little
+    /// below it, or anywhere
+    pub(crate) fn ranges(counts: RangeInclusive<u16>) -> impl Strategy<Value = AddressRange> {
+        let gaps = prop_oneof![1 => Just(0u16), 2 => 0u16..=16, 2 => any::<u16>()];
+        (counts, gaps).prop_map(|(count, gap)| {
+            // the start of the range that ends at 0xFFFF, counted in u32
+            let highest = 0x1_0000u32.checked_sub(u32::from(count)).unwrap();
+            let start = u16::try_from(highest).unwrap().saturating_sub(gap);
+            AddressRange::try_from(start, count).unwrap()
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::error::*;
@@ -577,33 +599,23 @@ mod tests {
 
     #[test]
     fn correctly_iterates_over_low_order_bits() {
-        let mut cursor = ReadCursor::new(&[0x03]);
-        let iterator =
-            BitIterator::parse_all(AddressRange::try_from(1, 3).unwrap(), &mut cursor).unwrap();
-        assert_eq!(iterator.size_hint(), (3, Some(3)));
-        let values: Vec<Indexed<bool>> = iterator.collect();
-        assert_eq!(
-            values,
-            vec![
+        check_bits(
+            AddressRange::try_from(1, 3).unwrap(),
+            &[0x03],
+            &[
                 Indexed::new(1, true),
                 Indexed::new(2, true),
-                Indexed::new(3, false)
-            ]
+                Indexed::new(3, false),
+            ],
         );
     }
 
     #[test]
     fn correctly_iterates_over_registers() {
-        let mut cursor = ReadCursor::new(&[0xFF, 0xFF, 0x01, 0xCC]);
-        let iterator =
-            RegisterIterator::parse_all(AddressRange::try_from(1, 2).unwrap(), &mut cursor)
-                .unwrap();
-
-        assert_eq!(iterator.size_hint(), (2, Some(2)));
-        let values: Vec<Indexed<u16>> = iterator.collect();
-        assert_eq!(
-            values,
-            vec![Indexed::new(1, 0xFFFF), Indexed::new(2, 0x01CC)]
+        check_registers(
+            AddressRange::try_from(1, 2).unwrap(),
+            &[0xFF, 0xFF, 0x01, 0xCC],
+            &[Indexed::new(1, 0xFFFF), Indexed::new(2, 0x01CC)],
         );
     }
 
@@ -621,31 +633,16 @@ mod tests {
 
     #[test]
     fn bits_at_the_top_of_the_address_space() {
-        let range = AddressRange::try_from(0xFFFE, 2).unwrap();
-        let bytes = [0b0000_0010];
-        let mut cursor = ReadCursor::new(&bytes);
-        let mut bits = BitIterator::parse_all(range, &mut cursor).unwrap();
-        assert_eq!(bits.len(), 2);
-        assert_eq!(bits.size_hint(), (2, Some(2)));
-        assert_eq!(bits.next(), Some(Indexed::new(0xFFFE, false)));
-        assert_eq!(bits.len(), 1);
-        assert_eq!(bits.next(), Some(Indexed::new(0xFFFF, true)));
-        assert_eq!(bits.len(), 0);
-        assert_eq!(bits.size_hint(), (0, Some(0)));
-        assert_eq!(bits.next(), None);
-        assert_eq!(bits.next(), None);
-        assert_eq!(bits.len(), 0);
+        check_bits(
+            AddressRange::try_from(0xFFFE, 2).unwrap(),
+            &[0b0000_0010],
+            &[Indexed::new(0xFFFE, false), Indexed::new(0xFFFF, true)],
+        );
     }
 
     #[test]
     fn bits_across_a_byte_boundary() {
         // ten bits from 0xFFF0; the padding bits of the last byte are set but not read
-        let range = AddressRange::try_from(0xFFF0, 10).unwrap();
-        let bytes = [0b1000_0001, 0b1111_1110];
-        let mut cursor = ReadCursor::new(&bytes);
-        let bits: Vec<_> = BitIterator::parse_all(range, &mut cursor)
-            .unwrap()
-            .collect();
         let expected: Vec<_> = [
             true, false, false, false, false, false, false, true, false, true,
         ]
@@ -653,31 +650,20 @@ mod tests {
         .zip(0xFFF0..)
         .map(|(value, address)| Indexed::new(address, value))
         .collect();
-        assert_eq!(bits, expected);
+        check_bits(
+            AddressRange::try_from(0xFFF0, 10).unwrap(),
+            &[0b1000_0001, 0b1111_1110],
+            &expected,
+        );
     }
 
     #[test]
     fn registers_at_the_top_of_the_address_space() {
-        let range = AddressRange::try_from(0xFFFE, 2).unwrap();
-        let bytes = [0x12, 0x34, 0x56, 0x78];
-        let expected = [Indexed::new(0xFFFE, 0x1234), Indexed::new(0xFFFF, 0x5678)];
-
-        let mut cursor = ReadCursor::new(&bytes);
-        let registers = RegisterIterator::parse_all(range, &mut cursor).unwrap();
-        assert_eq!(registers.collect_vec(), expected);
-
-        let mut cursor = ReadCursor::new(&bytes);
-        let mut registers = RegisterIterator::parse_all(range, &mut cursor).unwrap();
-        assert_eq!(registers.len(), 2);
-        assert_eq!(registers.size_hint(), (2, Some(2)));
-        assert_eq!(registers.next(), Some(expected[0]));
-        assert_eq!(registers.len(), 1);
-        assert_eq!(registers.next(), Some(expected[1]));
-        assert_eq!(registers.len(), 0);
-        assert_eq!(registers.size_hint(), (0, Some(0)));
-        assert_eq!(registers.next(), None);
-        assert_eq!(registers.next(), None);
-        assert_eq!(registers.len(), 0);
+        check_registers(
+            AddressRange::try_from(0xFFFE, 2).unwrap(),
+            &[0x12, 0x34, 0x56, 0x78],
+            &[Indexed::new(0xFFFE, 0x1234), Indexed::new(0xFFFF, 0x5678)],
+        );
     }
 
     #[test]
@@ -737,5 +723,136 @@ mod tests {
             too_many.of_read_registers(),
             Err(InvalidRange::CountTooLargeForType(126, 125))
         );
+    }
+
+    /// `values` yields `expected` and stays exhausted after it, its length counting down to zero
+    fn check_iteration<T, I>(mut values: I, expected: &[Indexed<T>])
+    where
+        T: Copy + PartialEq + std::fmt::Debug,
+        I: ExactSizeIterator<Item = Indexed<T>> + Clone,
+    {
+        assert_eq!(values.clone().collect::<Vec<_>>(), expected);
+        for (remaining, value) in (1..=expected.len()).rev().zip(expected) {
+            assert_eq!(values.len(), remaining);
+            assert_eq!(values.size_hint(), (remaining, Some(remaining)));
+            assert_eq!(values.next(), Some(*value));
+        }
+        assert_eq!(values.len(), 0);
+        assert_eq!(values.size_hint(), (0, Some(0)));
+        assert_eq!(values.next(), None);
+        assert_eq!(values.next(), None);
+        assert_eq!(values.len(), 0);
+    }
+
+    /// `parse` fails on `bytes` without their last byte, and with a byte added
+    fn check_length_errors(
+        bytes: &[u8],
+        parse: impl Fn(&mut ReadCursor) -> Result<(), RequestError>,
+    ) {
+        let (_, short) = bytes.split_last().unwrap();
+        assert_eq!(
+            parse(&mut ReadCursor::new(short)),
+            Err(RequestError::BadResponse(AduParseError::InsufficientBytes))
+        );
+        let long: Vec<u8> = bytes.iter().copied().chain([0xFF]).collect();
+        assert_eq!(
+            parse(&mut ReadCursor::new(&long)),
+            Err(RequestError::BadResponse(AduParseError::TrailingBytes(1)))
+        );
+    }
+
+    /// The bits of `range` parsed from exactly the `bytes` they need are `expected`
+    fn check_bits(range: AddressRange, bytes: &[u8], expected: &[Indexed<bool>]) {
+        let mut cursor = ReadCursor::new(bytes);
+        check_iteration(
+            BitIterator::parse_all(range, &mut cursor).unwrap(),
+            expected,
+        );
+        check_length_errors(bytes, |cursor| {
+            BitIterator::parse_all(range, cursor).map(|_| ())
+        });
+    }
+
+    /// The registers of `range` parsed from exactly the `bytes` they need are `expected`, both
+    /// iterated and collected into a `Vec`
+    fn check_registers(range: AddressRange, bytes: &[u8], expected: &[Indexed<u16>]) {
+        let mut cursor = ReadCursor::new(bytes);
+        let registers = RegisterIterator::parse_all(range, &mut cursor).unwrap();
+        assert_eq!(registers.collect_vec(), expected);
+        check_iteration(registers, expected);
+        check_length_errors(bytes, |cursor| {
+            RegisterIterator::parse_all(range, cursor).map(|_| ())
+        });
+    }
+
+    mod properties {
+        use proptest::prelude::*;
+
+        use super::*;
+
+        /// The address `offset` values past `start`, counted in `u32`
+        fn address(start: u16, offset: usize) -> u16 {
+            let address = u32::from(start)
+                .checked_add(u32::try_from(offset).unwrap())
+                .unwrap();
+            u16::try_from(address).unwrap()
+        }
+
+        /// The bits of `range` from `bytes`: each byte holds eight, the first in its lowest bit
+        fn model_bits(range: AddressRange, bytes: &[u8]) -> Vec<Indexed<bool>> {
+            bytes
+                .iter()
+                .flat_map(|byte| (0..8).map(move |bit| (byte >> bit) & 1 == 1))
+                .take(range.count.into())
+                .enumerate()
+                .map(|(offset, value)| Indexed::new(address(range.start, offset), value))
+                .collect()
+        }
+
+        /// The registers of `range` from `bytes`: each pair of bytes holds one, high byte first
+        fn model_registers(range: AddressRange, bytes: &[u8]) -> Vec<Indexed<u16>> {
+            bytes
+                .chunks(2)
+                .map(|pair| (u16::from(pair[0]) << 8) | u16::from(pair[1]))
+                .take(range.count.into())
+                .enumerate()
+                .map(|(offset, value)| Indexed::new(address(range.start, offset), value))
+                .collect()
+        }
+
+        /// A range of a count from `counts`, and as many random bytes as its values need at
+        /// `bits_per_value` each
+        fn ranges_and_bytes(
+            counts: std::ops::RangeInclusive<u16>,
+            bits_per_value: usize,
+        ) -> impl Strategy<Value = (AddressRange, Vec<u8>)> {
+            strategies::ranges(counts).prop_flat_map(move |range| {
+                let bits = usize::from(range.count)
+                    .checked_mul(bits_per_value)
+                    .unwrap();
+                let bytes = prop::collection::vec(any::<u8>(), bits.div_ceil(8));
+                (Just(range), bytes)
+            })
+        }
+
+        proptest! {
+            #![proptest_config(ProptestConfig::with_cases(256))]
+
+            // MODBUS Application Protocol Specification V1.1b3 6.1, 6.2
+            #[test]
+            fn bits_are_read_from_the_lowest_bit_of_each_byte_first(
+                (range, bytes) in ranges_and_bytes(1..=2000, 1),
+            ) {
+                check_bits(range, &bytes, &model_bits(range, &bytes));
+            }
+
+            // MODBUS Application Protocol Specification V1.1b3 6.3, 6.4
+            #[test]
+            fn registers_are_read_big_endian(
+                (range, bytes) in ranges_and_bytes(1..=125, 16),
+            ) {
+                check_registers(range, &bytes, &model_registers(range, &bytes));
+            }
+        }
     }
 }
