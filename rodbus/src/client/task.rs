@@ -1035,6 +1035,36 @@ mod tests {
     }
 
     #[tokio::test(start_paused = true)]
+    async fn waiting_to_be_enabled_fails_requests_until_every_handle_is_dropped() {
+        watchdog(async {
+            let (channel, mut client_loop) = Setup::tcp().build();
+            let task = tokio::spawn(async move {
+                let waited = client_loop.wait_for_enabled().await;
+                (waited, client_loop)
+            });
+            assert_eq!(
+                read_register(&channel, 1).await.unwrap(),
+                Err(RequestError::NoConnection)
+            );
+
+            let level = DecodeLevel::default().application(AppDecodeLevel::DataValues);
+            channel.set_decode_level(level).await.unwrap();
+            // the loop takes the setting and still waits, so it fails the next request too
+            assert_eq!(
+                read_register(&channel, 1).await.unwrap(),
+                Err(RequestError::NoConnection)
+            );
+
+            drop(channel);
+            let (waited, client_loop) = task.await.unwrap();
+            assert_eq!(waited, Err(Shutdown));
+            assert_eq!(client_loop.decode, level);
+            assert!(!client_loop.is_enabled());
+        })
+        .await;
+    }
+
+    #[tokio::test(start_paused = true)]
     async fn failing_requests_for_a_wait_too_long_to_represent_lasts_until_disabled() {
         watchdog(async {
             let (channel, mut client_loop) = Setup::tcp().build();
