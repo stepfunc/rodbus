@@ -72,7 +72,7 @@ impl Request {
         let function = match cursor.read_u8() {
             Ok(x) => x,
             Err(err) => {
-                tracing::warn!("unable to read function code");
+                tracing::debug!("unable to read function code");
                 return Err(err.into());
             }
         };
@@ -97,21 +97,21 @@ impl Request {
                 Ok(x) => {
                     let exception = ExceptionCode::from(x);
                     if cursor.is_empty() {
-                        tracing::warn!(
+                        tracing::debug!(
                             "PDU RX - Modbus exception {:?} ({:#04X})",
                             exception,
                             u8::from(exception)
                         );
                         RequestError::Exception(exception)
                     } else {
-                        tracing::warn!("invalid modbus exception");
+                        tracing::debug!("invalid modbus exception");
                         RequestError::BadResponse(AduParseError::TrailingBytes(cursor.remaining()))
                     }
                 }
                 Err(err) => err.into(),
             }
         } else {
-            tracing::warn!(
+            tracing::debug!(
                 "function code {:#04X} does not match the expected {:#04X}",
                 function,
                 expected_function.get_value()

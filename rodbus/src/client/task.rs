@@ -220,7 +220,8 @@ impl ClientLoop {
             frame = self.reader.next_frame(io, self.decode) => {
                 match frame {
                     Ok(frame) => {
-                        tracing::warn!("Received unexpected frame while idle: {:?}", frame.header);
+                        // a late answer to an earlier request, whose timeout was already reported
+                        tracing::debug!("Received unexpected frame while idle: {:?}", frame.header);
                         Ok(())
                     }
                     Err(err) => match SessionError::from_request_err(err) {
@@ -315,8 +316,9 @@ impl ClientLoop {
                 }
             };
 
+            // a late answer to an earlier request, whose timeout was already reported
             if !answers(frame.header, header) {
-                tracing::warn!(
+                tracing::debug!(
                     "ignoring {:?} while expecting a response from unit {} with {:?}",
                     frame.header,
                     request.id,

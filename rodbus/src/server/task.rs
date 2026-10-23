@@ -213,7 +213,16 @@ where
             FrameDestination::UnitId(unit_id) => {
                 let handler = match self.handlers.get(unit_id) {
                     None => {
-                        tracing::warn!("received frame for unmapped unit id: {}", unit_id);
+                        match frame.header {
+                            // on a shared serial line every server sees the requests to the others
+                            #[cfg(feature = "serial")]
+                            FrameHeader::Rtu(_) => {
+                                tracing::debug!("ignoring a request for unit id: {}", unit_id)
+                            }
+                            FrameHeader::Tcp { .. } => {
+                                tracing::warn!("received frame for unmapped unit id: {}", unit_id)
+                            }
+                        }
                         return Ok(());
                     }
                     Some(handler) => handler,
