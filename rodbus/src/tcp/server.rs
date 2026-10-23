@@ -19,6 +19,7 @@ use crate::tcp::accept::{Acceptor, Listen};
 use crate::server::AddressFilter;
 use std::future::Future;
 use std::net::SocketAddr;
+use std::num::NonZeroUsize;
 use tokio::net::TcpListener;
 
 #[cfg(feature = "enable-tls")]
@@ -42,19 +43,17 @@ impl Drop for SessionRecord {
 }
 
 struct SessionTracker {
-    max_sessions: usize,
+    max_sessions: NonZeroUsize,
     id: u128,
     sessions: BTreeMap<u128, SessionRecord>,
 }
 
 impl SessionTracker {
     fn new(max_sessions: usize) -> SessionTracker {
-        let max_sessions = if max_sessions == 0 {
+        let max_sessions = NonZeroUsize::new(max_sessions).unwrap_or_else(|| {
             tracing::warn!("Max sessions to 0, defaulting to 1");
-            1
-        } else {
-            max_sessions
-        };
+            NonZeroUsize::MIN
+        });
         Self {
             max_sessions,
             id: 0,
@@ -69,7 +68,7 @@ impl SessionTracker {
     }
 
     fn add(&mut self, id: u128, session: SessionRecord) {
-        if self.sessions.len() >= self.max_sessions {
+        if self.sessions.len() >= self.max_sessions.get() {
             if let Some(oldest) = self.sessions.keys().next().copied() {
                 tracing::warn!(
                     "exceeded max connections, closing oldest session: {}",
