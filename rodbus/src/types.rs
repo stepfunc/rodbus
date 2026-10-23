@@ -25,7 +25,9 @@ pub struct UnitId {
 }
 
 /// Start and count tuple used when making various requests
-/// Cannot be constructed with invalid start/count
+///
+/// [`AddressRange::try_from`] refuses a count of zero and a range past address 0xFFFF. A range
+/// built from its fields is checked the same way when a request is made with it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[cfg_attr(
     feature = "serialization",
@@ -42,7 +44,7 @@ pub struct AddressRange {
 /// range only valid for ReadCoils / ReadDiscreteInputs
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct ReadBitsRange {
-    pub(crate) inner: AddressRange,
+    inner: AddressRange,
 }
 
 impl ReadBitsRange {
@@ -56,7 +58,7 @@ impl ReadBitsRange {
 /// only valid for ReadHoldingRegisters / ReadInputRegisters
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct ReadRegistersRange {
-    pub(crate) inner: AddressRange,
+    inner: AddressRange,
 }
 
 impl ReadRegistersRange {
@@ -173,11 +175,8 @@ impl<'a> RegisterIterator<'a> {
     pub(crate) fn collect_vec(self) -> Vec<Indexed<u16>> {
         let (chunks, _) = self.bytes.as_chunks::<2>();
         let mut result = Vec::with_capacity(chunks.len());
-        for (i, &chunk) in chunks.iter().enumerate() {
-            result.push(Indexed::new(
-                self.range.start + (i as u16),
-                u16::from_be_bytes(chunk),
-            ));
+        for (address, &chunk) in self.range.iter().zip(chunks) {
+            result.push(Indexed::new(address, u16::from_be_bytes(chunk)));
         }
         result
     }
@@ -216,8 +215,9 @@ impl<'a> Iterator for BitIterator<'a> {
         match self.bytes.get(byte as usize) {
             Some(value) => {
                 let bit = (*value & (1 << bit)) != 0;
-                let address = self.range.start + self.pos;
-                self.pos += 1;
+                // pos < count, and a range never extends past 0xFFFF
+                let address = self.range.start.checked_add(self.pos)?;
+                self.pos = self.pos.checked_add(1)?;
                 Some(Indexed::new(address, bit))
             }
             None => None,
@@ -225,7 +225,7 @@ impl<'a> Iterator for BitIterator<'a> {
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        let remaining = (self.range.count - self.pos) as usize;
+        let remaining = self.range.count.saturating_sub(self.pos).into();
         (remaining, Some(remaining))
     }
 }
@@ -240,20 +240,16 @@ impl<'a> Iterator for RegisterIterator<'a> {
             return None;
         }
 
-        let pos = 2 * (self.pos as usize);
-        match self.bytes.get(pos..pos + 2) {
-            Some([high, low]) => {
-                let value = ((*high as u16) << 8) | *low as u16;
-                let index = self.pos + self.range.start;
-                self.pos += 1;
-                Some(Indexed::new(index, value))
-            }
-            _ => None,
-        }
+        let pos = usize::from(self.pos).checked_mul(2)?;
+        let value = u16::from_be_bytes(*self.bytes.get(pos..)?.first_chunk()?);
+        // pos < count, and a range never extends past 0xFFFF
+        let index = self.range.start.checked_add(self.pos)?;
+        self.pos = self.pos.checked_add(1)?;
+        Some(Indexed::new(index, value))
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        let remaining = (self.range.count - self.pos) as usize;
+        let remaining = self.range.count.saturating_sub(self.pos).into();
         (remaining, Some(remaining))
     }
 }
@@ -289,13 +285,12 @@ pub(crate) fn coil_to_u16(value: bool) -> u16 {
 impl AddressRange {
     /// Create a new address range
     pub fn try_from(start: u16, count: u16) -> Result<Self, InvalidRange> {
-        if count == 0 {
+        // the last address of the range
+        let Some(last) = count.checked_sub(1) else {
             return Err(InvalidRange::CountOfZero);
-        }
+        };
 
-        let max_start = u16::MAX - (count - 1);
-
-        if start > max_start {
+        if start.checked_add(last).is_none() {
             return Err(InvalidRange::AddressOverflow(start, count));
         }
 
@@ -304,24 +299,33 @@ impl AddressRange {
 
     /// Converts to std::ops::Range
     pub fn to_std_range(self) -> std::ops::Range<usize> {
-        let start = self.start as usize;
-        let end = start + (self.count as usize);
-        start..end
+        let start = usize::from(self.start);
+        start..start.saturating_add(usize::from(self.count))
     }
 
     pub(crate) fn iter(&self) -> impl Iterator<Item = u16> {
         AddressIterator::new(self.start, self.count)
     }
 
+    /// The range checked as if it had been made with [`AddressRange::try_from`], since its fields
+    /// are public
+    fn validated(self) -> Result<Self, InvalidRange> {
+        Self::try_from(self.start, self.count)
+    }
+
     pub(crate) fn of_read_bits(self) -> Result<ReadBitsRange, InvalidRange> {
         Ok(ReadBitsRange {
-            inner: self.limited_count(crate::constants::limits::MAX_READ_COILS_COUNT)?,
+            inner: self
+                .validated()?
+                .limited_count(crate::constants::limits::MAX_READ_COILS_COUNT)?,
         })
     }
 
     pub(crate) fn of_read_registers(self) -> Result<ReadRegistersRange, InvalidRange> {
         Ok(ReadRegistersRange {
-            inner: self.limited_count(crate::constants::limits::MAX_READ_REGISTERS_COUNT)?,
+            inner: self
+                .validated()?
+                .limited_count(crate::constants::limits::MAX_READ_REGISTERS_COUNT)?,
         })
     }
 
@@ -351,7 +355,7 @@ impl AddressIterator {
     pub(crate) fn new(start: u16, count: u16) -> Self {
         Self {
             next: u32::from(start),
-            end: u32::from(start) + u32::from(count),
+            end: u32::from(start).saturating_add(u32::from(count)),
         }
     }
 }
@@ -364,7 +368,7 @@ impl Iterator for AddressIterator {
             return None;
         }
         let address = u16::try_from(self.next).ok()?;
-        self.next += 1;
+        self.next = self.next.saturating_add(1);
         Some(address)
     }
 }
@@ -683,5 +687,19 @@ mod tests {
         assert_eq!(range.to_std_range(), 0xFFFF..0x1FFFE);
         let range = AddressRange { start: 5, count: 0 };
         assert_eq!(range.to_std_range(), 5..5);
+    }
+    #[test]
+    fn a_range_built_from_its_fields_is_checked_when_a_read_is_made() {
+        let overflow = AddressRange {
+            start: 0xFFFF,
+            count: 2,
+        };
+        let error = InvalidRange::AddressOverflow(0xFFFF, 2);
+        assert_eq!(overflow.of_read_bits(), Err(error));
+        assert_eq!(overflow.of_read_registers(), Err(error));
+
+        let empty = AddressRange { start: 0, count: 0 };
+        assert_eq!(empty.of_read_bits(), Err(InvalidRange::CountOfZero));
+        assert_eq!(empty.of_read_registers(), Err(InvalidRange::CountOfZero));
     }
 }

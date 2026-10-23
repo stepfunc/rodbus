@@ -20,19 +20,12 @@ use crate::types::{
 use scursor::{ReadCursor, WriteCursor};
 
 pub(crate) fn calc_bytes_for_bits(num_bits: usize) -> Result<u8, InternalError> {
-    let div_8 = num_bits / 8;
-
-    let count = if num_bits.is_multiple_of(8) {
-        div_8
-    } else {
-        div_8 + 1
-    };
-
+    let count = num_bits.div_ceil(8);
     u8::try_from(count).map_err(|_| InternalError::BadByteCount(count))
 }
 
 pub(crate) fn calc_bytes_for_registers(num_registers: usize) -> Result<u8, InternalError> {
-    let count = 2 * num_registers;
+    let count = num_registers.saturating_mul(2);
     u8::try_from(count).map_err(|_| InternalError::BadByteCount(count))
 }
 
@@ -176,25 +169,23 @@ where
         cursor.write_u8(num_bytes)?;
 
         let mut acc = 0;
-        let mut num_bits: usize = 0;
 
         // iterate over all the addresses, accumulating bits in the byte
-        for address in self.range.get().iter() {
+        for (pos, address) in range.iter().enumerate() {
+            let bit = pos % 8;
             if (self.getter)(address)? {
                 // merge the bit into the byte
-                acc |= 1 << num_bits;
+                acc |= 1 << bit;
             }
-            num_bits += 1;
-            if num_bits == 8 {
+            if bit == 7 {
                 // flush the byte
                 cursor.write_u8(acc)?;
                 acc = 0;
-                num_bits = 0;
             }
         }
 
-        // write any partial bytes
-        if num_bits > 0 {
+        // write any partial byte
+        if !range.count.is_multiple_of(8) {
             cursor.write_u8(acc)?;
         }
 

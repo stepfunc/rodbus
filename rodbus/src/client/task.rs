@@ -409,7 +409,7 @@ mod tests {
     use crate::decode::*;
     use crate::server::response::BitWriter;
     use crate::types::{AddressRange, UnitId};
-    use crate::{ExceptionCode, Indexed, ReadBitsRange};
+    use crate::{ExceptionCode, Indexed};
 
     use sfio_tokio_mock_io::Event;
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -566,7 +566,7 @@ mod tests {
         let request = get_framed_adu(FunctionCode::ReadCoils, &range);
         let response = get_framed_adu(
             FunctionCode::ReadCoils,
-            &BitWriter::new(ReadBitsRange { inner: range }, |idx| match idx {
+            &BitWriter::new(range.of_read_bits().unwrap(), |idx| match idx {
                 7 => Ok(true),
                 8 => Ok(false),
                 _ => Err(ExceptionCode::IllegalDataAddress),
@@ -697,7 +697,7 @@ mod tests {
 
         let mut response = get_framed_adu(
             FunctionCode::ReadCoils,
-            &BitWriter::new(ReadBitsRange { inner: range }, |idx| match idx {
+            &BitWriter::new(range.of_read_bits().unwrap(), |idx| match idx {
                 7 => Ok(true),
                 8 => Ok(false),
                 _ => Err(ExceptionCode::IllegalDataAddress),

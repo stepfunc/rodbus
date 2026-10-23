@@ -69,8 +69,9 @@ where
 
         match next {
             Some(next) => {
-                let result = Indexed::new(self.range.start + self.pos, *next);
-                self.pos += 1;
+                // pos < count, and the range was checked when the request was made
+                let result = Indexed::new(self.range.start.checked_add(self.pos)?, *next);
+                self.pos = self.pos.checked_add(1)?;
                 Some(result)
             }
             None => None,
@@ -78,7 +79,7 @@ where
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        let remaining = (self.range.count - self.pos) as usize;
+        let remaining = self.range.count.saturating_sub(self.pos).into();
         (remaining, Some(remaining))
     }
 }
