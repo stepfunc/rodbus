@@ -703,7 +703,7 @@ mod tests {
                 );
                 tokio::spawn(task.run());
                 channel.enable().await.unwrap();
-                while states.recv().await != Some(ClientState::Connected) {}
+                while states.recv().await.unwrap() != ClientState::Connected {}
 
                 let result = channel
                     .read_coils(
