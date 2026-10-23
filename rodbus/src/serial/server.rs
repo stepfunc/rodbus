@@ -4,7 +4,7 @@
 // Text and data mining rights, including for AI training, are reserved under
 // Directive (EU) 2019/790 Art. 4(3), subject to LICENSE.txt Section 3.3.
 
-use crate::common::phys::OpenPort;
+use crate::serial::OpenPort;
 use crate::server::task::SessionTask;
 use crate::server::RequestHandler;
 use crate::{RequestError, RetryStrategy, SerialSettings, Shutdown};
@@ -161,7 +161,7 @@ mod tests {
                     ServerHandlerMap::single(UnitId::new(1), DefaultHandler.wrap()),
                     AuthorizationType::None,
                     FrameWriter::rtu(),
-                    FramedReader::rtu_request(),
+                    FramedReader::rtu_request(crate::serial::SerialSettings::default().baud_rate),
                     rx,
                     DecodeLevel::nothing(),
                 ),
@@ -204,8 +204,7 @@ mod tests {
                 mut retry,
             } = PipePort::new();
             let started = Instant::now();
-            // the end of file is an I/O error; only that arm is pinned here, as a bad frame
-            // ending an RTU session is expected to change
+            // the end of file is an I/O error, which ends an RTU session; bad frames don't
             peer.shutdown().await.unwrap();
             let run = spawn_run_port(task, port);
 

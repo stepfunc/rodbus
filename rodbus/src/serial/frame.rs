@@ -6,15 +6,20 @@
 
 use crate::common::buffer::ReadBuffer;
 use crate::common::frame::{
-    Frame, FrameDestination, FrameHeader, FrameInfo, FrameType, FunctionField, PduLength, ReadError,
+    Frame, FrameDestination, FrameHeader, FrameInfo, FrameParser, FrameType, FramedReader,
+    FunctionField, PduLength,
 };
 use crate::common::function::{is_exception, FunctionCode};
+use crate::common::phys::PhysLayer;
 use crate::common::traits::Serialize;
-use crate::decode::FrameDecodeLevel;
+use crate::decode::{FrameDecodeLevel, PhysDecodeLevel};
 use crate::error::{FrameParseError, InternalError, RequestError};
 use crate::types::UnitId;
 
+use std::num::NonZeroUsize;
+
 use scursor::WriteCursor;
+use tokio::time::{Duration, Instant};
 
 pub(crate) mod constants {
     pub(crate) const HEADER_LENGTH: usize = 1;
@@ -36,32 +41,100 @@ enum LengthMode {
     ByteCountAfter(usize),
 }
 
-/// Reads RTU frames, whose length depends on whether they carry requests or responses
+/// Whether a reader reads requests or responses, which RTU frames differently
 #[derive(Clone, Copy)]
-pub(crate) enum RtuParser {
+enum Direction {
     Request,
     Response,
 }
 
+/// Why an RTU reader dropped received bytes while looking for a frame
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) enum DiscardReason {
+    /// The bytes at the start of the buffer can't start a valid frame
+    BadFrame(FrameParseError),
+    /// The line went silent before the frame was complete
+    Silence,
+}
+
+impl std::fmt::Display for DiscardReason {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Self::BadFrame(err) => err.fmt(f),
+            Self::Silence => f.write_str("The line went silent before the frame was complete"),
+        }
+    }
+}
+
+/// What an RTU reader reports about the bytes it drops
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) enum DiscardReport {
+    /// It started dropping bytes, the first for this reason
+    Started(DiscardReason),
+    /// A frame followed this many dropped bytes
+    Ended(NonZeroUsize),
+}
+
+/// Bytes an RTU reader dropped since it last read a frame
+struct DiscardRun {
+    /// how many, saturating
+    count: NonZeroUsize,
+    /// why the first was dropped, until the reader reports that the run started
+    ///
+    /// A parse can't log, so it leaves the start of a run for the reader to report right after
+    unreported: Option<DiscardReason>,
+}
+
+/// Reads RTU frames, whose length depends on whether they carry requests or responses
+///
+/// RTU frames have no start marker, so bytes that can't start a valid frame, by their function
+/// code, length or CRC (MODBUS over Serial Line V1.02 2.5.1.1 and 2.5.1.2), are dropped one at a
+/// time until a frame starts, and a partial frame is dropped once the line goes silent.
+pub(crate) struct RtuParser {
+    direction: Direction,
+    /// how long the line is silent before a partial frame is dropped
+    silence: Duration,
+    discarded: Option<DiscardRun>,
+    /// when the last bytes arrived, from which the reader times the silence that ends a partial
+    /// frame
+    last_read: Option<Instant>,
+    /// everything reported, for the tests to check
+    #[cfg(test)]
+    reports: Vec<DiscardReport>,
+}
+
 impl RtuParser {
-    pub(crate) fn new_request_parser() -> Self {
-        Self::Request
+    /// A parser of the requests on a line at `baud_rate`
+    pub(crate) fn new_request_parser(baud_rate: u32) -> Self {
+        Self::new(Direction::Request, baud_rate)
     }
 
-    pub(crate) fn new_response_parser() -> Self {
-        Self::Response
+    /// A parser of the responses on a line at `baud_rate`
+    pub(crate) fn new_response_parser(baud_rate: u32) -> Self {
+        Self::new(Direction::Response, baud_rate)
+    }
+
+    fn new(direction: Direction, baud_rate: u32) -> Self {
+        Self {
+            direction,
+            silence: crate::serial::timing::rtu_silence(baud_rate),
+            discarded: None,
+            last_read: None,
+            #[cfg(test)]
+            reports: Vec::new(),
+        }
     }
 
     /// How to find the length of the PDU, or `None` for a function code it can't be found for
     fn length_mode(&self, function_code: u8) -> Option<LengthMode> {
         // Check exception (only valid for responses)
-        if matches!(self, Self::Response) && is_exception(function_code) {
+        if matches!(self.direction, Direction::Response) && is_exception(function_code) {
             return Some(LengthMode::Fixed(1));
         }
 
-        let mode = match (*self, FunctionCode::get(function_code)?) {
+        let mode = match (self.direction, FunctionCode::get(function_code)?) {
             (
-                Self::Request,
+                Direction::Request,
                 FunctionCode::ReadCoils
                 | FunctionCode::ReadDiscreteInputs
                 | FunctionCode::ReadHoldingRegisters
@@ -70,18 +143,18 @@ impl RtuParser {
                 | FunctionCode::WriteSingleRegister,
             ) => LengthMode::Fixed(4),
             (
-                Self::Request,
+                Direction::Request,
                 FunctionCode::WriteMultipleCoils | FunctionCode::WriteMultipleRegisters,
             ) => LengthMode::ByteCountAfter(4),
             (
-                Self::Response,
+                Direction::Response,
                 FunctionCode::ReadCoils
                 | FunctionCode::ReadDiscreteInputs
                 | FunctionCode::ReadHoldingRegisters
                 | FunctionCode::ReadInputRegisters,
             ) => LengthMode::ByteCountAfter(0),
             (
-                Self::Response,
+                Direction::Response,
                 FunctionCode::WriteSingleCoil
                 | FunctionCode::WriteSingleRegister
                 | FunctionCode::WriteMultipleCoils
@@ -92,7 +165,7 @@ impl RtuParser {
     }
 
     /// The length of the PDU of the frame that starts `bytes`, or `None` until enough of the
-    /// frame is buffered to tell and all of it is buffered
+    /// frame is buffered to tell
     fn pdu_length(&self, bytes: &[u8]) -> Result<Option<PduLength>, FrameParseError> {
         let [_unit_id, function_code, body @ ..] = bytes else {
             return Ok(None);
@@ -114,50 +187,205 @@ impl RtuParser {
             },
         };
 
-        let pdu_length = PduLength::new(pdu_length).ok_or(FrameParseError::FrameLengthTooBig(
-            pdu_length,
-            crate::common::frame::constants::MAX_PDU_LENGTH,
-        ))?;
+        PduLength::new(pdu_length)
+            .map(Some)
+            .ok_or(FrameParseError::FrameLengthTooBig(
+                pdu_length,
+                crate::common::frame::constants::MAX_PDU_LENGTH,
+            ))
+    }
 
+    /// The PDU length and the CRC of the valid frame that starts `bytes`, or `None` until all of
+    /// it is buffered
+    fn candidate(&self, bytes: &[u8]) -> Result<Option<(PduLength, u16)>, FrameParseError> {
+        let Some(pdu_length) = self.pdu_length(bytes)? else {
+            return Ok(None);
+        };
         let frame_length = constants::HEADER_LENGTH
             .saturating_add(pdu_length.get())
             .saturating_add(constants::CRC_LENGTH);
-        Ok((bytes.len() >= frame_length).then_some(pdu_length))
-    }
-
-    /// Read the frame at the start of the buffer, consuming it once it is complete
-    #[cfg_attr(all(test, rodbus_no_panic), no_panic::no_panic)]
-    pub(crate) fn parse(
-        &self,
-        cursor: &mut ReadBuffer,
-    ) -> Result<Option<(Frame, FrameType)>, ReadError> {
-        let Some(pdu_length) = self.pdu_length(cursor.peek())? else {
+        let Some((adu, received)) = bytes
+            .get(..frame_length)
+            .and_then(<[u8]>::split_last_chunk::<{ constants::CRC_LENGTH }>)
+        else {
             return Ok(None);
         };
-
-        // the whole frame is buffered, so the reads below all succeed and consume all of it,
-        // even when its CRC is wrong
-        let unit_id = UnitId::new(cursor.read_u8()?);
-        let destination = if unit_id == UnitId::broadcast() {
-            FrameDestination::Broadcast
-        } else {
-            FrameDestination::UnitId(unit_id)
-        };
-        let frame = Frame::new(
-            FrameHeader::new_rtu_header(destination),
-            pdu_length.read(cursor)?,
-        );
-        let received_crc = cursor.read_array().map(u16::from_le_bytes)?;
-
-        let mut digest = CRC.digest();
-        digest.update(&[unit_id.value]);
-        digest.update(frame.payload());
-        let expected_crc = digest.finalize();
-        if received_crc != expected_crc {
-            return Err(FrameParseError::CrcValidationFailure(received_crc, expected_crc).into());
+        let received = u16::from_le_bytes(*received);
+        let expected = CRC.checksum(adu);
+        if received != expected {
+            return Err(FrameParseError::CrcValidationFailure(received, expected));
         }
+        Ok(Some((pdu_length, received)))
+    }
 
-        Ok(Some((frame, FrameType::Rtu(destination, received_crc))))
+    /// Read the frame at the start of the buffer once it is complete, first dropping the bytes
+    /// that can't start one
+    ///
+    /// It doesn't log: the reader reports what it dropped through [`Self::read_more`] and
+    /// [`Self::received`].
+    #[cfg_attr(all(test, rodbus_no_panic), no_panic::no_panic)]
+    pub(crate) fn parse(
+        &mut self,
+        cursor: &mut ReadBuffer,
+    ) -> Result<Option<(Frame, FrameType)>, InternalError> {
+        loop {
+            match self.candidate(cursor.peek()) {
+                Ok(None) => return Ok(None),
+                Ok(Some((pdu_length, crc))) => {
+                    // the whole frame was checked, so these reads all succeed
+                    let unit_id = UnitId::new(cursor.read_u8()?);
+                    let destination = if unit_id == UnitId::broadcast() {
+                        FrameDestination::Broadcast
+                    } else {
+                        FrameDestination::UnitId(unit_id)
+                    };
+                    let frame = Frame::new(
+                        FrameHeader::new_rtu_header(destination),
+                        pdu_length.read(cursor)?,
+                    );
+                    cursor.read(constants::CRC_LENGTH)?;
+                    return Ok(Some((frame, FrameType::Rtu(destination, crc))));
+                }
+                Err(err) => {
+                    // a candidate is refused only once two bytes are buffered
+                    cursor.read(1)?;
+                    self.discard(NonZeroUsize::MIN, DiscardReason::BadFrame(err));
+                }
+            }
+        }
+    }
+
+    /// Read more bytes into `cursor`, which holds no whole frame
+    ///
+    /// A partial frame is instead dropped once the line has been silent since the last bytes
+    /// arrived (MODBUS over Serial Line V1.02 2.5.1.1). The silence is checked first, so bytes
+    /// that arrive after it never complete the frame it ended, even when the reader wasn't polled
+    /// in between.
+    pub(crate) async fn read_more(
+        &mut self,
+        cursor: &mut ReadBuffer,
+        io: &mut PhysLayer,
+        level: PhysDecodeLevel,
+    ) -> Result<(), std::io::Error> {
+        self.report_start();
+        let silent_at = match self.last_read {
+            Some(last_read) if !cursor.is_empty() => last_read.checked_add(self.silence),
+            _ => None,
+        };
+        let read = cursor.read_some(io, level);
+        let silent = match silent_at {
+            Some(silent_at) => tokio::select! {
+                biased;
+                _ = tokio::time::sleep_until(silent_at) => true,
+                read = read => {
+                    read?;
+                    false
+                }
+            },
+            None => {
+                read.await?;
+                false
+            }
+        };
+        if silent {
+            self.discard_partial_frame(cursor);
+        } else {
+            self.last_read = Some(Instant::now());
+        }
+        Ok(())
+    }
+
+    /// Drop everything buffered: the line went silent before the frame was complete
+    fn discard_partial_frame(&mut self, cursor: &mut ReadBuffer) {
+        let count = NonZeroUsize::new(cursor.len());
+        cursor.reset();
+        self.last_read = None;
+        if let Some(count) = count {
+            self.discard(count, DiscardReason::Silence);
+        }
+    }
+
+    fn discard(&mut self, count: NonZeroUsize, reason: DiscardReason) {
+        match &mut self.discarded {
+            Some(run) => run.count = run.count.saturating_add(count.get()),
+            None => {
+                self.discarded = Some(DiscardRun {
+                    count,
+                    unreported: Some(reason),
+                })
+            }
+        }
+    }
+
+    fn report(&mut self, report: DiscardReport) {
+        match report {
+            DiscardReport::Started(reason) => {
+                tracing::warn!("discarding bytes until a frame starts: {}", reason)
+            }
+            DiscardReport::Ended(count) => {
+                tracing::warn!("discarded {} bytes before a frame", count)
+            }
+        }
+        #[cfg(test)]
+        self.reports.push(report);
+    }
+
+    /// Report the start of a run of dropped bytes, once
+    fn report_start(&mut self) {
+        if let Some(reason) = self
+            .discarded
+            .as_mut()
+            .and_then(|run| run.unreported.take())
+        {
+            self.report(DiscardReport::Started(reason));
+        }
+    }
+
+    /// Note a frame the reader is about to return: it ends a run of dropped bytes
+    pub(crate) fn received(&mut self, destination: FrameDestination) {
+        // the parse that found the frame may also have started the run
+        self.report_start();
+        if let Some(run) = self.discarded.take() {
+            self.report(DiscardReport::Ended(run.count));
+        }
+        if let FrameDestination::UnitId(unit_id) = destination {
+            if unit_id.is_rtu_reserved() {
+                tracing::warn!("received reserved unit ID {}, violating Modbus RTU spec. Passing it through nevertheless.", unit_id);
+            }
+        }
+    }
+
+    /// Forget the bytes dropped so far and when the last ones arrived, for a buffer just emptied
+    pub(crate) fn reset(&mut self) {
+        self.discarded = None;
+        self.last_read = None;
+    }
+
+    /// Everything reported so far
+    #[cfg(test)]
+    pub(crate) fn reports(&self) -> &[DiscardReport] {
+        &self.reports
+    }
+
+    /// How many bytes were dropped since the last frame, and why the first was, until that is
+    /// reported
+    #[cfg(test)]
+    pub(crate) fn discarded(&self) -> Option<(usize, Option<DiscardReason>)> {
+        self.discarded
+            .as_ref()
+            .map(|run| (run.count.get(), run.unreported))
+    }
+}
+
+impl FramedReader {
+    /// A reader of the requests on a line at `baud_rate`
+    pub(crate) fn rtu_request(baud_rate: u32) -> Self {
+        Self::new(FrameParser::Rtu(RtuParser::new_request_parser(baud_rate)))
+    }
+
+    /// A reader of the responses on a line at `baud_rate`
+    pub(crate) fn rtu_response(baud_rate: u32) -> Self {
+        Self::new(FrameParser::Rtu(RtuParser::new_response_parser(baud_rate)))
     }
 }
 
@@ -230,8 +458,9 @@ impl<'a> std::fmt::Display for RtuDisplay<'a> {
 mod tests {
     use crate::common::function::FunctionCode;
     use std::task::Poll;
+    use std::time::Duration;
 
-    use crate::common::frame::FramedReader;
+    use crate::common::frame::{FramedReader, ReadError};
     use crate::common::phys::PhysLayer;
     use crate::common::test_support::with_crc;
     use crate::error::InternalError;
@@ -240,6 +469,54 @@ mod tests {
     use super::*;
 
     const UNIT_ID: u8 = 0x2A;
+
+    /// The baud rate of the readers under test, at which a partial frame is dropped after
+    /// [`SILENCE`]
+    const BAUD_RATE: u32 = 9600;
+
+    /// How long the line is silent before a reader at [`BAUD_RATE`] drops a partial frame
+    const SILENCE: Duration = crate::serial::timing::MIN_RTU_SILENCE;
+
+    /// Makes a reader for a test
+    type NewReader = fn() -> FramedReader;
+
+    fn request_reader() -> FramedReader {
+        FramedReader::rtu_request(BAUD_RATE)
+    }
+
+    fn response_reader() -> FramedReader {
+        FramedReader::rtu_response(BAUD_RATE)
+    }
+
+    fn rtu_parser(reader: &FramedReader) -> &RtuParser {
+        match reader.parser() {
+            FrameParser::Rtu(parser) => parser,
+            FrameParser::Tcp(_) => panic!("not an RTU reader"),
+        }
+    }
+
+    /// How many bytes `reader` dropped since its last frame
+    fn dropped(reader: &FramedReader) -> usize {
+        rtu_parser(reader).discarded().map_or(0, |(count, _)| count)
+    }
+
+    fn started(reason: DiscardReason) -> DiscardReport {
+        DiscardReport::Started(reason)
+    }
+
+    fn ended(count: usize) -> DiscardReport {
+        DiscardReport::Ended(NonZeroUsize::new(count).unwrap())
+    }
+
+    /// What reading `chunks` with `reader` produces, and what it reports doing so
+    fn read_reported(
+        reader: &mut FramedReader,
+        chunks: &[&[u8]],
+    ) -> (Vec<Outcome>, Vec<DiscardReport>) {
+        let before = rtu_parser(reader).reports().len();
+        let outcomes = read_chunks_with(reader, DecodeLevel::nothing(), chunks);
+        (outcomes, rtu_parser(reader).reports()[before..].to_vec())
+    }
 
     const READ_COILS_REQUEST: &[u8] = &[
         UNIT_ID, // unit id
@@ -534,13 +811,6 @@ mod tests {
         }
     }
 
-    fn error_on(chunk: usize, error: FrameParseError) -> Outcome {
-        Outcome::Error {
-            chunk,
-            error: RequestError::BadFrame(error),
-        }
-    }
-
     fn last_index(slice: &[u8]) -> usize {
         slice.len().checked_sub(1).unwrap()
     }
@@ -569,11 +839,15 @@ mod tests {
         let mut layer = PhysLayer::new_duplex(local);
         let mut outcomes = Vec::new();
         for (chunk, bytes) in chunks.iter().enumerate() {
-            let mut write = tokio_test::task::spawn(remote.write_all(bytes));
+            // polled by hand and never yielding, so out of tokio's cooperative budget
+            let mut write =
+                tokio_test::task::spawn(tokio::task::unconstrained(remote.write_all(bytes)));
             assert!(matches!(write.poll(), Poll::Ready(Ok(()))));
             drop(write);
             loop {
-                let mut task = tokio_test::task::spawn(reader.next_frame(&mut layer, decode_level));
+                let mut task = tokio_test::task::spawn(tokio::task::unconstrained(
+                    reader.next_frame(&mut layer, decode_level),
+                ));
                 match task.poll() {
                     Poll::Pending => break,
                     Poll::Ready(Ok(frame)) => {
@@ -622,8 +896,9 @@ mod tests {
     fn assert_reads_byte_by_byte_in_one_call(mut reader: FramedReader, frame: &[u8]) {
         let (io, mut io_handle) = sfio_tokio_mock_io::mock();
         let mut layer = PhysLayer::new_mock(io);
-        let mut task =
-            tokio_test::task::spawn(reader.next_frame(&mut layer, DecodeLevel::nothing()));
+        let mut task = tokio_test::task::spawn(tokio::task::unconstrained(
+            reader.next_frame(&mut layer, DecodeLevel::nothing()),
+        ));
         let (last, first) = frame.split_last().unwrap();
         for byte in first {
             io_handle.read(&[*byte]);
@@ -644,26 +919,26 @@ mod tests {
         assert!(matches!(received.header, FrameHeader::Rtu(_)));
     }
 
-    #[test]
-    fn reads_requests_whole_at_every_split_and_byte_by_byte() {
+    #[tokio::test(start_paused = true)]
+    async fn reads_requests_whole_at_every_split_and_byte_by_byte() {
         for frame in request_frames() {
-            assert_reads_whole_split_and_byte_by_byte(FramedReader::rtu_request, &frame);
+            assert_reads_whole_split_and_byte_by_byte(request_reader, &frame);
         }
     }
 
-    #[test]
-    fn reads_responses_whole_at_every_split_and_byte_by_byte() {
+    #[tokio::test(start_paused = true)]
+    async fn reads_responses_whole_at_every_split_and_byte_by_byte() {
         for frame in response_frames() {
-            assert_reads_whole_split_and_byte_by_byte(FramedReader::rtu_response, &frame);
+            assert_reads_whole_split_and_byte_by_byte(response_reader, &frame);
         }
     }
 
-    #[test]
-    fn reads_every_exception_response() {
+    #[tokio::test(start_paused = true)]
+    async fn reads_every_exception_response() {
         for function in 0x80..=u8::MAX {
             for exception in [0x00, 0x04, 0xFF] {
                 let frame = with_crc(&[UNIT_ID, function, exception]);
-                assert_reads_whole_split_and_byte_by_byte(FramedReader::rtu_response, &frame);
+                assert_reads_whole_split_and_byte_by_byte(response_reader, &frame);
             }
         }
     }
@@ -684,20 +959,20 @@ mod tests {
         assert_eq!(read_chunks(new_reader(), &bytes_of(&stream)), byte_by_byte);
     }
 
-    #[test]
-    fn reads_back_to_back_requests() {
+    #[tokio::test(start_paused = true)]
+    async fn reads_back_to_back_requests() {
         let frames: Vec<Vec<u8>> = ALL_REQUESTS.iter().map(|(_, x)| x.to_vec()).collect();
-        assert_reads_back_to_back(FramedReader::rtu_request, &frames);
+        assert_reads_back_to_back(request_reader, &frames);
     }
 
-    #[test]
-    fn reads_back_to_back_responses() {
+    #[tokio::test(start_paused = true)]
+    async fn reads_back_to_back_responses() {
         let frames: Vec<Vec<u8>> = ALL_RESPONSES.iter().map(|(_, x)| x.to_vec()).collect();
-        assert_reads_back_to_back(FramedReader::rtu_response, &frames);
+        assert_reads_back_to_back(response_reader, &frames);
     }
 
-    #[test]
-    fn reads_a_largest_frame_that_straddles_the_end_of_the_read_buffer() {
+    #[tokio::test(start_paused = true)]
+    async fn reads_a_largest_frame_that_straddles_the_end_of_the_read_buffer() {
         let largest = largest_read_response(0x03);
         let (head, tail) = largest.split_at(128);
         // the first read leaves the small frame consumed and the largest one started, so the
@@ -707,7 +982,7 @@ mod tests {
         chunks.extend(bytes_of(tail));
         chunks.push(READ_COILS_RESPONSE);
         assert_eq!(
-            read_chunks(FramedReader::rtu_response(), &chunks),
+            read_chunks(response_reader(), &chunks),
             [
                 frame_on(0, READ_COILS_RESPONSE),
                 frame_on(tail.len(), &largest),
@@ -716,105 +991,150 @@ mod tests {
         );
     }
 
-    #[test]
-    fn waits_for_known_function_codes_and_refuses_the_others() {
+    fn bad_frame(error: FrameParseError) -> DiscardReason {
+        DiscardReason::BadFrame(error)
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn waits_for_known_function_codes_and_drops_a_byte_for_the_others() {
         for function in 0..=u8::MAX {
             let known = KNOWN_FUNCTION_CODES.contains(&function);
-            let expected = if known {
-                vec![]
-            } else {
-                vec![error_on(1, FrameParseError::UnknownFunctionCode(function))]
-            };
-            assert_eq!(
-                read_chunks(FramedReader::rtu_request(), &[&[UNIT_ID], &[function]]),
-                expected,
-                "request {function:#04X}"
-            );
-
-            let expected = if known || function & 0x80 != 0 {
-                vec![]
-            } else {
-                vec![error_on(1, FrameParseError::UnknownFunctionCode(function))]
-            };
-            assert_eq!(
-                read_chunks(FramedReader::rtu_response(), &[&[UNIT_ID], &[function]]),
-                expected,
-                "response {function:#04X}"
-            );
+            let readers: [(NewReader, bool); 2] = [
+                (request_reader, known),
+                (response_reader, known || function & 0x80 != 0),
+            ];
+            for (new_reader, known) in readers {
+                let mut reader = new_reader();
+                let (outcomes, warnings) = read_reported(&mut reader, &[&[UNIT_ID], &[function]]);
+                assert_eq!(outcomes, []);
+                // the address is dropped, and the function code alone can't tell yet
+                let expected = if known {
+                    vec![]
+                } else {
+                    vec![started(bad_frame(FrameParseError::UnknownFunctionCode(
+                        function,
+                    )))]
+                };
+                assert_eq!(warnings, expected, "{function:#04X}");
+                assert_eq!(dropped(&reader), usize::from(!known));
+            }
         }
     }
 
-    #[test]
-    fn refuses_a_response_byte_count_past_the_largest_pdu() {
+    #[tokio::test(start_paused = true)]
+    async fn reads_the_frame_after_bytes_that_cant_start_one() {
+        // the unit id isn't a function code, so each byte before the frame is dropped on its own
+        let garbage = [UNIT_ID; 3];
+        let unknown = bad_frame(FrameParseError::UnknownFunctionCode(UNIT_ID));
+        let readers: [(NewReader, &[u8]); 2] = [
+            (request_reader, READ_COILS_REQUEST),
+            (response_reader, READ_COILS_RESPONSE),
+        ];
+        for (new_reader, frame) in readers {
+            let stream = [garbage.as_slice(), frame].concat();
+            // in one read, the parse that drops the bytes also finds the frame
+            let mut reader = new_reader();
+            assert_eq!(
+                read_reported(&mut reader, &[&stream]),
+                (vec![frame_on(0, frame)], vec![started(unknown), ended(3)])
+            );
+            assert_eq!(dropped(&reader), 0);
+            // byte by byte, the run starts long before the frame ends it
+            let mut reader = new_reader();
+            assert_eq!(
+                read_reported(&mut reader, &bytes_of(&stream)),
+                (
+                    vec![frame_on(last_index(&stream), frame)],
+                    vec![started(unknown), ended(3)]
+                )
+            );
+
+            let mut reader = new_reader();
+            assert_eq!(
+                read_reported(&mut reader, &[&garbage]),
+                (vec![], vec![started(unknown)])
+            );
+            assert_eq!(dropped(&reader), 2);
+        }
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn drops_a_byte_for_a_response_byte_count_past_the_largest_pdu() {
+        let too_big = FrameParseError::FrameLengthTooBig(MAX_PDU_LENGTH + 1, MAX_PDU_LENGTH);
         for function in READ_FUNCTION_CODES {
+            let mut reader = response_reader();
             let frame = [UNIT_ID, function, 0xFC];
+            let chunks = bytes_of(&frame);
+            assert_eq!(read_reported(&mut reader, &chunks[..2]), (vec![], vec![]));
+            // then `function, 0xFC` starts a frame that isn't complete yet
             assert_eq!(
-                read_chunks(FramedReader::rtu_response(), &bytes_of(&frame)),
-                [error_on(
-                    2,
-                    FrameParseError::FrameLengthTooBig(MAX_PDU_LENGTH + 1, MAX_PDU_LENGTH)
-                )]
+                read_reported(&mut reader, &chunks[2..]),
+                (vec![], vec![started(bad_frame(too_big))])
             );
+            assert_eq!(dropped(&reader), 1);
         }
     }
 
-    #[test]
-    fn refuses_a_request_byte_count_past_the_largest_pdu() {
+    #[tokio::test(start_paused = true)]
+    async fn drops_a_byte_for_a_request_byte_count_past_the_largest_pdu() {
+        let too_big = FrameParseError::FrameLengthTooBig(MAX_PDU_LENGTH + 1, MAX_PDU_LENGTH);
         for function in WRITE_MULTIPLE_FUNCTION_CODES {
+            let mut reader = request_reader();
             let frame = [UNIT_ID, function, 0x00, 0x10, 0x07, 0xC0, 0xF8];
+            let chunks = bytes_of(&frame);
+            assert_eq!(read_reported(&mut reader, &chunks[..6]), (vec![], vec![]));
+            // then function code 0x00 is unknown, and `0x00, 0x10, ...` isn't complete yet
             assert_eq!(
-                read_chunks(FramedReader::rtu_request(), &bytes_of(&frame)),
-                [error_on(
-                    6,
-                    FrameParseError::FrameLengthTooBig(MAX_PDU_LENGTH + 1, MAX_PDU_LENGTH)
-                )]
+                read_reported(&mut reader, &chunks[6..]),
+                (vec![], vec![started(bad_frame(too_big))])
             );
+            assert_eq!(dropped(&reader), 2);
         }
     }
 
-    #[test]
-    fn reports_the_received_and_the_expected_crc_once_both_crc_bytes_arrive() {
+    /// What a fresh reader reports reading `chunks`, which hold no frame
+    fn reported(new_reader: NewReader, chunks: &[&[u8]]) -> Vec<DiscardReport> {
+        let (outcomes, reports) = read_reported(&mut new_reader(), chunks);
+        assert_eq!(outcomes, []);
+        reports
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn drops_a_byte_for_a_bad_crc_once_both_crc_bytes_arrive() {
         let mut frame = READ_COILS_REQUEST.to_vec();
         frame[6..].copy_from_slice(&[0xFF, 0xFF]);
-        let error = FrameParseError::CrcValidationFailure(0xFFFF, 0x197A);
-        assert_eq!(
-            read_chunks(FramedReader::rtu_request(), &[&frame]),
-            [error_on(0, error)]
-        );
-        assert_eq!(
-            read_chunks(FramedReader::rtu_request(), &bytes_of(&frame)),
-            [error_on(7, error)]
-        );
+        let crc = started(bad_frame(FrameParseError::CrcValidationFailure(
+            0xFFFF, 0x197A,
+        )));
+        assert_eq!(reported(request_reader, &[&frame]), [crc]);
+        assert_eq!(reported(request_reader, &bytes_of(&frame[..7])), []);
+        assert_eq!(reported(request_reader, &bytes_of(&frame)), [crc]);
     }
 
-    #[test]
-    fn the_crc_is_little_endian() {
+    #[tokio::test(start_paused = true)]
+    async fn the_crc_is_little_endian() {
         let mut frame = READ_COILS_REQUEST.to_vec();
         frame.swap(6, 7);
+        let crc = FrameParseError::CrcValidationFailure(0x7A19, 0x197A);
         assert_eq!(
-            read_chunks(FramedReader::rtu_request(), &[&frame]),
-            [error_on(
-                0,
-                FrameParseError::CrcValidationFailure(0x7A19, 0x197A)
-            )]
+            reported(request_reader, &[&frame]),
+            [started(bad_frame(crc))]
         );
     }
 
-    #[test]
-    fn the_crc_covers_the_unit_id() {
+    #[tokio::test(start_paused = true)]
+    async fn the_crc_covers_the_unit_id() {
         let mut frame = READ_COILS_REQUEST.to_vec();
         frame[0] = UNIT_ID + 1;
+        let crc = FrameParseError::CrcValidationFailure(0x197A, 0xC87B);
         assert_eq!(
-            read_chunks(FramedReader::rtu_request(), &[&frame]),
-            [error_on(
-                0,
-                FrameParseError::CrcValidationFailure(0x197A, 0xC87B)
-            )]
+            reported(request_reader, &[&frame]),
+            [started(bad_frame(crc))]
         );
     }
 
-    #[test]
-    fn reports_a_bad_frame_that_follows_a_good_one() {
+    #[tokio::test(start_paused = true)]
+    async fn drops_bytes_after_a_good_frame() {
         let mut bad = READ_COILS_REQUEST.to_vec();
         bad[6..].copy_from_slice(&[0xFF, 0xFF]);
         let stream: Vec<u8> = WRITE_SINGLE_COIL_REQUEST
@@ -822,36 +1142,71 @@ mod tests {
             .chain(&bad)
             .copied()
             .collect();
-        assert_eq!(
-            read_chunks(FramedReader::rtu_request(), &[&stream]),
-            [
-                frame_on(0, WRITE_SINGLE_COIL_REQUEST),
-                error_on(0, FrameParseError::CrcValidationFailure(0xFFFF, 0x197A)),
-            ]
-        );
+        let crc = FrameParseError::CrcValidationFailure(0xFFFF, 0x197A);
+        let (outcomes, warnings) = read_reported(&mut request_reader(), &[&stream]);
+        assert_eq!(outcomes, [frame_on(0, WRITE_SINGLE_COIL_REQUEST)]);
+        assert_eq!(warnings.first(), Some(&started(bad_frame(crc))));
+
         let mut unknown = WRITE_SINGLE_COIL_REQUEST.to_vec();
         unknown.extend([UNIT_ID, 0x07]);
+        let mut reader = request_reader();
         assert_eq!(
-            read_chunks(FramedReader::rtu_request(), &bytes_of(&unknown)),
-            [
-                frame_on(
+            read_reported(&mut reader, &bytes_of(&unknown)),
+            (
+                vec![frame_on(
                     WRITE_SINGLE_COIL_REQUEST.len() - 1,
                     WRITE_SINGLE_COIL_REQUEST
-                ),
-                error_on(
-                    WRITE_SINGLE_COIL_REQUEST.len() + 1,
-                    FrameParseError::UnknownFunctionCode(0x07)
-                ),
-            ]
+                )],
+                vec![started(bad_frame(FrameParseError::UnknownFunctionCode(
+                    0x07
+                )))]
+            )
+        );
+        assert_eq!(dropped(&reader), 1);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_run_of_dropped_bytes_is_logged_when_it_starts_and_when_a_frame_ends_it() {
+        // 0xA5 isn't a function code, so each of these bytes is dropped on its own
+        let noise = [0xA5; 6];
+        let unknown = started(bad_frame(FrameParseError::UnknownFunctionCode(0xA5)));
+        let mut reader = request_reader();
+        let mut chunks = bytes_of(&noise);
+        chunks.push(READ_COILS_REQUEST);
+        assert_eq!(
+            read_reported(&mut reader, &chunks),
+            (
+                vec![frame_on(noise.len(), READ_COILS_REQUEST)],
+                vec![unknown, ended(noise.len())]
+            )
+        );
+        // a new run starts with the next bytes dropped
+        assert_eq!(
+            read_reported(&mut reader, &[&noise[..2], READ_COILS_REQUEST]),
+            (
+                vec![frame_on(1, READ_COILS_REQUEST)],
+                vec![unknown, ended(2)]
+            )
         );
     }
 
     #[test]
-    fn reset_drops_a_partial_frame() {
+    fn the_count_of_dropped_bytes_saturates_and_reset_clears_it() {
+        let mut parser = RtuParser::new_request_parser(BAUD_RATE);
+        let reason = DiscardReason::Silence;
+        parser.discard(NonZeroUsize::new(usize::MAX - 1).unwrap(), reason);
+        parser.discard(NonZeroUsize::new(5).unwrap(), reason);
+        assert_eq!(parser.discarded(), Some((usize::MAX, Some(reason))));
+        parser.reset();
+        assert_eq!(parser.discarded(), None);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn reset_drops_a_partial_frame() {
         let frame = WRITE_MULTIPLE_REGISTERS_REQUEST;
         // after the unit id, the function code, the byte count, part of the body, one CRC byte
         for partial in [1, 2, 7, 9, frame.len() - 1] {
-            let mut reader = FramedReader::rtu_request();
+            let mut reader = request_reader();
             assert_eq!(
                 read_chunks_with(&mut reader, DecodeLevel::nothing(), &[&frame[..partial]]),
                 []
@@ -865,24 +1220,200 @@ mod tests {
         }
     }
 
-    #[test]
-    fn reset_after_an_error_reads_the_next_frame() {
-        let mut reader = FramedReader::rtu_request();
+    #[tokio::test(start_paused = true)]
+    async fn reset_forgets_the_dropped_bytes() {
+        let mut reader = request_reader();
+        // 0x07 and 0x00 are unknown function codes, and `0x00, 0x01` starts a read of coils
         let stream = [UNIT_ID, 0x07, 0x00, 0x01];
         assert_eq!(
             read_chunks_with(&mut reader, DecodeLevel::nothing(), &[&stream]),
-            [error_on(0, FrameParseError::UnknownFunctionCode(0x07))]
+            []
         );
+        assert_eq!(dropped(&reader), 2);
         reader.reset();
+        assert_eq!(dropped(&reader), 0);
+        // no run ends with the frame
         assert_eq!(
-            read_chunks_with(&mut reader, DecodeLevel::nothing(), &[READ_COILS_REQUEST]),
-            [frame_on(0, READ_COILS_REQUEST)]
+            read_reported(&mut reader, &[READ_COILS_REQUEST]),
+            (vec![frame_on(0, READ_COILS_REQUEST)], vec![])
         );
     }
 
-    #[test]
-    fn an_io_error_during_a_frame_is_returned() {
-        let mut reader = FramedReader::rtu_request();
+    /// A reader polled by hand over a mock port, in a test whose clock is paused
+    struct Polled {
+        reader: FramedReader,
+        layer: PhysLayer,
+        port: sfio_tokio_mock_io::Handle,
+    }
+
+    impl Polled {
+        fn new(reader: FramedReader) -> Self {
+            let (io, port) = sfio_tokio_mock_io::mock();
+            Self {
+                reader,
+                layer: PhysLayer::new_mock(io),
+                port,
+            }
+        }
+
+        /// Poll a new `next_frame` once, then drop it, the way a session's `select!` cancels it
+        fn poll(&mut self) -> Poll<Result<Frame, ReadError>> {
+            let mut task = tokio_test::task::spawn(tokio::task::unconstrained(
+                self.reader
+                    .next_frame(&mut self.layer, DecodeLevel::nothing()),
+            ));
+            task.poll()
+        }
+
+        /// Poll until `next_frame` waits, returning the payloads of the frames it read
+        fn frames(&mut self) -> Vec<Vec<u8>> {
+            let mut frames = Vec::new();
+            loop {
+                match self.poll() {
+                    Poll::Pending => return frames,
+                    Poll::Ready(Ok(frame)) => frames.push(frame.payload().to_vec()),
+                    Poll::Ready(Err(err)) => panic!("{err:?}"),
+                }
+            }
+        }
+
+        fn dropped(&self) -> usize {
+            dropped(&self.reader)
+        }
+
+        fn reports(&self) -> &[DiscardReport] {
+            rtu_parser(&self.reader).reports()
+        }
+    }
+
+    /// The PDU of a frame: what is between the address and the CRC
+    fn pdu(frame: &[u8]) -> Vec<u8> {
+        frame.split_last_chunk::<2>().unwrap().0[1..].to_vec()
+    }
+
+    /// A read response that announces more bytes than ever arrive
+    const STALLED: [u8; 3] = [UNIT_ID, 0x03, 0xFB];
+
+    /// How much later than its deadline tokio may fire a timer: it rounds up to the millisecond
+    const TIMER_RESOLUTION: Duration = Duration::from_millis(1);
+
+    /// Long enough for a reader at [`BAUD_RATE`] to have dropped a partial frame
+    const PAST_SILENCE: Duration = SILENCE.saturating_add(TIMER_RESOLUTION);
+
+    #[tokio::test(start_paused = true)]
+    async fn drops_a_partial_frame_once_the_line_has_been_silent() {
+        let mut polled = Polled::new(response_reader());
+        polled.port.read(&STALLED);
+        assert_eq!(polled.frames(), Vec::<Vec<u8>>::new());
+        tokio::time::advance(SILENCE - Duration::from_millis(1)).await;
+        assert_eq!(polled.frames(), Vec::<Vec<u8>>::new());
+        assert_eq!(polled.dropped(), 0);
+
+        tokio::time::advance(Duration::from_millis(1) + TIMER_RESOLUTION).await;
+        assert_eq!(polled.frames(), Vec::<Vec<u8>>::new());
+        assert_eq!(polled.dropped(), 3);
+
+        polled.port.read(READ_COILS_RESPONSE);
+        assert_eq!(polled.frames(), [pdu(READ_COILS_RESPONSE)]);
+        assert_eq!(polled.dropped(), 0);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn each_byte_restarts_the_silence() {
+        let mut polled = Polled::new(response_reader());
+        polled.port.read(&STALLED);
+        assert_eq!(polled.frames(), Vec::<Vec<u8>>::new());
+        let most = SILENCE - Duration::from_millis(10);
+        tokio::time::advance(most).await;
+        polled.port.read(&[0xA5]);
+        assert_eq!(polled.frames(), Vec::<Vec<u8>>::new());
+        tokio::time::advance(most).await;
+        assert_eq!(polled.frames(), Vec::<Vec<u8>>::new());
+        assert_eq!(polled.dropped(), 0);
+
+        tokio::time::advance(SILENCE - most + TIMER_RESOLUTION).await;
+        assert_eq!(polled.frames(), Vec::<Vec<u8>>::new());
+        assert_eq!(polled.dropped(), 4);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn bytes_that_arrive_after_the_silence_dont_complete_the_frame_it_ended() {
+        let (start, rest) = READ_COILS_RESPONSE.split_at(3);
+        // the silence is checked before the bytes, so this never depends on which is polled first
+        for _ in 0..16 {
+            let mut polled = Polled::new(response_reader());
+            polled.port.read(start);
+            assert_eq!(polled.frames(), Vec::<Vec<u8>>::new());
+            // the reader isn't polled while the line is silent, then the rest arrives with a new
+            // frame
+            tokio::time::advance(PAST_SILENCE).await;
+            polled.port.read(&[rest, EXCEPTION_RESPONSE].concat());
+            assert_eq!(polled.frames(), [pdu(EXCEPTION_RESPONSE)]);
+        }
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_frame_is_read_and_the_partial_frame_after_it_is_kept() {
+        let mut polled = Polled::new(response_reader());
+        polled
+            .port
+            .read(&[READ_COILS_RESPONSE, &EXCEPTION_RESPONSE[..2]].concat());
+        assert_eq!(polled.frames(), [pdu(READ_COILS_RESPONSE)]);
+        polled.port.read(&EXCEPTION_RESPONSE[2..]);
+        assert_eq!(polled.frames(), [pdu(EXCEPTION_RESPONSE)]);
+        assert_eq!(polled.dropped(), 0);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn the_silence_drops_everything_buffered_even_a_frame_inside_a_partial_one() {
+        let mut polled = Polled::new(response_reader());
+        // the frame arrives before the line goes silent, behind bytes that announce a longer one
+        polled
+            .port
+            .read(&[STALLED.as_slice(), READ_COILS_RESPONSE].concat());
+        assert_eq!(polled.frames(), Vec::<Vec<u8>>::new());
+        tokio::time::advance(PAST_SILENCE).await;
+        assert_eq!(polled.frames(), Vec::<Vec<u8>>::new());
+        assert_eq!(polled.reports(), [started(DiscardReason::Silence)]);
+        assert_eq!(polled.dropped(), STALLED.len() + READ_COILS_RESPONSE.len());
+
+        polled.port.read(READ_COILS_RESPONSE);
+        assert_eq!(polled.frames(), [pdu(READ_COILS_RESPONSE)]);
+        assert_eq!(
+            polled.reports(),
+            [started(DiscardReason::Silence), ended(11)]
+        );
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_reader_at_a_low_baud_rate_waits_for_its_longer_silence() {
+        // t3.5 at 300 baud is longer than the shortest silence
+        let silence = crate::serial::timing::rtu_silence(300);
+        assert_eq!(silence, Duration::from_nanos(128_333_331));
+        let mut polled = Polled::new(FramedReader::rtu_response(300));
+        polled.port.read(&STALLED);
+        assert_eq!(polled.frames(), Vec::<Vec<u8>>::new());
+        tokio::time::advance(SILENCE * 2).await;
+        assert_eq!(polled.frames(), Vec::<Vec<u8>>::new());
+        assert_eq!(polled.dropped(), 0);
+        tokio::time::advance(silence - SILENCE * 2 + TIMER_RESOLUTION).await;
+        assert_eq!(polled.frames(), Vec::<Vec<u8>>::new());
+        assert_eq!(polled.dropped(), STALLED.len());
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn an_empty_buffer_waits_without_a_deadline() {
+        let mut polled = Polled::new(response_reader());
+        polled.port.read(READ_COILS_RESPONSE);
+        assert_eq!(polled.frames(), [pdu(READ_COILS_RESPONSE)]);
+        tokio::time::advance(SILENCE * 100).await;
+        assert_eq!(polled.frames(), Vec::<Vec<u8>>::new());
+        assert_eq!(polled.dropped(), 0);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn an_io_error_during_a_frame_is_returned() {
+        let mut reader = request_reader();
         let (io, mut io_handle) = sfio_tokio_mock_io::mock();
         let mut layer = PhysLayer::new_mock(io);
         let mut task =
@@ -896,8 +1427,8 @@ mod tests {
         );
     }
 
-    #[test]
-    fn decoding_does_not_change_what_is_read() {
+    #[tokio::test(start_paused = true)]
+    async fn decoding_does_not_change_what_is_read() {
         let decode_level = DecodeLevel::new(
             AppDecodeLevel::DataValues,
             FrameDecodeLevel::Payload,
@@ -905,13 +1436,13 @@ mod tests {
         );
         for frame in request_frames() {
             assert_eq!(
-                read_chunks_with(&mut FramedReader::rtu_request(), decode_level, &[&frame]),
+                read_chunks_with(&mut request_reader(), decode_level, &[&frame]),
                 [frame_on(0, &frame)]
             );
         }
         for frame in response_frames() {
             assert_eq!(
-                read_chunks_with(&mut FramedReader::rtu_response(), decode_level, &[&frame]),
+                read_chunks_with(&mut response_reader(), decode_level, &[&frame]),
                 [frame_on(0, &frame)]
             );
         }
@@ -1061,8 +1592,8 @@ mod tests {
         impl Direction {
             fn parser(self) -> RtuParser {
                 match self {
-                    Direction::Request => RtuParser::new_request_parser(),
-                    Direction::Response => RtuParser::new_response_parser(),
+                    Direction::Request => RtuParser::new_request_parser(BAUD_RATE),
+                    Direction::Response => RtuParser::new_response_parser(BAUD_RATE),
                 }
             }
         }
@@ -1111,95 +1642,173 @@ mod tests {
             pdu_length.checked_add(3).unwrap()
         }
 
-        /// What a parse returns, with the parsed frame's fields
+        /// The fields of a parsed frame
+        #[derive(Debug, PartialEq)]
+        struct ParsedFrame {
+            header: FrameHeader,
+            frame_type: Option<(FrameDestination, u16)>,
+            payload: Vec<u8>,
+        }
+
+        /// What a parse returns
         #[derive(Debug, PartialEq)]
         enum Parsed {
             Incomplete,
-            Frame {
-                header: FrameHeader,
-                frame_type: Option<(FrameDestination, u16)>,
-                payload: Vec<u8>,
-            },
-            Error(RequestError),
+            Frame(ParsedFrame),
+            Error(InternalError),
         }
 
-        fn bad_frame(error: FrameParseError) -> Parsed {
-            Parsed::Error(RequestError::BadFrame(error))
+        /// What the bytes at the start of a stream are
+        enum Candidate {
+            /// They don't tell yet
+            Incomplete,
+            /// They can't start a frame, which the first `usize` of them tell
+            Bad(FrameParseError, usize),
+            /// A frame this many bytes long
+            Frame(ParsedFrame, usize),
         }
 
-        /// What parsing `bytes` from a fresh buffer returns and how many bytes it consumes,
-        /// following Serial Line V1.02 2.5.1 for the frame: the address, the PDU, a CRC sent low
-        /// byte first, at most 256 bytes in all
-        fn expected(direction: Direction, bytes: &[u8]) -> (Parsed, usize) {
+        /// What `bytes` start with, following Serial Line V1.02 2.5.1 for the frame: the address,
+        /// the PDU, a CRC sent low byte first, at most 256 bytes in all
+        fn candidate(direction: Direction, bytes: &[u8]) -> Candidate {
             let Some((address, pdu)) = bytes.split_first() else {
-                return (Parsed::Incomplete, 0);
+                return Candidate::Incomplete;
             };
             let pdu_length = match pdu_length(direction, pdu) {
                 PduLength::Unknown => {
-                    let error = FrameParseError::UnknownFunctionCode(pdu[0]);
-                    return (bad_frame(error), 0);
+                    // the address and the function code
+                    return Candidate::Bad(FrameParseError::UnknownFunctionCode(pdu[0]), 2);
                 }
-                PduLength::NeedsByteCount => return (Parsed::Incomplete, 0),
+                PduLength::NeedsByteCount => return Candidate::Incomplete,
                 PduLength::Known(length) => length,
             };
             // the largest PDU on a serial line (Application Protocol V1.1b3 4.1)
             if pdu_length > MAX_PDU_LENGTH {
                 let error = FrameParseError::FrameLengthTooBig(pdu_length, MAX_PDU_LENGTH);
-                return (bad_frame(error), 0);
+                // only a byte count makes a PDU that long, which tells once it arrives: after
+                // the address, the function code, and for a request the address and quantity
+                let through_byte_count = match direction {
+                    Direction::Request => 7,
+                    Direction::Response => 3,
+                };
+                return Candidate::Bad(error, through_byte_count);
             }
             let length = frame_length(pdu_length);
             if bytes.len() < length {
-                return (Parsed::Incomplete, 0);
+                return Candidate::Incomplete;
             }
             let (adu, received) = bytes[..length].split_last_chunk::<2>().unwrap();
             let received = u16::from_le_bytes(*received);
             let expected = u16::from_le_bytes(*with_crc(adu).last_chunk().unwrap());
             if received != expected {
                 let error = FrameParseError::CrcValidationFailure(received, expected);
-                return (bad_frame(error), length);
+                return Candidate::Bad(error, length);
             }
             // address 0 is the broadcast address (Serial Line V1.02 2.2)
             let destination = match address {
                 0 => FrameDestination::Broadcast,
                 id => FrameDestination::new_unit_id(*id),
             };
-            let parsed = Parsed::Frame {
+            let frame = ParsedFrame {
                 header: FrameHeader::new_rtu_header(destination),
                 frame_type: Some((destination, received)),
                 payload: adu[1..].to_vec(),
             };
-            (parsed, length)
+            Candidate::Frame(frame, length)
         }
 
-        /// Parses what of `bytes` fits in a fresh buffer, returning the result and how many bytes
-        /// it consumed, and the bytes the buffer took
-        fn parse(direction: Direction, bytes: &[u8]) -> ((Parsed, usize), usize) {
-            let mut buffer = ReadBuffer::new();
-            let taken = buffer.fill(bytes);
-            let parsed = match direction.parser().parse(&mut buffer) {
-                Ok(None) => Parsed::Incomplete,
-                Ok(Some((frame, frame_type))) => Parsed::Frame {
-                    header: frame.header,
-                    frame_type: match frame_type {
-                        FrameType::Rtu(destination, crc) => Some((destination, crc)),
-                        FrameType::Mbap(_) => None,
-                    },
-                    payload: frame.payload().to_vec(),
-                },
-                Err(error) => Parsed::Error(error.into()),
+        /// What a reader does with a stream while the line isn't silent: it reads each frame that
+        /// starts where the last ended, and drops a byte that can't start one (Serial Line V1.02
+        /// 2.5.1.1, 2.5.1.2)
+        struct Model {
+            /// the frames, each with the bytes dropped before it, and the index of the last
+            /// byte the reader needs to return it: the frame's last, or a later one an earlier
+            /// candidate needed to be refused
+            frames: Vec<ModelFrame>,
+            /// how many bytes it consumed
+            consumed: usize,
+            /// how many it dropped since the last frame, and why the first
+            discarded: Option<(usize, DiscardReason)>,
+        }
+
+        struct ModelFrame {
+            frame: ParsedFrame,
+            dropped_before: Option<(usize, DiscardReason)>,
+            returned_at: usize,
+        }
+
+        /// The [`Model`] of reading up to `max_frames` frames from `bytes`
+        fn model(direction: Direction, bytes: &[u8], max_frames: usize) -> Model {
+            let mut model = Model {
+                frames: Vec::new(),
+                consumed: 0,
+                discarded: None,
             };
-            ((parsed, taken.checked_sub(buffer.len()).unwrap()), taken)
+            // how many bytes the candidates so far needed
+            let mut needed: usize = 0;
+            while model.frames.len() < max_frames {
+                match candidate(direction, &bytes[model.consumed..]) {
+                    Candidate::Incomplete => break,
+                    Candidate::Bad(error, examined) => {
+                        needed = needed.max(model.consumed.checked_add(examined).unwrap());
+                        model.consumed = model.consumed.checked_add(1).unwrap();
+                        model.discarded = Some(match model.discarded {
+                            None => (1, DiscardReason::BadFrame(error)),
+                            Some((count, reason)) => (count.checked_add(1).unwrap(), reason),
+                        });
+                    }
+                    Candidate::Frame(frame, length) => {
+                        model.consumed = model.consumed.checked_add(length).unwrap();
+                        needed = needed.max(model.consumed);
+                        model.frames.push(ModelFrame {
+                            frame,
+                            dropped_before: model.discarded.take(),
+                            returned_at: needed.checked_sub(1).unwrap(),
+                        });
+                    }
+                }
+            }
+            model
         }
 
+        /// Checks one parse of what of `bytes` fits in a fresh buffer against the [`Model`]
         fn check(bytes: &[u8]) -> Result<(), TestCaseError> {
             for direction in [Direction::Request, Direction::Response] {
-                let (actual, taken) = parse(direction, bytes);
-                let buffered = &bytes[..taken];
-                prop_assert_eq!(&actual, &expected(direction, buffered), "{:?}", direction);
-                // a full frame always fits, so a buffer that holds one always decides
-                if buffered.len() >= MAX_RTU_FRAME_LENGTH {
-                    prop_assert_ne!(&actual.0, &Parsed::Incomplete, "{:?}", direction);
+                let mut parser = direction.parser();
+                let mut buffer = ReadBuffer::new();
+                let taken = buffer.fill(bytes);
+                let parsed = match parser.parse(&mut buffer) {
+                    Ok(None) => Parsed::Incomplete,
+                    Ok(Some((frame, frame_type))) => Parsed::Frame(ParsedFrame {
+                        header: frame.header,
+                        frame_type: match frame_type {
+                            FrameType::Rtu(destination, crc) => Some((destination, crc)),
+                            FrameType::Mbap(_) => None,
+                        },
+                        payload: frame.payload().to_vec(),
+                    }),
+                    Err(error) => Parsed::Error(error),
+                };
+                let consumed = taken.checked_sub(buffer.len()).unwrap();
+                // a full frame always fits, so a buffer that holds one never waits
+                if parsed == Parsed::Incomplete {
+                    prop_assert!(buffer.len() < MAX_RTU_FRAME_LENGTH, "{:?}", direction);
                 }
+
+                // a parse leaves what it dropped before a frame for the reader to log
+                let model = model(direction, &bytes[..taken], 1);
+                let (expected, discarded) = match model.frames.into_iter().next() {
+                    Some(modelled) => (Parsed::Frame(modelled.frame), modelled.dropped_before),
+                    None => (Parsed::Incomplete, model.discarded),
+                };
+                // a parse leaves the start of a run for the reader to report
+                let discarded = discarded.map(|(count, reason)| (count, Some(reason)));
+                prop_assert_eq!(
+                    (parsed, consumed, parser.discarded()),
+                    (expected, model.consumed, discarded),
+                    "{:?}",
+                    direction
+                );
             }
             Ok(())
         }
@@ -1267,8 +1876,8 @@ mod tests {
         impl Direction {
             fn reader(self) -> FramedReader {
                 match self {
-                    Direction::Request => FramedReader::rtu_request(),
-                    Direction::Response => FramedReader::rtu_response(),
+                    Direction::Request => request_reader(),
+                    Direction::Response => response_reader(),
                 }
             }
         }
@@ -1464,15 +2073,22 @@ mod tests {
             )
         }
 
-        /// Reads the frames, each formatted by `format_rtu_pdu` and the corrupted one changed in a
-        /// byte other than its function code and byte count, and checks the reader returns each
-        /// frame on the read holding its last byte, up to a CRC error for the corrupted one
-        fn check_frames(
-            direction: Direction,
+        /// Run `check` in a runtime of its own whose clock is paused, as the readers' timers need
+        fn paused<T>(check: impl std::future::Future<Output = T>) -> T {
+            tokio::runtime::Builder::new_current_thread()
+                .enable_time()
+                .start_paused(true)
+                .build()
+                .unwrap()
+                .block_on(check)
+        }
+
+        /// The frames of `records`, each formatted by `format_rtu_pdu`, with the corrupted one
+        /// changed in a byte other than its function code and byte count, and its index
+        fn formatted(
             records: &[Record],
             corruption: Option<Corruption>,
-            reads: &Reads,
-        ) -> Result<(), TestCaseError> {
+        ) -> (Vec<Vec<u8>>, Option<usize>) {
             let mut frames: Vec<Vec<u8>> = records
                 .iter()
                 .map(|x| assert_frame_formatting(x.function_field(), &x.encode(), 0))
@@ -1486,30 +2102,79 @@ mod tests {
                 frames[frame][*byte.get(&positions)] ^= mask;
                 frame
             });
+            (frames, corrupted)
+        }
 
+        /// The payload of each frame the [`Model`] reads from `bytes`
+        fn modelled_payloads(direction: Direction, bytes: &[u8]) -> Vec<Vec<u8>> {
+            model(direction, bytes, usize::MAX)
+                .frames
+                .into_iter()
+                .map(|x| x.frame.payload)
+                .collect()
+        }
+
+        /// Reads the [`formatted`] frames back to back, and checks the reader returns what the
+        /// [`Model`] reads from the stream, each frame on the read that holds the last byte it
+        /// needs
+        fn check_frames(
+            direction: Direction,
+            records: &[Record],
+            corruption: Option<Corruption>,
+            reads: &Reads,
+        ) -> Result<(), TestCaseError> {
+            let (frames, corrupted) = formatted(records, corruption);
             let stream = frames.concat();
             let chunks = reads.split(&stream);
-            let mut expected = Vec::new();
-            let mut end: usize = 0;
-            for (index, (record, frame)) in records.iter().zip(&frames).enumerate() {
-                end = end.checked_add(frame.len()).unwrap();
-                let chunk = chunk_holding(&chunks, end.checked_sub(1).unwrap());
-                if corrupted == Some(index) {
-                    let (adu, received) = frame.split_last_chunk::<2>().unwrap();
-                    let received = u16::from_le_bytes(*received);
-                    let expected_crc = u16::from_le_bytes(*with_crc(adu).last_chunk().unwrap());
-                    let error = FrameParseError::CrcValidationFailure(received, expected_crc);
-                    expected.push(error_on(chunk, error));
-                    break;
-                }
-                expected.push(Outcome::Frame {
-                    chunk,
-                    destination: destination_of(&[record.address]),
-                    payload: record.pdu(),
-                });
+
+            let modelled = model(direction, &stream, usize::MAX).frames;
+            // the model reads every frame before the corrupted one, and with none, every frame
+            let payloads: Vec<&[u8]> = modelled
+                .iter()
+                .map(|x| x.frame.payload.as_slice())
+                .collect();
+            let pdus: Vec<Vec<u8>> = records.iter().map(Record::pdu).collect();
+            let pdus: Vec<&[u8]> = pdus.iter().map(Vec::as_slice).collect();
+            match corrupted {
+                Some(index) => prop_assert_eq!(payloads.get(..index), Some(&pdus[..index])),
+                None => prop_assert_eq!(&payloads, &pdus),
             }
 
+            let expected: Vec<Outcome> = modelled
+                .into_iter()
+                .map(|x| Outcome::Frame {
+                    chunk: chunk_holding(&chunks, x.returned_at),
+                    destination: x.frame.header.destination(),
+                    payload: x.frame.payload,
+                })
+                .collect();
             prop_assert_eq!(read_chunks(direction.reader(), &chunks), expected);
+            Ok(())
+        }
+
+        /// Reads the [`formatted`] frames with the line silent after each, and checks the reader
+        /// returns every frame but the corrupted one, and what the [`Model`] reads from that one
+        /// alone, as the silence drops what is left of it
+        async fn check_silences(
+            direction: Direction,
+            records: &[Record],
+            corruption: Option<Corruption>,
+        ) -> Result<(), TestCaseError> {
+            let (frames, corrupted) = formatted(records, corruption);
+            let mut polled = Polled::new(direction.reader());
+            let mut read = Vec::new();
+            let mut expected = Vec::new();
+            for (index, (record, frame)) in records.iter().zip(&frames).enumerate() {
+                polled.port.read(frame);
+                read.extend(polled.frames());
+                tokio::time::advance(PAST_SILENCE).await;
+                if corrupted == Some(index) {
+                    expected.extend(modelled_payloads(direction, frame));
+                } else {
+                    expected.push(record.pdu());
+                }
+            }
+            prop_assert_eq!(read, expected);
             Ok(())
         }
 
@@ -1591,7 +2256,15 @@ mod tests {
                 corruption in prop::option::of(corruption()),
                 reads in reads(),
             ) {
-                check_frames(direction, &records, corruption, &reads)?;
+                paused(async { check_frames(direction, &records, corruption, &reads) })?;
+            }
+
+            #[test]
+            fn rtu_readers_recover_from_a_corrupted_frame_when_the_line_goes_silent(
+                (direction, records) in frames(),
+                corruption in prop::option::of(corruption()),
+            ) {
+                paused(check_silences(direction, &records, corruption))?;
             }
 
             #[test]
@@ -1599,7 +2272,7 @@ mod tests {
                 bytes in stream(),
                 reads in reads(),
             ) {
-                check_chunking(&bytes, &reads)?;
+                paused(async { check_chunking(&bytes, &reads) })?;
             }
         }
     }

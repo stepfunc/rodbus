@@ -123,8 +123,11 @@ fn parsers_with_unknown_input() {
     #[cfg(feature = "serial")]
     {
         use crate::serial::frame::RtuParser;
-        frames(FrameParser::Rtu(RtuParser::new_request_parser()), &data);
-        frames(FrameParser::Rtu(RtuParser::new_response_parser()), &data);
+        frames(FrameParser::Rtu(RtuParser::new_request_parser(9600)), &data);
+        frames(
+            FrameParser::Rtu(RtuParser::new_response_parser(9600)),
+            &data,
+        );
     }
 
     if let [function, start_0, start_1, count_0, count_1, pdu @ ..] = data.as_slice() {

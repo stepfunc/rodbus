@@ -840,7 +840,10 @@ async fn execute_case(link: Link, auth: Auth, case: &Case) -> Seen {
     let (writer, reader) = match link {
         Link::Tcp => (FrameWriter::tcp(), FramedReader::tcp()),
         #[cfg(feature = "serial")]
-        Link::Rtu => (FrameWriter::rtu(), FramedReader::rtu_request()),
+        Link::Rtu => (
+            FrameWriter::rtu(),
+            FramedReader::rtu_request(crate::serial::SerialSettings::default().baud_rate),
+        ),
     };
     let peer = serve(handlers, auth, writer, reader);
 
