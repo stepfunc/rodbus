@@ -24,19 +24,3 @@ pub(crate) async fn watchdog(test: impl Future<Output = ()>) {
     }
     drop(done_tx);
 }
-
-/// Run `future` without letting a paused clock advance
-///
-/// Awaiting socket I/O leaves the runtime idle, and an idle runtime advances a paused clock to
-/// its next timer. Yielding between polls keeps a task ready instead, while the runtime still
-/// polls for I/O and runs the other tasks.
-pub(crate) async fn with_the_clock_held<F: Future>(future: F) -> F::Output {
-    let mut future = std::pin::pin!(future);
-    loop {
-        tokio::select! {
-            biased;
-            output = &mut future => return output,
-            _ = tokio::task::yield_now() => {}
-        }
-    }
-}

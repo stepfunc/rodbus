@@ -34,6 +34,8 @@ pub struct ClientTask {
 
 enum ClientTaskInner {
     Tcp(crate::tcp::client::TcpChannelTask),
+    #[cfg(test)]
+    Memory(crate::tcp::client::TcpChannelTask<crate::tcp::client::test_util::MemoryConnector>),
     #[cfg(feature = "serial")]
     Serial(crate::serial::client::SerialChannelTask),
 }
@@ -42,6 +44,17 @@ impl ClientTask {
     pub(crate) fn tcp(task: crate::tcp::client::TcpChannelTask, shutdown: ShutdownSignal) -> Self {
         Self {
             inner: ClientTaskInner::Tcp(task),
+            shutdown,
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn memory(
+        task: crate::tcp::client::TcpChannelTask<crate::tcp::client::test_util::MemoryConnector>,
+        shutdown: ShutdownSignal,
+    ) -> Self {
+        Self {
+            inner: ClientTaskInner::Memory(task),
             shutdown,
         }
     }
@@ -62,10 +75,9 @@ impl ClientTask {
     pub async fn run(self) {
         let ClientTask { inner, shutdown } = self;
         match inner {
-            ClientTaskInner::Tcp(mut task) => {
-                shutdown.run_until_cancelled(task.run()).await;
-                task.shutdown().await;
-            }
+            ClientTaskInner::Tcp(task) => task.run_until_shutdown(shutdown).await,
+            #[cfg(test)]
+            ClientTaskInner::Memory(task) => task.run_until_shutdown(shutdown).await,
             #[cfg(feature = "serial")]
             ClientTaskInner::Serial(mut task) => {
                 shutdown.run_until_cancelled(task.run()).await;

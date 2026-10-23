@@ -59,6 +59,11 @@ enum ServerTaskInner<T: RequestHandler> {
     ),
     #[cfg(feature = "serial")]
     Rtu(Box<crate::serial::server::RtuServerTask<T>>),
+    #[cfg(test)]
+    Memory(
+        Box<TcpServerTask<T, crate::tcp::accept::test_util::FaultyListener>>,
+        tokio::sync::mpsc::Receiver<ServerCommand>,
+    ),
 }
 
 impl<T: RequestHandler> ServerTask<T> {
@@ -69,6 +74,18 @@ impl<T: RequestHandler> ServerTask<T> {
     ) -> Self {
         Self {
             inner: ServerTaskInner::Tcp(Box::new(task), commands),
+            shutdown,
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn memory(
+        task: TcpServerTask<T, crate::tcp::accept::test_util::FaultyListener>,
+        commands: tokio::sync::mpsc::Receiver<ServerCommand>,
+        shutdown: ShutdownSignal,
+    ) -> Self {
+        Self {
+            inner: ServerTaskInner::Memory(Box::new(task), commands),
             shutdown,
         }
     }
@@ -87,7 +104,11 @@ impl<T: RequestHandler> ServerTask<T> {
         let ServerTask { inner, shutdown } = self;
         match inner {
             ServerTaskInner::Tcp(mut task, commands) => {
-                shutdown.run_until_cancelled(task.run(commands)).await;
+                task.run_until_shutdown(commands, &shutdown).await;
+            }
+            #[cfg(test)]
+            ServerTaskInner::Memory(mut task, commands) => {
+                task.run_until_shutdown(commands, &shutdown).await;
             }
             #[cfg(feature = "serial")]
             ServerTaskInner::Rtu(mut task) => {

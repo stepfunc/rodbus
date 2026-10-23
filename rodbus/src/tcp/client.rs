@@ -1,7 +1,8 @@
 use tracing::Instrument;
 
 use crate::client::{Channel, ClientState, ClientTask, HostAddr, Listener};
-use crate::common::phys::PhysLayer;
+use crate::common::cancellation::ShutdownSignal;
+use crate::common::phys::{PhysLayer, Socket};
 
 use crate::client::message::Command;
 use crate::client::task::{ClientLoop, SessionError, StateChange};
@@ -10,6 +11,7 @@ use crate::error::Shutdown;
 use crate::retry::RetryStrategy;
 use crate::{ChannelLoggingMode, ClientOptions};
 
+use std::future::Future;
 use tokio::net::TcpStream;
 
 macro_rules! log_channel_event {
@@ -43,17 +45,50 @@ pub(crate) fn create_tcp_channel(
     listener: Box<dyn Listener<ClientState>>,
     options: ClientOptions,
 ) -> (Channel, ClientTask) {
-    let (tx, rx) = tokio::sync::mpsc::channel(options.max_queued_requests);
-    let (shutdown, signal) = crate::common::cancellation::pair();
-    let task = TcpChannelTask::new(
+    let (channel, task, signal) = new_channel(
         host,
-        rx.into(),
         TcpTaskConnectionHandler::Tcp,
         connect_retry,
         options,
         listener,
     );
-    (Channel { tx, shutdown }, ClientTask::tcp(task, signal))
+    (channel, ClientTask::tcp(task, signal))
+}
+
+/// Create a channel and the task that serves it, connecting through `host`
+pub(crate) fn new_channel<C: Connect>(
+    host: C,
+    connection_handler: TcpTaskConnectionHandler,
+    connect_retry: Box<dyn RetryStrategy>,
+    options: ClientOptions,
+    listener: Box<dyn Listener<ClientState>>,
+) -> (Channel, TcpChannelTask<C>, ShutdownSignal) {
+    let (tx, rx) = tokio::sync::mpsc::channel(options.max_queued_requests);
+    let (shutdown, signal) = crate::common::cancellation::pair();
+    let task = TcpChannelTask::new(
+        host,
+        rx.into(),
+        connection_handler,
+        connect_retry,
+        options,
+        listener,
+    );
+    (Channel { tx, shutdown }, task, signal)
+}
+
+/// Where a channel connects to: a host in production, an in-memory peer in tests
+pub(crate) trait Connect: std::fmt::Display + Send + Sync + 'static {
+    type Stream: Socket;
+
+    fn connect(&self) -> impl Future<Output = std::io::Result<Self::Stream>> + Send;
+}
+
+impl Connect for HostAddr {
+    type Stream = TcpStream;
+
+    fn connect(&self) -> impl Future<Output = std::io::Result<TcpStream>> + Send {
+        self.connect_tcp()
+    }
 }
 
 pub(crate) enum TcpTaskConnectionHandler {
@@ -63,21 +98,21 @@ pub(crate) enum TcpTaskConnectionHandler {
 }
 
 impl TcpTaskConnectionHandler {
-    async fn handle(
+    async fn handle<S: Socket>(
         &mut self,
-        socket: TcpStream,
-        _endpoint: &HostAddr,
+        socket: S,
+        _endpoint: &impl std::fmt::Display,
     ) -> std::io::Result<PhysLayer> {
         match self {
-            Self::Tcp => Ok(PhysLayer::new_tcp(socket)),
+            Self::Tcp => Ok(socket.into_phys()),
             #[cfg(feature = "enable-tls")]
             Self::Tls(config) => config.handle_connection(socket, _endpoint).await,
         }
     }
 }
 
-pub(crate) struct TcpChannelTask {
-    host: HostAddr,
+pub(crate) struct TcpChannelTask<C = HostAddr> {
+    host: C,
     connect_retry: Box<dyn RetryStrategy>,
     connection_handler: TcpTaskConnectionHandler,
     client_loop: ClientLoop,
@@ -85,9 +120,9 @@ pub(crate) struct TcpChannelTask {
     channel_logging: ChannelLoggingMode,
 }
 
-impl TcpChannelTask {
+impl<C: Connect> TcpChannelTask<C> {
     pub(crate) fn new(
-        host: HostAddr,
+        host: C,
         rx: crate::channel::Receiver<Command>,
         connection_handler: TcpTaskConnectionHandler,
         connect_retry: Box<dyn RetryStrategy>,
@@ -110,8 +145,15 @@ impl TcpChannelTask {
         }
     }
 
+    /// Run until every handle is dropped or shutdown is requested, then fail everything still
+    /// queued and report the terminal state
+    pub(crate) async fn run_until_shutdown(mut self, shutdown: ShutdownSignal) {
+        shutdown.run_until_cancelled(self.run()).await;
+        self.shutdown().await;
+    }
+
     /// Run until every handle is dropped. Cancellation is applied by the caller.
-    pub(crate) async fn run(&mut self) -> Shutdown {
+    async fn run(&mut self) -> Shutdown {
         self.listener.update(ClientState::Disabled).get().await;
         loop {
             if let Err(Shutdown) = self.client_loop.wait_for_enabled().await {
@@ -130,7 +172,7 @@ impl TcpChannelTask {
 
     /// Fail everything still queued and report the terminal state. Called after `run` completes or
     /// is cancelled.
-    pub(crate) async fn shutdown(&mut self) {
+    async fn shutdown(&mut self) {
         self.client_loop.shutdown().await;
         self.listener.update(ClientState::Shutdown).get().await;
     }
@@ -150,7 +192,7 @@ impl TcpChannelTask {
 
     /// Connect to `host` and run the connection handler, e.g. a TLS handshake
     async fn establish(
-        host: &HostAddr,
+        host: &C,
         connection_handler: &mut TcpTaskConnectionHandler,
     ) -> std::io::Result<PhysLayer> {
         let stream = host.connect().await?;
@@ -158,9 +200,7 @@ impl TcpChannelTask {
             // State transition from DISCONNECTED -> CONNECTED so we always log it at INFO
             tracing::info!("connected to: {}", addr);
         }
-        if let Err(err) = stream.set_nodelay(true) {
-            tracing::warn!("unable to enable TCP_NODELAY: {}", err);
-        }
+        stream.set_nodelay();
         connection_handler.handle(stream, host).await
     }
 
@@ -215,6 +255,68 @@ impl TcpChannelTask {
 }
 
 #[cfg(test)]
+pub(crate) mod test_util {
+    use super::*;
+    use tokio::io::DuplexStream;
+    use tokio::sync::mpsc;
+
+    /// The capacity of each direction of a [`MemoryConnector`]'s pipes, which holds a TLS flight
+    pub(crate) const PIPE: usize = 16 * 1024;
+
+    /// Connects a channel to in-memory peers: each attempt hands the test the other end of a new
+    /// pipe, and fails if the test has dropped the receiver
+    pub(crate) struct MemoryConnector {
+        peers: mpsc::UnboundedSender<DuplexStream>,
+    }
+
+    impl MemoryConnector {
+        pub(crate) fn new() -> (Self, mpsc::UnboundedReceiver<DuplexStream>) {
+            let (peers, rx) = mpsc::unbounded_channel();
+            (Self { peers }, rx)
+        }
+    }
+
+    impl std::fmt::Display for MemoryConnector {
+        fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+            f.write_str("memory")
+        }
+    }
+
+    impl Connect for MemoryConnector {
+        type Stream = DuplexStream;
+
+        fn connect(&self) -> impl Future<Output = std::io::Result<DuplexStream>> + Send {
+            let (local, peer) = tokio::io::duplex(PIPE);
+            let sent = self.peers.send(peer);
+            async move {
+                match sent {
+                    Ok(()) => Ok(local),
+                    Err(_) => Err(std::io::ErrorKind::ConnectionRefused.into()),
+                }
+            }
+        }
+    }
+
+    /// A channel served by a task that connects through `connector`, run as `ClientTask::run`
+    /// runs a TCP channel
+    pub(crate) fn memory_channel(
+        connector: MemoryConnector,
+        connection_handler: TcpTaskConnectionHandler,
+        connect_retry: Box<dyn RetryStrategy>,
+        listener: Box<dyn Listener<ClientState>>,
+    ) -> (Channel, ClientTask) {
+        let (channel, task, signal) = new_channel(
+            connector,
+            connection_handler,
+            connect_retry,
+            ClientOptions::default(),
+            listener,
+        );
+        (channel, ClientTask::memory(task, signal))
+    }
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
     use crate::client::RequestParam;
@@ -241,6 +343,15 @@ mod tests {
             let _ = self.tx.send(value);
             MaybeAsync::ready(())
         }
+    }
+
+    /// Wait until the channel reports that it's connected, so that requests go on the wire
+    async fn wait_until_connected(states: &mut tokio::sync::mpsc::UnboundedReceiver<ClientState>) {
+        tokio::time::timeout(TEST_TIMEOUT, async {
+            while states.recv().await.unwrap() != ClientState::Connected {}
+        })
+        .await
+        .expect("the channel didn't connect");
     }
 
     struct BlockingShutdownListener {
@@ -277,6 +388,57 @@ mod tests {
         }
     }
 
+    struct FixedRetry(Duration);
+
+    impl RetryStrategy for FixedRetry {
+        fn reset(&mut self) {}
+
+        fn after_failed_connect(&mut self) -> Duration {
+            self.0
+        }
+
+        fn after_disconnect(&mut self) -> Duration {
+            self.0
+        }
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn the_channel_reconnects_after_the_retry_delay_when_the_peer_closes() {
+        const DELAY: Duration = Duration::from_secs(2);
+        crate::common::test_support::watchdog(async {
+            let (connector, mut peers) = test_util::MemoryConnector::new();
+            let (tx, mut states) = tokio::sync::mpsc::unbounded_channel();
+            let (channel, task) = test_util::memory_channel(
+                connector,
+                TcpTaskConnectionHandler::Tcp,
+                Box::new(FixedRetry(DELAY)),
+                Box::new(StateRecorder { tx }),
+            );
+            tokio::spawn(task.run());
+            channel.enable().await.unwrap();
+
+            let first = peers.recv().await.unwrap();
+            for state in [
+                ClientState::Disabled,
+                ClientState::Connecting,
+                ClientState::Connected,
+            ] {
+                assert_eq!(states.recv().await, Some(state));
+            }
+
+            let closed_at = tokio::time::Instant::now();
+            drop(first);
+            assert_eq!(
+                states.recv().await,
+                Some(ClientState::WaitAfterDisconnect(DELAY))
+            );
+            let _second = peers.recv().await.unwrap();
+            assert_eq!(closed_at.elapsed(), DELAY);
+            assert_eq!(states.recv().await, Some(ClientState::Connecting));
+        })
+        .await;
+    }
+
     #[tokio::test]
     async fn reports_shutdown_state_when_shutdown_requested() {
         let (tx, mut states) = tokio::sync::mpsc::unbounded_channel();
@@ -305,10 +467,11 @@ mod tests {
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
 
+        let (tx, mut states) = tokio::sync::mpsc::unbounded_channel();
         let (channel, task) = create_tcp_channel(
             HostAddr::ip(addr.ip(), addr.port()),
             default_retry_strategy(),
-            crate::client::NullListener::create(),
+            Box::new(StateRecorder { tx }),
             ClientOptions::default(),
         );
         let task = tokio::spawn(task.run());
@@ -316,6 +479,8 @@ mod tests {
 
         // accept the connection and read the request, but never answer it
         let (mut socket, _) = listener.accept().await.unwrap();
+        // a request sent while the channel is still connecting would fail at once
+        wait_until_connected(&mut states).await;
         let requester = channel.clone();
         let coils = tokio::spawn(async move {
             requester
@@ -422,6 +587,7 @@ mod tests {
         channel.enable().await.unwrap();
 
         let (mut socket, _) = listener.accept().await.unwrap();
+        wait_until_connected(&mut states).await;
 
         // one request occupies the loop, the rest sit in the queue behind it
         let queued: Vec<_> = (0..4)
@@ -475,10 +641,11 @@ mod tests {
 
     #[cfg(feature = "enable-tls")]
     mod tls {
+        use super::super::test_util::{memory_channel, MemoryConnector};
         use super::*;
-        use crate::common::test_support::{watchdog, with_the_clock_held};
+        use crate::common::test_support::watchdog;
         use crate::tcp::tls::client::create_tls_channel;
-        use crate::tcp::tls::test_util::client_config;
+        use crate::tcp::tls::test_util::{client_config, server_config};
         use crate::tcp::tls::{MinTlsVersion, TLS_HANDSHAKE_TIMEOUT};
         use tokio::time::Instant;
 
@@ -487,42 +654,84 @@ mod tests {
             channel: Channel,
             task: tokio::task::JoinHandle<()>,
             states: tokio::sync::mpsc::UnboundedReceiver<ClientState>,
-            _peer: TcpStream,
+            _peer: tokio::io::DuplexStream,
             /// when the peer received the start of the ClientHello
             hello_at: Instant,
         }
 
-        /// Start a channel and return once its handshake is stalled. The clock is held so that
-        /// the handshake's timer can't run while the connection is set up.
+        /// Start a channel over an in-memory connection and return once its handshake is stalled
         async fn stalled_handshake() -> Stalled {
-            with_the_clock_held(async {
+            let (connector, mut peers) = MemoryConnector::new();
+            let (tx, mut states) = tokio::sync::mpsc::unbounded_channel();
+            let (channel, task) = memory_channel(
+                connector,
+                TcpTaskConnectionHandler::Tls(client_config(MinTlsVersion::V1_2)),
+                Box::new(NeverRetry),
+                Box::new(StateRecorder { tx }),
+            );
+            let task = tokio::spawn(task.run());
+            channel.enable().await.unwrap();
+            assert_eq!(states.recv().await, Some(ClientState::Disabled));
+            assert_eq!(states.recv().await, Some(ClientState::Connecting));
+
+            let mut peer = peers.recv().await.unwrap();
+            let mut first = [0u8; 1];
+            peer.read_exact(&mut first).await.unwrap();
+            Stalled {
+                channel,
+                task,
+                states,
+                _peer: peer,
+                hello_at: Instant::now(),
+            }
+        }
+
+        /// The production client and server over a real socket
+        #[tokio::test]
+        async fn tls_client_and_server_exchange_a_request() {
+            struct DefaultHandler;
+            impl crate::server::RequestHandler for DefaultHandler {}
+            use crate::server::RequestHandler;
+
+            watchdog(async {
                 let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
                 let addr = listener.local_addr().unwrap();
+                let (_server, server_task) = crate::server::create_tls_server_task(
+                    1,
+                    listener,
+                    crate::server::ServerHandlerMap::single(UnitId::new(1), DefaultHandler.wrap()),
+                    server_config(MinTlsVersion::V1_2),
+                    crate::server::AddressFilter::Any,
+                    crate::DecodeLevel::nothing(),
+                );
+                tokio::spawn(server_task.run());
+
                 let (tx, mut states) = tokio::sync::mpsc::unbounded_channel();
                 let (channel, task) = create_tls_channel(
                     HostAddr::ip(addr.ip(), addr.port()),
-                    Box::new(NeverRetry),
+                    default_retry_strategy(),
                     client_config(MinTlsVersion::V1_2),
                     ClientOptions::default(),
                     Box::new(StateRecorder { tx }),
                 );
-                let task = tokio::spawn(task.run());
+                tokio::spawn(task.run());
                 channel.enable().await.unwrap();
-                assert_eq!(states.recv().await, Some(ClientState::Disabled));
-                assert_eq!(states.recv().await, Some(ClientState::Connecting));
+                wait_until_connected(&mut states).await;
 
-                let (mut peer, _) = listener.accept().await.unwrap();
-                let mut first = [0u8; 1];
-                peer.read_exact(&mut first).await.unwrap();
-                Stalled {
-                    channel,
-                    task,
-                    states,
-                    _peer: peer,
-                    hello_at: Instant::now(),
-                }
+                let result = channel
+                    .read_coils(
+                        RequestParam::new(UnitId::new(1), TEST_TIMEOUT),
+                        AddressRange::try_from(7, 2).unwrap(),
+                    )
+                    .await;
+                assert_eq!(
+                    result,
+                    Err(RequestError::Exception(
+                        crate::ExceptionCode::IllegalFunction
+                    ))
+                );
             })
-            .await
+            .await;
         }
 
         #[tokio::test(start_paused = true)]
@@ -546,11 +755,13 @@ mod tests {
             watchdog(async {
                 let stalled = stalled_handshake().await;
 
-                let result = with_the_clock_held(stalled.channel.read_coils(
-                    RequestParam::new(UnitId::new(1), NEVER),
-                    AddressRange::try_from(7, 2).unwrap(),
-                ))
-                .await;
+                let result = stalled
+                    .channel
+                    .read_coils(
+                        RequestParam::new(UnitId::new(1), NEVER),
+                        AddressRange::try_from(7, 2).unwrap(),
+                    )
+                    .await;
 
                 assert_eq!(result, Err(RequestError::NoConnection));
                 assert_eq!(stalled.hello_at.elapsed(), Duration::ZERO);
@@ -563,14 +774,9 @@ mod tests {
             watchdog(async {
                 let mut stalled = stalled_handshake().await;
 
-                with_the_clock_held(stalled.channel.disable())
-                    .await
-                    .unwrap();
+                stalled.channel.disable().await.unwrap();
 
-                assert_eq!(
-                    with_the_clock_held(stalled.states.recv()).await,
-                    Some(ClientState::Disabled)
-                );
+                assert_eq!(stalled.states.recv().await, Some(ClientState::Disabled));
                 assert_eq!(stalled.hello_at.elapsed(), Duration::ZERO);
             })
             .await;
@@ -583,7 +789,7 @@ mod tests {
 
                 drop(stalled.channel);
 
-                with_the_clock_held(stalled.task).await.unwrap();
+                stalled.task.await.unwrap();
                 assert_eq!(stalled.states.recv().await, Some(ClientState::Shutdown));
                 assert_eq!(stalled.hello_at.elapsed(), Duration::ZERO);
             })

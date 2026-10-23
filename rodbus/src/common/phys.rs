@@ -6,6 +6,67 @@ pub(crate) struct PhysLayer {
     layer: PhysLayerImpl,
 }
 
+/// A connected stream that a TCP or TLS session runs over
+///
+/// Production uses only `TcpStream`; tests also use in-memory pipes, so that the paused clock of a
+/// test advances only when nothing can make progress.
+pub(crate) trait Socket:
+    tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send + 'static
+{
+    /// Send each frame as soon as it is written
+    fn set_nodelay(&self);
+
+    fn peer_addr(&self) -> std::io::Result<std::net::SocketAddr>;
+
+    fn into_phys(self) -> PhysLayer;
+
+    #[cfg(feature = "enable-tls")]
+    fn into_tls_phys(stream: tokio_rustls::TlsStream<Self>) -> PhysLayer
+    where
+        Self: Sized;
+}
+
+impl Socket for tokio::net::TcpStream {
+    fn set_nodelay(&self) {
+        if let Err(err) = tokio::net::TcpStream::set_nodelay(self, true) {
+            tracing::warn!("unable to enable TCP_NODELAY: {}", err);
+        }
+    }
+
+    fn peer_addr(&self) -> std::io::Result<std::net::SocketAddr> {
+        tokio::net::TcpStream::peer_addr(self)
+    }
+
+    fn into_phys(self) -> PhysLayer {
+        PhysLayer::new_tcp(self)
+    }
+
+    #[cfg(feature = "enable-tls")]
+    fn into_tls_phys(stream: tokio_rustls::TlsStream<Self>) -> PhysLayer {
+        PhysLayer::new_tls(stream)
+    }
+}
+
+#[cfg(test)]
+impl Socket for tokio::io::DuplexStream {
+    fn set_nodelay(&self) {}
+
+    fn peer_addr(&self) -> std::io::Result<std::net::SocketAddr> {
+        Ok(std::net::SocketAddr::from(([127, 0, 0, 1], 502)))
+    }
+
+    fn into_phys(self) -> PhysLayer {
+        PhysLayer::new_duplex(self)
+    }
+
+    #[cfg(feature = "enable-tls")]
+    fn into_tls_phys(stream: tokio_rustls::TlsStream<Self>) -> PhysLayer {
+        PhysLayer {
+            layer: PhysLayerImpl::TlsDuplex(Box::new(stream)),
+        }
+    }
+}
+
 // encapsulates all possible physical layers as an enum
 pub(crate) enum PhysLayerImpl {
     Tcp(tokio::net::TcpStream),
@@ -23,6 +84,8 @@ pub(crate) enum PhysLayerImpl {
     /// unlike `Mock`, writes stay pending while the pipe is full
     #[cfg(test)]
     Duplex(tokio::io::DuplexStream),
+    #[cfg(all(test, feature = "enable-tls"))]
+    TlsDuplex(Box<tokio_rustls::TlsStream<tokio::io::DuplexStream>>),
 }
 
 impl std::fmt::Debug for PhysLayer {
@@ -37,6 +100,8 @@ impl std::fmt::Debug for PhysLayer {
             PhysLayerImpl::Mock(_) => f.write_str("Mock"),
             #[cfg(test)]
             PhysLayerImpl::Duplex(_) => f.write_str("Duplex"),
+            #[cfg(all(test, feature = "enable-tls"))]
+            PhysLayerImpl::TlsDuplex(_) => f.write_str("TlsDuplex"),
         }
     }
 }
@@ -92,6 +157,8 @@ impl PhysLayer {
             PhysLayerImpl::Mock(x) => x.read(buffer).await?,
             #[cfg(test)]
             PhysLayerImpl::Duplex(x) => x.read(buffer).await?,
+            #[cfg(all(test, feature = "enable-tls"))]
+            PhysLayerImpl::TlsDuplex(x) => x.read(buffer).await?,
         };
 
         if decode_level.enabled() {
@@ -130,6 +197,8 @@ impl PhysLayer {
             PhysLayerImpl::Mock(x) => x.write_all(data).await,
             #[cfg(test)]
             PhysLayerImpl::Duplex(x) => x.write_all(data).await,
+            #[cfg(all(test, feature = "enable-tls"))]
+            PhysLayerImpl::TlsDuplex(x) => x.write_all(data).await,
         }
     }
 }

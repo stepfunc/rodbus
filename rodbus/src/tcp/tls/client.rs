@@ -5,14 +5,13 @@ use sfio_rustls_config::ServerNameVerification;
 use std::path::Path;
 use std::sync::Arc;
 
-use tokio::net::TcpStream;
 use tokio_rustls::rustls;
 use tokio_rustls::rustls::pki_types::InvalidDnsNameError;
 use tracing::Instrument;
 
 use crate::client::{Channel, ClientState, ClientTask, HostAddr, Listener, RetryStrategy};
-use crate::common::phys::PhysLayer;
-use crate::tcp::client::{TcpChannelTask, TcpTaskConnectionHandler};
+use crate::common::phys::{PhysLayer, Socket};
+use crate::tcp::client::{new_channel, TcpTaskConnectionHandler};
 use crate::tcp::tls::{
     handshake, CertificateMode, HandshakeError, MinTlsVersion, TlsError, TLS_HANDSHAKE_TIMEOUT,
 };
@@ -45,17 +44,14 @@ pub(crate) fn create_tls_channel(
     options: ClientOptions,
     listener: Box<dyn Listener<ClientState>>,
 ) -> (Channel, ClientTask) {
-    let (tx, rx) = tokio::sync::mpsc::channel(options.max_queued_requests);
-    let (shutdown, signal) = crate::common::cancellation::pair();
-    let task = TcpChannelTask::new(
+    let (channel, task, signal) = new_channel(
         host,
-        rx.into(),
         TcpTaskConnectionHandler::Tls(tls_config),
         connect_retry,
         options,
         listener,
     );
-    (Channel { tx, shutdown }, ClientTask::tcp(task, signal))
+    (channel, ClientTask::tcp(task, signal))
 }
 
 impl TlsClientConfig {
@@ -168,10 +164,10 @@ impl TlsClientConfig {
         })
     }
 
-    pub(crate) async fn handle_connection(
+    pub(crate) async fn handle_connection<S: Socket>(
         &mut self,
-        socket: TcpStream,
-        endpoint: &HostAddr,
+        socket: S,
+        endpoint: &impl std::fmt::Display,
     ) -> std::io::Result<PhysLayer> {
         let connector = tokio_rustls::TlsConnector::from(self.config.clone());
         match handshake(connector.connect(self.server_name.clone(), socket)).await {
@@ -187,7 +183,7 @@ impl TlsClientConfig {
                 let msg = format!("TLS error ({endpoint}): {err}");
                 Err(std::io::Error::new(err.kind(), msg))
             }
-            Ok(stream) => Ok(PhysLayer::new_tls(tokio_rustls::TlsStream::from(stream))),
+            Ok(stream) => Ok(S::into_tls_phys(tokio_rustls::TlsStream::from(stream))),
         }
     }
 }

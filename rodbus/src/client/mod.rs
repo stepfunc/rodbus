@@ -80,7 +80,7 @@ impl HostAddr {
         }
     }
 
-    pub(crate) async fn connect(&self) -> std::io::Result<tokio::net::TcpStream> {
+    pub(crate) async fn connect_tcp(&self) -> std::io::Result<tokio::net::TcpStream> {
         match &self.addr {
             HostType::Dns(x) => tokio::net::TcpStream::connect((x.as_str(), self.port)).await,
             HostType::IpAddr(x) => tokio::net::TcpStream::connect((*x, self.port)).await,
