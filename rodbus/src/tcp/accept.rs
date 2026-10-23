@@ -279,7 +279,7 @@ pub(crate) mod test_util {
             match self.connections.recv().await {
                 Some((stream, addr)) => {
                     // the test may have stopped watching
-                    let _ = self.accepted.send((Instant::now(), addr));
+                    self.accepted.send((Instant::now(), addr)).ok();
                     Ok((stream, addr))
                 }
                 // like a listener that nobody connects to any more

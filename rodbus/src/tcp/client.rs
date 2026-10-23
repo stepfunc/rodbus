@@ -346,7 +346,7 @@ mod tests {
 
     impl Listener<ClientState> for StateRecorder {
         fn update(&mut self, value: ClientState) -> MaybeAsync<()> {
-            let _ = self.tx.send(value);
+            self.tx.send(value).ok();
             MaybeAsync::ready(())
         }
     }
@@ -367,12 +367,12 @@ mod tests {
 
     impl Listener<ClientState> for BlockingShutdownListener {
         fn update(&mut self, value: ClientState) -> MaybeAsync<()> {
-            let _ = self.tx.send(value);
+            self.tx.send(value).ok();
             match value {
                 ClientState::Shutdown => {
                     let release = self.release.take().unwrap();
                     MaybeAsync::asynchronous(async move {
-                        let _ = release.await;
+                        release.await.ok();
                     })
                 }
                 _ => MaybeAsync::ready(()),

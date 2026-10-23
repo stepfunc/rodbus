@@ -29,33 +29,25 @@ pub(crate) enum Request<'a> {
     WriteMultipleRegisters(WriteRegisters<'a>),
 }
 
-/// All requests that support broadcast
+/// The requests that can be broadcast: the writes
 #[derive(Debug)]
-#[allow(clippy::enum_variant_names)]
-pub(crate) enum BroadcastRequest<'a> {
-    WriteSingleCoil(Indexed<bool>),
-    WriteSingleRegister(Indexed<u16>),
-    WriteMultipleCoils(WriteCoils<'a>),
-    WriteMultipleRegisters(WriteRegisters<'a>),
+pub(crate) enum BroadcastWrite<'a> {
+    SingleCoil(Indexed<bool>),
+    SingleRegister(Indexed<u16>),
+    MultipleCoils(WriteCoils<'a>),
+    MultipleRegisters(WriteRegisters<'a>),
 }
 
-impl<'a> BroadcastRequest<'a> {
-    // execute a broadcast request against the handler
+impl<'a> BroadcastWrite<'a> {
+    /// Execute a broadcast write against the handler; nothing replies to a broadcast, so an
+    /// exception from the handler goes nowhere
     pub(crate) fn execute<T: RequestHandler>(&self, handler: &mut T) {
-        match self {
-            BroadcastRequest::WriteSingleCoil(x) => {
-                let _ = handler.write_single_coil(*x);
-            }
-            BroadcastRequest::WriteSingleRegister(x) => {
-                let _ = handler.write_single_register(*x);
-            }
-            BroadcastRequest::WriteMultipleCoils(x) => {
-                let _ = handler.write_multiple_coils(*x);
-            }
-            BroadcastRequest::WriteMultipleRegisters(x) => {
-                let _ = handler.write_multiple_registers(*x);
-            }
-        }
+        let _: Result<(), ExceptionCode> = match self {
+            BroadcastWrite::SingleCoil(x) => handler.write_single_coil(*x),
+            BroadcastWrite::SingleRegister(x) => handler.write_single_register(*x),
+            BroadcastWrite::MultipleCoils(x) => handler.write_multiple_coils(*x),
+            BroadcastWrite::MultipleRegisters(x) => handler.write_multiple_registers(*x),
+        };
     }
 }
 
@@ -73,16 +65,16 @@ impl<'a> Request<'a> {
         }
     }
 
-    pub(crate) fn into_broadcast_request(self) -> Option<BroadcastRequest<'a>> {
+    pub(crate) fn into_broadcast_write(self) -> Option<BroadcastWrite<'a>> {
         match self {
             Request::ReadCoils(_) => None,
             Request::ReadDiscreteInputs(_) => None,
             Request::ReadHoldingRegisters(_) => None,
             Request::ReadInputRegisters(_) => None,
-            Request::WriteSingleCoil(x) => Some(BroadcastRequest::WriteSingleCoil(x)),
-            Request::WriteSingleRegister(x) => Some(BroadcastRequest::WriteSingleRegister(x)),
-            Request::WriteMultipleCoils(x) => Some(BroadcastRequest::WriteMultipleCoils(x)),
-            Request::WriteMultipleRegisters(x) => Some(BroadcastRequest::WriteMultipleRegisters(x)),
+            Request::WriteSingleCoil(x) => Some(BroadcastWrite::SingleCoil(x)),
+            Request::WriteSingleRegister(x) => Some(BroadcastWrite::SingleRegister(x)),
+            Request::WriteMultipleCoils(x) => Some(BroadcastWrite::MultipleCoils(x)),
+            Request::WriteMultipleRegisters(x) => Some(BroadcastWrite::MultipleRegisters(x)),
         }
     }
 

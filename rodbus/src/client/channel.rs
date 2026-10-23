@@ -38,6 +38,12 @@ pub struct ClientTask {
     shutdown: ShutdownSignal,
 }
 
+impl std::fmt::Debug for ClientTask {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ClientTask").finish_non_exhaustive()
+    }
+}
+
 enum ClientTaskInner {
     Tcp(crate::tcp::client::TcpChannelTask),
     #[cfg(test)]
@@ -365,7 +371,10 @@ pub struct CallbackSession {
     param: RequestParam,
 }
 
-#[allow(deprecated)]
+#[expect(
+    deprecated,
+    reason = "the implementation of the deprecated type itself, kept until it is removed in 2.0"
+)]
 impl CallbackSession {
     /// Create a [CallbackSession] from a [Channel] and the specified [RequestParam]
     pub fn new(channel: Channel, param: RequestParam) -> Self {
@@ -510,7 +519,7 @@ impl CallbackSession {
 
     async fn send(&mut self, command: Command) {
         // dropping the command will automatically fail requests with SHUTDOWN
-        let _ = self.tx.send(command).await;
+        self.tx.send(command).await.ok();
     }
 }
 

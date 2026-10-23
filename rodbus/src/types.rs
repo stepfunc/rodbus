@@ -424,7 +424,7 @@ impl Default for UnitId {
 }
 
 /// How verbose to make the event logging of the communication channel itself
-#[derive(Default, Clone, Copy, PartialEq, Eq)]
+#[derive(Default, Clone, Copy, PartialEq, Eq, Debug)]
 pub enum ChannelLoggingMode {
     /// Log every event at the INFO level, e.g. even failed connections when the client is
     /// already disconnected.
@@ -443,7 +443,7 @@ pub enum ChannelLoggingMode {
 }
 
 /// A ClientOptions builder
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct ClientOptions {
     pub(crate) channel_logging: ChannelLoggingMode,
     pub(crate) max_queued_requests: usize,

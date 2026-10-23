@@ -86,7 +86,7 @@ mod tests {
         fn reset(&mut self) {}
 
         fn after_failed_connect(&mut self) -> Duration {
-            let _ = self.failed_connect.send(());
+            self.failed_connect.send(()).ok();
             NEVER
         }
 

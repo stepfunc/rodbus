@@ -308,7 +308,7 @@ where
         if let Some(inner) = self.inner.take() {
             match inner {
                 PromiseInner::Oneshot(tx) => {
-                    let _ = tx.send(result);
+                    tx.send(result).ok();
                 }
                 PromiseInner::Boxed(callback) => callback(result),
             }
@@ -405,7 +405,7 @@ mod test {
 
         for gen in generators {
             // generate a RequestDetails and then immediately drop it
-            let _ = gen(errors.clone());
+            drop(gen(errors.clone()));
             // check that this produces a callback
             let (error, remaining) = errors.pop();
             assert_eq!(error, Some(RequestError::Shutdown));

@@ -205,7 +205,7 @@ where
     ) -> std::fmt::Result {
         if level.data_headers() {
             let mut cursor = ReadCursor::new(payload);
-            let _ = cursor.read_u8(); // ignore the byte count
+            cursor.read_u8().ok(); // ignore the byte count
 
             let iterator = match BitIterator::parse_all(self.range.get(), &mut cursor) {
                 Ok(it) => it,
@@ -250,7 +250,7 @@ where
     ) -> std::fmt::Result {
         if level.data_headers() {
             let mut cursor = ReadCursor::new(payload);
-            let _ = cursor.read_u8(); // ignore the byte count
+            cursor.read_u8().ok(); // ignore the byte count
 
             let iterator = match RegisterIterator::parse_all(self.range.get(), &mut cursor) {
                 Ok(it) => it,
