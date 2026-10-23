@@ -556,4 +556,71 @@ mod tests {
         assert_eq!(tx_id.next(), TxId::new(0));
         assert_eq!(tx_id.next(), TxId::new(1));
     }
+
+    /// A reply body that writes two bytes and then fails with its error
+    struct FailsAfterTwoBytes(RequestError);
+
+    impl Serialize for FailsAfterTwoBytes {
+        fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
+            cursor.write_u8(0x02)?;
+            cursor.write_u8(0xAA)?;
+            Err(self.0)
+        }
+    }
+
+    impl Loggable for FailsAfterTwoBytes {
+        fn log(
+            &self,
+            _bytes: &[u8],
+            _level: crate::decode::AppDecodeLevel,
+            _f: &mut std::fmt::Formatter,
+        ) -> std::fmt::Result {
+            Ok(())
+        }
+    }
+
+    fn format_failing_reply(
+        writer: &mut FrameWriter,
+        header: FrameHeader,
+        error: RequestError,
+    ) -> Result<&[u8], RequestError> {
+        writer.format_reply(
+            header,
+            FunctionCode::ReadHoldingRegisters,
+            &FailsAfterTwoBytes(error),
+            DecodeLevel::nothing(),
+        )
+    }
+
+    #[test]
+    fn format_reply_returns_a_body_error_that_isnt_an_exception() {
+        let error = RequestError::Internal(crate::error::InternalError::BadByteCount(256));
+        let header = FrameHeader::new_tcp_header(UnitId::new(1), TxId::new(7));
+        assert_eq!(
+            format_failing_reply(&mut FrameWriter::tcp(), header, error),
+            Err(error)
+        );
+    }
+
+    #[test]
+    fn format_reply_replaces_a_partial_body_with_an_mbap_exception_frame() {
+        let header = FrameHeader::new_tcp_header(UnitId::new(1), TxId::new(7));
+        let error = RequestError::Exception(ExceptionCode::IllegalDataAddress);
+        assert_eq!(
+            format_failing_reply(&mut FrameWriter::tcp(), header, error),
+            Ok(&[0x00, 0x07, 0x00, 0x00, 0x00, 0x03, 0x01, 0x83, 0x02][..])
+        );
+    }
+
+    #[cfg(feature = "serial")]
+    #[test]
+    fn format_reply_replaces_a_partial_body_with_an_rtu_exception_frame() {
+        let header = FrameHeader::new_rtu_header(FrameDestination::new_unit_id(1));
+        let error = RequestError::Exception(ExceptionCode::IllegalDataAddress);
+        // the CRC of 01 83 02 is 0xF1C0, low byte first
+        assert_eq!(
+            format_failing_reply(&mut FrameWriter::rtu(), header, error),
+            Ok(&[0x01, 0x83, 0x02, 0xC0, 0xF1][..])
+        );
+    }
 }

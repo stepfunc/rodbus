@@ -414,4 +414,139 @@ mod tests {
         bits[14] = true;
         assert_eq!(serialize_slice(&bits), [2, 0x80, 0x40]);
     }
+
+    /// `value` serialized into a buffer of exactly `capacity` bytes, or its error
+    fn serialize_into(value: &dyn Serialize, capacity: usize) -> Result<Vec<u8>, RequestError> {
+        let mut buffer = vec![0u8; capacity];
+        let mut cursor = WriteCursor::new(&mut buffer);
+        value.serialize(&mut cursor)?;
+        let len = cursor.position();
+        Ok(buffer[..len].to_vec())
+    }
+
+    /// The first address of the reads below
+    const START: u16 = 0x10;
+
+    /// The bits that are on, of the 10 bits read from [`START`]
+    const BITS_ON: [u16; 4] = [0x10, 0x11, 0x13, 0x18];
+
+    /// A read of `count` bits from [`START`] into `capacity` bytes, the getter failing at
+    /// `failing`: the result and the addresses the getter was asked for, in order
+    fn read_bits(
+        count: u16,
+        failing: Option<u16>,
+        capacity: usize,
+    ) -> (Result<Vec<u8>, RequestError>, Vec<u16>) {
+        let range = AddressRange::try_from(START, count)
+            .unwrap()
+            .of_read_bits()
+            .unwrap();
+        let asked = std::cell::RefCell::new(Vec::new());
+        let writer = BitWriter::new(range, |address| {
+            asked.borrow_mut().push(address);
+            if Some(address) == failing {
+                Err(crate::exception::ExceptionCode::IllegalDataAddress)
+            } else {
+                Ok(BITS_ON.contains(&address))
+            }
+        });
+        let result = serialize_into(&writer, capacity);
+        (result, asked.into_inner())
+    }
+
+    #[test]
+    fn a_bit_read_fails_with_the_getters_exception_and_asks_for_no_later_address() {
+        // the first, a middle, the last bit of the first byte, the first of the second, the last
+        for failing in [0x10, 0x14, 0x17, 0x18, 0x19] {
+            let (result, asked) = read_bits(10, Some(failing), 300);
+            assert_eq!(
+                result,
+                Err(RequestError::Exception(
+                    crate::exception::ExceptionCode::IllegalDataAddress
+                ))
+            );
+            assert_eq!(asked, (START..=failing).collect::<Vec<_>>());
+        }
+    }
+
+    #[test]
+    fn a_bit_read_fits_a_buffer_of_exactly_its_length_and_not_one_byte_shorter() {
+        // ends in a partial byte
+        assert_eq!(read_bits(10, None, 3).0, Ok(vec![0x02, 0x0B, 0x01]));
+        assert_eq!(
+            read_bits(10, None, 2).0,
+            Err(RequestError::Internal(
+                InternalError::InsufficientWriteSpace(1, 0)
+            ))
+        );
+        // ends in a whole byte
+        assert_eq!(read_bits(16, None, 3).0, Ok(vec![0x02, 0x0B, 0x01]));
+        assert_eq!(
+            read_bits(16, None, 2).0,
+            Err(RequestError::Internal(
+                InternalError::InsufficientWriteSpace(1, 0)
+            ))
+        );
+    }
+
+    /// The values of the 3 registers read from [`START`], in address order
+    const REGISTERS: [u16; 3] = [0x0102, 0xA0B0, 0xFFEE];
+
+    /// A read of the [`REGISTERS`] into `capacity` bytes, the getter failing at `failing`: the
+    /// result and the addresses the getter was asked for, in order
+    fn read_registers(
+        failing: Option<u16>,
+        capacity: usize,
+    ) -> (Result<Vec<u8>, RequestError>, Vec<u16>) {
+        let range = AddressRange::try_from(START, 3)
+            .unwrap()
+            .of_read_registers()
+            .unwrap();
+        let asked = std::cell::RefCell::new(Vec::new());
+        let writer = RegisterWriter::new(range, |address| {
+            asked.borrow_mut().push(address);
+            if Some(address) == failing {
+                Err(crate::exception::ExceptionCode::ServerDeviceFailure)
+            } else {
+                Ok(REGISTERS[usize::from(address.checked_sub(START).unwrap())])
+            }
+        });
+        let result = serialize_into(&writer, capacity);
+        (result, asked.into_inner())
+    }
+
+    #[test]
+    fn a_register_read_fails_with_the_getters_exception_and_asks_for_no_later_address() {
+        for failing in [0x10, 0x11, 0x12] {
+            let (result, asked) = read_registers(Some(failing), 300);
+            assert_eq!(
+                result,
+                Err(RequestError::Exception(
+                    crate::exception::ExceptionCode::ServerDeviceFailure
+                ))
+            );
+            assert_eq!(asked, (START..=failing).collect::<Vec<_>>());
+        }
+    }
+
+    #[test]
+    fn a_register_read_writes_values_big_endian_in_address_order() {
+        let (result, asked) = read_registers(None, 300);
+        assert_eq!(result, Ok(vec![0x06, 0x01, 0x02, 0xA0, 0xB0, 0xFF, 0xEE]));
+        assert_eq!(asked, [0x10, 0x11, 0x12]);
+    }
+
+    #[test]
+    fn a_register_read_fits_a_buffer_of_exactly_its_length_and_not_one_byte_shorter() {
+        assert_eq!(
+            read_registers(None, 7).0,
+            Ok(vec![0x06, 0x01, 0x02, 0xA0, 0xB0, 0xFF, 0xEE])
+        );
+        assert_eq!(
+            read_registers(None, 6).0,
+            Err(RequestError::Internal(
+                InternalError::InsufficientWriteSpace(2, 1)
+            ))
+        );
+    }
 }
