@@ -377,42 +377,136 @@ mod tests {
         );
     }
 
-    fn serialize_bits(start: u16, count: u16) -> Vec<u8> {
-        let range = AddressRange::try_from(start, count)
+    /// The bits of `count` addresses from `start`, odd addresses on
+    fn odd_addresses_on(start: u16, count: u16) -> Vec<bool> {
+        AddressRange::try_from(start, count)
             .unwrap()
-            .of_read_bits()
-            .unwrap();
-        // odd addresses are on
-        let writer = crate::server::response::BitWriter::new(range, |address| Ok(address % 2 == 1));
-        bytes_of(&writer)
+            .iter()
+            .map(|address| address % 2 == 1)
+            .collect()
     }
 
     #[test]
     fn packs_bits_into_whole_and_partial_bytes() {
-        assert_eq!(serialize_bits(0, 1), [1, 0x00]);
-        assert_eq!(serialize_bits(1, 1), [1, 0x01]);
-        assert_eq!(serialize_bits(0, 8), [1, 0xAA]);
-        assert_eq!(serialize_bits(0, 9), [2, 0xAA, 0x00]);
-        assert_eq!(serialize_bits(0xFFF7, 9), [2, 0x55, 0x01]);
-        assert_eq!(serialize_bits(0, 16), [2, 0xAA, 0xAA]);
-    }
-
-    fn serialize_slice(bits: &[bool]) -> Vec<u8> {
-        bytes_of(&bits)
+        for (start, count, expected) in [
+            (0, 1, &[1, 0x00][..]),
+            (1, 1, &[1, 0x01]),
+            (0, 8, &[1, 0xAA]),
+            (0, 9, &[2, 0xAA, 0x00]),
+            (0xFFF7, 9, &[2, 0x55, 0x01]),
+            (0, 16, &[2, 0xAA, 0xAA]),
+        ] {
+            check_packed_bits(start, &odd_addresses_on(start, count), expected);
+        }
     }
 
     #[test]
     fn packs_a_slice_of_bits() {
-        assert_eq!(serialize_slice(&[]), [0]);
-        assert_eq!(
-            serialize_slice(&[true, false, true, true, false, false, false, false, true]),
-            [2, 0x0D, 0x01]
+        // a slice may be empty; a read can't be
+        let empty: &[bool] = &[];
+        assert_eq!(bytes_of(&empty), [0]);
+        check_packed_bits(
+            0,
+            &[true, false, true, true, false, false, false, false, true],
+            &[2, 0x0D, 0x01],
         );
-        assert_eq!(serialize_slice(&[true; 8]), [1, 0xFF]);
+        check_packed_bits(0, &[true; 8], &[1, 0xFF]);
         let mut bits = [false; 15];
         bits[7] = true;
         bits[14] = true;
-        assert_eq!(serialize_slice(&bits), [2, 0x80, 0x40]);
+        check_packed_bits(0, &bits, &[2, 0x80, 0x40]);
+    }
+
+    /// A slice of `bits`, and a read of them from `start`, both serialize to `expected`
+    fn check_packed_bits(start: u16, bits: &[bool], expected: &[u8]) {
+        assert_eq!(bytes_of(&bits), expected);
+        let range = AddressRange::try_from(start, u16::try_from(bits.len()).unwrap())
+            .unwrap()
+            .of_read_bits()
+            .unwrap();
+        let writer = BitWriter::new(range, |address| {
+            Ok(bits[usize::from(address.checked_sub(start).unwrap())])
+        });
+        assert_eq!(bytes_of(&writer), expected);
+    }
+
+    /// A slice of `values`, and a read of them from `start`, both serialize to `expected`
+    fn check_packed_registers(start: u16, values: &[u16], expected: &[u8]) {
+        assert_eq!(bytes_of(&values), expected);
+        let range = AddressRange::try_from(start, u16::try_from(values.len()).unwrap())
+            .unwrap()
+            .of_read_registers()
+            .unwrap();
+        let writer = RegisterWriter::new(range, |address| {
+            Ok(values[usize::from(address.checked_sub(start).unwrap())])
+        });
+        assert_eq!(bytes_of(&writer), expected);
+    }
+
+    /// The byte count, then `bits` eight to a byte, the first in its lowest bit, and the last
+    /// byte padded with zeros
+    fn model_packed_bits(bits: &[bool]) -> Vec<u8> {
+        let packed: Vec<u8> = bits
+            .chunks(8)
+            .map(|chunk| {
+                chunk
+                    .iter()
+                    .rev()
+                    .fold(0, |byte, &bit| (byte << 1) | u8::from(bit))
+            })
+            .collect();
+        std::iter::once(u8::try_from(packed.len()).unwrap())
+            .chain(packed)
+            .collect()
+    }
+
+    /// The byte count, then `values` high byte first
+    fn model_packed_registers(values: &[u16]) -> Vec<u8> {
+        let packed: Vec<u8> = values
+            .iter()
+            .flat_map(|value| [value / 256, value % 256])
+            .map(|byte| u8::try_from(byte).unwrap())
+            .collect();
+        std::iter::once(u8::try_from(packed.len()).unwrap())
+            .chain(packed)
+            .collect()
+    }
+
+    mod properties {
+        use proptest::prelude::*;
+
+        use super::*;
+        use crate::types::strategies::ranges;
+
+        /// A range of a count from `counts`, with a random value for each address
+        fn values<T: Arbitrary>(
+            counts: std::ops::RangeInclusive<u16>,
+        ) -> impl Strategy<Value = (u16, Vec<T>)> {
+            ranges(counts).prop_flat_map(|range| {
+                let values = prop::collection::vec(any::<T>(), usize::from(range.count));
+                (Just(range.start), values)
+            })
+        }
+
+        proptest! {
+            #![proptest_config(ProptestConfig::with_cases(256))]
+
+            // MODBUS Application Protocol Specification V1.1b3 6.1, 6.2, 6.11
+            #[test]
+            fn bits_are_packed_from_the_lowest_bit_of_each_byte_and_padded_with_zeros(
+                (start, bits) in values::<bool>(1..=2000),
+            ) {
+                check_packed_bits(start, &bits, &model_packed_bits(&bits));
+            }
+
+            // MODBUS Application Protocol Specification V1.1b3 6.3, 6.4, 6.12
+            #[test]
+            fn registers_are_written_big_endian(
+                (start, values) in values::<u16>(1..=125),
+            ) {
+                check_packed_registers(start, &values, &model_packed_registers(&values));
+            }
+        }
     }
 
     /// `value` serialized into a buffer of exactly `capacity` bytes, or its error
