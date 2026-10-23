@@ -38,8 +38,8 @@ fn rtu_values_session() -> (
     (commands, session)
 }
 
-#[tokio::test]
-async fn a_partial_request_doesnt_reach_the_reopened_port() {
+#[tokio::test(start_paused = true)]
+async fn a_request_begun_on_a_closed_port_isnt_completed_on_the_reopened_one() {
     crate::common::test_support::watchdog(async {
         let (_commands, mut session) = rtu_values_session();
         let (first, mut first_peer) = tokio::io::duplex(64);
@@ -50,17 +50,24 @@ async fn a_partial_request_doesnt_reach_the_reopened_port() {
             (ended, session.run(&mut PhysLayer::new_duplex(second)).await)
         });
 
-        let request = with_crc(&[0x01, 0x03, 0x00, 0x10, 0x00, 0x01]);
-        // part of a request, then the port goes away
-        first_peer.write_all(&request[..3]).await.unwrap();
+        // a read of the register at 0x10, split across the two ports
+        let split = with_crc(&[0x01, 0x03, 0x00, 0x10, 0x00, 0x01]);
+        first_peer.write_all(&split[..3]).await.unwrap();
         drop(first_peer);
 
         let (second, mut second_peer) = tokio::io::duplex(64);
         second_tx.send(second).unwrap();
-        second_peer.write_all(&request).await.unwrap();
+        second_peer.write_all(&split[3..]).await.unwrap();
+        // the line goes silent, so the session drops whatever it holds
+        tokio::time::sleep(Duration::from_secs(1)).await;
+        // the first reply is to a read of the register at 0x20, sent afterwards
+        second_peer
+            .write_all(&with_crc(&[0x01, 0x03, 0x00, 0x20, 0x00, 0x01]))
+            .await
+            .unwrap();
         let mut response = [0u8; 7];
         second_peer.read_exact(&mut response).await.unwrap();
-        assert_eq!(response.to_vec(), with_crc(&[0x01, 0x03, 0x02, 0x00, 0x10]));
+        assert_eq!(response.to_vec(), with_crc(&[0x01, 0x03, 0x02, 0x00, 0x20]));
 
         assert_nothing_more_was_sent(second_peer).await;
         let (first_ended, second_ended) = task.await.unwrap();
