@@ -87,13 +87,19 @@ impl PduLength {
 
     /// Read a PDU of this length from the buffer
     pub(crate) fn read(self, cursor: &mut ReadBuffer) -> Result<Pdu<'_>, InternalError> {
-        // a read returns exactly the bytes it asks for
-        Ok(Pdu(cursor.read(self.0)?))
+        Ok(Pdu {
+            length: self,
+            bytes: cursor.read(self.0)?,
+        })
     }
 }
 
-/// A PDU read by its [`PduLength`], so it is never longer than the largest
-pub(crate) struct Pdu<'a>(&'a [u8]);
+/// A PDU read by its [`PduLength`]
+pub(crate) struct Pdu<'a> {
+    length: PduLength,
+    // exactly `length` bytes: a read returns the bytes it asks for
+    bytes: &'a [u8],
+}
 
 #[derive(PartialEq, Copy, Clone, Debug)]
 pub(crate) struct TxId {
@@ -198,7 +204,7 @@ impl FrameHeader {
 pub(crate) struct Frame {
     pub(crate) header: FrameHeader,
     // the number of bytes copied into `pdu`
-    length: usize,
+    length: PduLength,
     pdu: [u8; constants::MAX_PDU_LENGTH],
 }
 
@@ -206,20 +212,19 @@ impl Frame {
     /// A frame holding a copy of `pdu`, which always fits
     pub(crate) fn new(header: FrameHeader, pdu: Pdu<'_>) -> Frame {
         let mut buffer = [0; constants::MAX_PDU_LENGTH];
-        // a PDU is never longer than the buffer, so this copies all of it
-        let length = pdu.0.len().min(buffer.len());
-        if let (Some(dest), Some(src)) = (buffer.get_mut(..length), pdu.0.get(..length)) {
-            dest.copy_from_slice(src);
+        for (dest, src) in buffer.iter_mut().zip(pdu.bytes) {
+            *dest = *src;
         }
         Frame {
             header,
-            length,
+            length: pdu.length,
             pdu: buffer,
         }
     }
 
     pub(crate) fn payload(&self) -> &[u8] {
-        self.pdu.get(..self.length).unwrap_or_default()
+        // a PduLength is never longer than the buffer
+        self.pdu.get(..self.length.get()).unwrap_or_default()
     }
 }
 
