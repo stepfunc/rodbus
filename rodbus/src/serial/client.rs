@@ -4,8 +4,8 @@
 // Text and data mining rights, including for AI training, are reserved under
 // Directive (EU) 2019/790 Art. 4(3), subject to LICENSE.txt Section 3.3.
 
-use crate::common::phys::OpenPort;
 use crate::decode::DecodeLevel;
+use crate::serial::OpenPort;
 use crate::serial::SerialSettings;
 
 use crate::client::message::Command;

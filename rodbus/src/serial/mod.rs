@@ -7,11 +7,12 @@
 use tokio_serial::SerialStream;
 pub use tokio_serial::{DataBits, FlowControl, Parity, StopBits};
 
-use crate::common::phys::OpenPort;
+use crate::common::phys::PhysLayer;
 
 pub(crate) mod client;
 pub(crate) mod frame;
 pub(crate) mod server;
+pub(crate) mod timing;
 
 /// Serial port settings
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -64,4 +65,23 @@ pub(crate) fn open(path: &str, settings: SerialSettings) -> tokio_serial::Result
     let builder = settings.apply(tokio_serial::new(path, settings.baud_rate));
     let stream = SerialStream::open(&builder)?;
     Ok(OpenPort::Serial(stream, settings.baud_rate))
+}
+
+/// A port that just opened, made into a [`PhysLayer`] only once the task starts running it
+pub(crate) enum OpenPort {
+    /// a serial port and the baud rate it was configured with
+    Serial(tokio_serial::SerialStream, u32),
+    /// a port that is already a layer, such as an in-memory pipe
+    #[cfg(test)]
+    Phys(PhysLayer),
+}
+
+impl OpenPort {
+    pub(crate) fn into_phys(self) -> PhysLayer {
+        match self {
+            Self::Serial(stream, baud_rate) => PhysLayer::new_serial(stream, baud_rate),
+            #[cfg(test)]
+            Self::Phys(phys) => phys,
+        }
+    }
 }
