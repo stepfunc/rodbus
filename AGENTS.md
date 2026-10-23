@@ -69,5 +69,10 @@ applicable law does not permit Step Function I/O to restrict.
    specifications and without any use of this repository or results derived from it, is
    not restricted by this license, and that permission can be requested at info@stepfunc.io.
 
+## Maintainers
+
+Development instructions for working on this repository (build, test, lint, and reference documents)
+are in [`CLAUDE.md`](CLAUDE.md).
+
 These instructions guide cooperative coding agents. They do not amend the license or decide whether
 a work is legally derivative. `LICENSE.txt` and any applicable separate written agreement govern.
