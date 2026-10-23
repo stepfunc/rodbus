@@ -324,6 +324,8 @@ mod tests {
     const READ_COILS: [u8; 12] = [0, 1, 0, 0, 0, 6, 1, 1, 0, 7, 0, 2];
     /// The answer to [`READ_COILS`]: exception 0x01, illegal function
     const ILLEGAL_FUNCTION: [u8; 9] = [0, 1, 0, 0, 0, 3, 1, 0x81, 0x01];
+    /// [`READ_COILS`] with a protocol identifier other than Modbus, which ends the session
+    const UNKNOWN_PROTOCOL: [u8; 12] = [0, 1, 0xCA, 0xFE, 0, 6, 1, 1, 0, 7, 0, 2];
 
     struct DefaultHandler;
     impl RequestHandler for DefaultHandler {}
@@ -353,11 +355,12 @@ mod tests {
         listener: FaultyListener,
         connection_handler: TcpServerConnectionHandler,
     ) -> (crate::server::ServerHandle, tokio::task::JoinHandle<()>) {
-        spawn_server_for(listener, connection_handler, handlers())
+        spawn_server_for(1, listener, connection_handler, handlers())
     }
 
-    /// Spawn a server for `handlers`, as [`spawn_server_with`] does
+    /// Spawn a server for `handlers` with up to `max_sessions`, as [`spawn_server_with`] does
     fn spawn_server_for<T: RequestHandler>(
+        max_sessions: usize,
         listener: FaultyListener,
         connection_handler: TcpServerConnectionHandler,
         handlers: ServerHandlerMap<T>,
@@ -365,7 +368,7 @@ mod tests {
         let (tx, rx) = tokio::sync::mpsc::channel(1);
         let (shutdown, signal) = crate::common::cancellation::pair();
         let task = ServerTask::new(
-            1,
+            max_sessions,
             listener,
             handlers,
             connection_handler,
@@ -416,25 +419,9 @@ mod tests {
         (handle, tokio::spawn(task.run()), addr)
     }
 
+    /// The production server over real sockets
     #[tokio::test]
-    async fn task_ends_when_shutdown_requested_with_the_handle_still_alive() {
-        crate::common::test_support::watchdog(async {
-            let (handle, task, _addr) = spawn_server();
-
-            handle.shutdown();
-            tokio::time::timeout(TEST_TIMEOUT, task)
-                .await
-                .unwrap()
-                .unwrap();
-
-            // the handle outlived the task it terminated
-            handle.shutdown();
-        })
-        .await;
-    }
-
-    #[tokio::test]
-    async fn shutdown_terminates_an_established_session() {
+    async fn shutdown_terminates_an_established_session_over_tcp() {
         crate::common::test_support::watchdog(async {
             let (handle, task, addr) = spawn_server();
 
@@ -462,6 +449,63 @@ mod tests {
                 .await
                 .unwrap()
                 .unwrap();
+
+            // the handle outlived the task it terminated
+            handle.shutdown();
+        })
+        .await;
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn shutdown_ends_an_established_session() {
+        watchdog(async {
+            let (listener, mut peers) = FaultyListener::new(&[]);
+            let (handle, task) = spawn_server_on(listener);
+            let (mut client, _) = peers.connect();
+            assert_eq!(read_coils(&mut client).await, ILLEGAL_FUNCTION);
+
+            handle.shutdown();
+            task.await.unwrap();
+            assert_eq!(read_to_close(&mut client).await, []);
+        })
+        .await;
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn dropping_the_handle_ends_an_established_session() {
+        watchdog(async {
+            let (listener, mut peers) = FaultyListener::new(&[]);
+            let (handle, task) = spawn_server_on(listener);
+            let (mut client, _) = peers.connect();
+            assert_eq!(read_coils(&mut client).await, ILLEGAL_FUNCTION);
+
+            drop(handle);
+            task.await.unwrap();
+            assert_eq!(read_to_close(&mut client).await, []);
+        })
+        .await;
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_session_ended_by_a_bad_frame_frees_its_slot_for_the_next_connection() {
+        watchdog(async {
+            let (listener, mut peers) = FaultyListener::new(&[]);
+            let (_handle, _task) =
+                spawn_server_for(2, listener, TcpServerConnectionHandler::Tcp, handlers());
+            let (mut first, _) = peers.connect();
+            assert_eq!(read_coils(&mut first).await, ILLEGAL_FUNCTION);
+
+            let (mut bad, _) = peers.connect();
+            bad.write_all(&UNKNOWN_PROTOCOL).await.unwrap();
+            assert_eq!(read_to_close(&mut bad).await, []);
+            // the close event is queued once the peer sees the close, and a paused clock only
+            // advances once the server has nothing left to do, so the server has applied it
+            tokio::time::sleep(Duration::from_millis(1)).await;
+
+            // fills the freed slot rather than displacing the first session
+            let (mut next, _) = peers.connect();
+            assert_eq!(read_coils(&mut next).await, ILLEGAL_FUNCTION);
+            assert_eq!(read_coils(&mut first).await, ILLEGAL_FUNCTION);
         })
         .await;
     }
@@ -614,6 +658,48 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn a_session_beyond_the_maximum_evicts_the_oldest() {
+        watchdog(async {
+            for max_sessions in [2, 3] {
+                let mut sessions = sessions(max_sessions);
+                let mut oldest = duplex_session(&mut sessions);
+                let mut others: Vec<_> = (0..max_sessions)
+                    .map(|_| duplex_session(&mut sessions))
+                    .collect();
+
+                for peer in &mut others {
+                    assert_eq!(read_coils(peer).await, ILLEGAL_FUNCTION);
+                }
+                assert_eq!(read_to_close(&mut oldest).await, []);
+            }
+        })
+        .await;
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_closed_session_frees_its_slot() {
+        watchdog(async {
+            let mut sessions = sessions(2);
+            let mut first = duplex_session(&mut sessions);
+            let mut closed = duplex_session(&mut sessions);
+
+            // a session sends its close event before it drops its socket
+            closed.shutdown().await.unwrap();
+            assert_eq!(read_to_close(&mut closed).await, []);
+            let (_tx, mut commands) = tokio::sync::mpsc::channel(1);
+            sessions
+                .serve(&mut commands, tokio::time::sleep(Duration::from_millis(1)))
+                .await
+                .unwrap();
+
+            let mut next = duplex_session(&mut sessions);
+            assert_eq!(read_coils(&mut next).await, ILLEGAL_FUNCTION);
+            assert_eq!(read_coils(&mut first).await, ILLEGAL_FUNCTION);
+        })
+        .await;
+    }
+
+    #[tokio::test]
     async fn an_evicted_session_ends_while_its_write_is_pending() {
         watchdog(async {
             let mut sessions = sessions(1);
@@ -711,6 +797,7 @@ mod tests {
             let handler = Values.wrap();
             let (listener, mut peers) = FaultyListener::new(&[]);
             let (_handle, _task) = spawn_server_for(
+                1,
                 listener,
                 TcpServerConnectionHandler::Tcp,
                 ServerHandlerMap::single(UnitId::new(1), handler.clone()),
