@@ -263,7 +263,13 @@ impl Serialize for WriteMultiple<u16> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::client::message::{Promise, RequestDetails};
+    use crate::client::requests::write_multiple::{LimitedWrite, MultipleWriteRequest};
+    use crate::client::requests::write_single::SingleWrite;
+    use crate::common::function::FunctionCode;
     use crate::common::test_support::{SINGLE_COIL_WRITES, SINGLE_REGISTER_WRITE};
+    use crate::error::{AduParseError, InvalidRange};
+    use crate::server::request::{Rejection, Request};
 
     fn bytes_of(value: &dyn Serialize) -> Vec<u8> {
         let mut buffer = [0u8; 300];
@@ -279,18 +285,241 @@ mod tests {
         assert_eq!(bytes_of(&range), [0x00, 0x03, 0x02, 0x00]);
     }
 
+    /// A value the client writes, a coil or a register: the client's requests to write it, a
+    /// test-built layout of its bytes, and what the server's parser decodes from a request
+    trait Written: Copy + PartialEq + std::fmt::Debug {
+        /// The most values one request writes (MODBUS Application Protocol Specification V1.1b3
+        /// 6.11, 6.12)
+        const LIMIT: u16;
+
+        /// The client's request to write `write`
+        fn single(write: Indexed<Self>) -> RequestDetails;
+
+        /// The client's request to write `write`, which is within [`Written::LIMIT`]
+        fn multiple(write: WriteMultiple<Self>) -> RequestDetails;
+
+        /// The value field of a single write
+        fn value_field(value: Self) -> [u8; 2];
+
+        /// The byte count and values of a write of several
+        fn packed(values: &[Self]) -> Vec<u8>;
+
+        /// The single write `request` decodes to, if it's one of this value
+        fn single_written(request: Request) -> Option<Indexed<Self>>;
+
+        /// The range and values `request` decodes to, if it's a write of several of this value
+        fn multiple_written(request: Request) -> Option<(AddressRange, Vec<Indexed<Self>>)>;
+    }
+
+    impl Written for bool {
+        const LIMIT: u16 = 1968;
+
+        fn single(write: Indexed<bool>) -> RequestDetails {
+            RequestDetails::WriteSingleCoil(SingleWrite::new(write, Promise::new(|_| {})))
+        }
+
+        fn multiple(write: WriteMultiple<bool>) -> RequestDetails {
+            let write = LimitedWrite::coils(write).unwrap();
+            RequestDetails::WriteMultipleCoils(MultipleWriteRequest::new(
+                write,
+                Promise::new(|_| {}),
+            ))
+        }
+
+        // MODBUS Application Protocol Specification V1.1b3 6.5
+        fn value_field(value: bool) -> [u8; 2] {
+            if value {
+                [0xFF, 0x00]
+            } else {
+                [0x00, 0x00]
+            }
+        }
+
+        fn packed(values: &[bool]) -> Vec<u8> {
+            model_packed_bits(values)
+        }
+
+        fn single_written(request: Request) -> Option<Indexed<bool>> {
+            match request {
+                Request::WriteSingleCoil(write) => Some(write),
+                _ => None,
+            }
+        }
+
+        fn multiple_written(request: Request) -> Option<(AddressRange, Vec<Indexed<bool>>)> {
+            match request {
+                Request::WriteMultipleCoils(write) => Some((write.range, write.iterator.collect())),
+                _ => None,
+            }
+        }
+    }
+
+    impl Written for u16 {
+        const LIMIT: u16 = 123;
+
+        fn single(write: Indexed<u16>) -> RequestDetails {
+            RequestDetails::WriteSingleRegister(SingleWrite::new(write, Promise::new(|_| {})))
+        }
+
+        fn multiple(write: WriteMultiple<u16>) -> RequestDetails {
+            let write = LimitedWrite::registers(write).unwrap();
+            RequestDetails::WriteMultipleRegisters(MultipleWriteRequest::new(
+                write,
+                Promise::new(|_| {}),
+            ))
+        }
+
+        // MODBUS Application Protocol Specification V1.1b3 6.6
+        fn value_field(value: u16) -> [u8; 2] {
+            value.to_be_bytes()
+        }
+
+        fn packed(values: &[u16]) -> Vec<u8> {
+            model_packed_registers(values)
+        }
+
+        fn single_written(request: Request) -> Option<Indexed<u16>> {
+            match request {
+                Request::WriteSingleRegister(write) => Some(write),
+                _ => None,
+            }
+        }
+
+        fn multiple_written(request: Request) -> Option<(AddressRange, Vec<Indexed<u16>>)> {
+            match request {
+                Request::WriteMultipleRegisters(write) => {
+                    Some((write.range, write.iterator.collect()))
+                }
+                _ => None,
+            }
+        }
+    }
+
+    /// The body of a single write of `value` at `index`: the address high byte first, then the
+    /// value field (MODBUS Application Protocol Specification V1.1b3 6.5, 6.6)
+    fn single_layout<T: Written>(index: u16, value: T) -> [u8; 4] {
+        let [index_high, index_low] = index.to_be_bytes();
+        let [value_high, value_low] = T::value_field(value);
+        [index_high, index_low, value_high, value_low]
+    }
+
+    /// The body of a write of `values` from `start` that says it writes `quantity`: the starting
+    /// address and quantity high byte first, then the byte count and values (MODBUS Application
+    /// Protocol Specification V1.1b3 6.11, 6.12)
+    fn multiple_layout<T: Written>(start: u16, quantity: u16, values: &[T]) -> Vec<u8> {
+        [
+            &start.to_be_bytes()[..],
+            &quantity.to_be_bytes(),
+            &T::packed(values),
+        ]
+        .concat()
+    }
+
+    /// `Request::parse` of `body` for `function`, read by `read`
+    fn parse_with<R>(
+        function: FunctionCode,
+        body: &[u8],
+        read: impl FnOnce(Request) -> R,
+    ) -> Result<R, Rejection> {
+        let mut cursor = ReadCursor::new(body);
+        Request::parse(function, &mut cursor).map(read)
+    }
+
+    /// The client requests `write` as `expected`, a server echoes it as the same bytes, and the
+    /// server's parser decodes them back to `write`
+    fn check_single_write<T: Written>(write: Indexed<T>, expected: [u8; 4])
+    where
+        Indexed<T>: Serialize,
+    {
+        let request = T::single(write);
+        assert_eq!(bytes_of(&request), expected);
+        assert_eq!(bytes_of(&write), expected);
+        assert_eq!(
+            parse_with(request.function(), &expected, T::single_written),
+            Ok(Some(write))
+        );
+    }
+
+    /// The client requests a write of `values` from `start` as `expected`, a server echoes its
+    /// first four bytes, and the server's parser decodes them back to that range and values
+    fn check_multiple_write<T: Written>(start: u16, values: Vec<T>, expected: &[u8]) {
+        let range = AddressRange::try_from(start, u16::try_from(values.len()).unwrap()).unwrap();
+        let written: Vec<Indexed<T>> = (0u16..)
+            .zip(&values)
+            .map(|(offset, value)| Indexed::new(start.checked_add(offset).unwrap(), *value))
+            .collect();
+        let request = T::multiple(WriteMultiple::from(start, values).unwrap());
+        assert_eq!(bytes_of(&request), expected);
+        assert_eq!(bytes_of(&range), expected[..4]);
+        assert_eq!(
+            parse_with(request.function(), expected, T::multiple_written),
+            Ok(Some((range, written)))
+        );
+    }
+
+    /// The server's parser refuses `body` for `function` for `error`, which is answered with 03
+    fn check_refused(function: FunctionCode, body: &[u8], error: RequestError) {
+        let refused = parse_with(function, body, |_| ()).err();
+        assert_eq!(refused, Some(Rejection::Value(error)));
+        assert_eq!(
+            refused.map(Rejection::exception),
+            Some(crate::exception::ExceptionCode::IllegalDataValue)
+        );
+    }
+
+    /// A write of `values` from `start` is requested as the test-built layout and parsed back;
+    /// with its byte count changed by one either way or to `byte_count`, or with one value more
+    /// than the limit, the server's parser refuses it with 03
+    fn check_write_of_several<T: Written>(start: u16, values: Vec<T>, byte_count: u8) {
+        let quantity = u16::try_from(values.len()).unwrap();
+        let layout = multiple_layout(start, quantity, &values);
+        let function = T::multiple(WriteMultiple::from(start, values.clone()).unwrap()).function();
+        check_multiple_write(start, values.clone(), &layout);
+
+        // MODBUS Application Protocol Specification V1.1b3 6.11, 6.12: the byte count must be
+        // the length of the values
+        let correct = layout[4];
+        let wrong_counts = [
+            correct.checked_sub(1).unwrap(),
+            correct.checked_add(1).unwrap(),
+            byte_count,
+        ];
+        for wrong in wrong_counts.into_iter().filter(|&count| count != correct) {
+            let mut body = layout.clone();
+            body[4] = wrong;
+            let error = AduParseError::InsufficientBytesForByteCount(wrong.into(), correct.into());
+            check_refused(function, &body, error.into());
+        }
+
+        // the quantity is checked before the address, so this is refused for its quantity even
+        // where its range also runs past 0xFFFF (MODBUS Application Protocol Specification
+        // V1.1b3 6.11, 6.12)
+        let over = T::LIMIT.checked_add(1).unwrap();
+        let too_many: Vec<T> = values
+            .iter()
+            .copied()
+            .cycle()
+            .take(usize::from(over))
+            .collect();
+        check_refused(
+            function,
+            &multiple_layout(start, over, &too_many),
+            InvalidRange::CountTooLargeForType(over, T::LIMIT).into(),
+        );
+    }
+
     // a server echoes a single write by serializing the request again
     #[test]
     fn writes_a_single_coil_as_its_address_and_ff00_or_0000() {
         for (write, bytes) in SINGLE_COIL_WRITES {
-            assert_eq!(bytes_of(&write), bytes);
+            check_single_write(write, bytes);
         }
     }
 
     #[test]
     fn writes_a_single_register_as_its_address_and_value_big_endian() {
         let (write, bytes) = SINGLE_REGISTER_WRITE;
-        assert_eq!(bytes_of(&write), bytes);
+        check_single_write(write, bytes);
     }
 
     // the example of MODBUS Application Protocol Specification V1.1b3 6.11; a multiple write is
@@ -300,23 +529,17 @@ mod tests {
         let coils = vec![
             true, false, true, true, false, false, true, true, true, false,
         ];
-        let request = WriteMultiple::from(0x13, coils).unwrap();
-        assert_eq!(
-            bytes_of(&request),
-            [0x00, 0x13, 0x00, 0x0A, 0x02, 0xCD, 0x01]
-        );
-        assert_eq!(bytes_of(&request.range), [0x00, 0x13, 0x00, 0x0A]);
+        check_multiple_write(0x13, coils, &[0x00, 0x13, 0x00, 0x0A, 0x02, 0xCD, 0x01]);
     }
 
     // the example of MODBUS Application Protocol Specification V1.1b3 6.12
     #[test]
     fn writes_multiple_registers_as_range_byte_count_and_values_big_endian() {
-        let request = WriteMultiple::from(0x01, vec![0x000A, 0x0102]).unwrap();
-        assert_eq!(
-            bytes_of(&request),
-            [0x00, 0x01, 0x00, 0x02, 0x04, 0x00, 0x0A, 0x01, 0x02]
+        check_multiple_write(
+            0x01,
+            vec![0x000Au16, 0x0102],
+            &[0x00, 0x01, 0x00, 0x02, 0x04, 0x00, 0x0A, 0x01, 0x02],
         );
-        assert_eq!(bytes_of(&request.range), [0x00, 0x01, 0x00, 0x02]);
     }
 
     #[test]
@@ -474,6 +697,35 @@ mod tests {
                 (start, values) in values::<u16>(1..=125),
             ) {
                 check_packed_registers(start, &values, &model_packed_registers(&values));
+            }
+
+            // MODBUS Application Protocol Specification V1.1b3 6.5, 6.6
+            #[test]
+            fn single_writes_are_requested_as_specified_and_parse_back(
+                index in any::<u16>(),
+                coil in any::<bool>(),
+                register in any::<u16>(),
+            ) {
+                check_single_write(Indexed::new(index, coil), single_layout(index, coil));
+                check_single_write(Indexed::new(index, register), single_layout(index, register));
+            }
+
+            // MODBUS Application Protocol Specification V1.1b3 6.11
+            #[test]
+            fn coil_writes_are_requested_as_specified_and_parse_back_unless_miscounted(
+                (start, coils) in values::<bool>(1..=1968),
+                byte_count in any::<u8>(),
+            ) {
+                check_write_of_several(start, coils, byte_count);
+            }
+
+            // MODBUS Application Protocol Specification V1.1b3 6.12
+            #[test]
+            fn register_writes_are_requested_as_specified_and_parse_back_unless_miscounted(
+                (start, registers) in values::<u16>(1..=123),
+                byte_count in any::<u8>(),
+            ) {
+                check_write_of_several(start, registers, byte_count);
             }
         }
     }
