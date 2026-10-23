@@ -98,12 +98,19 @@ impl RtuParser {
             return Ok(None);
         };
 
+        // small constants and a byte count, so the sums never saturate; if one did, the result
+        // would still be refused as too long
         let pdu_length = match self.length_mode(*function_code) {
             None => return Err(FrameParseError::UnknownFunctionCode(*function_code)),
-            Some(LengthMode::Fixed(length)) => constants::FUNCTION_CODE_LENGTH + length,
+            Some(LengthMode::Fixed(length)) => {
+                constants::FUNCTION_CODE_LENGTH.saturating_add(length)
+            }
             Some(LengthMode::ByteCountAfter(offset)) => match body.get(offset) {
                 None => return Ok(None),
-                Some(count) => constants::FUNCTION_CODE_LENGTH + offset + 1 + usize::from(*count),
+                Some(count) => constants::FUNCTION_CODE_LENGTH
+                    .saturating_add(offset)
+                    .saturating_add(1)
+                    .saturating_add(usize::from(*count)),
             },
         };
 
@@ -114,7 +121,9 @@ impl RtuParser {
             ));
         }
 
-        let frame_length = constants::HEADER_LENGTH + pdu_length + constants::CRC_LENGTH;
+        let frame_length = constants::HEADER_LENGTH
+            .saturating_add(pdu_length)
+            .saturating_add(constants::CRC_LENGTH);
         Ok((bytes.len() >= frame_length).then_some(frame_length))
     }
 
@@ -541,7 +550,7 @@ mod tests {
         Outcome::Frame {
             chunk,
             destination,
-            payload: frame[1..frame.len() - constants::CRC_LENGTH].to_vec(),
+            payload: frame.split_last_chunk::<2>().unwrap().0[1..].to_vec(),
         }
     }
 
@@ -550,6 +559,10 @@ mod tests {
             chunk,
             error: RequestError::BadFrame(error),
         }
+    }
+
+    fn last_index(slice: &[u8]) -> usize {
+        slice.len().checked_sub(1).unwrap()
     }
 
     fn bytes_of(stream: &[u8]) -> Vec<&[u8]> {
@@ -608,7 +621,7 @@ mod tests {
         }
         assert_eq!(
             read_chunks(new_reader(), &bytes_of(frame)),
-            [frame_on(frame.len() - 1, frame)]
+            [frame_on(last_index(frame), frame)]
         );
         assert_reads_byte_by_byte_in_one_call(new_reader(), frame);
     }
@@ -668,12 +681,12 @@ mod tests {
         let whole: Vec<Outcome> = frames.iter().map(|x| frame_on(0, x)).collect();
         assert_eq!(read_chunks(new_reader(), &[&stream]), whole);
 
-        let mut end = 0;
+        let mut end: usize = 0;
         let byte_by_byte: Vec<Outcome> = frames
             .iter()
             .map(|x| {
-                end += x.len();
-                frame_on(end - 1, x)
+                end = end.checked_add(x.len()).unwrap();
+                frame_on(end.checked_sub(1).unwrap(), x)
             })
             .collect();
         assert_eq!(read_chunks(new_reader(), &bytes_of(&stream)), byte_by_byte);
@@ -918,7 +931,14 @@ mod tests {
 
     impl<'a> Serialize for MockMessage<'a> {
         fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
-            for byte in &self.frame[2..self.frame.len() - 2] {
+            // the frame without its unit id, function code and CRC
+            let body = self
+                .frame
+                .get(2..)
+                .and_then(<[u8]>::split_last_chunk::<2>)
+                .map(|(body, _)| body)
+                .unwrap_or_default();
+            for byte in body {
                 cursor.write_u8(*byte)?;
             }
             Ok(())
@@ -948,12 +968,16 @@ mod tests {
         let info = format_rtu_pdu(&mut cursor, destination, function, &msg).unwrap();
         let end = cursor.position();
         assert_eq!(&buffer[offset..end], frame);
-        let crc = u16::from_le_bytes([frame[frame.len() - 2], frame[frame.len() - 1]]);
+        let crc = u16::from_le_bytes(*frame.split_last_chunk::<2>().unwrap().1);
         match info.frame_type {
             FrameType::Rtu(x, y) => assert_eq!((x, y), (destination, crc)),
             FrameType::Mbap(_) => panic!("not an RTU frame"),
         }
-        assert_eq!(info.pdu_body, offset + 2..end - 2);
+        // after the unit id and function code, before the CRC
+        assert_eq!(
+            info.pdu_body,
+            offset.checked_add(2).unwrap()..end.checked_sub(2).unwrap()
+        );
     }
 
     #[test]

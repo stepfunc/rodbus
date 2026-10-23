@@ -478,9 +478,12 @@ mod tests {
 
     fn mbap(tx_id: u16, unit: u8, pdu: &[u8]) -> Vec<u8> {
         let [tx_high, tx_low] = tx_id.to_be_bytes();
-        let [len_high, len_low] = u16::try_from(pdu.len() + 1).unwrap().to_be_bytes();
-        let mut frame = vec![tx_high, tx_low, 0, 0, len_high, len_low, unit];
-        frame.extend_from_slice(pdu);
+        // the length counts the unit id and the PDU
+        let mut unit_and_pdu = vec![unit];
+        unit_and_pdu.extend_from_slice(pdu);
+        let [len_high, len_low] = u16::try_from(unit_and_pdu.len()).unwrap().to_be_bytes();
+        let mut frame = vec![tx_high, tx_low, 0, 0, len_high, len_low];
+        frame.extend_from_slice(&unit_and_pdu);
         frame
     }
 

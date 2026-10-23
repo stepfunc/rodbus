@@ -64,7 +64,7 @@ impl SessionTracker {
 
     fn next_id(&mut self) -> u128 {
         let ret = self.id;
-        self.id += 1;
+        self.id = self.id.wrapping_add(1);
         ret
     }
 
