@@ -13,9 +13,11 @@ use crate::types::*;
 
 /// Trait implemented by the user to process requests received from the client
 ///
-/// Implementations do **NOT** need to validate that AddressRanges do not overflow u16 as this
-/// validation is performed inside the server task itself and [`ExceptionCode::IllegalDataAddress`]
-/// is returned automatically in this case.
+/// Implementations do **NOT** need to validate these requests before they're called: the server
+/// answers a request whose length doesn't match its function, whose quantity is zero
+/// or above a read's limit, or whose single coil value isn't ON or OFF with
+/// [`ExceptionCode::IllegalDataValue`], and one whose values are valid but whose range runs past
+/// address 0xFFFF with [`ExceptionCode::IllegalDataAddress`], without calling the handler.
 ///
 /// A read calls its method for each address in the requested range, in order, and stops at the
 /// first call that returns an [`ExceptionCode`]. The server then answers the whole request with
