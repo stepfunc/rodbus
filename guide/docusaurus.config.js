@@ -139,6 +139,14 @@ module.exports = {
             from: '/docs/api/outstation/tls_server',
             to: '/docs/api/server/tls_server',
           },
+          {
+            from: '/docs/api/outstation/database',
+            to: '/docs/api/server/database',
+          },
+          {
+            from: '/docs/api/outstation/write_handler',
+            to: '/docs/api/server/write_handler',
+          },
         ],
       },
     ],
