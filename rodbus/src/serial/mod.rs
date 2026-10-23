@@ -85,3 +85,26 @@ impl OpenPort {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A pseudo-terminal's other end is a real port that `open` can reach by its path
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn open_keeps_the_configured_baud_rate() {
+        use tokio_serial::SerialPort;
+
+        let (_peer, port) = SerialStream::pair().unwrap();
+        let path = port.name().unwrap();
+        let settings = SerialSettings {
+            baud_rate: 19200,
+            ..SerialSettings::default()
+        };
+
+        let opened = open(&path, settings).unwrap();
+
+        assert!(matches!(opened, OpenPort::Serial(_, 19200)));
+    }
+}
