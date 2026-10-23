@@ -17,7 +17,9 @@ All requests take a `RequestParam` structure with the following fields:
   to implement a multi-drop scheme. On TCP/IP, it is used when communicating with
   a gateway that relays the requests to multiple devices, or a single device that supports
   multiple virtual sub-devices.
-- `Timeout`: This is the maximum time to wait for a response before reporting an error.
+- `Timeout`: The time allowed for sending the request and receiving its response. A response that doesn't arrive in time
+  fails the request with a response timeout. A request that can't be sent in time fails with an I/O error, and the
+  connection (or serial port) is closed and reopened. On a serial port, the wait between frames is part of sending.
 
 A common pattern is to create a `RequestParam` for each device you communicate with
 and reuse it on every request.
@@ -37,12 +39,16 @@ Each read request takes an `AddressRange` parameter specifying which values to r
 It has a 16-bit `start` index and a 16-bit `count` value.
 
 :::warning
-The sum of the `start` and `count` fields **cannot exceed 65,536**. The library will automatically fail such invalid requests
-returning an error.
+The library fails a read request with an error, without sending it, when:
+
+* `count` is zero
+* the sum of `start` and `count` **exceeds 65,536**
+* `count` exceeds the most one request can read: 2000 coils or discrete inputs, or 125 registers
 :::
 
 The asynchronous response contains an iterator over the retrieved values. A successful response always contains exactly `count` values
-in ascending, contiguous address order beginning at `start`. A response containing too few or too many values fails the request.
+in ascending, contiguous address order beginning at `start`. A response containing too few or too many values, or whose byte count
+doesn't match the bytes that follow it, fails the request.
 
 Each value is paired with its address as a convenience. Modbus read responses don't encode per-value addresses, only the values in
 address order, so the library computes each address from `start` and the value's position.
@@ -132,7 +138,11 @@ are *holding registers*.
 :::
 
 Single requests write one point at a time.
-The "multiple" requests write multiple **contiguous** points of the same type in a single message.
+The "multiple" requests write multiple **contiguous** points of the same type in a single message: at most 1968 coils or 123
+registers, and at least one. The library fails a larger or empty write with an error without sending it.
+
+A server answers a successful single write with its address and value, and a successful multiple write with its starting
+address and quantity. The library fails the request when that reply doesn't match the request.
 
 To write discontinuous points, perform multiple requests. Modbus lacks a transaction mechanism, so device state may change between requests.
 

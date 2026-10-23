@@ -147,7 +147,7 @@ Runtime shutdown is implicit in Rust when tokio::main returns.
 <TabItem value="C++">
 
 :::note
-Runtime shutdown is automatically called in the `ClientChannel` destructor.
+The runtime shuts down when the `Runtime` object is destroyed, for example when it goes out of scope.
 :::
 
 </TabItem>

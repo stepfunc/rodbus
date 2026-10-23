@@ -21,12 +21,23 @@ once the line has been silent for 3.5 character times or 50 ms, whichever is lon
 reopens the port; the library logs a warning when it starts dropping bytes, and again when a frame follows them.
 Clients and servers both receive frames this way.
 
+## Sending frames
+
+Before sending a frame, the library waits until the line has been silent for 3.5 character times since the last byte it
+received or sent, including right after the port opens. A character time is 11 bits at the configured baud rate; above
+19200 baud the gap is fixed at 1.75 ms. Clients and servers both send frames this way.
+
 ## Special addresses
 
 ### Broadcast
 
 When a write request is received with the broadcast unit ID (`0x00`), it is automatically forwarded to all registered
-handlers. No response will be returned.
+handlers. No response is returned, so an exception from a handler goes nowhere. A broadcast that isn't a valid write request,
+such as a read, is ignored.
+
+### Other unit IDs
+
+The server doesn't reply to a request for a unit ID that isn't in its map, since another server on the line may own it.
 
 ### Reserved addresses
 
@@ -35,24 +46,24 @@ Do not use addresses 248 (`0xF8`) to 255 (`0xFF`), which are reserved by the spe
 ## Creating a server
 
 To create a RTU server, first build a `DeviceMap` for each unit ID to which the server will respond. This is similar to how it is done in the [TCP server](./tcp_server).
-Then use the `Server.CreateRtu` factory method to create the background task.
+Then use the `create_rtu` static method of the `Server` class (`spawn_rtu_server_task` in Rust) to create the background task.
 
-The `Server.CreateRtu` method takes the following arguments:
+The `create_rtu` method takes the following arguments:
 
 - `runtime`: tokio runtime used to drive the async process. See [Runtime](../runtime.mdx) for more details.
 - `path`: path of the serial device.
   - On Windows, it's generally something like `COM3`
   - On Linux, it's generally something like `/dev/ttyS3`. You need to have the adequate permissions
     to access these devices.
-- `serial_port_settings`: structure with various serial port settings:
-  - Baud rate in bit per second
+- `serial_params`: structure with various serial port settings:
+  - Baud rate in bits per second; the RTU frame timing is computed from it
   - Data bits. Note that Modbus should use 8 data bits.
   - Stop bits
   - Parity
   - Flow control
-- `port_retry_delay`: how long to wait before reopening after a failed open or port error.
-- `map`: Map of unit ids and their corresponding callback handlers.
-- `level`: Initial decoding level for the port which can be adjusted later via the returned Channel.
+- `retry`: retry strategy setting how long to wait before reopening the port after a failed open or a port error.
+- `endpoints`: Map of unit ids and their corresponding callback handlers.
+- `decode_level`: Initial decoding level for the port, which can be adjusted later via the returned server.
 
 :::tip
 The task handles dynamic hardware changes, such as USB-to-serial adapter insertion and removal.

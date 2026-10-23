@@ -92,21 +92,24 @@ The logs provide rich contextual metadata, allowing you to:
 * Determine which communication session produced the message
 * Understand what state the software was in when the event occurred
 
+Here is the example server, with data values, MBAP headers and physical-layer lengths decoded, answering one read from a client that then disconnects:
+
 ```
-Jun 21 10:33:01.608  INFO Modbus-Server-TCP{listen=127.0.0.1:502}: accepted connection 0 from: 127.0.0.1:1143
-Jun 21 10:33:01.610  INFO Modbus-Server-TCP{listen=127.0.0.1:502}:Session{remote=127.0.0.1:1143}:Transaction{tx_id=0x00}: PDU RX - READ DISCRETE INPUTS (0x02) start: 0x0000 qty: 10
-Jun 21 10:33:01.611  INFO Modbus-Server-TCP{listen=127.0.0.1:502}:Session{remote=127.0.0.1:1143}:Transaction{tx_id=0x00}: PDU TX - READ DISCRETE INPUTS (0x02) start: 0x0000 qty: 10
+2026-10-23T23:03:53.225466Z  INFO Modbus-Server-TCP{listen=127.0.0.1:502}: accepted connection from: 127.0.0.1:34736 - assigned session id: 0
+2026-10-23T23:03:54.222005Z  INFO Modbus-Server-TCP{listen=127.0.0.1:502}:Session{id=0 remote=127.0.0.1:34736}: PHYS RX - 12 bytes
+2026-10-23T23:03:54.222256Z  INFO Modbus-Server-TCP{listen=127.0.0.1:502}:Session{id=0 remote=127.0.0.1:34736}: MBAP RX - tx_id: 0x00 unit: 0x01 len: 6
+2026-10-23T23:03:54.222336Z  INFO Modbus-Server-TCP{listen=127.0.0.1:502}:Session{id=0 remote=127.0.0.1:34736}: PDU RX - READ DISCRETE INPUTS (0x02) start: 0x0000 qty: 5
+2026-10-23T23:03:54.222379Z  INFO Modbus-Server-TCP{listen=127.0.0.1:502}:Session{id=0 remote=127.0.0.1:34736}: PDU TX - READ DISCRETE INPUTS (0x02) start: 0x0000 qty: 5
 idx: 0x0000 value: 0
 idx: 0x0001 value: 0
 idx: 0x0002 value: 0
 idx: 0x0003 value: 0
 idx: 0x0004 value: 0
-idx: 0x0005 value: 0
-idx: 0x0006 value: 0
-idx: 0x0007 value: 0
-idx: 0x0008 value: 0
-idx: 0x0009 value: 0
-Jun 21 10:33:01.617  INFO shutdown session: 0
+2026-10-23T23:03:54.222406Z  INFO Modbus-Server-TCP{listen=127.0.0.1:502}:Session{id=0 remote=127.0.0.1:34736}: MBAP TX - tx_id: 0x00 unit: 0x01 len: 4
+2026-10-23T23:03:54.222425Z  INFO Modbus-Server-TCP{listen=127.0.0.1:502}:Session{id=0 remote=127.0.0.1:34736}: PHYS TX - 10 bytes
+2026-10-23T23:03:55.224061Z  INFO Modbus-Server-TCP{listen=127.0.0.1:502}:Session{id=0 remote=127.0.0.1:34736}: PHYS RX - 0 bytes
+2026-10-23T23:03:55.224151Z  WARN Modbus-Server-TCP{listen=127.0.0.1:502}:Session{id=0 remote=127.0.0.1:34736}: session error: unexpected end of file
+2026-10-23T23:03:55.224340Z  INFO Modbus-Server-TCP{listen=127.0.0.1:502}:Session{id=0 remote=127.0.0.1:34736}: session shutdown
 ```
 
 ## Protocol Decoding

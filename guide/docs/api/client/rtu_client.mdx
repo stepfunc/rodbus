@@ -8,17 +8,19 @@ slug: /api/client/rtu_client
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
-Create an RTU client channel using the `create_rtu_client` method. The client immediately attempts to open the serial port.
-It receives frames as described in [Receiving frames](../server/rtu_server.mdx#receiving-frames).
+Create an RTU client channel using the `create_rtu` method. The channel is created disabled: it doesn't open the serial port
+until you call `enable`. It receives and sends frames as described in [Receiving frames](../server/rtu_server.mdx#receiving-frames)
+and [Sending frames](../server/rtu_server.mdx#sending-frames).
 
 :::note
-In Rust, you can use the `spawn_rtu_client_task` to create a channel and spawn the async task in the context of the current runtime.
-Outside the Tokio runtime, you can use `create_rtu_handle_and_task` and manually spawn the returned future.
+In Rust, you can use `spawn_rtu_client_task` to create a channel and spawn its task in the current runtime.
+Otherwise, `create_rtu_client_task` returns the `Channel` and a `ClientTask`; spawn `task.run()` when ready.
 :::
 
 :::info
-The library does **not** support sending broadcast requests yet. Sending a request with a broadcast unit ID
-(`0x00`) will generate a timeout error, because no server will respond.
+A request to unit ID `0x00` is sent as a broadcast. Servers apply a broadcast write without replying, so once it is sent the
+request ends with a response timeout, unless another error (such as failing to send it in time) ends it first. A response
+timeout doesn't mean the write wasn't applied.
 :::
 
 <Tabs
@@ -77,7 +79,7 @@ generally something like `/dev/ttyS3`. You need to have the adequate permissions
 
 The serial port settings are the following:
 
-- Baud rate in bit per second
+- Baud rate in bits per second; the RTU frame timing is computed from it
 - Data bits. Note that Modbus should use 8 data bits.
 - Stop bits
 - Parity
@@ -87,9 +89,14 @@ The serial port settings are the following:
 
 Each channel sends one request at a time and has a fixed-length buffer of requests to send.
 
-## Retry Delay
+## Retry Strategy
 
-The serial channel attempts to open the port immediately upon creation. If the port cannot be opened, the library waits `retry_delay` before retrying.
+Once enabled, the channel opens the port and keeps it open. Requests made while the port isn't open fail with a `NoConnection` error.
+The `RetryStrategy` sets how long to wait before reopening it:
+
+* After a failed attempt to open the port, the channel waits `min_delay`, and the wait doubles after each further failure, up to `max_delay`.
+* After an open port fails, the channel waits `min_delay` before reopening it.
+* Opening the port successfully resets the wait to `min_delay`.
 
 ## Decode Level
 
