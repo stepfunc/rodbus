@@ -462,8 +462,8 @@ mod tests {
 
     use crate::common::frame::{FramedReader, ReadError};
     use crate::common::phys::PhysLayer;
-    use crate::common::test_support::with_crc;
     use crate::error::InternalError;
+    use crate::serial::test_util::{with_crc, TIMER_RESOLUTION};
     use crate::{AppDecodeLevel, DecodeLevel, PhysDecodeLevel};
 
     use super::*;
@@ -807,7 +807,7 @@ mod tests {
         Outcome::Frame {
             chunk,
             destination: destination_of(frame),
-            payload: frame.split_last_chunk::<2>().unwrap().0[1..].to_vec(),
+            payload: pdu(frame),
         }
     }
 
@@ -1293,9 +1293,6 @@ mod tests {
 
     /// A read response that announces more bytes than ever arrive
     const STALLED: [u8; 3] = [UNIT_ID, 0x03, 0xFB];
-
-    /// How much later than its deadline tokio may fire a timer: it rounds up to the millisecond
-    const TIMER_RESOLUTION: Duration = Duration::from_millis(1);
 
     /// Long enough for a reader at [`BAUD_RATE`] to have dropped a partial frame
     const PAST_SILENCE: Duration = SILENCE.saturating_add(TIMER_RESOLUTION);

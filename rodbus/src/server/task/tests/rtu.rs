@@ -9,12 +9,7 @@
 use std::time::Duration;
 
 use super::*;
-use crate::common::test_support::with_crc;
-
-/// An RTU frame carrying `pdu` to or from `unit`
-pub(super) fn frame(unit: u8, pdu: &[u8]) -> Vec<u8> {
-    with_crc(&[&[unit], pdu].concat())
-}
+use crate::serial::test_util::{rtu, with_crc};
 
 /// Holding registers hold their address
 struct Values;
@@ -218,8 +213,8 @@ async fn rtu_replies_carry_the_unit_address_and_exceptions() {
             );
         }
         for (request, reply) in HANDLER_EXCEPTIONS {
-            let request = frame(1, request);
-            assert_eq!(exchange(&mut peer, &request, 5).await, frame(1, reply));
+            let request = rtu(1, request);
+            assert_eq!(exchange(&mut peer, &request, 5).await, rtu(1, reply));
         }
         assert_nothing_more_was_sent(peer).await;
     })
@@ -231,8 +226,8 @@ async fn rtu_checks_a_requests_values_before_its_address_and_calls_no_handler() 
     crate::common::test_support::watchdog(async {
         let (mut peer, calls) = rtu_session(&[1], AuthorizationType::None);
         for (request, reply) in REFUSED {
-            let request = frame(1, request);
-            assert_eq!(exchange(&mut peer, &request, 5).await, frame(1, reply));
+            let request = rtu(1, request);
+            assert_eq!(exchange(&mut peer, &request, 5).await, rtu(1, reply));
         }
         // the session still answers
         assert_nothing_was_sent(&mut peer).await;
@@ -247,8 +242,8 @@ async fn rtu_writes_of_more_than_1968_coils_are_refused_with_03() {
     crate::common::test_support::watchdog(async {
         let (mut peer, calls) = rtu_session(&[1], AuthorizationType::None);
         for (request, reply) in coil_write_limits() {
-            let reply = frame(1, &reply);
-            let request = frame(1, &request);
+            let reply = rtu(1, &reply);
+            let request = rtu(1, &request);
             assert_eq!(exchange(&mut peer, &request, reply.len()).await, reply);
         }
         assert_nothing_more_was_sent(peer).await;
@@ -271,7 +266,7 @@ async fn rtu_requests_to_a_unit_not_served_get_no_reply_whatever_they_hold() {
     crate::common::test_support::watchdog(async {
         for request in TO_AN_UNSERVED_UNIT {
             let (mut peer, calls) = rtu_session(&[1], AuthorizationType::None);
-            peer.write_all(&frame(UNSERVED, request)).await.unwrap();
+            peer.write_all(&rtu(UNSERVED, request)).await.unwrap();
             assert_nothing_was_sent(&mut peer).await;
             assert_nothing_more_was_sent(peer).await;
             // only the read that checked for silence reached a handler
