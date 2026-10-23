@@ -7,6 +7,8 @@
 use tokio_serial::SerialStream;
 pub use tokio_serial::{DataBits, FlowControl, Parity, StopBits};
 
+use crate::common::phys::OpenPort;
+
 pub(crate) mod client;
 pub(crate) mod frame;
 pub(crate) mod server;
@@ -57,7 +59,9 @@ impl Default for SerialSettings {
     }
 }
 
-pub(crate) fn open(path: &str, settings: SerialSettings) -> tokio_serial::Result<SerialStream> {
+/// Open the port at `path` with `settings`, keeping the baud rate it was configured with
+pub(crate) fn open(path: &str, settings: SerialSettings) -> tokio_serial::Result<OpenPort> {
     let builder = settings.apply(tokio_serial::new(path, settings.baud_rate));
-    SerialStream::open(&builder)
+    let stream = SerialStream::open(&builder)?;
+    Ok(OpenPort::Serial(stream, settings.baud_rate))
 }

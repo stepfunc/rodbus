@@ -111,7 +111,8 @@ impl std::fmt::Debug for PhysLayer {
 /// A port that just opened, made into a [`PhysLayer`] only once the task starts running it
 #[cfg(feature = "serial")]
 pub(crate) enum OpenPort {
-    Serial(tokio_serial::SerialStream),
+    /// a serial port and the baud rate it was configured with
+    Serial(tokio_serial::SerialStream, u32),
     /// a port that is already a layer, such as an in-memory pipe
     #[cfg(test)]
     Phys(PhysLayer),
@@ -121,7 +122,7 @@ pub(crate) enum OpenPort {
 impl OpenPort {
     pub(crate) fn into_phys(self) -> PhysLayer {
         match self {
-            Self::Serial(stream) => PhysLayer::new_serial(stream),
+            Self::Serial(stream, baud_rate) => PhysLayer::new_serial(stream, baud_rate),
             #[cfg(test)]
             Self::Phys(phys) => phys,
         }
@@ -135,9 +136,10 @@ impl PhysLayer {
         }
     }
 
+    /// A layer on a serial port, timed for the `baud_rate` the port was configured with
     #[cfg(feature = "serial")]
-    pub(crate) fn new_serial(stream: tokio_serial::SerialStream) -> Self {
-        let gap = InterFrameGap::for_port(&stream);
+    pub(crate) fn new_serial(stream: tokio_serial::SerialStream, baud_rate: u32) -> Self {
+        let gap = InterFrameGap::new(baud_rate);
         Self {
             layer: PhysLayerImpl::Serial(stream, gap),
         }
@@ -267,21 +269,6 @@ pub(crate) struct InterFrameGap {
 
 #[cfg(feature = "serial")]
 impl InterFrameGap {
-    fn for_port(serial: &tokio_serial::SerialStream) -> Self {
-        use tokio_serial::SerialPort;
-
-        match serial.baud_rate() {
-            Ok(baud_rate) => Self::new(baud_rate),
-            Err(_) => {
-                tracing::warn!(
-                    "unable to determine the baud rate, defaulting to {} μs",
-                    FIXED_INTER_FRAME_DELAY.as_micros()
-                );
-                Self::new(0)
-            }
-        }
-    }
-
     /// Timing for a port that opens now
     fn new(baud_rate: u32) -> Self {
         Self {
@@ -354,11 +341,11 @@ impl Drop for Transmission<'_> {
     }
 }
 
-/// The delay used above [`MAX_TIMED_BAUD_RATE`], or when the baud rate is unknown or zero
+/// The delay used above [`MAX_TIMED_BAUD_RATE`], or for a baud rate of zero
 #[cfg(feature = "serial")]
 const FIXED_INTER_FRAME_DELAY: tokio::time::Duration = tokio::time::Duration::from_micros(1750);
 
-/// The character time when the baud rate is unknown or zero, the one for which
+/// The character time for a baud rate of zero, the one for which
 /// [`FIXED_INTER_FRAME_DELAY`] is 3.5 character times
 #[cfg(feature = "serial")]
 const FIXED_CHARACTER_TIME: tokio::time::Duration = tokio::time::Duration::from_micros(500);
@@ -728,7 +715,7 @@ mod tests {
         fn port_at_9600() -> (tokio_serial::SerialStream, PhysLayer) {
             let (peer, mut port) = tokio_serial::SerialStream::pair().unwrap();
             port.set_baud_rate(9600).unwrap();
-            (peer, PhysLayer::new_serial(port))
+            (peer, PhysLayer::new_serial(port, 9600))
         }
 
         /// Long enough after opening a port that its first t3.5 has passed
@@ -783,6 +770,43 @@ mod tests {
                 let elapsed = Instant::now() - start;
                 assert!(elapsed >= expected, "{elapsed:?}");
                 assert!(elapsed < expected + AUTO_ADVANCE_SLACK, "{elapsed:?}");
+            })
+            .await
+        }
+
+        #[tokio::test(start_paused = true)]
+        async fn a_serial_port_is_timed_for_the_baud_rate_it_was_configured_with() {
+            // (configured baud rate, t3.5, one character time)
+            let cases = [
+                (9600, T3_5_AT_9600, CHAR_TIME_AT_9600),
+                (
+                    19200,
+                    Duration::from_nanos(2_005_206),
+                    Duration::from_nanos(572_916),
+                ),
+                (0, Duration::from_micros(1750), Duration::from_micros(500)),
+            ];
+            watchdog(async {
+                for (baud_rate, t3_5, char_time) in cases {
+                    // the device itself runs at another rate, which the layer doesn't consult
+                    let (_peer, mut port) = tokio_serial::SerialStream::pair().unwrap();
+                    port.set_baud_rate(300).unwrap();
+                    let mut phys = PhysLayer::new_serial(port, baud_rate);
+                    tokio::time::sleep(AFTER_OPENING).await;
+                    let start = Instant::now();
+                    phys.write(&[0; 256], PhysDecodeLevel::Nothing)
+                        .await
+                        .unwrap();
+                    phys.write(&[0; 1], PhysDecodeLevel::Nothing).await.unwrap();
+
+                    let expected = char_time * 256 + t3_5;
+                    let elapsed = Instant::now() - start;
+                    assert!(elapsed >= expected, "{baud_rate}: {elapsed:?}");
+                    assert!(
+                        elapsed < expected + AUTO_ADVANCE_SLACK,
+                        "{baud_rate}: {elapsed:?}"
+                    );
+                }
             })
             .await
         }

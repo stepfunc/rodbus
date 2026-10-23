@@ -80,7 +80,7 @@ impl SerialChannelTask {
                 tracing::warn!("{} - waiting {} ms to re-open port", err, delay.as_millis());
                 self.client_loop.fail_requests_for(delay).await
             }
-            Ok(serial) => self.run_port(OpenPort::Serial(serial)).await,
+            Ok(port) => self.run_port(port).await,
         }
     }
 
