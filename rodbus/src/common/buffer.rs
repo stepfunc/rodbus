@@ -59,7 +59,7 @@ impl ReadBuffer {
     }
 
     /// The bytes not read yet
-    #[cfg(feature = "serial")]
+    #[cfg(any(test, feature = "serial"))]
     pub(crate) fn peek(&self) -> &[u8] {
         self.buffer.get(self.begin..self.end).unwrap_or_default()
     }
@@ -92,15 +92,20 @@ impl ReadBuffer {
         self.buffer.get_mut(self.end..).unwrap_or_default()
     }
 
+    /// Mark `count` bytes written into the free space as unread
+    fn filled(&mut self, count: usize) {
+        self.end = self.end.saturating_add(count);
+    }
+
     /// Append as much of `data` as fits, as a read would, returning how much was taken
-    #[cfg(all(test, rodbus_no_panic))]
+    #[cfg(test)]
     pub(crate) fn fill(&mut self, data: &[u8]) -> usize {
         let mut count: usize = 0;
         for (dest, src) in self.free_space().iter_mut().zip(data) {
             *dest = *src;
             count = count.saturating_add(1);
         }
-        self.end = self.end.saturating_add(count);
+        self.filled(count);
         count
     }
 
@@ -114,8 +119,7 @@ impl ReadBuffer {
         if count == 0 {
             return Err(std::io::Error::from(std::io::ErrorKind::UnexpectedEof));
         }
-        // the read filled part of the space after `end`
-        self.end = self.end.saturating_add(count);
+        self.filled(count);
         Ok(count)
     }
 }
@@ -139,6 +143,13 @@ mod tests {
         );
     }
 
+    /// `count` bytes counting up from `first` and wrapping, so that any 256 in a row differ
+    fn counting(first: u8, count: usize) -> Vec<u8> {
+        std::iter::successors(Some(first), |x| Some(x.wrapping_add(1)))
+            .take(count)
+            .collect()
+    }
+
     #[test]
     fn shifts_data_when_buffer_full_with_consumed_bytes() {
         let mut buffer = ReadBuffer::new();
@@ -146,40 +157,28 @@ mod tests {
         let mut phys = PhysLayer::new_mock(io);
 
         let capacity = crate::common::frame::constants::MAX_FRAME_LENGTH;
+        let first = counting(0, capacity);
+        let second = [0xF0, 0xF1, 0xF2, 0xF3, 0xF4, 0xF5, 0xF6];
 
         // fill the buffer to exactly capacity
         {
-            let data = vec![0xAA; capacity];
-            let mut task = task::spawn(async {
-                buffer
-                    .read_some(&mut phys, PhysDecodeLevel::Nothing)
-                    .await
-                    .unwrap()
-            });
-            io_handle.read(&data);
-            assert_ready_eq!(task.poll(), capacity);
+            let mut task = task::spawn(buffer.read_some(&mut phys, PhysDecodeLevel::Nothing));
+            io_handle.read(&first);
+            assert_ready_eq!(task.poll().map(Result::unwrap), capacity);
         }
 
-        // consume some bytes from the front
-        assert_eq!(buffer.read(7).unwrap(), &[0xAA; 7]);
+        // consume some bytes from the front, leaving no room after the unread ones
+        assert_eq!(buffer.read(7).unwrap(), &first[..7]);
 
-        // now buffer has begin=7, end=capacity, len=capacity-7
-        // calling read_some should shift the data and read more
+        // the next read moves the unread bytes to the front to make room
         {
-            let mut task = task::spawn(async {
-                buffer
-                    .read_some(&mut phys, PhysDecodeLevel::Nothing)
-                    .await
-                    .unwrap()
-            });
-            io_handle.read(&[0xBB; 7]);
-            // this should NOT return UnexpectedEof — the shift should
-            // make room for the new data
-            assert_ready_eq!(task.poll(), 7);
+            let mut task = task::spawn(buffer.read_some(&mut phys, PhysDecodeLevel::Nothing));
+            io_handle.read(&second);
+            assert_ready_eq!(task.poll().map(Result::unwrap), second.len());
         }
 
-        // verify the unconsumed original data is still intact
-        assert_eq!(buffer.read(1).unwrap(), &[0xAA]);
+        assert_eq!(buffer.peek(), [&first[7..], &second[..]].concat());
+        assert_eq!(buffer.len(), capacity);
     }
 
     #[test]
@@ -252,5 +251,107 @@ mod tests {
             buffer.read_u8(),
             Err(InternalError::InsufficientBytesForRead(1, 0))
         );
+    }
+
+    mod properties {
+        use std::collections::VecDeque;
+
+        use proptest::prelude::*;
+
+        use super::*;
+
+        const CAPACITY: usize = crate::common::frame::constants::MAX_FRAME_LENGTH;
+
+        #[derive(Clone, Debug)]
+        enum Op {
+            /// offer the next this many bytes of a counter that wraps, as a read would
+            Fill(usize),
+            Read(usize),
+            ReadU8,
+            ReadU16Be,
+            Peek,
+            Reset,
+        }
+
+        fn op() -> impl Strategy<Value = Op> {
+            prop_oneof![
+                3 => (0usize..=300).prop_map(Op::Fill),
+                3 => prop_oneof![4 => 0usize..=300, 1 => Just(usize::MAX)].prop_map(Op::Read),
+                1 => Just(Op::ReadU8),
+                1 => Just(Op::ReadU16Be),
+                2 => Just(Op::Peek),
+                1 => Just(Op::Reset),
+            ]
+        }
+
+        fn insufficient(count: usize, model: &VecDeque<u8>) -> InternalError {
+            InternalError::InsufficientBytesForRead(count, model.len())
+        }
+
+        /// the buffer behaves as a queue of the unread bytes, holding up to `CAPACITY`
+        fn check(ops: &[Op]) -> Result<(), TestCaseError> {
+            let mut buffer = ReadBuffer::new();
+            let mut model: VecDeque<u8> = VecDeque::new();
+            let mut next: u8 = 0;
+            for op in ops {
+                match *op {
+                    Op::Fill(count) => {
+                        let chunk = counting(next, count);
+                        let room = CAPACITY.saturating_sub(model.len());
+                        let taken = buffer.fill(&chunk);
+                        prop_assert!(taken <= count.min(room), "took {taken} of {count}");
+                        // a read with room in the buffer never sees an empty space
+                        if count > 0 && room > 0 {
+                            prop_assert!(taken > 0, "took nothing with {room} free");
+                        }
+                        let taken = chunk.get(..taken).unwrap_or_default();
+                        model.extend(taken);
+                        next = taken.last().map_or(next, |x| x.wrapping_add(1));
+                    }
+                    Op::Read(count) => {
+                        let expected = if count <= model.len() {
+                            Ok(model.drain(..count).collect())
+                        } else {
+                            Err(insufficient(count, &model))
+                        };
+                        prop_assert_eq!(buffer.read(count).map(<[u8]>::to_vec), expected);
+                    }
+                    Op::ReadU8 => {
+                        let expected = model.pop_front().ok_or(insufficient(1, &model));
+                        prop_assert_eq!(buffer.read_u8(), expected);
+                    }
+                    Op::ReadU16Be => {
+                        // two byte reads: a lone byte is consumed before the second read fails
+                        let expected = match (model.pop_front(), model.pop_front()) {
+                            (Some(high), Some(low)) => Ok(u16::from_be_bytes([high, low])),
+                            _ => Err(insufficient(1, &model)),
+                        };
+                        prop_assert_eq!(buffer.read_u16_be(), expected);
+                    }
+                    Op::Peek => {
+                        prop_assert_eq!(buffer.peek(), model.make_contiguous());
+                    }
+                    Op::Reset => {
+                        buffer.reset();
+                        model.clear();
+                    }
+                }
+                prop_assert_eq!(buffer.len(), model.len());
+                prop_assert_eq!(buffer.is_empty(), model.is_empty());
+            }
+            prop_assert_eq!(buffer.peek(), model.make_contiguous());
+            Ok(())
+        }
+
+        proptest! {
+            #![proptest_config(ProptestConfig::with_cases(512))]
+
+            #[test]
+            fn read_buffer_behaves_as_a_bounded_byte_queue(
+                ops in prop::collection::vec(op(), 0..=32),
+            ) {
+                check(&ops)?;
+            }
+        }
     }
 }

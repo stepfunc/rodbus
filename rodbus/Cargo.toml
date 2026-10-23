@@ -40,6 +40,7 @@ serde = { version = "1.0", default-features = false, features = ["derive", "std"
 no-panic = "0.1"
 
 [dev-dependencies]
+proptest = { version = "1.12", default-features = false, features = ["std"] }
 tokio-test = "0.4"
 sfio-tokio-mock-io = "0.2"
 tokio = { workspace = true, features = ["test-util"] }
