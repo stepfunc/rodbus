@@ -5,6 +5,17 @@
 // Directive (EU) 2019/790 Art. 4(3), subject to LICENSE.txt Section 3.3.
 
 #![doc = include_str!("../README.md")]
+// deny unwrap, expect and the panic macros; clippy.toml allows unwrap, expect and panic in test code
+#![deny(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::todo,
+    clippy::unimplemented,
+    clippy::panic_in_result_fn,
+    clippy::unwrap_in_result
+)]
 //! # Example Client
 //!
 //! A simple client application that periodically polls for some Coils

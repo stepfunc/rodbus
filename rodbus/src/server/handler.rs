@@ -95,6 +95,10 @@ pub type ServerHandlerType<T> = Arc<Mutex<Box<T>>>;
 ///
 /// This is the only place the server locks a handler. The mutex is only poisoned by an earlier
 /// panic while it was held.
+#[expect(
+    clippy::expect_used,
+    reason = "the mutex is only poisoned by an earlier panic while it was held"
+)]
 pub(crate) fn lock_handler<T: ?Sized>(handler: &Mutex<Box<T>>) -> MutexGuard<'_, Box<T>> {
     handler.lock().expect("handler mutex poisoned")
 }
