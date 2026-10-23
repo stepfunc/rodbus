@@ -18,16 +18,15 @@ mod constants {
 }
 
 #[derive(Debug, Copy, Clone, PartialEq)]
-#[repr(u8)]
 pub(crate) enum FunctionCode {
-    ReadCoils = constants::READ_COILS,
-    ReadDiscreteInputs = constants::READ_DISCRETE_INPUTS,
-    ReadHoldingRegisters = constants::READ_HOLDING_REGISTERS,
-    ReadInputRegisters = constants::READ_INPUT_REGISTERS,
-    WriteSingleCoil = constants::WRITE_SINGLE_COIL,
-    WriteSingleRegister = constants::WRITE_SINGLE_REGISTER,
-    WriteMultipleCoils = constants::WRITE_MULTIPLE_COILS,
-    WriteMultipleRegisters = constants::WRITE_MULTIPLE_REGISTERS,
+    ReadCoils,
+    ReadDiscreteInputs,
+    ReadHoldingRegisters,
+    ReadInputRegisters,
+    WriteSingleCoil,
+    WriteSingleRegister,
+    WriteMultipleCoils,
+    WriteMultipleRegisters,
 }
 
 impl Display for FunctionCode {
@@ -61,7 +60,16 @@ impl Display for FunctionCode {
 
 impl FunctionCode {
     pub(crate) const fn get_value(self) -> u8 {
-        self as u8
+        match self {
+            FunctionCode::ReadCoils => constants::READ_COILS,
+            FunctionCode::ReadDiscreteInputs => constants::READ_DISCRETE_INPUTS,
+            FunctionCode::ReadHoldingRegisters => constants::READ_HOLDING_REGISTERS,
+            FunctionCode::ReadInputRegisters => constants::READ_INPUT_REGISTERS,
+            FunctionCode::WriteSingleCoil => constants::WRITE_SINGLE_COIL,
+            FunctionCode::WriteSingleRegister => constants::WRITE_SINGLE_REGISTER,
+            FunctionCode::WriteMultipleCoils => constants::WRITE_MULTIPLE_COILS,
+            FunctionCode::WriteMultipleRegisters => constants::WRITE_MULTIPLE_REGISTERS,
+        }
     }
 
     pub(crate) const fn as_error(self) -> u8 {

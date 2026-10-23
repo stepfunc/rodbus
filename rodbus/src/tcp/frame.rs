@@ -51,7 +51,7 @@ impl MbapParser {
         let tx_id = TxId::new(cursor.read_u16_be()?);
         let protocol_id = cursor.read_u16_be()?;
         let len_field = cursor.read_u16_be()?;
-        let length = len_field as usize;
+        let length = usize::from(len_field);
         let unit_id = UnitId::new(cursor.read_u8()?);
 
         if protocol_id != 0 {

@@ -5,7 +5,7 @@
 // Directive (EU) 2019/790 Art. 4(3), subject to LICENSE.txt Section 3.3.
 
 pub(crate) fn num_bytes_for_bits(count: u16) -> usize {
-    (count as usize).div_ceil(8)
+    usize::from(count).div_ceil(8)
 }
 
 #[cfg(test)]

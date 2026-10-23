@@ -63,9 +63,9 @@ impl ReadBuffer {
     }
 
     pub(crate) fn read_u16_be(&mut self) -> Result<u16, InternalError> {
-        let b1 = self.read_u8()? as u16;
-        let b2 = self.read_u8()? as u16;
-        Ok((b1 << 8) | b2)
+        let high = self.read_u8()?;
+        let low = self.read_u8()?;
+        Ok(u16::from_be_bytes([high, low]))
     }
 
     pub(crate) async fn read_some(
