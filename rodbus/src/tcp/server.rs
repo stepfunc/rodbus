@@ -121,8 +121,8 @@ impl TcpServerConnectionHandler {
     }
 }
 
-/// Create a server handle and the task that serves `listener`, with the task's command receiver and
-/// shutdown signal
+/// Create a server handle and the task that serves `listener`, which receives the handle's
+/// commands and shutdown request
 pub(crate) fn new_server<T: RequestHandler, L: Listen>(
     max_sessions: usize,
     listener: L,
@@ -130,30 +130,25 @@ pub(crate) fn new_server<T: RequestHandler, L: Listen>(
     connection_handler: TcpServerConnectionHandler,
     filter: AddressFilter,
     decode: DecodeLevel,
-) -> (
-    ServerHandle,
-    ServerTask<T, L>,
-    tokio::sync::mpsc::Receiver<ServerCommand>,
-    ShutdownSignal,
-) {
+) -> (ServerHandle, ServerTask<T, L>) {
     let (tx, rx) = tokio::sync::mpsc::channel(SERVER_COMMAND_CHANNEL_CAPACITY);
     let (shutdown, signal) = crate::common::cancellation::pair();
-    let task = ServerTask::new(
-        max_sessions,
-        listener,
-        handlers,
+    let task = ServerTask {
+        acceptor: Acceptor::new(listener),
         connection_handler,
         filter,
-        decode,
-        signal.clone(),
-    );
-    (ServerHandle::new(tx, shutdown), task, rx, signal)
+        commands: rx,
+        sessions: Sessions::new(max_sessions, handlers, decode, signal),
+    };
+    (ServerHandle::new(tx, shutdown), task)
 }
 
 pub(crate) struct ServerTask<T: RequestHandler, L = TcpListener> {
     acceptor: Acceptor<L>,
     connection_handler: TcpServerConnectionHandler,
     filter: AddressFilter,
+    /// commands from the handle, which closes when the handle is dropped
+    commands: tokio::sync::mpsc::Receiver<ServerCommand>,
     sessions: Sessions<T>,
 }
 
@@ -162,37 +157,18 @@ where
     T: RequestHandler,
     L: Listen,
 {
-    pub(crate) fn new(
-        max_sessions: usize,
-        listener: L,
-        handlers: ServerHandlerMap<T>,
-        connection_handler: TcpServerConnectionHandler,
-        filter: AddressFilter,
-        decode: DecodeLevel,
-        shutdown: ShutdownSignal,
-    ) -> Self {
-        Self {
-            acceptor: Acceptor::new(listener),
-            connection_handler,
-            filter,
-            sessions: Sessions::new(max_sessions, handlers, decode, shutdown),
-        }
-    }
-
     /// Run until the handle is dropped or shutdown is requested
-    pub(crate) async fn run_until_shutdown(
-        &mut self,
-        commands: tokio::sync::mpsc::Receiver<ServerCommand>,
-        shutdown: &ShutdownSignal,
-    ) {
-        shutdown.run_until_cancelled(self.run(commands)).await;
+    pub(crate) async fn run_until_shutdown(&mut self) {
+        // the sessions' signal, cloned because `run` borrows the whole task
+        let shutdown = self.sessions.shutdown.clone();
+        shutdown.run_until_cancelled(self.run()).await;
     }
 
-    async fn run(&mut self, mut commands: tokio::sync::mpsc::Receiver<ServerCommand>) {
+    async fn run(&mut self) {
         loop {
             let Some((socket, addr)) = self
                 .sessions
-                .serve(&mut commands, self.acceptor.accept())
+                .serve(&mut self.commands, self.acceptor.accept())
                 .await
             else {
                 return;
@@ -213,7 +189,7 @@ where
             // connection that completes it becomes a session and can displace another
             let Some(result) = self
                 .sessions
-                .serve(&mut commands, self.connection_handler.handle(socket))
+                .serve(&mut self.commands, self.connection_handler.handle(socket))
                 .await
             else {
                 return;
@@ -400,7 +376,7 @@ mod tests {
         filter: AddressFilter,
         handlers: ServerHandlerMap<T>,
     ) -> (crate::server::ServerHandle, tokio::task::JoinHandle<()>) {
-        let (handle, task, commands, signal) = new_server(
+        let (handle, task) = new_server(
             max_sessions,
             listener,
             handlers,
@@ -408,7 +384,7 @@ mod tests {
             filter,
             DecodeLevel::nothing(),
         );
-        let task = crate::server::ServerTask::memory(task, commands, signal);
+        let task = crate::server::ServerTask::memory(task);
         (handle, tokio::spawn(task.run()))
     }
 
