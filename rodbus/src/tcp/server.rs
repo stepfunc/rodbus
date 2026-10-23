@@ -317,10 +317,11 @@ mod tests {
     use crate::common::test_support::watchdog;
     use crate::server::create_tcp_server_task;
     use crate::tcp::accept::test_util::{
-        expect_attempt_gaps, Fault, FaultyListener, RESET, UNKNOWN,
+        expect_attempt_gaps, Fault, FaultyListener, Peers, RESET, UNKNOWN,
     };
     use crate::tcp::accept::ACCEPT_ERROR_DELAY;
     use crate::UnitId;
+    use std::net::{IpAddr, Ipv4Addr};
     use std::time::Duration;
     use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 
@@ -353,16 +354,21 @@ mod tests {
     fn spawn_server_on(
         listener: FaultyListener,
     ) -> (crate::server::ServerHandle, tokio::task::JoinHandle<()>) {
-        spawn_server_with(listener, TcpServerConnectionHandler::Tcp)
+        spawn_server_with(
+            listener,
+            TcpServerConnectionHandler::Tcp,
+            AddressFilter::Any,
+        )
     }
 
-    /// Spawn a server with one session on `listener`, wired as `create_tcp_server_task` wires it
-    /// and run by `ServerTask::run`
+    /// Spawn a server with one session on `listener` that admits the peers `filter` matches,
+    /// wired as `create_tcp_server_task` wires it and run by `ServerTask::run`
     fn spawn_server_with(
         listener: FaultyListener,
         connection_handler: TcpServerConnectionHandler,
+        filter: AddressFilter,
     ) -> (crate::server::ServerHandle, tokio::task::JoinHandle<()>) {
-        spawn_server_for(1, listener, connection_handler, handlers())
+        spawn_server_for(1, listener, connection_handler, filter, handlers())
     }
 
     /// Spawn a server for `handlers` with up to `max_sessions`, as [`spawn_server_with`] does
@@ -370,6 +376,7 @@ mod tests {
         max_sessions: usize,
         listener: FaultyListener,
         connection_handler: TcpServerConnectionHandler,
+        filter: AddressFilter,
         handlers: ServerHandlerMap<T>,
     ) -> (crate::server::ServerHandle, tokio::task::JoinHandle<()>) {
         let (tx, rx) = tokio::sync::mpsc::channel(1);
@@ -379,7 +386,7 @@ mod tests {
             listener,
             handlers,
             connection_handler,
-            AddressFilter::Any,
+            filter,
             DecodeLevel::nothing(),
             signal.clone(),
         );
@@ -497,8 +504,13 @@ mod tests {
     async fn a_session_ended_by_a_bad_frame_frees_its_slot_for_the_next_connection() {
         watchdog(async {
             let (listener, mut peers) = FaultyListener::new(&[]);
-            let (_handle, _task) =
-                spawn_server_for(2, listener, TcpServerConnectionHandler::Tcp, handlers());
+            let (_handle, _task) = spawn_server_for(
+                2,
+                listener,
+                TcpServerConnectionHandler::Tcp,
+                AddressFilter::Any,
+                handlers(),
+            );
             let (mut first, _) = peers.connect();
             assert_eq!(read_coils(&mut first).await, ILLEGAL_FUNCTION);
 
@@ -620,6 +632,61 @@ mod tests {
                 count += 1;
             }
             assert!(count < RESETS.len(), "{count}");
+        })
+        .await;
+    }
+
+    /// The address that [`admits_one_address`] admits
+    const ADMITTED: Ipv4Addr = Ipv4Addr::LOCALHOST;
+    /// An address that [`admits_one_address`] refuses
+    const REFUSED: Ipv4Addr = Ipv4Addr::new(192, 168, 0, 9);
+
+    /// A filter that admits only [`ADMITTED`]
+    fn admits_one_address() -> AddressFilter {
+        AddressFilter::Exact(IpAddr::V4(ADMITTED))
+    }
+
+    /// A plain TCP server with one session, filtered by [`admits_one_address`]
+    fn spawn_filtered_server() -> (
+        crate::server::ServerHandle,
+        tokio::task::JoinHandle<()>,
+        Peers,
+    ) {
+        let (listener, peers) = FaultyListener::new(&[]);
+        let (handle, task) = spawn_server_with(
+            listener,
+            TcpServerConnectionHandler::Tcp,
+            admits_one_address(),
+        );
+        (handle, task, peers)
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_peer_the_filter_refuses_is_closed_without_an_answer() {
+        watchdog(async {
+            let (_handle, _task, mut peers) = spawn_filtered_server();
+            let (mut refused, _) = peers.connect_from(REFUSED.into());
+            refused.write_all(&READ_COILS).await.unwrap();
+            assert_eq!(read_to_close(&mut refused).await, []);
+
+            let (mut admitted, _) = peers.connect_from(ADMITTED.into());
+            assert_eq!(read_coils(&mut admitted).await, ILLEGAL_FUNCTION);
+        })
+        .await;
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_peer_the_filter_refuses_doesnt_displace_a_session() {
+        watchdog(async {
+            let (_handle, _task, mut peers) = spawn_filtered_server();
+            let (mut admitted, _) = peers.connect_from(ADMITTED.into());
+            assert_eq!(read_coils(&mut admitted).await, ILLEGAL_FUNCTION);
+
+            let (mut refused, _) = peers.connect_from(REFUSED.into());
+            refused.write_all(&READ_COILS).await.unwrap();
+            assert_eq!(read_to_close(&mut refused).await, []);
+
+            assert_eq!(read_coils(&mut admitted).await, ILLEGAL_FUNCTION);
         })
         .await;
     }
@@ -807,6 +874,7 @@ mod tests {
                 1,
                 listener,
                 TcpServerConnectionHandler::Tcp,
+                AddressFilter::Any,
                 ServerHandlerMap::single(UnitId::new(1), handler.clone()),
             );
             let (mut client, _) = peers.connect();
@@ -839,7 +907,6 @@ mod tests {
     #[cfg(feature = "enable-tls")]
     mod tls {
         use super::*;
-        use crate::tcp::accept::test_util::Peers;
         use crate::tcp::tls::test_util::{
             both_versions, connect, handshake_as_client, server_config,
         };
@@ -855,10 +922,16 @@ mod tests {
 
         /// A TLS server with one session, over in-memory connections
         fn spawn_tls_server() -> Server {
+            spawn_tls_server_with(AddressFilter::Any)
+        }
+
+        /// A TLS server with one session that admits the peers `filter` matches
+        fn spawn_tls_server_with(filter: AddressFilter) -> Server {
             let (listener, peers) = FaultyListener::new(&[]);
             let (handle, task) = spawn_server_with(
                 listener,
                 TcpServerConnectionHandler::Tls(server_config(MinTlsVersion::V1_2), None),
+                filter,
             );
             Server {
                 handle,
@@ -868,9 +941,16 @@ mod tests {
         }
 
         impl Server {
-            /// Connect a peer, and return it once the server has accepted it, with when it did
+            /// Connect a peer from 127.0.0.1, and return it once the server has accepted it,
+            /// with when it did
             async fn connect(&mut self) -> (DuplexStream, Instant) {
-                let (stream, addr) = self.peers.connect();
+                self.connect_from(Ipv4Addr::LOCALHOST.into()).await
+            }
+
+            /// Connect a peer from `ip`, and return it once the server has accepted it, with
+            /// when it did
+            async fn connect_from(&mut self, ip: IpAddr) -> (DuplexStream, Instant) {
+                let (stream, addr) = self.peers.connect_from(ip);
                 let accepted_at = self.peers.accepts(addr).await;
                 (stream, accepted_at)
             }
@@ -932,6 +1012,21 @@ mod tests {
                 read_to_close(&mut plain).await;
                 assert_eq!(accepted_at.elapsed(), Duration::ZERO);
 
+                assert_eq!(read_coils(&mut client).await, ILLEGAL_FUNCTION);
+            })
+            .await;
+        }
+
+        #[tokio::test(start_paused = true)]
+        async fn a_peer_the_filter_refuses_is_closed_before_a_handshake() {
+            watchdog(async {
+                let mut server = spawn_tls_server_with(admits_one_address());
+                // a peer that never sends its ClientHello is closed without waiting for one
+                let (mut refused, accepted_at) = server.connect_from(REFUSED.into()).await;
+                assert_eq!(read_to_close(&mut refused).await, []);
+                assert_eq!(accepted_at.elapsed(), Duration::ZERO);
+
+                let mut client = server.connect_tls().await;
                 assert_eq!(read_coils(&mut client).await, ILLEGAL_FUNCTION);
             })
             .await;
