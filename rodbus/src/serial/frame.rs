@@ -128,6 +128,7 @@ impl RtuParser {
     }
 
     /// Read the frame at the start of the buffer, consuming it once it is complete
+    #[cfg_attr(all(test, rodbus_no_panic), no_panic::no_panic)]
     pub(crate) fn parse(
         &self,
         cursor: &mut ReadBuffer,

@@ -90,6 +90,7 @@ impl MbapParser {
         Ok(frame)
     }
 
+    #[cfg_attr(all(test, rodbus_no_panic), no_panic::no_panic)]
     pub(crate) fn parse(
         &mut self,
         cursor: &mut ReadBuffer,

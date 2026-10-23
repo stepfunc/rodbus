@@ -22,6 +22,7 @@ written license terms and authorizations govern.
 - Format code: `cargo fmt --all`
 - Check lints: `cargo clippy --workspace --all-targets -- -D warnings`; CI also runs clippy on `rodbus` for each feature set in `.github/workflows/ci.yml`
 - Logging: the examples log at `INFO`, set in their `main` (`RUST_LOG` has no effect)
+- No-panic check: `RUSTFLAGS="--cfg rodbus_no_panic" CARGO_PROFILE_RELEASE_LTO=thin CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1 cargo +1.99 test -p rodbus --lib --release --no-run` (the toolchain CI pins; use a separate `CARGO_TARGET_DIR`). A link error names a function marked `no_panic` that the optimizer couldn't prove panic-free; see `rodbus/src/no_panic_check.rs`. Logging and async I/O are outside the proof
 - Semver: CI's `semver` job checks every PR against its base; locally, `cargo semver-checks -p rodbus --baseline-rev origin/main --only-explicit-features --features default,ffi,serialization --release-type minor` (with a separate `CARGO_TARGET_DIR`)
 - Releases: see `RELEASING.md`
 

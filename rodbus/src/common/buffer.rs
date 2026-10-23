@@ -38,6 +38,7 @@ impl ReadBuffer {
         self.begin == self.end
     }
 
+    #[cfg_attr(all(test, rodbus_no_panic), no_panic::no_panic)]
     pub(crate) fn read(&mut self, count: usize) -> Result<&[u8], InternalError> {
         let insufficient = InternalError::InsufficientBytesForRead(count, self.len());
         let end = match self.begin.checked_add(count) {
@@ -49,6 +50,7 @@ impl ReadBuffer {
         Ok(ret)
     }
 
+    #[cfg_attr(all(test, rodbus_no_panic), no_panic::no_panic)]
     pub(crate) fn read_u8(&mut self) -> Result<u8, InternalError> {
         match self.read(1)? {
             [byte] => Ok(*byte),
@@ -68,28 +70,46 @@ impl ReadBuffer {
         Ok(u16::from_be_bytes([high, low]))
     }
 
-    pub(crate) async fn read_some(
-        &mut self,
-        io: &mut PhysLayer,
-        decode_level: PhysDecodeLevel,
-    ) -> Result<usize, std::io::Error> {
-        // before we read any data, check to see if the buffer is empty and adjust the indices
-        // this allows use to make the biggest read possible, and avoids subsequent buffer shifting later
+    /// The space after the unread bytes, moving them to the front first when the buffer is full
+    ///
+    /// An empty buffer starts over at the front, which allows the biggest read possible and avoids
+    /// moving bytes later.
+    #[cfg_attr(all(test, rodbus_no_panic), no_panic::no_panic)]
+    fn free_space(&mut self) -> &mut [u8] {
         if self.is_empty() {
             self.begin = 0;
             self.end = 0;
         }
 
         // if we've reached capacity, but still need more data we have to shift
-        if self.end == self.buffer.len() {
+        if self.end == self.buffer.len() && self.begin <= self.end {
             let length = self.len();
             self.buffer.copy_within(self.begin..self.end, 0);
             self.begin = 0;
             self.end = length;
         }
 
-        let free = self.buffer.get_mut(self.end..).unwrap_or_default();
-        let count = io.read(free, decode_level).await?;
+        self.buffer.get_mut(self.end..).unwrap_or_default()
+    }
+
+    /// Append as much of `data` as fits, as a read would, returning how much was taken
+    #[cfg(all(test, rodbus_no_panic))]
+    pub(crate) fn fill(&mut self, data: &[u8]) -> usize {
+        let mut count: usize = 0;
+        for (dest, src) in self.free_space().iter_mut().zip(data) {
+            *dest = *src;
+            count = count.saturating_add(1);
+        }
+        self.end = self.end.saturating_add(count);
+        count
+    }
+
+    pub(crate) async fn read_some(
+        &mut self,
+        io: &mut PhysLayer,
+        decode_level: PhysDecodeLevel,
+    ) -> Result<usize, std::io::Error> {
+        let count = io.read(self.free_space(), decode_level).await?;
 
         if count == 0 {
             return Err(std::io::Error::from(std::io::ErrorKind::UnexpectedEof));
