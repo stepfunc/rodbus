@@ -37,6 +37,13 @@ To stay up to date:
   [GitHub Security Advisories RSS feed](https://github.blog/changelog/2022-10-25-syndicate-github-security-advisories-with-rss/)
 - Use tools like `cargo audit` or your organization's OSS scanners
 
+## How the Library Is Hardened
+
+The [security page](https://docs.stepfunc.io/rodbus/1.6.0-M3/guide/docs/security) of the guide
+describes the engineering measures: memory safety, the lints that restrict sources of panics, the
+link-time proof that framing, request validation and the parsing of response values can't panic,
+bounded resources, protocol validation and the TLS trust model, and what they don't cover.
+
 ## Supply Chain Security
 
 We take supply chain security seriously and have implemented the following measures:

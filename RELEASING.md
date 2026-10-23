@@ -17,6 +17,8 @@ NEW=1.5.0
 grep -rln "$OLD" --include="*.toml" --include="*.txt" --include="*.json" \
   --include="*.csproj" --include="*.xml" . | grep -v Cargo.lock | \
   while read f; do sed -i "s/${OLD//./\\.}/$NEW/g" "$f"; done
+# The crate README and SECURITY.md link to the guide for the current version.
+sed -i "s/${OLD//./\\.}/$NEW/g" rodbus/README.md SECURITY.md
 
 # Pull in the latest semver-compatible dependency versions. The FFI binaries
 # ship compiled against whatever is in Cargo.lock, so bake in the latest patches
