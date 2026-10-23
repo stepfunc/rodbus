@@ -30,6 +30,7 @@ pub(crate) enum Request<'a> {
 }
 
 /// The requests that can be broadcast: the writes
+#[cfg(feature = "serial")]
 #[derive(Debug)]
 pub(crate) enum BroadcastWrite<'a> {
     SingleCoil(Indexed<bool>),
@@ -38,6 +39,7 @@ pub(crate) enum BroadcastWrite<'a> {
     MultipleRegisters(WriteRegisters<'a>),
 }
 
+#[cfg(feature = "serial")]
 impl<'a> BroadcastWrite<'a> {
     /// Execute a broadcast write against the handler; nothing replies to a broadcast, so an
     /// exception from the handler goes nowhere
@@ -65,6 +67,7 @@ impl<'a> Request<'a> {
         }
     }
 
+    #[cfg(feature = "serial")]
     pub(crate) fn into_broadcast_write(self) -> Option<BroadcastWrite<'a>> {
         match self {
             Request::ReadCoils(_) => None,

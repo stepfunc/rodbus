@@ -64,32 +64,6 @@ where
         }
     }
 
-    async fn reply_with_error(
-        &mut self,
-        io: &mut PhysLayer,
-        header: FrameHeader,
-        func: FunctionCode,
-        ex: ExceptionCode,
-    ) -> Result<(), RequestError> {
-        self.reply_with_error_generic(io, header, FunctionField::Exception(func), ex)
-            .await
-    }
-
-    async fn reply_with_error_generic(
-        &mut self,
-        io: &mut PhysLayer,
-        header: FrameHeader,
-        func: FunctionField,
-        ex: ExceptionCode,
-    ) -> Result<(), RequestError> {
-        // do not answer on broadcast
-        if header.destination() != FrameDestination::Broadcast {
-            let bytes = self.writer.format_ex(header, func, ex, self.decode)?;
-            io.write(bytes, self.decode.physical).await?;
-        }
-        Ok(())
-    }
-
     /// Serve requests over `io` until the session ends, leaving no partial frame behind for the
     /// next
     pub(crate) async fn run(&mut self, io: &mut PhysLayer) -> RequestError {
@@ -150,105 +124,113 @@ where
         }
     }
 
+    /// Answers a request to a unit this session serves; executes a broadcast write without a
+    /// reply; ignores everything else, whatever it holds
     async fn handle_frame(&mut self, io: &mut PhysLayer, frame: Frame) -> Result<(), RequestError> {
-        let mut cursor = ReadCursor::new(frame.payload());
-
-        let function = match cursor.read_u8() {
-            Err(_) => {
-                tracing::warn!("received an empty frame");
-                return Ok(());
-            }
-            Ok(value) => match FunctionCode::get(value) {
-                Some(x) => x,
-                None => {
-                    tracing::warn!("received unknown function code: {}", value);
-                    return self
-                        .reply_with_error_generic(
-                            io,
-                            frame.header,
-                            FunctionField::unknown(value),
-                            ExceptionCode::IllegalFunction,
-                        )
-                        .await;
-                }
-            },
-        };
-
-        let request = match Request::parse(function, &mut cursor) {
-            Ok(x) => x,
-            Err(err) => {
-                tracing::warn!("error parsing {:?} request: {}", function, err);
-                return self
-                    .reply_with_error(io, frame.header, function, ExceptionCode::IllegalDataValue)
-                    .await;
-            }
-        };
-
-        if self.decode.app.enabled() {
-            tracing::info!(
-                "PDU RX - {}",
-                RequestDisplay::new(self.decode.app, &request)
-            );
-        }
-
-        // check authorization
-        if let Authorization::Deny = self
-            .auth
-            .is_authorized(frame.header.destination().into_unit_id(), &request)
-        {
-            if !frame.header.destination().is_broadcast() {
-                self.reply_with_error(
-                    io,
-                    frame.header,
-                    request.get_function(),
-                    ExceptionCode::IllegalFunction,
-                )
-                .await?;
-            }
-            return Ok(());
-        }
-
-        // if no addresses match, then don't respond
+        let mut pdu = ReadCursor::new(frame.payload());
         match frame.header.destination() {
             FrameDestination::UnitId(unit_id) => {
-                let handler = match self.handlers.get(unit_id) {
-                    None => {
-                        match frame.header {
-                            // on a shared serial line every server sees the requests to the others
-                            #[cfg(feature = "serial")]
-                            FrameHeader::Rtu(_) => {
-                                tracing::debug!("ignoring a request for unit id: {}", unit_id)
-                            }
-                            FrameHeader::Tcp { .. } => {
-                                tracing::warn!("received frame for unmapped unit id: {}", unit_id)
-                            }
+                let Some(handler) = self.handlers.get(unit_id) else {
+                    match frame.header {
+                        // on a shared serial line every server sees the requests to the others
+                        #[cfg(feature = "serial")]
+                        FrameHeader::Rtu(_) => {
+                            tracing::debug!("ignoring a request for unit id: {}", unit_id)
                         }
-                        return Ok(());
+                        FrameHeader::Tcp { .. } => {
+                            tracing::warn!("received frame for unmapped unit id: {}", unit_id)
+                        }
                     }
-                    Some(handler) => handler,
+                    return Ok(());
                 };
-                // get the reply data (or exception reply)
-                let reply: &[u8] = request.get_reply(
-                    frame.header,
-                    lock_handler(handler).as_mut(),
-                    &mut self.writer,
-                    self.decode,
-                )?;
+                let reply = match accept(&self.auth, unit_id, &mut pdu, self.decode) {
+                    Ok(request) => request.get_reply(
+                        frame.header,
+                        lock_handler(handler).as_mut(),
+                        &mut self.writer,
+                        self.decode,
+                    )?,
+                    Err(Refusal::Empty) => return Ok(()),
+                    Err(Refusal::Exception(function, ex)) => {
+                        self.writer
+                            .format_ex(frame.header, function, ex, self.decode)?
+                    }
+                };
                 io.write(reply, self.decode.physical).await?;
             }
-            FrameDestination::Broadcast => match request.into_broadcast_write() {
-                None => {
-                    tracing::warn!("broadcast is not supported for {}", function);
-                }
-                Some(request) => {
-                    for handler in self.handlers.iter_mut() {
-                        request.execute(lock_handler(handler).as_mut());
+            // nothing answers a broadcast, so a refused one is only dropped
+            #[cfg(feature = "serial")]
+            FrameDestination::Broadcast => {
+                let Ok(request) = accept(&self.auth, UnitId::broadcast(), &mut pdu, self.decode)
+                else {
+                    return Ok(());
+                };
+                let function = request.get_function();
+                match request.into_broadcast_write() {
+                    None => {
+                        tracing::warn!("broadcast is not supported for {}", function);
+                    }
+                    Some(request) => {
+                        for handler in self.handlers.iter_mut() {
+                            request.execute(lock_handler(handler).as_mut());
+                        }
                     }
                 }
-            },
+            }
         }
 
         Ok(())
+    }
+}
+
+/// Why a request is refused before any handler sees it
+enum Refusal {
+    /// The frame holds no function code, so there is nothing to answer
+    Empty,
+    /// Answered, unless broadcast, with this exception
+    Exception(FunctionField, ExceptionCode),
+}
+
+/// Parses the request in a frame's `pdu`, addressed to `unit_id`, and checks that it's authorized
+fn accept<'a>(
+    auth: &AuthorizationType,
+    unit_id: UnitId,
+    pdu: &'a mut ReadCursor,
+    decode: DecodeLevel,
+) -> Result<Request<'a>, Refusal> {
+    let Ok(value) = pdu.read_u8() else {
+        tracing::warn!("received an empty frame");
+        return Err(Refusal::Empty);
+    };
+    let Some(function) = FunctionCode::get(value) else {
+        tracing::warn!("received unknown function code: {}", value);
+        return Err(Refusal::Exception(
+            FunctionField::unknown(value),
+            ExceptionCode::IllegalFunction,
+        ));
+    };
+
+    let request = match Request::parse(function, pdu) {
+        Ok(x) => x,
+        Err(err) => {
+            tracing::warn!("error parsing {:?} request: {}", function, err);
+            return Err(Refusal::Exception(
+                FunctionField::Exception(function),
+                ExceptionCode::IllegalDataValue,
+            ));
+        }
+    };
+
+    if decode.app.enabled() {
+        tracing::info!("PDU RX - {}", RequestDisplay::new(decode.app, &request));
+    }
+
+    match auth.is_authorized(unit_id, &request) {
+        Authorization::Allow => Ok(request),
+        Authorization::Deny => Err(Refusal::Exception(
+            FunctionField::Exception(function),
+            ExceptionCode::IllegalFunction,
+        )),
     }
 }
 
@@ -726,6 +708,42 @@ mod tests {
         .await;
     }
 
+    /// Requests to [`UNSERVED`], which the sessions below don't serve, that every framing carries:
+    /// none of them gets a reply or reaches a handler, whether it's valid or not
+    const TO_AN_UNSERVED_UNIT: [&[u8]; 3] = [
+        // a valid read
+        &[0x03, 0x00, 0x10, 0x00, 0x01],
+        // a read of no registers
+        &[0x03, 0x00, 0x10, 0x00, 0x00],
+        // a coil write whose value is neither on nor off
+        &[0x05, 0x00, 0x20, 0x12, 0x34],
+    ];
+
+    /// The unit the requests of [`TO_AN_UNSERVED_UNIT`] address, which the sessions below don't
+    /// serve
+    const UNSERVED: u8 = 2;
+
+    #[tokio::test]
+    async fn tcp_requests_to_a_unit_not_served_get_no_reply_whatever_they_hold() {
+        crate::common::test_support::watchdog(async {
+            // MBAP framing also carries a function the server doesn't implement
+            let tcp_only: [&[u8]; 1] = [&[0x07]];
+            for request in TO_AN_UNSERVED_UNIT.into_iter().chain(tcp_only) {
+                let (mut peer, calls) = tcp_session(&[1]);
+                peer.write_all(&mbap(1, UNSERVED, request)).await.unwrap();
+                // the first reply is to a read sent afterwards, to the served unit
+                let read = mbap(2, 1, &[0x03, 0x00, 0x10, 0x00, 0x01]);
+                assert_eq!(
+                    exchange(&mut peer, &read, 11).await,
+                    mbap(2, 1, &[0x03, 0x02, 0x01, 0x10])
+                );
+                assert_nothing_more_was_sent(peer).await;
+                assert_eq!(*calls.lock().unwrap(), [Call::Read(1, 0x10)]);
+            }
+        })
+        .await;
+    }
+
     #[tokio::test]
     async fn an_mbap_frame_without_a_pdu_gets_no_reply_and_the_session_continues() {
         crate::common::test_support::watchdog(async {
@@ -899,6 +917,44 @@ mod tests {
             })
             .await;
         }
+
+        #[tokio::test]
+        async fn a_request_to_a_unit_not_served_is_neither_authorized_nor_answered() {
+            crate::common::test_support::watchdog(async {
+                // read coils is denied, read discrete inputs allowed
+                let [denied, allowed, ..] = &REQUESTS;
+                for request in [denied, allowed] {
+                    let (authorizer, checks) = Recorder::denying(&DENIED);
+                    let (mut peer, calls) = spawn_session(
+                        &[UNIT],
+                        AuthorizationType::Handler(authorizer, ROLE.to_string()),
+                        FrameWriter::tcp(),
+                        FramedReader::tcp(),
+                    );
+                    peer.write_all(&mbap(1, UNSERVED, request.request))
+                        .await
+                        .unwrap();
+                    // the first reply is to an allowed read sent afterwards, to the served unit
+                    let reply = mbap(2, UNIT, allowed.reply);
+                    assert_eq!(
+                        exchange(&mut peer, &mbap(2, UNIT, allowed.request), reply.len()).await,
+                        reply
+                    );
+                    assert_nothing_more_was_sent(peer).await;
+                    assert_eq!(
+                        take(&checks),
+                        [Check {
+                            function: allowed.function,
+                            unit: UnitId::new(UNIT),
+                            target: allowed.target,
+                            role: ROLE.to_string(),
+                        }]
+                    );
+                    assert_eq!(take(&calls), allowed.calls);
+                }
+            })
+            .await;
+        }
     }
 
     #[cfg(feature = "serial")]
@@ -938,6 +994,24 @@ mod tests {
             exchange(peer, &request, 7).await,
             with_crc(&[1, 0x03, 0x02, 0x01, 0x10])
         );
+    }
+
+    #[cfg(feature = "serial")]
+    #[tokio::test]
+    async fn rtu_requests_to_a_unit_not_served_get_no_reply_whatever_they_hold() {
+        crate::common::test_support::watchdog(async {
+            for request in TO_AN_UNSERVED_UNIT {
+                let (mut peer, calls) = rtu_session(&[1], AuthorizationType::None);
+                peer.write_all(&with_crc(&[&[UNSERVED], request].concat()))
+                    .await
+                    .unwrap();
+                assert_nothing_was_sent(&mut peer).await;
+                assert_nothing_more_was_sent(peer).await;
+                // only the read that checked for silence reached a handler
+                assert_eq!(*calls.lock().unwrap(), [Call::Read(1, 0x10)]);
+            }
+        })
+        .await;
     }
 
     #[cfg(feature = "serial")]

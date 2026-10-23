@@ -66,14 +66,16 @@ fn frames(mut parser: FrameParser, mut data: &[u8]) {
     }
 }
 
-/// a request as the server parses it, and its broadcast form
+/// a request as the server parses it, and its broadcast form, which only RTU carries
 #[no_panic::no_panic]
 fn request(function: FunctionCode, pdu: &[u8]) -> bool {
     let mut cursor = ReadCursor::new(pdu);
     match Request::parse(function, &mut cursor) {
         Ok(request) => {
             std::hint::black_box(request.get_function());
-            request.into_broadcast_write().is_some()
+            #[cfg(feature = "serial")]
+            std::hint::black_box(request.into_broadcast_write().is_some());
+            true
         }
         Err(_) => false,
     }
