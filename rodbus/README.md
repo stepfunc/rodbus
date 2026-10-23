@@ -15,6 +15,13 @@ A high-performance implementation of the [Modbus](http://modbus.org/) protocol u
   - Official support for: Windows x64 and Linux x64, AArch64, ARMv7 and ARMv6
   - Unofficial support: MacOS, PowerPC, MIPS, FreeBSD, and others
 
+# Security
+
+Written in safe Rust, with sources of panics restricted by lints, and framing, request validation and the parsing of
+response values proven panic-free at link time. See the
+[security page](https://docs.stepfunc.io/rodbus/1.6.0-M3/guide/docs/security) of the guide for
+what is enforced and proven, and what isn't covered.
+
 # Supported Modes
 
 * TCP, RTU (serial), and Modbus security (TLS) with and without X.509 extension containing the user role.

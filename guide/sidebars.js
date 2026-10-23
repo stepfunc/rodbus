@@ -9,6 +9,7 @@ module.exports = {
     About: [
         'about/guide',
         'about/modbus',
+        'about/security',
         'about/versioning',
         'about/license',
         'about/dependencies',
