@@ -164,6 +164,9 @@ pub enum Authorization {
 }
 
 /// Authorization handler used in Modbus Security protocol
+///
+/// `role` is the client certificate's Modbus role, which must be a single role extension. The
+/// server refuses a connection whose role contains a NUL character.
 pub trait AuthorizationHandler: Send + Sync + 'static {
     /// Moves an authorization handler implementation into a `Arc<Mutex<Box<AuthorizationHandler>>>`
     /// suitable for passing to the server
