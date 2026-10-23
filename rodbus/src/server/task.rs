@@ -765,6 +765,54 @@ mod tests {
         .await;
     }
 
+    /// A Write Multiple Coils of `count` coils from `start`, all off
+    fn write_coils(start: u16, count: u16) -> Vec<u8> {
+        let len = usize::from(count).div_ceil(8);
+        [
+            &[0x0F][..],
+            &start.to_be_bytes(),
+            &count.to_be_bytes(),
+            &[u8::try_from(len).unwrap()],
+            &vec![0; len],
+        ]
+        .concat()
+    }
+
+    /// Writes of coils at and past the limit of 1968 (MODBUS Application Protocol Specification
+    /// V1.1b3 6.11), which every framing carries, and their replies: 1969 coils get 03, even when
+    /// they also run past 0xFFFF
+    fn coil_write_limits() -> [(Vec<u8>, Vec<u8>); 3] {
+        [
+            (write_coils(0, 1969), vec![0x8F, 0x03]),
+            (write_coils(0xFFF0, 1969), vec![0x8F, 0x03]),
+            (write_coils(0, 1968), vec![0x0F, 0x00, 0x00, 0x07, 0xB0]),
+        ]
+    }
+
+    /// The handler calls of the one write in [`coil_write_limits`] that is accepted
+    fn the_1968_coils_written() -> Vec<Call> {
+        (0..1968)
+            .map(|address| Call::WriteCoil(1, address, false))
+            .collect()
+    }
+
+    #[tokio::test]
+    async fn tcp_writes_of_more_than_1968_coils_are_refused_with_03() {
+        crate::common::test_support::watchdog(async {
+            let (mut peer, calls) = tcp_session(&[1]);
+            for (tx_id, (request, reply)) in (1..).zip(coil_write_limits()) {
+                let reply = mbap(tx_id, 1, &reply);
+                assert_eq!(
+                    exchange(&mut peer, &mbap(tx_id, 1, &request), reply.len()).await,
+                    reply
+                );
+            }
+            assert_nothing_more_was_sent(peer).await;
+            assert_eq!(*calls.lock().unwrap(), the_1968_coils_written());
+        })
+        .await;
+    }
+
     /// Requests to [`UNSERVED`], which the sessions below don't serve, that every framing carries:
     /// none of them gets a reply or reaches a handler, whether it's valid or not
     const TO_AN_UNSERVED_UNIT: [&[u8]; 3] = [
@@ -1059,6 +1107,22 @@ mod tests {
             assert_nothing_was_sent(&mut peer).await;
             assert_nothing_more_was_sent(peer).await;
             assert_eq!(*calls.lock().unwrap(), [Call::Read(1, 0x10)]);
+        })
+        .await;
+    }
+
+    #[cfg(feature = "serial")]
+    #[tokio::test]
+    async fn rtu_writes_of_more_than_1968_coils_are_refused_with_03() {
+        crate::common::test_support::watchdog(async {
+            let (mut peer, calls) = rtu_session(&[1], AuthorizationType::None);
+            for (request, reply) in coil_write_limits() {
+                let reply = with_crc(&[&[1], reply.as_slice()].concat());
+                let request = with_crc(&[&[1], request.as_slice()].concat());
+                assert_eq!(exchange(&mut peer, &request, reply.len()).await, reply);
+            }
+            assert_nothing_more_was_sent(peer).await;
+            assert_eq!(*calls.lock().unwrap(), the_1968_coils_written());
         })
         .await;
     }

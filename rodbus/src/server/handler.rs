@@ -14,8 +14,9 @@ use crate::types::*;
 /// Trait implemented by the user to process requests received from the client
 ///
 /// Implementations do **NOT** need to validate these requests before they're called: the server
-/// answers a request whose length doesn't match its function, whose quantity is zero
-/// or above a read's limit, or whose single coil value isn't ON or OFF with
+/// answers a request whose length doesn't match its function, whose quantity is zero or above
+/// its function's limit (2000 bits or 125 registers for a read, 1968 coils or 123 registers for
+/// a write), or whose single coil value isn't ON or OFF with
 /// [`ExceptionCode::IllegalDataValue`], and one whose values are valid but whose range runs past
 /// address 0xFFFF with [`ExceptionCode::IllegalDataAddress`], without calling the handler.
 ///

@@ -233,17 +233,17 @@ impl std::fmt::Display for RequestDetailsDisplay<'_> {
                     write!(f, "{}", details.request)?;
                 }
                 RequestDetails::WriteMultipleCoils(details) => {
-                    write!(f, "{}", details.request.range)?;
+                    write!(f, "{}", details.request.get().range)?;
                     if self.level.data_values() {
-                        for x in details.request.iter() {
+                        for x in details.request.get().iter() {
                             write!(f, "\n{x}")?;
                         }
                     }
                 }
                 RequestDetails::WriteMultipleRegisters(details) => {
-                    write!(f, "{}", details.request.range)?;
+                    write!(f, "{}", details.request.get().range)?;
                     if self.level.data_values() {
-                        for x in details.request.iter() {
+                        for x in details.request.get().iter() {
                             write!(f, "\n{x}")?;
                         }
                     }
@@ -330,7 +330,9 @@ mod test {
     use crate::client::message::{Promise, Request, RequestDetails};
     use crate::client::requests::read_bits::{self, ReadBits};
     use crate::client::requests::read_registers::{self, ReadRegisters};
-    use crate::client::requests::write_multiple::{MultipleWriteRequest, WriteMultiple};
+    use crate::client::requests::write_multiple::{
+        LimitedWrite, MultipleWriteRequest, WriteMultiple,
+    };
     use crate::client::requests::write_single::SingleWrite;
     use crate::types::{ReadBitsRange, ReadRegistersRange};
     use crate::{
@@ -625,6 +627,7 @@ mod test {
             Sent::WriteMultipleCoils { start, values } => respond_to_write(
                 |promise| {
                     let request = WriteMultiple::from(start, values.to_vec()).unwrap();
+                    let request = LimitedWrite::coils(request).unwrap();
                     RequestDetails::WriteMultipleCoils(MultipleWriteRequest::new(request, promise))
                 },
                 Outcome::Range,
@@ -634,6 +637,7 @@ mod test {
             Sent::WriteMultipleRegisters { start, values } => respond_to_write(
                 |promise| {
                     let request = WriteMultiple::from(start, values.to_vec()).unwrap();
+                    let request = LimitedWrite::registers(request).unwrap();
                     RequestDetails::WriteMultipleRegisters(MultipleWriteRequest::new(
                         request, promise,
                     ))

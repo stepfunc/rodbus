@@ -432,7 +432,7 @@ mod tests {
     use tokio::time::Instant;
 
     use super::*;
-    use crate::client::{Channel, RequestParam, WriteMultiple};
+    use crate::client::{Channel, RequestParam};
     #[cfg(feature = "serial")]
     use crate::common::frame::FrameDestination;
     #[cfg(feature = "serial")]
@@ -740,34 +740,6 @@ mod tests {
             a_read_of_coils_times_out(&channel, &mut second).await;
             // only one timeout in this session, so it is still running
             a_read_of_coils_is_answered(&channel, &mut second).await;
-        })
-        .await;
-    }
-
-    /// A Write Multiple Registers of 124 values needs a PDU of 254 bytes, so formatting it runs out
-    /// of room for the last value before anything is written
-    #[tokio::test(start_paused = true)]
-    async fn a_request_that_cant_be_formatted_fails_alone() {
-        watchdog(async {
-            let (channel, mut session) = Setup::tcp().spawn();
-            let write = WriteMultiple::from(0, vec![0; 124]).unwrap();
-            assert_eq!(
-                channel
-                    .write_multiple_registers(RequestParam::new(UnitId::new(1), TIMEOUT), write)
-                    .await,
-                Err(RequestError::Internal(
-                    InternalError::InsufficientWriteSpace(2, 1)
-                ))
-            );
-
-            // the failed request wrote nothing but used transaction id 0
-            let request = read_coils(&channel);
-            session.expect(&mbap(1, 1, &READ_COILS)).await;
-            session.send(&mbap(1, 1, &COILS_ON_OFF)).await;
-            assert_eq!(
-                request.await.unwrap(),
-                Ok(vec![Indexed::new(7, true), Indexed::new(8, false)])
-            );
         })
         .await;
     }

@@ -9,7 +9,7 @@ use crate::common::function::FunctionCode;
 use crate::common::traits::{Parse, Serialize};
 use crate::decode::AppDecodeLevel;
 use crate::error::RequestError;
-use crate::error::{AduParseError, InvalidRequest};
+use crate::error::{AduParseError, InvalidRange, InvalidRequest};
 use crate::types::{AddressRange, Indexed};
 
 use scursor::{ReadCursor, WriteCursor};
@@ -86,11 +86,52 @@ where
 
 impl<T: Copy> ExactSizeIterator for WriteMultipleIterator<'_, T> {}
 
+/// A [`WriteMultiple`] whose quantity is within the limit of its function, the only form a
+/// request is made from
+#[derive(Debug)]
+pub(crate) struct LimitedWrite<T> {
+    inner: WriteMultiple<T>,
+}
+
+impl<T> LimitedWrite<T> {
+    pub(crate) fn get(&self) -> &WriteMultiple<T> {
+        &self.inner
+    }
+}
+
+impl LimitedWrite<bool> {
+    /// A write of multiple coils, of at most 1968 (MODBUS Application Protocol Specification
+    /// V1.1b3 6.11)
+    pub(crate) fn coils(write: WriteMultiple<bool>) -> Result<Self, InvalidRange> {
+        let range = write.range.of_write_coils()?;
+        Ok(Self {
+            inner: WriteMultiple {
+                range,
+                values: write.values,
+            },
+        })
+    }
+}
+
+impl LimitedWrite<u16> {
+    /// A write of multiple registers, of at most 123 (MODBUS Application Protocol Specification
+    /// V1.1b3 6.12)
+    pub(crate) fn registers(write: WriteMultiple<u16>) -> Result<Self, InvalidRange> {
+        let range = write.range.of_write_registers()?;
+        Ok(Self {
+            inner: WriteMultiple {
+                range,
+                values: write.values,
+            },
+        })
+    }
+}
+
 pub(crate) struct MultipleWriteRequest<T>
 where
     WriteMultiple<T>: Serialize,
 {
-    pub(crate) request: WriteMultiple<T>,
+    pub(crate) request: LimitedWrite<T>,
     promise: Promise<AddressRange>,
 }
 
@@ -98,12 +139,12 @@ impl<T> MultipleWriteRequest<T>
 where
     WriteMultiple<T>: Serialize,
 {
-    pub(crate) fn new(request: WriteMultiple<T>, promise: Promise<AddressRange>) -> Self {
+    pub(crate) fn new(request: LimitedWrite<T>, promise: Promise<AddressRange>) -> Self {
         Self { request, promise }
     }
 
     pub(crate) fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
-        self.request.serialize(cursor)
+        self.request.get().serialize(cursor)
     }
 
     pub(crate) fn failure(&mut self, err: RequestError) {
@@ -130,7 +171,7 @@ where
 
     fn parse_all(&self, mut cursor: ReadCursor) -> Result<AddressRange, RequestError> {
         let range = AddressRange::parse(&mut cursor)?;
-        if range != self.request.range {
+        if range != self.request.get().range {
             return Err(RequestError::BadResponse(AduParseError::ReplyEchoMismatch));
         }
         cursor.expect_empty()?;
@@ -141,6 +182,60 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::client::message::RequestDetails;
+    use crate::common::frame::{FrameWriter, TxId};
+    use crate::types::UnitId;
+    use crate::DecodeLevel;
+
+    /// The length of the frame `writer` formats `request` into
+    fn frame_length(
+        writer: &mut FrameWriter,
+        request: &RequestDetails,
+    ) -> Result<usize, RequestError> {
+        let (_, frame) = writer.format_request(
+            UnitId::new(1),
+            TxId::new(0),
+            request.function(),
+            request,
+            DecodeLevel::nothing(),
+        )?;
+        Ok(frame.len())
+    }
+
+    /// The most values each write carries: 1968 coils in 246 bytes, and 123 registers in 246 bytes,
+    /// both in a PDU of 252 bytes
+    fn largest_writes() -> [RequestDetails; 2] {
+        let coils = WriteMultiple::from(0, vec![true; 1968]).unwrap();
+        let registers = WriteMultiple::from(0, vec![0u16; 123]).unwrap();
+        [
+            RequestDetails::WriteMultipleCoils(MultipleWriteRequest::new(
+                LimitedWrite::coils(coils).unwrap(),
+                Promise::new(|_| {}),
+            )),
+            RequestDetails::WriteMultipleRegisters(MultipleWriteRequest::new(
+                LimitedWrite::registers(registers).unwrap(),
+                Promise::new(|_| {}),
+            )),
+        ]
+    }
+
+    /// The limits are what keep every request that can be made within the largest PDU, 253 bytes
+    #[test]
+    fn the_largest_writes_fit_an_mbap_frame() {
+        for request in largest_writes() {
+            // the MBAP header is 7 bytes
+            assert_eq!(frame_length(&mut FrameWriter::tcp(), &request), Ok(259));
+        }
+    }
+
+    #[cfg(feature = "serial")]
+    #[test]
+    fn the_largest_writes_fit_an_rtu_frame() {
+        for request in largest_writes() {
+            // the unit address before the PDU and the CRC after it
+            assert_eq!(frame_length(&mut FrameWriter::rtu(), &request), Ok(255));
+        }
+    }
 
     #[test]
     fn values_at_the_top_of_the_address_space() {

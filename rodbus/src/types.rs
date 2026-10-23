@@ -318,9 +318,7 @@ impl AddressRange {
     /// before its addresses, so [`InvalidRange::AddressOverflow`] means the count was valid
     pub(crate) fn of_read_bits(self) -> Result<ReadBitsRange, InvalidRange> {
         Ok(ReadBitsRange {
-            inner: self
-                .limited_count(crate::constants::limits::MAX_READ_COILS_COUNT)?
-                .validated()?,
+            inner: self.limited(crate::constants::limits::MAX_READ_COILS_COUNT)?,
         })
     }
 
@@ -328,17 +326,29 @@ impl AddressRange {
     /// addresses, so [`InvalidRange::AddressOverflow`] means the count was valid
     pub(crate) fn of_read_registers(self) -> Result<ReadRegistersRange, InvalidRange> {
         Ok(ReadRegistersRange {
-            inner: self
-                .limited_count(crate::constants::limits::MAX_READ_REGISTERS_COUNT)?
-                .validated()?,
+            inner: self.limited(crate::constants::limits::MAX_READ_REGISTERS_COUNT)?,
         })
     }
 
-    fn limited_count(self, limit: u16) -> Result<Self, InvalidRange> {
+    /// The range of a write of multiple coils: its count is checked against the limit before its
+    /// addresses, so [`InvalidRange::AddressOverflow`] means the count was valid
+    pub(crate) fn of_write_coils(self) -> Result<Self, InvalidRange> {
+        self.limited(crate::constants::limits::MAX_WRITE_COILS_COUNT)
+    }
+
+    /// The range of a write of multiple registers: its count is checked against the limit before
+    /// its addresses, so [`InvalidRange::AddressOverflow`] means the count was valid
+    pub(crate) fn of_write_registers(self) -> Result<Self, InvalidRange> {
+        self.limited(crate::constants::limits::MAX_WRITE_REGISTERS_COUNT)
+    }
+
+    /// The range of a function that carries at most `limit` values: the count against the
+    /// limit, then as [`AddressRange::validated`] checks it
+    fn limited(self, limit: u16) -> Result<Self, InvalidRange> {
         if self.count > limit {
             return Err(InvalidRange::CountTooLargeForType(self.count, limit));
         }
-        Ok(self)
+        self.validated()
     }
 }
 
@@ -748,6 +758,68 @@ mod tests {
             too_many.of_read_registers(),
             Err(InvalidRange::CountTooLargeForType(126, 125))
         );
+    }
+
+    // MODBUS Application Protocol Specification V1.1b3 6.11
+    #[test]
+    fn a_write_of_coils_is_limited_to_1968() {
+        let most = AddressRange::try_from(0, 1968).unwrap();
+        assert_eq!(most.of_write_coils(), Ok(most));
+
+        let too_many = AddressRange::try_from(0, 1969).unwrap();
+        assert_eq!(
+            too_many.of_write_coils(),
+            Err(InvalidRange::CountTooLargeForType(1969, 1968))
+        );
+    }
+
+    // MODBUS Application Protocol Specification V1.1b3 6.12
+    #[test]
+    fn a_write_of_registers_is_limited_to_123() {
+        let most = AddressRange::try_from(0, 123).unwrap();
+        assert_eq!(most.of_write_registers(), Ok(most));
+
+        let too_many = AddressRange::try_from(0, 124).unwrap();
+        assert_eq!(
+            too_many.of_write_registers(),
+            Err(InvalidRange::CountTooLargeForType(124, 123))
+        );
+    }
+
+    // MODBUS Application Protocol Specification V1.1b3 6.11, 6.12: the quantity before the address
+    #[test]
+    fn a_write_past_its_limit_and_past_0xffff_is_refused_for_its_count() {
+        let coils = AddressRange {
+            start: 0xFFF0,
+            count: 1969,
+        };
+        assert_eq!(
+            coils.of_write_coils(),
+            Err(InvalidRange::CountTooLargeForType(1969, 1968))
+        );
+        let registers = AddressRange {
+            start: 0xFFF0,
+            count: 124,
+        };
+        assert_eq!(
+            registers.of_write_registers(),
+            Err(InvalidRange::CountTooLargeForType(124, 123))
+        );
+    }
+
+    #[test]
+    fn a_range_built_from_its_fields_is_checked_when_a_write_is_made() {
+        let overflow = AddressRange {
+            start: 0xFFFF,
+            count: 2,
+        };
+        let error = InvalidRange::AddressOverflow(0xFFFF, 2);
+        assert_eq!(overflow.of_write_coils(), Err(error));
+        assert_eq!(overflow.of_write_registers(), Err(error));
+
+        let empty = AddressRange { start: 0, count: 0 };
+        assert_eq!(empty.of_write_coils(), Err(InvalidRange::CountOfZero));
+        assert_eq!(empty.of_write_registers(), Err(InvalidRange::CountOfZero));
     }
 
     /// `values` yields `expected` and stays exhausted after it, its length counting down to zero

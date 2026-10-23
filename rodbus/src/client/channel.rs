@@ -9,9 +9,10 @@ use std::time::Duration;
 use crate::client::message::{Command, Promise, Request, RequestDetails, Setting};
 use crate::client::requests::read_bits::ReadBits;
 use crate::client::requests::read_registers::ReadRegisters;
-use crate::client::requests::write_multiple::{MultipleWriteRequest, WriteMultiple};
+use crate::client::requests::write_multiple::{LimitedWrite, MultipleWriteRequest, WriteMultiple};
 use crate::client::requests::write_single::SingleWrite;
 use crate::common::cancellation::{ShutdownHandle, ShutdownSignal};
+use crate::common::traits::Serialize;
 use crate::error::*;
 use crate::types::{AddressRange, BitIterator, Indexed, RegisterIterator, UnitId};
 use crate::DecodeLevel;
@@ -321,7 +322,7 @@ impl Channel {
         let request = wrap(
             param,
             RequestDetails::WriteMultipleCoils(MultipleWriteRequest::new(
-                request,
+                LimitedWrite::coils(request)?,
                 Promise::channel(tx),
             )),
         );
@@ -339,7 +340,7 @@ impl Channel {
         let request = wrap(
             param,
             RequestDetails::WriteMultipleRegisters(MultipleWriteRequest::new(
-                request,
+                LimitedWrite::registers(request)?,
                 Promise::channel(tx),
             )),
         );
@@ -461,13 +462,11 @@ impl CallbackSession {
     where
         C: FnOnce(Result<AddressRange, RequestError>) + Send + Sync + 'static,
     {
-        self.send(wrap(
-            self.param,
-            RequestDetails::WriteMultipleRegisters(MultipleWriteRequest::new(
-                value,
-                Promise::new(callback),
-            )),
-        ))
+        self.write_multiple(
+            LimitedWrite::registers(value),
+            callback,
+            RequestDetails::WriteMultipleRegisters,
+        )
         .await;
     }
 
@@ -476,13 +475,11 @@ impl CallbackSession {
     where
         C: FnOnce(Result<AddressRange, RequestError>) + Send + Sync + 'static,
     {
-        self.send(wrap(
-            self.param,
-            RequestDetails::WriteMultipleCoils(MultipleWriteRequest::new(
-                value,
-                Promise::new(callback),
-            )),
-        ))
+        self.write_multiple(
+            LimitedWrite::coils(value),
+            callback,
+            RequestDetails::WriteMultipleCoils,
+        )
         .await;
     }
 
@@ -517,6 +514,28 @@ impl CallbackSession {
         .await;
     }
 
+    async fn write_multiple<T, C, W>(
+        &mut self,
+        write: Result<LimitedWrite<T>, InvalidRange>,
+        callback: C,
+        wrap_req: W,
+    ) where
+        WriteMultiple<T>: Serialize,
+        C: FnOnce(Result<AddressRange, RequestError>) + Send + Sync + 'static,
+        W: Fn(MultipleWriteRequest<T>) -> RequestDetails,
+    {
+        let mut promise = Promise::new(callback);
+        let write = match write {
+            Ok(x) => x,
+            Err(err) => return promise.failure(err.into()),
+        };
+        self.send(wrap(
+            self.param,
+            wrap_req(MultipleWriteRequest::new(write, promise)),
+        ))
+        .await;
+    }
+
     async fn send(&mut self, command: Command) {
         // dropping the command will automatically fail requests with SHUTDOWN
         self.tx.send(command).await.ok();
@@ -525,4 +544,82 @@ impl CallbackSession {
 
 pub(crate) fn wrap(param: RequestParam, details: RequestDetails) -> Command {
     Command::Request(Request::new(param.id, param.response_timeout, details))
+}
+
+#[cfg(test)]
+mod tests {
+    use tokio::sync::mpsc::error::TryRecvError;
+
+    use super::*;
+    use crate::common::test_support::watchdog;
+    use crate::decode::AppDecodeLevel;
+
+    fn param() -> RequestParam {
+        RequestParam::new(UnitId::new(1), Duration::from_secs(1))
+    }
+
+    /// A [`Channel`] with no task: the test is the receiving end of its queue
+    fn channel() -> (Channel, tokio::sync::mpsc::Receiver<Command>) {
+        let (tx, rx) = tokio::sync::mpsc::channel(1);
+        let (shutdown, _) = crate::common::cancellation::pair();
+        (Channel { tx, shutdown }, rx)
+    }
+
+    /// Answers the next request in the queue with `payload`
+    async fn answer(rx: &mut tokio::sync::mpsc::Receiver<Command>, payload: &[u8]) {
+        let Some(Command::Request(mut request)) = rx.recv().await else {
+            panic!("expected a request");
+        };
+        assert_eq!(
+            request.handle_response(payload, AppDecodeLevel::Nothing),
+            Ok(())
+        );
+    }
+
+    fn too_many(count: u16, limit: u16) -> RequestError {
+        RequestError::BadRequest(InvalidRequest::BadRange(
+            InvalidRange::CountTooLargeForType(count, limit),
+        ))
+    }
+
+    // MODBUS Application Protocol Specification V1.1b3 6.11, 6.12
+    #[tokio::test]
+    async fn writes_past_their_limit_are_refused_and_not_queued() {
+        watchdog(async {
+            let (channel, mut rx) = channel();
+            let coils = WriteMultiple::from(0, vec![true; 1969]).unwrap();
+            assert_eq!(
+                channel.write_multiple_coils(param(), coils).await,
+                Err(too_many(1969, 1968))
+            );
+            let registers = WriteMultiple::from(0, vec![0u16; 124]).unwrap();
+            assert_eq!(
+                channel.write_multiple_registers(param(), registers).await,
+                Err(too_many(124, 123))
+            );
+            assert_eq!(rx.try_recv().err(), Some(TryRecvError::Empty));
+        })
+        .await;
+    }
+
+    #[tokio::test]
+    async fn writes_at_their_limit_are_made() {
+        watchdog(async {
+            let (channel, mut rx) = channel();
+            let coils = WriteMultiple::from(0, vec![true; 1968]).unwrap();
+            let (result, ()) = tokio::join!(
+                channel.write_multiple_coils(param(), coils),
+                answer(&mut rx, &[0x0F, 0x00, 0x00, 0x07, 0xB0])
+            );
+            assert_eq!(result, Ok(AddressRange::try_from(0, 1968).unwrap()));
+
+            let registers = WriteMultiple::from(0, vec![0u16; 123]).unwrap();
+            let (result, ()) = tokio::join!(
+                channel.write_multiple_registers(param(), registers),
+                answer(&mut rx, &[0x10, 0x00, 0x00, 0x00, 0x7B])
+            );
+            assert_eq!(result, Ok(AddressRange::try_from(0, 123).unwrap()));
+        })
+        .await;
+    }
 }
