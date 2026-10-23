@@ -208,7 +208,10 @@ impl FrameParser {
         }
     }
 
-    /// Reset the parser state. Called whenever an error occurs
+    /// Forget a partial frame
+    ///
+    /// A parse error leaves the state as it is: the reader is reset as a whole before it is used
+    /// again
     pub(crate) fn reset(&mut self) {
         match self {
             #[cfg(feature = "serial")]
@@ -503,6 +506,10 @@ impl FramedReader {
         }
     }
 
+    /// Read from `io` until a whole frame is buffered, and return it
+    ///
+    /// An error leaves the reader where it occurred, possibly partway through a frame, so reset
+    /// it before reading again; sessions do when they end.
     pub(crate) async fn next_frame(
         &mut self,
         io: &mut PhysLayer,
@@ -517,10 +524,7 @@ impl FramedReader {
                 Ok(None) => {
                     self.buffer.read_some(io, decode_level.physical).await?;
                 }
-                Err(err) => {
-                    self.parser.reset();
-                    return Err(err);
-                }
+                Err(err) => return Err(err),
             }
         }
     }
