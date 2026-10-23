@@ -403,46 +403,52 @@ mod tests {
 
     #[tokio::test]
     async fn task_ends_when_shutdown_requested_with_the_handle_still_alive() {
-        let (handle, task, _addr) = spawn_server();
+        crate::common::test_support::watchdog(async {
+            let (handle, task, _addr) = spawn_server();
 
-        handle.shutdown();
-        tokio::time::timeout(TEST_TIMEOUT, task)
-            .await
-            .unwrap()
-            .unwrap();
+            handle.shutdown();
+            tokio::time::timeout(TEST_TIMEOUT, task)
+                .await
+                .unwrap()
+                .unwrap();
 
-        // the handle outlived the task it terminated
-        handle.shutdown();
+            // the handle outlived the task it terminated
+            handle.shutdown();
+        })
+        .await;
     }
 
     #[tokio::test]
     async fn shutdown_terminates_an_established_session() {
-        let (handle, task, addr) = spawn_server();
+        crate::common::test_support::watchdog(async {
+            let (handle, task, addr) = spawn_server();
 
-        let mut client = tokio::net::TcpStream::connect(addr).await.unwrap();
-        // exchanging a frame proves the session task is running before we shut it down; otherwise
-        // the connection could still be sitting in the accept queue and the EOF below would only
-        // show that the listener closed. The default handler answers with an exception, which is
-        // all we need here -- the reply's contents are irrelevant.
-        tokio::time::timeout(TEST_TIMEOUT, read_coils(&mut client))
-            .await
-            .expect("the server never answered, so the session was not established");
-
-        handle.shutdown();
-
-        // the session drops its socket, which the peer observes as EOF
-        let mut buffer = [0u8; 8];
-        assert_eq!(
-            tokio::time::timeout(TEST_TIMEOUT, client.read(&mut buffer))
+            let mut client = tokio::net::TcpStream::connect(addr).await.unwrap();
+            // exchanging a frame proves the session task is running before we shut it down; otherwise
+            // the connection could still be sitting in the accept queue and the EOF below would only
+            // show that the listener closed. The default handler answers with an exception, which is
+            // all we need here -- the reply's contents are irrelevant.
+            tokio::time::timeout(TEST_TIMEOUT, read_coils(&mut client))
                 .await
-                .expect("shutdown did not terminate the session")
-                .unwrap(),
-            0
-        );
-        tokio::time::timeout(TEST_TIMEOUT, task)
-            .await
-            .unwrap()
-            .unwrap();
+                .expect("the server never answered, so the session was not established");
+
+            handle.shutdown();
+
+            // the session drops its socket, which the peer observes as EOF
+            let mut buffer = [0u8; 8];
+            assert_eq!(
+                tokio::time::timeout(TEST_TIMEOUT, client.read(&mut buffer))
+                    .await
+                    .expect("shutdown did not terminate the session")
+                    .unwrap(),
+                0
+            );
+            tokio::time::timeout(TEST_TIMEOUT, task)
+                .await
+                .unwrap()
+                .unwrap();
+        })
+        .await;
     }
 
     #[tokio::test(start_paused = true)]
