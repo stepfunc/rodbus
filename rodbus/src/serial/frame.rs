@@ -242,6 +242,7 @@ mod tests {
 
     use crate::common::frame::FramedReader;
     use crate::common::phys::PhysLayer;
+    use crate::common::test_support::with_crc;
     use crate::error::InternalError;
     use crate::{AppDecodeLevel, DecodeLevel, PhysDecodeLevel};
 
@@ -472,11 +473,6 @@ mod tests {
     /// The largest PDU, function code included
     const MAX_PDU_LENGTH: usize = 253;
 
-    fn with_crc(frame: &[u8]) -> Vec<u8> {
-        let crc = CRC.checksum(frame);
-        frame.iter().copied().chain(crc.to_le_bytes()).collect()
-    }
-
     fn read_response(function: u8, byte_count: u8) -> Vec<u8> {
         let mut frame = vec![UNIT_ID, function, byte_count];
         frame.extend(std::iter::repeat_n(0xA5, byte_count.into()));
@@ -530,15 +526,19 @@ mod tests {
         Error { chunk: usize, error: RequestError },
     }
 
-    /// The outcome of reading a valid frame that completes on the chunk at this index
-    fn frame_on(chunk: usize, frame: &[u8]) -> Outcome {
-        let destination = match frame[0] {
+    /// The destination of `frame`, from the address it starts with
+    fn destination_of(frame: &[u8]) -> FrameDestination {
+        match frame[0] {
             0 => FrameDestination::Broadcast,
             id => FrameDestination::new_unit_id(id),
-        };
+        }
+    }
+
+    /// The outcome of reading a valid frame that completes on the chunk at this index
+    fn frame_on(chunk: usize, frame: &[u8]) -> Outcome {
         Outcome::Frame {
             chunk,
-            destination,
+            destination: destination_of(frame),
             payload: frame.split_last_chunk::<2>().unwrap().0[1..].to_vec(),
         }
     }
@@ -949,10 +949,7 @@ mod tests {
         let mut buffer: [u8; 300] = [0; 300];
         let mut cursor = WriteCursor::new(&mut buffer);
         cursor.skip(offset).unwrap();
-        let destination = match frame[0] {
-            0 => FrameDestination::Broadcast,
-            id => FrameDestination::new_unit_id(id),
-        };
+        let destination = destination_of(frame);
         let msg = MockMessage { frame };
         let info = format_rtu_pdu(&mut cursor, destination, function, &msg).unwrap();
         let end = cursor.position();
