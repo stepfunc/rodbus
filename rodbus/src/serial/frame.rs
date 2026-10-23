@@ -8,7 +8,7 @@ use crate::common::buffer::ReadBuffer;
 use crate::common::frame::{
     Frame, FrameDestination, FrameHeader, FrameInfo, FrameType, FunctionField, PduLength,
 };
-use crate::common::function::FunctionCode;
+use crate::common::function::{is_exception, FunctionCode};
 use crate::common::traits::Serialize;
 use crate::decode::FrameDecodeLevel;
 use crate::error::{FrameParseError, InternalError, RequestError};
@@ -55,7 +55,7 @@ impl RtuParser {
     /// How to find the length of the PDU, or `None` for a function code it can't be found for
     fn length_mode(&self, function_code: u8) -> Option<LengthMode> {
         // Check exception (only valid for responses)
-        if matches!(self, Self::Response) && function_code & 0x80 != 0 {
+        if matches!(self, Self::Response) && is_exception(function_code) {
             return Some(LengthMode::Fixed(1));
         }
 

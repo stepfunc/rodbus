@@ -15,6 +15,20 @@ mod constants {
     pub(crate) const WRITE_SINGLE_REGISTER: u8 = 6;
     pub(crate) const WRITE_MULTIPLE_COILS: u8 = 15;
     pub(crate) const WRITE_MULTIPLE_REGISTERS: u8 = 16;
+
+    /// Set in the function code of an exception response
+    pub(crate) const EXCEPTION_BIT: u8 = 0x80;
+}
+
+/// The function code of an exception response to `function`
+pub(crate) const fn as_exception(function: u8) -> u8 {
+    function | constants::EXCEPTION_BIT
+}
+
+/// Whether `function` is the function code of an exception response
+#[cfg(feature = "serial")]
+pub(crate) const fn is_exception(function: u8) -> bool {
+    function & constants::EXCEPTION_BIT != 0
 }
 
 #[derive(Debug, Copy, Clone, PartialEq)]
@@ -63,7 +77,7 @@ impl FunctionCode {
     }
 
     pub(crate) const fn as_error(self) -> u8 {
-        self.get_value() | 0x80
+        as_exception(self.get_value())
     }
 
     pub(crate) fn get(value: u8) -> Option<Self> {

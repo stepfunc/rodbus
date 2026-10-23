@@ -8,7 +8,7 @@ use crate::common::phys::PhysLayer;
 use std::ops::Range;
 
 use crate::common::buffer::ReadBuffer;
-use crate::common::function::FunctionCode;
+use crate::common::function::{as_exception, FunctionCode};
 use crate::common::traits::{Loggable, LoggableDisplay, Serialize};
 use crate::error::{InternalError, RequestError};
 use crate::tcp::frame::{MbapDisplay, MbapHeader, MbapParser};
@@ -340,8 +340,8 @@ impl FunctionField {
     pub(crate) fn get_value(&self) -> u8 {
         match self {
             FunctionField::Valid(x) => x.get_value(),
-            FunctionField::Exception(x) => x.get_value() | 0x80,
-            FunctionField::UnknownFunction(x) => x | 0x80,
+            FunctionField::Exception(x) => x.as_error(),
+            FunctionField::UnknownFunction(x) => as_exception(*x),
         }
     }
 }
