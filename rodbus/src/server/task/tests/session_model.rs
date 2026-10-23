@@ -780,7 +780,7 @@ fn frame(link: Link, tx_id: u16, unit: u8, pdu: &[u8]) -> Vec<u8> {
     match link {
         Link::Tcp => mbap(tx_id, unit, pdu),
         #[cfg(feature = "serial")]
-        Link::Rtu => super::rtu::frame(unit, pdu),
+        Link::Rtu => crate::serial::test_util::rtu(unit, pdu),
     }
 }
 

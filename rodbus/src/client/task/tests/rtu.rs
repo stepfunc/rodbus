@@ -8,14 +8,7 @@
 
 use super::*;
 use crate::common::frame::FrameDestination;
-use crate::common::test_support::with_crc;
-
-/// An RTU frame carrying `pdu` to or from `unit`
-pub(super) fn frame(unit: u8, pdu: &[u8]) -> Vec<u8> {
-    let mut frame = vec![unit];
-    frame.extend_from_slice(pdu);
-    with_crc(&frame)
-}
+use crate::serial::test_util::rtu;
 
 impl Setup {
     pub(super) fn rtu() -> Self {
@@ -56,7 +49,7 @@ async fn an_rtu_response_after_bytes_that_cant_start_a_frame_is_read() {
         session.read::<8>().await;
         // 0xA5 isn't a function code, so each of these bytes is dropped on its own
         session.send(&[0xA5, 0xA5, 0xA5]).await;
-        session.send(&frame(2, &register_value(0x2222))).await;
+        session.send(&rtu(2, &register_value(0x2222))).await;
 
         assert_eq!(request.await.unwrap(), Ok(vec![Indexed::new(0x10, 0x2222)]));
     })
@@ -93,7 +86,7 @@ async fn an_rtu_request_times_out_under_continuing_noise_and_the_session_carries
         tokio::time::sleep(Duration::from_secs(1)).await;
         let request = read_register(&channel, 2);
         session.read::<8>().await;
-        session.send(&frame(2, &register_value(0x2222))).await;
+        session.send(&rtu(2, &register_value(0x2222))).await;
         assert_eq!(request.await.unwrap(), Ok(vec![Indexed::new(0x10, 0x2222)]));
 
         drop(channel);
@@ -112,7 +105,7 @@ async fn an_rtu_client_drops_a_partial_frame_once_the_line_is_silent() {
         let request = read_register(&channel, 2);
 
         session.read::<8>().await;
-        session.send(&frame(2, &register_value(0x2222))).await;
+        session.send(&rtu(2, &register_value(0x2222))).await;
 
         assert_eq!(request.await.unwrap(), Ok(vec![Indexed::new(0x10, 0x2222)]));
     })
@@ -127,8 +120,8 @@ async fn an_rtu_response_from_another_unit_is_skipped() {
 
         session.read::<8>().await;
         // a late reply from unit 1, then unit 2's
-        session.send(&frame(1, &register_value(0x1111))).await;
-        session.send(&frame(2, &register_value(0x2222))).await;
+        session.send(&rtu(1, &register_value(0x1111))).await;
+        session.send(&rtu(2, &register_value(0x2222))).await;
 
         assert_eq!(request.await.unwrap(), Ok(vec![Indexed::new(0x10, 0x2222)]));
     })
@@ -143,7 +136,7 @@ async fn an_rtu_request_answered_only_by_another_unit_times_out() {
         let request = read_register(&channel, 2);
 
         session.read::<8>().await;
-        session.send(&frame(1, &register_value(0x1111))).await;
+        session.send(&rtu(1, &register_value(0x1111))).await;
 
         assert_eq!(request.await.unwrap(), Err(RequestError::ResponseTimeout));
         assert_eq!(start.elapsed(), TIMEOUT);
@@ -157,8 +150,8 @@ async fn rtu_requests_carry_the_unit_address() {
         let (channel, mut session) = Setup::rtu().spawn();
         for unit in [1, 0xFF] {
             let request = read_register(&channel, unit);
-            session.expect(&frame(unit, &READ_REGISTER)).await;
-            session.send(&frame(unit, &register_value(0x1234))).await;
+            session.expect(&rtu(unit, &READ_REGISTER)).await;
+            session.send(&rtu(unit, &register_value(0x1234))).await;
             assert_eq!(request.await.unwrap(), Ok(vec![Indexed::new(0x10, 0x1234)]));
         }
     })
@@ -172,12 +165,12 @@ async fn a_broadcast_goes_to_address_zero_and_no_reply_completes_it() {
         let start = Instant::now();
         let request = read_register(&channel, 0);
 
-        session.expect(&frame(0, &READ_REGISTER)).await;
+        session.expect(&rtu(0, &READ_REGISTER)).await;
         // replies partway to the deadline must not restart it
         tokio::time::sleep(TIMEOUT / 2).await;
         // a stray reply from unit 1, then a reply from address 0
-        session.send(&frame(1, &register_value(0x1111))).await;
-        session.send(&frame(0, &register_value(0x2222))).await;
+        session.send(&rtu(1, &register_value(0x1111))).await;
+        session.send(&rtu(0, &register_value(0x2222))).await;
 
         assert_eq!(request.await.unwrap(), Err(RequestError::ResponseTimeout));
         assert_eq!(start.elapsed(), TIMEOUT);

@@ -106,57 +106,6 @@ impl SerialChannelTask {
     }
 }
 
-/// Test support shared by the serial client and server
-#[cfg(test)]
-pub(crate) mod test_util {
-    use std::time::Duration;
-
-    use tokio::sync::mpsc::UnboundedSender;
-
-    use crate::RetryStrategy;
-
-    /// A path that can't be opened, so every attempt to open the port fails
-    pub(crate) const UNOPENABLE: &str = "/dev/rodbus-does-not-exist";
-
-    /// The delay [`RecordingRetry`] returns for every retry
-    pub(crate) const DELAY: Duration = Duration::from_secs(1);
-
-    /// A call a task made on its [`RetryStrategy`]
-    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-    pub(crate) enum RetryCall {
-        Reset,
-        AfterFailedConnect,
-        AfterDisconnect,
-    }
-
-    /// Records each call and always returns [`DELAY`]
-    pub(crate) struct RecordingRetry {
-        pub(crate) calls: UnboundedSender<RetryCall>,
-    }
-
-    impl RecordingRetry {
-        fn record(&mut self, call: RetryCall) {
-            self.calls.send(call).ok();
-        }
-    }
-
-    impl RetryStrategy for RecordingRetry {
-        fn reset(&mut self) {
-            self.record(RetryCall::Reset);
-        }
-
-        fn after_failed_connect(&mut self) -> Duration {
-            self.record(RetryCall::AfterFailedConnect);
-            DELAY
-        }
-
-        fn after_disconnect(&mut self) -> Duration {
-            self.record(RetryCall::AfterDisconnect);
-            DELAY
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use std::time::Duration;
@@ -174,8 +123,8 @@ mod tests {
 
     use crate::client::message::Setting;
 
-    use super::test_util::{RecordingRetry, RetryCall, DELAY, UNOPENABLE};
     use super::*;
+    use crate::serial::test_util::{RecordingRetry, RetryCall, DELAY, UNOPENABLE};
 
     /// A response timeout long enough that a request failing before it elapses wasn't timed out
     const NEVER: Duration = Duration::from_secs(3600);

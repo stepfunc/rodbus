@@ -148,6 +148,7 @@ mod tests {
 
     use super::*;
     use crate::common::test_support::watchdog;
+    use crate::serial::test_util::TIMER_RESOLUTION;
 
     #[test]
     fn the_inter_frame_delay_is_3_5_character_times_up_to_19200_baud() {
@@ -175,9 +176,6 @@ mod tests {
 
     /// One character time at 9600 baud, in whole nanoseconds
     const CHAR_TIME_AT_9600: Duration = Duration::from_nanos(1_145_833);
-
-    /// How late tokio may wake a timer: it rounds deadlines up to the next millisecond
-    const TIMER_RESOLUTION: Duration = Duration::from_millis(1);
 
     /// Assert that a write starting now waits `expected`, to the timer's resolution
     async fn assert_write_waits(gap: &InterFrameGap, expected: Duration) {

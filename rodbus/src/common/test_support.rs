@@ -107,16 +107,6 @@ impl Drop for Finished {
     }
 }
 
-/// `frame` followed by its CRC-16/MODBUS, low byte first, as an RTU frame ends
-///
-/// This builds its own CRC rather than using the one the RTU framing does, so tests don't check
-/// the framing against itself.
-#[cfg(feature = "serial")]
-pub(crate) fn with_crc(frame: &[u8]) -> Vec<u8> {
-    let crc = crc::Crc::<u16>::new(&crc::CRC_16_MODBUS).checksum(frame);
-    frame.iter().copied().chain(crc.to_le_bytes()).collect()
-}
-
 /// An MBAP frame carrying `pdu` to or from `unit`, with transaction id `tx_id`
 pub(crate) fn mbap(tx_id: u16, unit: u8, pdu: &[u8]) -> Vec<u8> {
     let [tx_high, tx_low] = tx_id.to_be_bytes();

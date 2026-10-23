@@ -86,6 +86,74 @@ impl OpenPort {
     }
 }
 
+/// Test support shared by the serial client, the serial server and the RTU framing
+#[cfg(test)]
+pub(crate) mod test_util {
+    use std::time::Duration;
+
+    use tokio::sync::mpsc::UnboundedSender;
+
+    use crate::RetryStrategy;
+
+    /// `frame` followed by its CRC-16/MODBUS, low byte first, as an RTU frame ends
+    ///
+    /// This builds its own CRC rather than using the one the RTU framing does, so tests don't
+    /// check the framing against itself.
+    pub(crate) fn with_crc(frame: &[u8]) -> Vec<u8> {
+        let crc = crc::Crc::<u16>::new(&crc::CRC_16_MODBUS).checksum(frame);
+        frame.iter().copied().chain(crc.to_le_bytes()).collect()
+    }
+
+    /// An RTU frame carrying `pdu` to or from `unit`
+    pub(crate) fn rtu(unit: u8, pdu: &[u8]) -> Vec<u8> {
+        with_crc(&[&[unit], pdu].concat())
+    }
+
+    /// How late tokio may wake a timer: it rounds deadlines up to the next millisecond
+    pub(crate) const TIMER_RESOLUTION: Duration = Duration::from_millis(1);
+
+    /// A path that can't be opened, so every attempt to open the port fails
+    pub(crate) const UNOPENABLE: &str = "/dev/rodbus-does-not-exist";
+
+    /// The delay [`RecordingRetry`] returns for every retry
+    pub(crate) const DELAY: Duration = Duration::from_secs(1);
+
+    /// A call a task made on its [`RetryStrategy`]
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    pub(crate) enum RetryCall {
+        Reset,
+        AfterFailedConnect,
+        AfterDisconnect,
+    }
+
+    /// Records each call and always returns [`DELAY`]
+    pub(crate) struct RecordingRetry {
+        pub(crate) calls: UnboundedSender<RetryCall>,
+    }
+
+    impl RecordingRetry {
+        fn record(&mut self, call: RetryCall) {
+            self.calls.send(call).ok();
+        }
+    }
+
+    impl RetryStrategy for RecordingRetry {
+        fn reset(&mut self) {
+            self.record(RetryCall::Reset);
+        }
+
+        fn after_failed_connect(&mut self) -> Duration {
+            self.record(RetryCall::AfterFailedConnect);
+            DELAY
+        }
+
+        fn after_disconnect(&mut self) -> Duration {
+            self.record(RetryCall::AfterDisconnect);
+            DELAY
+        }
+    }
+}
+
 #[cfg(all(test, unix))]
 mod tests {
     use super::*;

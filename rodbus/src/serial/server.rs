@@ -74,49 +74,26 @@ mod tests {
     use crate::common::frame::{FrameWriter, FramedReader};
     use crate::common::phys::PhysLayer;
     use crate::common::test_support::watchdog;
-    use crate::serial::client::test_util::{RecordingRetry, RetryCall, DELAY, UNOPENABLE};
+    use crate::serial::test_util::{RecordingRetry, RetryCall, DELAY, UNOPENABLE};
     use crate::server::task::{AuthorizationType, ServerCommand};
     use crate::server::{create_rtu_server_task, ServerHandlerMap};
     use crate::{DecodeLevel, UnitId};
 
     use super::*;
 
-    /// A retry delay long enough that the task completing proves cancellation rather than the
-    /// delay simply elapsing
-    const NEVER: Duration = Duration::from_secs(3600);
-
     struct DefaultHandler;
     impl RequestHandler for DefaultHandler {}
-
-    /// Reports when the task gives up on opening the port, which is the point just before it parks
-    /// on the retry delay
-    struct SignalingRetry {
-        failed_connect: tokio::sync::mpsc::UnboundedSender<()>,
-    }
-
-    impl RetryStrategy for SignalingRetry {
-        fn reset(&mut self) {}
-
-        fn after_failed_connect(&mut self) -> Duration {
-            self.failed_connect.send(()).ok();
-            NEVER
-        }
-
-        fn after_disconnect(&mut self) -> Duration {
-            NEVER
-        }
-    }
 
     #[tokio::test(start_paused = true)]
     async fn shutdown_interrupts_the_wait_before_reopening_the_port() {
         watchdog(async {
-            let (failed_connect, mut failures) = tokio::sync::mpsc::unbounded_channel();
+            let (calls, mut retry) = tokio::sync::mpsc::unbounded_channel();
 
             // a path that cannot be opened, so the task fails and falls into its retry delay
             let (handle, task) = create_rtu_server_task(
-                "/dev/rodbus-does-not-exist",
+                UNOPENABLE,
                 SerialSettings::default(),
-                Box::new(SignalingRetry { failed_connect }),
+                Box::new(RecordingRetry { calls }),
                 ServerHandlerMap::single(UnitId::new(1), DefaultHandler.wrap()),
                 DecodeLevel::nothing(),
             );
@@ -124,7 +101,7 @@ mod tests {
 
             // wait until opening the port has actually failed, otherwise the task might be
             // cancelled before it ever reaches the delay and the test would prove nothing
-            failures.recv().await.unwrap();
+            assert_eq!(retry.recv().await, Some(RetryCall::AfterFailedConnect));
             let waiting_since = Instant::now();
 
             handle.shutdown();
@@ -132,6 +109,7 @@ mod tests {
             task.await.unwrap();
             // the paused clock would advance through the delay if nothing interrupted it
             assert_eq!(waiting_since.elapsed(), Duration::ZERO);
+            assert_eq!(retry.try_recv(), Err(TryRecvError::Disconnected));
         })
         .await;
     }
