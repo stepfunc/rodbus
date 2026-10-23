@@ -487,7 +487,7 @@ pub(crate) unsafe fn server_create_tls_impl(
                 address,
                 handler_map.clone(),
                 tls_config,
-                rodbus::server::AddressFilter::Any,
+                filter.into(),
                 decode_level.into(),
             );
 
