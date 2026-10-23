@@ -153,6 +153,18 @@ pub(crate) mod test_util {
         .unwrap()
     }
 
+    /// The rodbus client under test presents entity2 and expects entity1
+    pub(crate) fn client_config(min: MinTlsVersion) -> TlsClientConfig {
+        TlsClientConfig::self_signed(
+            &cert("entity1_cert.pem"),
+            &cert("entity2_cert.pem"),
+            &cert("entity2_key.pem"),
+            None,
+            min,
+        )
+        .unwrap()
+    }
+
     /// A client that the server under test accepts, configured directly with `versions` so that
     /// rodbus's version mapping isn't involved
     pub(crate) fn peer_client_config(versions: ProtocolVersions) -> rustls::ClientConfig {
@@ -337,18 +349,6 @@ mod tests {
             .await
             .map_err(tls_error)?;
         Ok(stream.get_ref().1.protocol_version().unwrap())
-    }
-
-    /// The rodbus client under test presents entity2 and expects entity1
-    fn client_config(min: MinTlsVersion) -> TlsClientConfig {
-        TlsClientConfig::self_signed(
-            &cert("entity1_cert.pem"),
-            &cert("entity2_cert.pem"),
-            &cert("entity2_key.pem"),
-            None,
-            min,
-        )
-        .unwrap()
     }
 
     /// tokio-rustls reports TLS failures as an `io::Error` wrapping the `rustls::Error`

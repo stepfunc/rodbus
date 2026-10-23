@@ -11,6 +11,13 @@ pub struct ClientChannel {
     pub(crate) runtime: crate::RuntimeHandle,
 }
 
+impl Drop for ClientChannel {
+    fn drop(&mut self) {
+        // destroying the binding object shuts the channel down, as its documentation says
+        self.inner.shutdown();
+    }
+}
+
 fn get_host_addr(host: &std::ffi::CStr, port: u16) -> Result<HostAddr, ffi::ParamError> {
     let host = host
         .to_str()
@@ -428,5 +435,67 @@ impl From<ffi::RequestParam> for RequestParam {
             id: UnitId::new(value.unit_id),
             response_timeout: value.timeout(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::Duration;
+    use tokio::io::AsyncReadExt;
+
+    const TEST_TIMEOUT: Duration = Duration::from_secs(5);
+
+    #[test]
+    fn destroying_a_channel_shuts_it_down() {
+        let runtime = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        let handle = runtime.handle().clone();
+        runtime.block_on(async move {
+            let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let addr = listener.local_addr().unwrap();
+            let (channel, task) = rodbus::client::create_tcp_client_task_with_options(
+                HostAddr::ip(addr.ip(), addr.port()),
+                rodbus::default_retry_strategy(),
+                None,
+                rodbus::ClientOptions::default(),
+            );
+            let task = tokio::spawn(task.run());
+            channel.enable().await.unwrap();
+
+            // a request that the peer reads but never answers
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let requester = channel.clone();
+            let coils = tokio::spawn(async move {
+                requester
+                    .read_coils(
+                        RequestParam::new(UnitId::new(1), Duration::from_secs(3600)),
+                        AddressRange::try_from(7, 2).unwrap(),
+                    )
+                    .await
+            });
+            let mut request = [0u8; 12];
+            socket.read_exact(&mut request).await.unwrap();
+
+            // the test keeps its own handle, so only the shutdown can end the task
+            drop(ClientChannel {
+                inner: FfiChannel::new(channel.clone()),
+                runtime: crate::RuntimeHandle::new(handle),
+            });
+
+            assert_eq!(
+                tokio::time::timeout(TEST_TIMEOUT, coils)
+                    .await
+                    .unwrap()
+                    .unwrap(),
+                Err(rodbus::RequestError::Shutdown)
+            );
+            tokio::time::timeout(TEST_TIMEOUT, task)
+                .await
+                .unwrap()
+                .unwrap();
+        });
     }
 }

@@ -13,7 +13,9 @@ use tracing::Instrument;
 use crate::client::{Channel, ClientState, ClientTask, HostAddr, Listener, RetryStrategy};
 use crate::common::phys::PhysLayer;
 use crate::tcp::client::{TcpChannelTask, TcpTaskConnectionHandler};
-use crate::tcp::tls::{CertificateMode, MinTlsVersion, TlsError};
+use crate::tcp::tls::{
+    handshake, CertificateMode, HandshakeError, MinTlsVersion, TlsError, TLS_HANDSHAKE_TIMEOUT,
+};
 
 use crate::ClientOptions;
 
@@ -172,8 +174,16 @@ impl TlsClientConfig {
         endpoint: &HostAddr,
     ) -> std::io::Result<PhysLayer> {
         let connector = tokio_rustls::TlsConnector::from(self.config.clone());
-        match connector.connect(self.server_name.clone(), socket).await {
-            Err(err) => {
+        match handshake(connector.connect(self.server_name.clone(), socket)).await {
+            Err(HandshakeError::Timeout) => {
+                tracing::warn!(
+                    "TLS handshake with {} didn't complete within {} seconds",
+                    endpoint,
+                    TLS_HANDSHAKE_TIMEOUT.as_secs()
+                );
+                Err(std::io::ErrorKind::TimedOut.into())
+            }
+            Err(HandshakeError::Failed(err)) => {
                 let msg = format!("TLS error ({endpoint}): {err}");
                 Err(std::io::Error::new(err.kind(), msg))
             }
