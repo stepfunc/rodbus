@@ -148,7 +148,7 @@ impl Serialize for &[bool] {
             let mut acc: u8 = 0;
             for (count, bit) in byte.iter().enumerate() {
                 if *bit {
-                    acc |= 1 << count as u8;
+                    acc |= 1 << count;
                 }
             }
             cursor.write_u8(acc)?;
@@ -165,7 +165,7 @@ where
     fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
         let range = self.range.get();
         // write the number of bytes that follow
-        let num_bytes = calc_bytes_for_bits(range.count as usize)?;
+        let num_bytes = calc_bytes_for_bits(range.count.into())?;
         cursor.write_u8(num_bytes)?;
 
         let mut acc = 0;
@@ -225,7 +225,7 @@ where
 {
     fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
         // write the number of bytes that follow
-        let num_bytes = calc_bytes_for_registers(self.range.get().count as usize)?;
+        let num_bytes = calc_bytes_for_registers(self.range.get().count.into())?;
         cursor.write_u8(num_bytes)?;
 
         // iterate over all the addresses, accumulating the registers

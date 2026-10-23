@@ -5,13 +5,14 @@
 // Directive (EU) 2019/790 Art. 4(3), subject to LICENSE.txt Section 3.3.
 
 #![doc = include_str!("../README.md")]
-// deny unwrap, expect, the panic macros, indexing and unchecked arithmetic; clippy.toml allows
-// unwrap, expect, panic and indexing in test code
+// deny unwrap, expect, the panic macros, indexing, unchecked arithmetic and as conversions;
+// clippy.toml allows unwrap, expect, panic and indexing in test code
 #![deny(
     clippy::unwrap_used,
     clippy::expect_used,
     clippy::indexing_slicing,
     clippy::arithmetic_side_effects,
+    clippy::as_conversions,
     clippy::panic,
     clippy::unreachable,
     clippy::todo,

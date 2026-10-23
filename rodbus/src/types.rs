@@ -162,7 +162,7 @@ impl<'a> RegisterIterator<'a> {
         range: AddressRange,
         cursor: &'a mut ReadCursor,
     ) -> Result<Self, RequestError> {
-        let bytes = cursor.read_bytes(2 * (range.count as usize))?;
+        let bytes = cursor.read_bytes(usize::from(range.count).saturating_mul(2))?;
         cursor.expect_empty()?;
         Ok(Self {
             bytes,
@@ -210,9 +210,9 @@ impl<'a> Iterator for BitIterator<'a> {
             return None;
         }
         let byte = self.pos / 8;
-        let bit = (self.pos % 8) as u8;
+        let bit = self.pos % 8;
 
-        match self.bytes.get(byte as usize) {
+        match self.bytes.get(usize::from(byte)) {
             Some(value) => {
                 let bit = (*value & (1 << bit)) != 0;
                 // pos < count, and a range never extends past 0xFFFF
@@ -382,7 +382,12 @@ impl<T> Indexed<T> {
 
 impl std::fmt::Display for Indexed<bool> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "idx: {:#06X} value: {}", self.index, self.value as i32)
+        write!(
+            f,
+            "idx: {:#06X} value: {}",
+            self.index,
+            i32::from(self.value)
+        )
     }
 }
 
