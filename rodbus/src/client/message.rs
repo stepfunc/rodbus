@@ -37,7 +37,8 @@ pub(crate) enum Command {
 
 pub(crate) struct Request {
     pub(crate) id: UnitId,
-    pub(crate) timeout: Duration,
+    /// Never zero: set only by [`Request::new`]
+    timeout: Duration,
     pub(crate) details: RequestDetails,
 }
 
@@ -54,12 +55,27 @@ pub(crate) enum RequestDetails {
 }
 
 impl Request {
+    /// The response timeout that replaces a zero one, whose deadline would already be due when
+    /// the request is sent
+    const ZERO_TIMEOUT_REPLACEMENT: Duration = Duration::from_millis(1);
+
+    /// A request with `timeout`, or [`Self::ZERO_TIMEOUT_REPLACEMENT`] if `timeout` is zero
     pub(crate) fn new(id: UnitId, timeout: Duration, details: RequestDetails) -> Self {
+        let timeout = if timeout.is_zero() {
+            Self::ZERO_TIMEOUT_REPLACEMENT
+        } else {
+            timeout
+        };
         Self {
             id,
             timeout,
             details,
         }
+    }
+
+    /// The response timeout, which covers sending the request and receiving the response
+    pub(crate) fn timeout(&self) -> Duration {
+        self.timeout
     }
 
     pub(crate) fn handle_response(

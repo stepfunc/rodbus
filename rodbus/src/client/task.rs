@@ -348,7 +348,7 @@ impl ClientLoop {
             .map_err(ExchangeError::Request)?;
 
         // the timeout covers sending the request as well as receiving the response
-        let deadline = Deadline::after(request.timeout);
+        let deadline = Deadline::after(request.timeout());
 
         tokio::select! {
             _ = deadline.wait() => {
@@ -805,6 +805,19 @@ mod tests {
 
             assert_eq!(request.await.unwrap(), Err(RequestError::ResponseTimeout));
             assert_eq!(start.elapsed(), TIMEOUT);
+        })
+        .await;
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_request_with_a_zero_timeout_is_sent_and_the_session_continues() {
+        watchdog(async {
+            let (channel, mut session) = Setup::tcp().spawn();
+            let request = read_register_within(&channel, 1, Duration::ZERO);
+            // the request fits in the pipe, and the peer takes it before time moves
+            session.expect(&mbap(0, 1, &READ_REGISTER)).await;
+            assert_eq!(request.await.unwrap(), Err(RequestError::ResponseTimeout));
+            a_read_of_coils_is_answered(&channel, &mut session).await;
         })
         .await;
     }
