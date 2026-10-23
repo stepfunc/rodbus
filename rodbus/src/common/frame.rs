@@ -195,15 +195,16 @@ impl FrameParser {
     /// `Err` implies the input data is invalid
     /// `Ok(None)` implies that more data is required to complete parsing
     /// `Ok(Some(..))` will contain a fully parsed frame and will advance the cursor appropriately
+    ///
+    /// Parsers don't log: the frame comes back with its type, which the reader logs
     pub(crate) fn parse(
         &mut self,
         cursor: &mut ReadBuffer,
-        decode_level: FrameDecodeLevel,
-    ) -> Result<Option<Frame>, RequestError> {
+    ) -> Result<Option<(Frame, FrameType)>, RequestError> {
         match self {
             #[cfg(feature = "serial")]
-            FrameParser::Rtu(x) => x.parse(cursor, decode_level),
-            FrameParser::Tcp(x) => x.parse(cursor, decode_level),
+            FrameParser::Rtu(x) => x.parse(cursor),
+            FrameParser::Tcp(x) => x.parse(cursor),
         }
     }
 
@@ -218,11 +219,33 @@ impl FrameParser {
     }
 }
 
+#[derive(Clone, Copy, Debug)]
 pub(crate) enum FrameType {
     Mbap(MbapHeader),
     #[cfg(feature = "serial")]
     // destination and CRC
     Rtu(FrameDestination, u16),
+}
+
+impl FrameType {
+    /// Log the frame's header and `bytes`, "TX" or "RX" given by `direction`
+    fn log(&self, direction: &str, level: FrameDecodeLevel, bytes: &[u8]) {
+        match self {
+            FrameType::Mbap(header) => {
+                tracing::info!(
+                    "MBAP {direction} - {}",
+                    MbapDisplay::new(level, *header, bytes)
+                );
+            }
+            #[cfg(feature = "serial")]
+            FrameType::Rtu(dest, crc) => {
+                tracing::info!(
+                    "RTU {direction} - {}",
+                    crate::serial::frame::RtuDisplay::new(level, *dest, bytes, *crc)
+                );
+            }
+        }
+    }
 }
 
 pub(crate) struct FrameInfo {
@@ -415,27 +438,7 @@ impl FrameWriter {
         }
 
         if decode_level.frame.enabled() {
-            let frame_bytes = self.frame(len);
-            match frame_type {
-                FrameType::Mbap(header) => {
-                    tracing::info!(
-                        "MBAP TX - {}",
-                        MbapDisplay::new(decode_level.frame, header, frame_bytes)
-                    );
-                }
-                #[cfg(feature = "serial")]
-                FrameType::Rtu(dest, crc) => {
-                    tracing::info!(
-                        "RTU TX - {}",
-                        crate::serial::frame::RtuDisplay::new(
-                            decode_level.frame,
-                            dest,
-                            frame_bytes,
-                            crc
-                        )
-                    );
-                }
-            }
+            frame_type.log("TX", decode_level.frame, self.frame(len));
         }
 
         Ok(len)
@@ -488,14 +491,29 @@ impl FramedReader {
         self.parser.reset();
     }
 
+    fn log_received(frame_type: &FrameType, level: FrameDecodeLevel, payload: &[u8]) {
+        #[cfg(feature = "serial")]
+        if let FrameType::Rtu(FrameDestination::UnitId(unit_id), _) = frame_type {
+            if unit_id.is_rtu_reserved() {
+                tracing::warn!("received reserved unit ID {}, violating Modbus RTU spec. Passing it through nevertheless.", unit_id);
+            }
+        }
+        if level.enabled() {
+            frame_type.log("RX", level, payload);
+        }
+    }
+
     pub(crate) async fn next_frame(
         &mut self,
         io: &mut PhysLayer,
         decode_level: DecodeLevel,
     ) -> Result<Frame, RequestError> {
         loop {
-            match self.parser.parse(&mut self.buffer, decode_level.frame) {
-                Ok(Some(frame)) => return Ok(frame),
+            match self.parser.parse(&mut self.buffer) {
+                Ok(Some((frame, frame_type))) => {
+                    Self::log_received(&frame_type, decode_level.frame, frame.payload());
+                    return Ok(frame);
+                }
                 Ok(None) => {
                     self.buffer.read_some(io, decode_level.physical).await?;
                 }
