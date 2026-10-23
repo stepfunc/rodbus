@@ -236,7 +236,7 @@ fn frame(link: Link, tx_id: u16, unit: u8, pdu: &[u8]) -> Vec<u8> {
     match link {
         Link::Tcp => mbap(tx_id, unit, pdu),
         #[cfg(feature = "serial")]
-        Link::Rtu => rtu(unit, pdu),
+        Link::Rtu => rtu::frame(unit, pdu),
     }
 }
 
@@ -252,7 +252,7 @@ fn garbage(link: Link, tx_id: u16, unit: u8) -> (Vec<u8>, FrameParseError) {
         }
         #[cfg(feature = "serial")]
         Link::Rtu => {
-            let good = rtu(unit, &register_value(0));
+            let good = rtu::frame(unit, &register_value(0));
             let Some((body, crc)) = good.split_last_chunk::<2>() else {
                 panic!("an RTU frame ends with its CRC");
             };
