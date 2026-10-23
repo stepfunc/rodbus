@@ -1105,4 +1105,113 @@ mod tests {
         })
         .await;
     }
+
+    /// A read of one holding register at 0x10, as the client writes it over TCP
+    fn mbap_read_register(tx_id: u16, unit: u8) -> [u8; 12] {
+        let [tx_high, tx_low] = tx_id.to_be_bytes();
+        [tx_high, tx_low, 0, 0, 0, 6, unit, 3, 0x00, 0x10, 0x00, 0x01]
+    }
+
+    fn mbap_register_response(tx_id: u16, unit: u8, value: u16) -> [u8; 11] {
+        let [tx_high, tx_low] = tx_id.to_be_bytes();
+        let [high, low] = value.to_be_bytes();
+        [tx_high, tx_low, 0, 0, 0, 5, unit, 3, 2, high, low]
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn tcp_requests_carry_the_unit_and_successive_transaction_ids() {
+        crate::common::test_support::watchdog(async {
+            let (channel, _task, mut peer) =
+                spawn_client_loop_on_a_pipe_of(64, FrameWriter::tcp(), FramedReader::tcp());
+            for (tx_id, unit) in [(0, 0), (1, 0xFF), (2, 1)] {
+                let request = read_register_from(channel.clone(), unit);
+                let mut sent = [0u8; 12];
+                peer.read_exact(&mut sent).await.unwrap();
+                assert_eq!(sent, mbap_read_register(tx_id, unit));
+                peer.write_all(&mbap_register_response(tx_id, unit, 0x1234))
+                    .await
+                    .unwrap();
+                assert_eq!(request.await.unwrap(), Ok(vec![Indexed::new(0x10, 0x1234)]));
+            }
+        })
+        .await;
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_tcp_response_with_another_transaction_id_is_skipped() {
+        crate::common::test_support::watchdog(async {
+            let (channel, _task, mut peer) =
+                spawn_client_loop_on_a_pipe_of(64, FrameWriter::tcp(), FramedReader::tcp());
+            let start = Instant::now();
+            let request = read_register_from(channel, 2);
+            let mut sent = [0u8; 12];
+            peer.read_exact(&mut sent).await.unwrap();
+            assert_eq!(sent, mbap_read_register(0, 2));
+            tokio::time::sleep(Duration::from_millis(100)).await;
+            peer.write_all(&mbap_register_response(1, 2, 0x1111))
+                .await
+                .unwrap();
+            peer.write_all(&mbap_register_response(0, 2, 0x2222))
+                .await
+                .unwrap();
+            assert_eq!(request.await.unwrap(), Ok(vec![Indexed::new(0x10, 0x2222)]));
+            assert_eq!(start.elapsed(), Duration::from_millis(100));
+        })
+        .await;
+    }
+
+    /// A read of one holding register at 0x10, as the client writes it over RTU
+    #[cfg(feature = "serial")]
+    fn rtu_read_register(unit: u8) -> Vec<u8> {
+        let mut frame = vec![unit, 3, 0x00, 0x10, 0x00, 0x01];
+        let crc = crc::Crc::<u16>::new(&crc::CRC_16_MODBUS).checksum(&frame);
+        frame.extend_from_slice(&crc.to_le_bytes());
+        frame
+    }
+
+    #[cfg(feature = "serial")]
+    #[tokio::test(start_paused = true)]
+    async fn rtu_requests_carry_the_unit_address() {
+        crate::common::test_support::watchdog(async {
+            let (channel, _task, mut peer) = spawn_client_loop_on_a_pipe_of(
+                64,
+                FrameWriter::rtu(),
+                FramedReader::rtu_response(),
+            );
+            for unit in [1, 0xFF] {
+                let request = read_register_from(channel.clone(), unit);
+                let mut sent = [0u8; 8];
+                peer.read_exact(&mut sent).await.unwrap();
+                assert_eq!(sent.to_vec(), rtu_read_register(unit));
+                peer.write_all(&rtu_response(unit, 0x1234)).await.unwrap();
+                assert_eq!(request.await.unwrap(), Ok(vec![Indexed::new(0x10, 0x1234)]));
+            }
+        })
+        .await;
+    }
+
+    #[cfg(feature = "serial")]
+    #[tokio::test(start_paused = true)]
+    async fn a_broadcast_goes_to_address_zero_and_a_reply_from_address_zero_doesnt_complete_it() {
+        crate::common::test_support::watchdog(async {
+            let (channel, _task, mut peer) = spawn_client_loop_on_a_pipe_of(
+                64,
+                FrameWriter::rtu(),
+                FramedReader::rtu_response(),
+            );
+            let start = Instant::now();
+            let request = read_register_from(channel, 0);
+
+            let mut sent = [0u8; 8];
+            peer.read_exact(&mut sent).await.unwrap();
+            assert_eq!(sent.to_vec(), rtu_read_register(0));
+            // a reply partway to the deadline must not restart it
+            tokio::time::sleep(TIMEOUT / 2).await;
+            peer.write_all(&rtu_response(0, 0x1111)).await.unwrap();
+
+            assert_eq!(request.await.unwrap(), Err(RequestError::ResponseTimeout));
+            assert_eq!(start.elapsed(), TIMEOUT);
+        })
+        .await;
+    }
 }
