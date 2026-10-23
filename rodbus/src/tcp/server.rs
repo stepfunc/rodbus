@@ -96,11 +96,18 @@ pub(crate) enum TcpServerConnectionHandler {
     ),
 }
 
+/// Why the connection handler refused a connection
+#[cfg(feature = "enable-tls")]
+type Refused = crate::tcp::tls::Refused;
+/// Plain TCP refuses no connection
+#[cfg(not(feature = "enable-tls"))]
+type Refused = std::convert::Infallible;
+
 impl TcpServerConnectionHandler {
     async fn handle<S: Socket>(
-        &mut self,
+        &self,
         socket: S,
-    ) -> Result<(PhysLayer, AuthorizationType), String> {
+    ) -> Result<(PhysLayer, AuthorizationType), Refused> {
         match self {
             Self::Tcp => Ok((socket.into_phys(), AuthorizationType::None)),
             #[cfg(feature = "enable-tls")]

@@ -13,9 +13,7 @@ use tokio_rustls::rustls;
 use crate::common::phys::{PhysLayer, Socket};
 use crate::server::task::AuthorizationType;
 use crate::server::AuthorizationHandler;
-use crate::tcp::tls::{
-    handshake, CertificateMode, HandshakeError, MinTlsVersion, TlsError, TLS_HANDSHAKE_TIMEOUT,
-};
+use crate::tcp::tls::{handshake, CertificateMode, HandshakeError, MinTlsVersion, TlsError};
 
 /// TLS configuration
 #[derive(Clone)]
@@ -63,63 +61,74 @@ impl TlsServerConfig {
     }
 
     pub(crate) async fn handle_connection<S: Socket>(
-        &mut self,
+        &self,
         socket: S,
         auth_handler: Option<Arc<dyn AuthorizationHandler>>,
-    ) -> Result<(PhysLayer, AuthorizationType), String> {
+    ) -> Result<(PhysLayer, AuthorizationType), Refused> {
         let connector = tokio_rustls::TlsAcceptor::from(self.inner.clone());
         // the server runs one handshake at a time, so one that stalls would stop it
-        match handshake(connector.accept(socket)).await {
-            Err(HandshakeError::Timeout) => Err(format!(
-                "TLS handshake didn't complete within {} seconds",
-                TLS_HANDSHAKE_TIMEOUT.as_secs()
-            )),
-            Err(HandshakeError::Failed(err)) => {
-                Err(format!("failed to establish TLS session: {err}"))
+        let stream = handshake(connector.accept(socket))
+            .await
+            .map_err(Refused::Handshake)?;
+
+        let auth_type = match auth_handler {
+            // bare TLS mode without authz
+            None => AuthorizationType::None,
+            // full secure modbus requires the client certificate contain a role
+            Some(handler) => {
+                // get the peer cert data
+                let peer_cert = stream
+                    .get_ref()
+                    .1
+                    .peer_certificates()
+                    .and_then(|x| x.first())
+                    .ok_or(Refused::NoPeerCertificate)?;
+
+                let parsed =
+                    rx509::x509::Certificate::parse(peer_cert).map_err(Refused::Certificate)?;
+                let role = extract_modbus_role(&parsed)?;
+
+                tracing::info!("client role: {}", role);
+                AuthorizationType::Handler(handler, role)
             }
-            Ok(stream) => {
-                let auth_type = match auth_handler {
-                    // bare TLS mode without authz
-                    None => AuthorizationType::None,
-                    // full secure modbus requires the client certificate contain a role
-                    Some(handler) => {
-                        // get the peer cert data
-                        let peer_cert = stream
-                            .get_ref()
-                            .1
-                            .peer_certificates()
-                            .and_then(|x| x.first())
-                            .ok_or_else(|| "No peer certificate".to_string())?;
+        };
 
-                        let parsed = rx509::x509::Certificate::parse(peer_cert)
-                            .map_err(|err| format!("ASNError: {err}"))?;
-                        let role = extract_modbus_role(&parsed)?;
+        let layer = S::into_tls_phys(tokio_rustls::TlsStream::from(stream));
 
-                        tracing::info!("client role: {}", role);
-                        AuthorizationType::Handler(handler, role)
-                    }
-                };
+        Ok((layer, auth_type))
+    }
+}
 
-                let layer = S::into_tls_phys(tokio_rustls::TlsStream::from(stream));
+/// Why the server refused a TLS connection
+#[derive(Debug)]
+pub(crate) enum Refused {
+    /// The handshake didn't produce a session
+    Handshake(HandshakeError),
+    /// The client presented no certificate to take its role from
+    NoPeerCertificate,
+    /// The client's certificate, or its extensions, couldn't be parsed
+    Certificate(rx509::der::ASNError),
+    /// The client's certificate doesn't give one usable role
+    Role(RoleError),
+}
 
-                Ok((layer, auth_type))
-            }
+impl std::fmt::Display for Refused {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Handshake(err) => write!(f, "{err}"),
+            Self::NoPeerCertificate => f.write_str("no peer certificate"),
+            Self::Certificate(err) => write!(f, "unable to parse the peer certificate: {err}"),
+            Self::Role(err) => write!(f, "{err}"),
         }
     }
 }
 
-fn extract_modbus_role(cert: &rx509::x509::Certificate) -> Result<String, String> {
-    // Parse the extensions
-    let extensions = cert
-        .tbs_certificate
-        .value
-        .extensions
-        .as_ref()
-        .ok_or_else(|| "certificate doesn't contain Modbus role extension".to_string())?;
+fn extract_modbus_role(cert: &rx509::x509::Certificate) -> Result<String, Refused> {
+    let Some(extensions) = cert.tbs_certificate.value.extensions.as_ref() else {
+        return Err(Refused::Role(RoleError::Missing));
+    };
 
-    let extensions = extensions
-        .parse()
-        .map_err(|err| format!("unable to parse cert extensions with rasn: {err:?}"))?;
+    let extensions = extensions.parse().map_err(Refused::Certificate)?;
 
     // Extract the ModbusRole extensions
     let roles = extensions.into_iter().filter_map(|ext| match ext.content {
@@ -127,24 +136,30 @@ fn extract_modbus_role(cert: &rx509::x509::Certificate) -> Result<String, String
         _ => None,
     });
 
-    match single_role(roles) {
-        Ok(role) => Ok(role.to_string()),
-        Err(RoleError::Missing) => Err("certificate doesn't have Modbus extension".to_string()),
-        Err(RoleError::Multiple) => {
-            Err("certificate has more than one Modbus extension".to_string())
-        }
-        Err(RoleError::ContainsNul) => {
-            Err("certificate's Modbus role contains a NUL character".to_string())
-        }
-    }
+    single_role(roles)
+        .map(str::to_string)
+        .map_err(Refused::Role)
 }
 
 /// Why a certificate's Modbus roles don't give one usable role
 #[derive(Debug, PartialEq)]
-enum RoleError {
+pub(crate) enum RoleError {
+    /// The certificate has no Modbus role extension
     Missing,
+    /// The certificate has more than one Modbus role extension
     Multiple,
+    /// The role contains a NUL character
     ContainsNul,
+}
+
+impl std::fmt::Display for RoleError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::Missing => "certificate doesn't have a Modbus role extension",
+            Self::Multiple => "certificate has more than one Modbus role extension",
+            Self::ContainsNul => "certificate's Modbus role contains a NUL character",
+        })
+    }
 }
 
 /// The one role among a certificate's Modbus role extensions
