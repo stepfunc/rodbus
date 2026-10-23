@@ -269,7 +269,7 @@ mod tests {
     use crate::common::function::FunctionCode;
     use crate::common::test_support::{SINGLE_COIL_WRITES, SINGLE_REGISTER_WRITE};
     use crate::error::{AduParseError, InvalidRange};
-    use crate::server::request::{Rejection, Request};
+    use crate::server::request::{Rejection, Request, WriteRequest};
 
     fn bytes_of(value: &dyn Serialize) -> Vec<u8> {
         let mut buffer = [0u8; 300];
@@ -341,14 +341,16 @@ mod tests {
 
         fn single_written(request: Request) -> Option<Indexed<bool>> {
             match request {
-                Request::WriteSingleCoil(write) => Some(write),
+                Request::Write(WriteRequest::SingleCoil(write)) => Some(write),
                 _ => None,
             }
         }
 
         fn multiple_written(request: Request) -> Option<(AddressRange, Vec<Indexed<bool>>)> {
             match request {
-                Request::WriteMultipleCoils(write) => Some((write.range, write.iterator.collect())),
+                Request::Write(WriteRequest::MultipleCoils(write)) => {
+                    Some((write.range, write.iterator.collect()))
+                }
                 _ => None,
             }
         }
@@ -380,14 +382,14 @@ mod tests {
 
         fn single_written(request: Request) -> Option<Indexed<u16>> {
             match request {
-                Request::WriteSingleRegister(write) => Some(write),
+                Request::Write(WriteRequest::SingleRegister(write)) => Some(write),
                 _ => None,
             }
         }
 
         fn multiple_written(request: Request) -> Option<(AddressRange, Vec<Indexed<u16>>)> {
             match request {
-                Request::WriteMultipleRegisters(write) => {
+                Request::Write(WriteRequest::MultipleRegisters(write)) => {
                     Some((write.range, write.iterator.collect()))
                 }
                 _ => None,
