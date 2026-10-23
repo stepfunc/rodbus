@@ -11,7 +11,7 @@ use tracing::Instrument;
 use crate::common::cancellation::{ShutdownHandle, ShutdownSignal};
 use crate::decode::DecodeLevel;
 use crate::server::task::ServerCommand;
-use crate::tcp::server::{ServerTask as TcpServerTask, TcpServerConnectionHandler};
+use crate::tcp::server::{new_server, ServerTask as TcpServerTask, TcpServerConnectionHandler};
 
 /// server handling
 mod address_filter;
@@ -205,22 +205,15 @@ pub fn create_tcp_server_task<T: RequestHandler>(
     filter: AddressFilter,
     decode: DecodeLevel,
 ) -> (ServerHandle, ServerTask<T>) {
-    let (tx, rx) = tokio::sync::mpsc::channel(SERVER_COMMAND_CHANNEL_CAPACITY);
-    let (shutdown, signal) = crate::common::cancellation::pair();
-    let task = TcpServerTask::new(
+    let (handle, task, commands, signal) = new_server(
         max_sessions,
         listener,
         handlers,
         TcpServerConnectionHandler::Tcp,
         filter,
         decode,
-        signal.clone(),
     );
-
-    (
-        ServerHandle::new(tx, shutdown),
-        ServerTask::tcp(task, rx, signal),
-    )
+    (handle, ServerTask::tcp(task, commands, signal))
 }
 
 /// Spawns a RTU server task onto the runtime.
@@ -479,20 +472,13 @@ fn create_tls_server_task_impl<T: RequestHandler>(
     filter: AddressFilter,
     decode: DecodeLevel,
 ) -> (ServerHandle, ServerTask<T>) {
-    let (tx, rx) = tokio::sync::mpsc::channel(SERVER_COMMAND_CHANNEL_CAPACITY);
-    let (shutdown, signal) = crate::common::cancellation::pair();
-    let task = TcpServerTask::new(
+    let (handle, task, commands, signal) = new_server(
         max_sessions,
         listener,
         handlers,
         TcpServerConnectionHandler::Tls(tls_config, auth_handler),
         filter,
         decode,
-        signal.clone(),
     );
-
-    (
-        ServerHandle::new(tx, shutdown),
-        ServerTask::tcp(task, rx, signal),
-    )
+    (handle, ServerTask::tcp(task, commands, signal))
 }
