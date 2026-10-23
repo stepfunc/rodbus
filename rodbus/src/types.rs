@@ -284,6 +284,7 @@ pub(crate) fn coil_to_u16(value: bool) -> u16 {
 
 impl AddressRange {
     /// Create a new address range
+    #[cfg_attr(all(test, rodbus_no_panic), no_panic::no_panic)]
     pub fn try_from(start: u16, count: u16) -> Result<Self, InvalidRange> {
         // the last address of the range
         let Some(last) = count.checked_sub(1) else {

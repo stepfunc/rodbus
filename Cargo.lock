@@ -757,6 +757,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "no-panic"
+version = "0.1.37"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fc80370b4544f28ffa317e3c3474ee3ecbfe269196c01ae657d9f837a7d944a1"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 3.0.4",
+]
+
+[[package]]
 name = "nu-ansi-term"
 version = "0.50.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -977,6 +988,7 @@ name = "rodbus"
 version = "1.6.0-M3"
 dependencies = [
  "crc",
+ "no-panic",
  "rx509",
  "scursor",
  "serde",

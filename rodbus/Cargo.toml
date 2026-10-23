@@ -35,6 +35,10 @@ tokio-serial = { version = "5.4", default-features = false, optional = true }
 # serialize dependencies
 serde = { version = "1.0", default-features = false, features = ["derive", "std"], optional = true}
 
+# only for the no-panic check, which sets --cfg rodbus_no_panic
+[target.'cfg(rodbus_no_panic)'.dev-dependencies]
+no-panic = "0.1"
+
 [dev-dependencies]
 tokio-test = "0.4"
 sfio-tokio-mock-io = "0.2"

@@ -184,3 +184,6 @@ pub use crate::types::*;
 // internal modules
 mod common;
 mod tcp;
+
+#[cfg(all(test, rodbus_no_panic))]
+mod no_panic_check;

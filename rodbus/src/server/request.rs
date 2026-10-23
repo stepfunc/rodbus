@@ -142,6 +142,7 @@ impl<'a> Request<'a> {
         }
     }
 
+    #[cfg_attr(all(test, rodbus_no_panic), no_panic::no_panic)]
     pub(crate) fn parse(
         function: FunctionCode,
         cursor: &'a mut ReadCursor,

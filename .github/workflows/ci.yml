@@ -149,9 +149,32 @@ jobs:
           # (1.6.0-M3) the tool would skip every check
           release-type: minor
           baseline-rev: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}
+  # Check that the frame readers and parsers can't panic for any input
+  # (rodbus/src/no_panic_check.rs). The proof comes from the optimizer, so the toolchain is pinned:
+  # a new one can lose an optimization and fail the link without any change to the code. Raise it
+  # deliberately.
+  no-panic:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.99"
+      - name: Cache the build
+        uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.event_name == 'pull_request' }}
+      - name: Link the parsers with the no-panic check
+        run: cargo test -p rodbus --lib --release --no-run
+        env:
+          RUSTFLAGS: --cfg rodbus_no_panic
+          CARGO_PROFILE_RELEASE_LTO: thin
+          CARGO_PROFILE_RELEASE_CODEGEN_UNITS: "1"
   # The check branch protection requires: passes only if every job a PR runs passed
   ci-ok:
-    needs: [linting, features, msrv, test, semver]
+    needs: [linting, features, msrv, test, semver, no-panic]
     if: always()
     runs-on: ubuntu-latest
     steps:
