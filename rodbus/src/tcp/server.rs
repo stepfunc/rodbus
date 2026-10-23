@@ -16,7 +16,7 @@ use crate::server::handler::{RequestHandler, ServerHandlerMap};
 use crate::server::task::{AuthorizationType, ServerCommand};
 use crate::tcp::accept::{Acceptor, Listen};
 
-use crate::server::AddressFilter;
+use crate::server::{AddressFilter, ServerHandle, SERVER_COMMAND_CHANNEL_CAPACITY};
 use std::future::Future;
 use std::net::SocketAddr;
 use std::num::NonZeroUsize;
@@ -119,6 +119,35 @@ impl TcpServerConnectionHandler {
             }
         }
     }
+}
+
+/// Create a server handle and the task that serves `listener`, with the task's command receiver and
+/// shutdown signal
+pub(crate) fn new_server<T: RequestHandler, L: Listen>(
+    max_sessions: usize,
+    listener: L,
+    handlers: ServerHandlerMap<T>,
+    connection_handler: TcpServerConnectionHandler,
+    filter: AddressFilter,
+    decode: DecodeLevel,
+) -> (
+    ServerHandle,
+    ServerTask<T, L>,
+    tokio::sync::mpsc::Receiver<ServerCommand>,
+    ShutdownSignal,
+) {
+    let (tx, rx) = tokio::sync::mpsc::channel(SERVER_COMMAND_CHANNEL_CAPACITY);
+    let (shutdown, signal) = crate::common::cancellation::pair();
+    let task = ServerTask::new(
+        max_sessions,
+        listener,
+        handlers,
+        connection_handler,
+        filter,
+        decode,
+        signal.clone(),
+    );
+    (ServerHandle::new(tx, shutdown), task, rx, signal)
 }
 
 pub(crate) struct ServerTask<T: RequestHandler, L = TcpListener> {
@@ -353,24 +382,17 @@ mod tests {
     fn spawn_server_on(
         listener: FaultyListener,
     ) -> (crate::server::ServerHandle, tokio::task::JoinHandle<()>) {
-        spawn_server_with(
+        spawn_server_for(
+            1,
             listener,
             TcpServerConnectionHandler::Tcp,
             AddressFilter::Any,
+            handlers(),
         )
     }
 
-    /// Spawn a server with one session on `listener` that admits the peers `filter` matches,
-    /// wired as `create_tcp_server_task` wires it and run by `ServerTask::run`
-    fn spawn_server_with(
-        listener: FaultyListener,
-        connection_handler: TcpServerConnectionHandler,
-        filter: AddressFilter,
-    ) -> (crate::server::ServerHandle, tokio::task::JoinHandle<()>) {
-        spawn_server_for(1, listener, connection_handler, filter, handlers())
-    }
-
-    /// Spawn a server for `handlers` with up to `max_sessions`, as [`spawn_server_with`] does
+    /// Spawn a server for `handlers` with up to `max_sessions` on `listener` that admits the peers
+    /// `filter` matches, wired by [`new_server`] and run by `ServerTask::run`
     fn spawn_server_for<T: RequestHandler>(
         max_sessions: usize,
         listener: FaultyListener,
@@ -378,22 +400,16 @@ mod tests {
         filter: AddressFilter,
         handlers: ServerHandlerMap<T>,
     ) -> (crate::server::ServerHandle, tokio::task::JoinHandle<()>) {
-        let (tx, rx) = tokio::sync::mpsc::channel(1);
-        let (shutdown, signal) = crate::common::cancellation::pair();
-        let task = ServerTask::new(
+        let (handle, task, commands, signal) = new_server(
             max_sessions,
             listener,
             handlers,
             connection_handler,
             filter,
             DecodeLevel::nothing(),
-            signal.clone(),
         );
-        let task = crate::server::ServerTask::memory(task, rx, signal);
-        (
-            crate::server::ServerHandle::new(tx, shutdown),
-            tokio::spawn(task.run()),
-        )
+        let task = crate::server::ServerTask::memory(task, commands, signal);
+        (handle, tokio::spawn(task.run()))
     }
 
     /// Read `peer` until the other end closes it
@@ -652,10 +668,12 @@ mod tests {
         Peers,
     ) {
         let (listener, peers) = FaultyListener::new(&[]);
-        let (handle, task) = spawn_server_with(
+        let (handle, task) = spawn_server_for(
+            1,
             listener,
             TcpServerConnectionHandler::Tcp,
             admits_one_address(),
+            handlers(),
         );
         (handle, task, peers)
     }
@@ -1227,10 +1245,12 @@ mod tests {
         /// A TLS server with one session that admits the peers `filter` matches
         fn spawn_tls_server_with(filter: AddressFilter) -> Server {
             let (listener, peers) = FaultyListener::new(&[]);
-            let (handle, task) = spawn_server_with(
+            let (handle, task) = spawn_server_for(
+                1,
                 listener,
                 TcpServerConnectionHandler::Tls(server_config(MinTlsVersion::V1_2), None),
                 filter,
+                handlers(),
             );
             Server {
                 handle,
