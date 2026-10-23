@@ -596,6 +596,126 @@ mod tests {
         .await
     }
 
+    mod properties {
+        use proptest::prelude::*;
+
+        use super::*;
+
+        #[derive(Clone, Copy, Debug)]
+        enum Op {
+            /// this many bytes arrive
+            Read(usize),
+            /// a frame of this many bytes is written
+            Write(usize),
+        }
+
+        fn op() -> impl Strategy<Value = Op> {
+            prop_oneof![
+                (0usize..=8).prop_map(Op::Read),
+                (1usize..=256).prop_map(Op::Write),
+            ]
+        }
+
+        fn baud_rate() -> impl Strategy<Value = u32> {
+            prop::sample::select(vec![300, 9600, 19200, 19201, 115_200])
+        }
+
+        /// t3.5 and one character time at `baud_rate`, computed in whole nanoseconds
+        fn model_timing(baud_rate: u32) -> (Duration, Duration) {
+            let char_time = 11_000_000_000u64.checked_div(baud_rate.into()).unwrap();
+            let t3_5 = if baud_rate > 19200 {
+                1_750_000
+            } else {
+                char_time.checked_mul(35).unwrap().checked_div(10).unwrap()
+            };
+            (Duration::from_nanos(t3_5), Duration::from_nanos(char_time))
+        }
+
+        /// Each write starts t3.5 after the last byte on the line, or at once if that has passed,
+        /// where a written frame's last byte ends one character time per byte after it started,
+        /// and the port opening counts as a byte
+        fn check(baud_rate: u32, steps: &[(u64, Op)]) {
+            let (t3_5, char_time) = model_timing(baud_rate);
+            let runtime = tokio::runtime::Builder::new_current_thread()
+                .enable_time()
+                .start_paused(true)
+                .build()
+                .unwrap();
+            runtime.block_on(async {
+                let mut gap = InterFrameGap::new(baud_rate);
+                let mut last_byte_end = Instant::now();
+                for &(advance_us, op) in steps {
+                    tokio::time::advance(Duration::from_micros(advance_us)).await;
+                    match op {
+                        Op::Read(length) => {
+                            gap.after_read(length);
+                            if length > 0 {
+                                last_byte_end = last_byte_end.max(Instant::now());
+                            }
+                        }
+                        Op::Write(length) => {
+                            let ready_at = last_byte_end.checked_add(t3_5).unwrap();
+                            assert_eq!(gap.ready_at(), ready_at);
+                            let now = Instant::now();
+                            let wait = ready_at.saturating_duration_since(now);
+                            assert_write_waits(&gap, wait).await;
+                            let start = Instant::now();
+                            drop(gap.transmission(length));
+                            let sent = char_time.checked_mul(length.try_into().unwrap()).unwrap();
+                            last_byte_end = last_byte_end.max(start.checked_add(sent).unwrap());
+                        }
+                    }
+                }
+            });
+        }
+
+        proptest! {
+            #![proptest_config(ProptestConfig::with_cases(256))]
+
+            #[test]
+            fn writes_start_t3_5_after_the_last_byte_on_the_line(
+                baud_rate in baud_rate(),
+                steps in prop::collection::vec((0u64..20_000, op()), 0..32),
+            ) {
+                check(baud_rate, &steps);
+            }
+        }
+
+        /// `|duration - exact / baud_rate|`, multiplied through by `baud_rate`, in nanoseconds
+        fn scaled_error(duration: Duration, baud_rate: u32, exact: u128) -> u128 {
+            let scaled = duration.as_nanos().checked_mul(baud_rate.into()).unwrap();
+            scaled.abs_diff(exact)
+        }
+
+        proptest! {
+            #![proptest_config(ProptestConfig::with_cases(1024))]
+
+            #[test]
+            fn the_inter_frame_delay_is_3_5_character_times_up_to_19200_baud_to_4_ns(
+                baud_rate in 1u32..=19200,
+            ) {
+                let delay = inter_frame_delay(baud_rate);
+                let error = scaled_error(delay, baud_rate, 38_500_000_000);
+                prop_assert!(error <= u128::from(baud_rate).checked_mul(4).unwrap(), "{delay:?}");
+                if let Some(next) = baud_rate.checked_add(1).filter(|x| *x <= 19200) {
+                    prop_assert!(inter_frame_delay(next) <= delay);
+                }
+            }
+
+            #[test]
+            fn the_inter_frame_delay_is_fixed_above_19200_baud(baud_rate in 19201u32..) {
+                prop_assert_eq!(inter_frame_delay(baud_rate), Duration::from_micros(1750));
+            }
+
+            #[test]
+            fn a_character_is_11_bit_times_to_1_ns(baud_rate in 1u32..) {
+                let char_time = character_time(baud_rate);
+                let error = scaled_error(char_time, baud_rate, 11_000_000_000);
+                prop_assert!(error < u128::from(baud_rate), "{char_time:?}");
+            }
+        }
+    }
+
     /// `PhysLayer` on a pseudo-terminal, so that the tests cover the serial reads and writes
     #[cfg(unix)]
     mod port {
