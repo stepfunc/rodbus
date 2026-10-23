@@ -15,9 +15,9 @@ use tokio_rustls::rustls;
 use tokio_rustls::rustls::pki_types::InvalidDnsNameError;
 use tracing::Instrument;
 
-use crate::client::{Channel, ClientState, ClientTask, HostAddr, Listener, RetryStrategy};
+use crate::client::{Channel, ClientState, HostAddr, Listener, RetryStrategy};
 use crate::common::phys::{PhysLayer, Socket};
-use crate::tcp::client::{new_channel, TcpTaskConnectionHandler};
+use crate::tcp::client::{create_channel, TcpTaskConnectionHandler};
 use crate::tcp::tls::{
     handshake, CertificateMode, HandshakeError, MinTlsVersion, TlsError, TLS_HANDSHAKE_TIMEOUT,
 };
@@ -46,26 +46,15 @@ pub(crate) fn spawn_tls_channel(
     listener: Box<dyn Listener<ClientState>>,
 ) -> Channel {
     let span = tracing::info_span!("Modbus-Client-TLS", endpoint = ?host);
-    let (handle, task) = create_tls_channel(host, connect_retry, tls_config, options, listener);
-    tokio::spawn(task.run().instrument(span));
-    handle
-}
-
-pub(crate) fn create_tls_channel(
-    host: HostAddr,
-    connect_retry: Box<dyn RetryStrategy>,
-    tls_config: TlsClientConfig,
-    options: ClientOptions,
-    listener: Box<dyn Listener<ClientState>>,
-) -> (Channel, ClientTask) {
-    let (channel, task, signal) = new_channel(
+    let (handle, task) = create_channel(
         host,
         TcpTaskConnectionHandler::Tls(tls_config),
         connect_retry,
         options,
         listener,
     );
-    (channel, ClientTask::tcp(task, signal))
+    tokio::spawn(task.run().instrument(span));
+    handle
 }
 
 impl TlsClientConfig {

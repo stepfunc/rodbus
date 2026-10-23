@@ -171,11 +171,12 @@ pub fn create_tcp_client_task_with_options(
     listener: Option<Box<dyn Listener<ClientState>>>,
     client_options: ClientOptions,
 ) -> (Channel, ClientTask) {
-    crate::tcp::client::create_tcp_channel(
+    crate::tcp::client::create_channel(
         host,
+        crate::tcp::client::TcpTaskConnectionHandler::Tcp,
         retry,
-        listener.unwrap_or_else(|| NullListener::create()),
         client_options,
+        listener.unwrap_or_else(|| NullListener::create()),
     )
 }
 
@@ -308,10 +309,10 @@ pub fn create_tls_client_task_with_options(
     listener: Option<Box<dyn Listener<ClientState>>>,
     client_options: ClientOptions,
 ) -> (Channel, ClientTask) {
-    create_tls_channel(
+    crate::tcp::client::create_channel(
         host,
+        crate::tcp::client::TcpTaskConnectionHandler::Tls(tls_config),
         retry,
-        tls_config,
         client_options,
         listener.unwrap_or_else(|| NullListener::create()),
     )

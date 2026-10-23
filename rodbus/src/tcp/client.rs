@@ -34,24 +34,28 @@ pub(crate) fn spawn_tcp_channel(
     client_options: ClientOptions,
 ) -> Channel {
     let span = tracing::info_span!("Modbus-Client-TCP", endpoint = ?host);
-    let (handle, task) = create_tcp_channel(host, connect_retry, listener, client_options);
+    let (handle, task) = create_channel(
+        host,
+        TcpTaskConnectionHandler::Tcp,
+        connect_retry,
+        client_options,
+        listener,
+    );
     tokio::spawn(task.run().instrument(span));
     handle
 }
 
-pub(crate) fn create_tcp_channel(
+/// Create a channel and the unspawned task that serves it, connecting to `host` through
+/// `connection_handler`
+pub(crate) fn create_channel(
     host: HostAddr,
+    connection_handler: TcpTaskConnectionHandler,
     connect_retry: Box<dyn RetryStrategy>,
-    listener: Box<dyn Listener<ClientState>>,
     options: ClientOptions,
+    listener: Box<dyn Listener<ClientState>>,
 ) -> (Channel, ClientTask) {
-    let (channel, task, signal) = new_channel(
-        host,
-        TcpTaskConnectionHandler::Tcp,
-        connect_retry,
-        options,
-        listener,
-    );
+    let (channel, task, signal) =
+        new_channel(host, connection_handler, connect_retry, options, listener);
     (channel, ClientTask::tcp(task, signal))
 }
 
@@ -841,11 +845,12 @@ mod tests {
         crate::common::test_support::watchdog(async {
             let (tx, mut states) = tokio::sync::mpsc::unbounded_channel();
             // the channel is never enabled, so the host is never dialed
-            let (channel, task) = create_tcp_channel(
+            let (channel, task) = create_channel(
                 HostAddr::ip(Ipv4Addr::LOCALHOST.into(), 502),
+                TcpTaskConnectionHandler::Tcp,
                 default_retry_strategy(),
-                Box::new(StateRecorder { tx }),
                 ClientOptions::default(),
+                Box::new(StateRecorder { tx }),
             );
             let task = tokio::spawn(task.run());
 
@@ -1045,7 +1050,6 @@ mod tests {
         use super::super::test_util::{memory_channel, MemoryConnector};
         use super::*;
         use crate::common::test_support::watchdog;
-        use crate::tcp::tls::client::create_tls_channel;
         use crate::tcp::tls::test_util::{both_versions, cert, client_config, server_config};
         use crate::tcp::tls::{MinTlsVersion, TLS_HANDSHAKE_TIMEOUT};
         use tokio::time::Instant;
@@ -1109,10 +1113,10 @@ mod tests {
                 tokio::spawn(server_task.run());
 
                 let (tx, mut states) = tokio::sync::mpsc::unbounded_channel();
-                let (channel, task) = create_tls_channel(
+                let (channel, task) = create_channel(
                     HostAddr::ip(addr.ip(), addr.port()),
+                    TcpTaskConnectionHandler::Tls(client_config(MinTlsVersion::V1_2)),
                     default_retry_strategy(),
-                    client_config(MinTlsVersion::V1_2),
                     ClientOptions::default(),
                     Box::new(StateRecorder { tx }),
                 );
