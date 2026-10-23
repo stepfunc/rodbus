@@ -374,7 +374,24 @@ impl std::fmt::Display for FunctionField {
     }
 }
 
+/// The function an exception reply answers: one this library knows, or the code of one it doesn't
+#[derive(Copy, Clone, Debug)]
+pub(crate) enum ExceptionFor {
+    Function(FunctionCode),
+    Unknown(u8),
+}
+
+impl From<ExceptionFor> for FunctionField {
+    fn from(function: ExceptionFor) -> Self {
+        match function {
+            ExceptionFor::Function(x) => FunctionField::Exception(x),
+            ExceptionFor::Unknown(x) => FunctionField::UnknownFunction(x),
+        }
+    }
+}
+
 impl FunctionField {
+    #[cfg(test)]
     pub(crate) fn unknown(fc: u8) -> Self {
         Self::UnknownFunction(fc)
     }
@@ -409,7 +426,7 @@ impl FrameWriter {
         match self.format_generic(header, FunctionField::Valid(function), body, decode_level) {
             Ok(len) => Ok(self.frame(len)),
             Err(RequestError::Exception(ex)) => {
-                self.format_ex(header, FunctionField::Exception(function), ex, decode_level)
+                self.format_ex(header, ExceptionFor::Function(function), ex, decode_level)
             }
             Err(err) => Err(err),
         }
@@ -436,17 +453,11 @@ impl FrameWriter {
     pub(crate) fn format_ex(
         &mut self,
         header: FrameHeader,
-        function: FunctionField,
+        function: ExceptionFor,
         ex: ExceptionCode,
         decode_level: DecodeLevel,
     ) -> Result<&[u8], RequestError> {
-        let function = match function {
-            FunctionField::Valid(x) => FunctionField::Exception(x),
-            FunctionField::Exception(x) => FunctionField::Exception(x),
-            FunctionField::UnknownFunction(x) => FunctionField::UnknownFunction(x),
-        };
-
-        let len = self.format_generic(header, function, &ex, decode_level)?;
+        let len = self.format_generic(header, function.into(), &ex, decode_level)?;
 
         Ok(self.frame(len))
     }

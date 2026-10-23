@@ -11,7 +11,7 @@ use crate::server::AuthorizationHandler;
 use crate::{DecodeLevel, UnitId};
 
 use crate::common::frame::{
-    Frame, FrameDestination, FrameHeader, FrameWriter, FramedReader, FunctionField,
+    ExceptionFor, Frame, FrameDestination, FrameHeader, FrameWriter, FramedReader,
 };
 use crate::common::function::FunctionCode;
 use crate::error::*;
@@ -191,7 +191,7 @@ enum Refusal {
     /// The frame holds no function code, so there is nothing to answer
     Empty,
     /// Answered, unless broadcast, with this exception
-    Exception(FunctionField, ExceptionCode),
+    Exception(ExceptionFor, ExceptionCode),
 }
 
 /// Parses the request in a frame's `pdu`, addressed to `unit_id`, and checks that it's authorized
@@ -208,7 +208,7 @@ fn accept<'a>(
     let Some(function) = FunctionCode::get(value) else {
         tracing::warn!("received unknown function code: {}", value);
         return Err(Refusal::Exception(
-            FunctionField::unknown(value),
+            ExceptionFor::Unknown(value),
             ExceptionCode::IllegalFunction,
         ));
     };
@@ -218,7 +218,7 @@ fn accept<'a>(
         Err(rejection) => {
             tracing::warn!("error parsing {:?} request: {}", function, rejection);
             return Err(Refusal::Exception(
-                FunctionField::Exception(function),
+                ExceptionFor::Function(function),
                 rejection.exception(),
             ));
         }
@@ -231,7 +231,7 @@ fn accept<'a>(
     match auth.is_authorized(unit_id, &request) {
         Authorization::Allow => Ok(request),
         Authorization::Deny => Err(Refusal::Exception(
-            FunctionField::Exception(function),
+            ExceptionFor::Function(function),
             ExceptionCode::IllegalFunction,
         )),
     }

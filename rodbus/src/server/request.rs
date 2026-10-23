@@ -4,7 +4,7 @@
 // Text and data mining rights, including for AI training, are reserved under
 // Directive (EU) 2019/790 Art. 4(3), subject to LICENSE.txt Section 3.3.
 
-use crate::common::frame::{FrameHeader, FrameWriter, FunctionField};
+use crate::common::frame::{ExceptionFor, FrameHeader, FrameWriter};
 use crate::common::function::FunctionCode;
 use crate::common::traits::{Loggable, Serialize};
 use crate::decode::AppDecodeLevel;
@@ -89,7 +89,7 @@ impl<'a> Request<'a> {
         {
             match result {
                 Ok(response) => writer.format_reply(header, function, &response, level),
-                Err(ex) => writer.format_ex(header, FunctionField::Exception(function), ex, level),
+                Err(ex) => writer.format_ex(header, ExceptionFor::Function(function), ex, level),
             }
         }
 
