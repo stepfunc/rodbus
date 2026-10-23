@@ -698,4 +698,435 @@ mod tests {
             )
         }
     }
+
+    /// `Request::parse` against a model of the requests in MODBUS Application Protocol
+    /// Specification V1.1b3 6.1-6.6, 6.11 and 6.12, checked in the order of their state diagrams
+    /// (Figures 11-16, 21, 22): the values first, answered with 03, then the address, answered
+    /// with 02 (7)
+    mod properties {
+        use std::collections::BTreeMap;
+
+        use proptest::prelude::*;
+        use proptest::sample::Index;
+        use proptest::strategy::ValueTree;
+        use proptest::test_runner::TestRunner;
+        use scursor::ReadCursor;
+
+        use super::super::*;
+
+        const FUNCTIONS: [FunctionCode; 8] = [
+            FunctionCode::ReadCoils,
+            FunctionCode::ReadDiscreteInputs,
+            FunctionCode::ReadHoldingRegisters,
+            FunctionCode::ReadInputRegisters,
+            FunctionCode::WriteSingleCoil,
+            FunctionCode::WriteSingleRegister,
+            FunctionCode::WriteMultipleCoils,
+            FunctionCode::WriteMultipleRegisters,
+        ];
+
+        /// The largest quantity a request of `function` may carry (6.1-6.4, 6.11, 6.12), or
+        /// `None` for the single writes, whose second field is a value
+        fn limit(function: FunctionCode) -> Option<u16> {
+            match function {
+                FunctionCode::ReadCoils | FunctionCode::ReadDiscreteInputs => Some(2000),
+                FunctionCode::ReadHoldingRegisters | FunctionCode::ReadInputRegisters => Some(125),
+                FunctionCode::WriteSingleCoil | FunctionCode::WriteSingleRegister => None,
+                FunctionCode::WriteMultipleCoils => Some(1968),
+                FunctionCode::WriteMultipleRegisters => Some(123),
+            }
+        }
+
+        /// The bytes `quantity` values take in a request of `function` that counts them (6.11:
+        /// one bit each, rounded up to whole bytes; 6.12: two bytes each), or `None` if it
+        /// doesn't carry a byte count
+        fn byte_length(function: FunctionCode, quantity: u16) -> Option<usize> {
+            let quantity = usize::from(quantity);
+            match function {
+                FunctionCode::WriteMultipleCoils => Some(quantity.div_ceil(8)),
+                FunctionCode::WriteMultipleRegisters => quantity.checked_mul(2),
+                _ => None,
+            }
+        }
+
+        /// Why the model refuses a request
+        #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+        enum Fault {
+            /// shorter than its function and byte count imply
+            Short,
+            /// longer than its function and byte count imply
+            Long,
+            QuantityZero,
+            QuantityOverLimit,
+            /// the byte count isn't the quantity's byte length
+            ByteCount,
+            /// a single coil value other than 0x0000 or 0xFF00
+            CoilValue,
+            /// valid values, whose range runs past address 0xFFFF
+            PastTheEnd,
+        }
+
+        impl Fault {
+            fn exception(self) -> ExceptionCode {
+                match self {
+                    Fault::PastTheEnd => ExceptionCode::IllegalDataAddress,
+                    _ => ExceptionCode::IllegalDataValue,
+                }
+            }
+        }
+
+        /// A request as `Request::parse` decodes it, with its values collected
+        #[derive(Debug, PartialEq)]
+        enum Parsed {
+            Read(FunctionCode, AddressRange),
+            WriteSingleCoil(Indexed<bool>),
+            WriteSingleRegister(Indexed<u16>),
+            WriteMultipleCoils(AddressRange, Vec<Indexed<bool>>),
+            WriteMultipleRegisters(AddressRange, Vec<Indexed<u16>>),
+        }
+
+        impl From<Request<'_>> for Parsed {
+            fn from(request: Request<'_>) -> Self {
+                match request {
+                    Request::ReadCoils(range) => Parsed::Read(FunctionCode::ReadCoils, range.get()),
+                    Request::ReadDiscreteInputs(range) => {
+                        Parsed::Read(FunctionCode::ReadDiscreteInputs, range.get())
+                    }
+                    Request::ReadHoldingRegisters(range) => {
+                        Parsed::Read(FunctionCode::ReadHoldingRegisters, range.get())
+                    }
+                    Request::ReadInputRegisters(range) => {
+                        Parsed::Read(FunctionCode::ReadInputRegisters, range.get())
+                    }
+                    Request::WriteSingleCoil(value) => Parsed::WriteSingleCoil(value),
+                    Request::WriteSingleRegister(value) => Parsed::WriteSingleRegister(value),
+                    Request::WriteMultipleCoils(write) => {
+                        Parsed::WriteMultipleCoils(write.range, write.iterator.collect())
+                    }
+                    Request::WriteMultipleRegisters(write) => {
+                        Parsed::WriteMultipleRegisters(write.range, write.iterator.collect())
+                    }
+                }
+            }
+        }
+
+        /// The quantity of a request is from 1 to its function's limit
+        fn check_quantity(quantity: u16, limit: u16) -> Result<(), Fault> {
+            match quantity {
+                0 => Err(Fault::QuantityZero),
+                quantity if quantity > limit => Err(Fault::QuantityOverLimit),
+                _ => Ok(()),
+            }
+        }
+
+        /// The range of `quantity` values from `start`, whose addresses must all be at most
+        /// 0xFFFF
+        fn range(start: u16, quantity: u16) -> Result<AddressRange, Fault> {
+            let end = u32::from(start).wrapping_add(u32::from(quantity));
+            if end > 0x1_0000 {
+                return Err(Fault::PastTheEnd);
+            }
+            Ok(AddressRange {
+                start,
+                count: quantity,
+            })
+        }
+
+        /// How the model decodes `body` for `function`, or why it refuses it: the values it
+        /// carries, then the addresses they reach
+        fn model(function: FunctionCode, body: &[u8]) -> Result<Parsed, Fault> {
+            let (fields, values) = match body.split_first_chunk::<4>() {
+                Some(([a, b, c, d], values)) => (
+                    (u16::from_be_bytes([*a, *b]), u16::from_be_bytes([*c, *d])),
+                    values,
+                ),
+                None => return Err(Fault::Short),
+            };
+            let (start, second) = fields;
+            match (limit(function), byte_length(function, second)) {
+                // a read: the range is all it carries
+                (Some(limit), None) => {
+                    if !values.is_empty() {
+                        return Err(Fault::Long);
+                    }
+                    check_quantity(second, limit)?;
+                    Ok(Parsed::Read(function, range(start, second)?))
+                }
+                // a write of multiple values: the range, a byte count, the values
+                (Some(limit), Some(needed)) => {
+                    let Some((byte_count, values)) = values.split_first() else {
+                        return Err(Fault::Short);
+                    };
+                    check_quantity(second, limit)?;
+                    if usize::from(*byte_count) != needed {
+                        return Err(Fault::ByteCount);
+                    }
+                    if values.len() < needed {
+                        return Err(Fault::Short);
+                    }
+                    if values.len() > needed {
+                        return Err(Fault::Long);
+                    }
+                    let range = range(start, second)?;
+                    let addresses = (start..=u16::MAX).take(usize::from(second));
+                    if function == FunctionCode::WriteMultipleCoils {
+                        // the first coil in the low bit of the first byte
+                        let bits = values.iter().flat_map(|byte| {
+                            (0..8).map(move |bit| byte.wrapping_shr(bit) & 1 == 1)
+                        });
+                        let coils = addresses.zip(bits).map(Indexed::from).collect();
+                        Ok(Parsed::WriteMultipleCoils(range, coils))
+                    } else {
+                        let registers = values.as_chunks::<2>().0.iter().copied();
+                        let registers = registers.map(u16::from_be_bytes);
+                        let registers = addresses.zip(registers).map(Indexed::from).collect();
+                        Ok(Parsed::WriteMultipleRegisters(range, registers))
+                    }
+                }
+                // a single write: an address and a value, and any address holds one value
+                (None, _) => {
+                    if !values.is_empty() {
+                        return Err(Fault::Long);
+                    }
+                    if function == FunctionCode::WriteSingleCoil {
+                        let value = match second {
+                            0x0000 => false,
+                            0xFF00 => true,
+                            _ => return Err(Fault::CoilValue),
+                        };
+                        Ok(Parsed::WriteSingleCoil(Indexed::new(start, value)))
+                    } else {
+                        Ok(Parsed::WriteSingleRegister(Indexed::new(start, second)))
+                    }
+                }
+            }
+        }
+
+        /// `Request::parse` accepts `body` exactly when the model does, decoding the same request,
+        /// and refuses it with the model's exception otherwise
+        fn check(function: FunctionCode, body: &[u8]) -> Result<(), TestCaseError> {
+            let mut cursor = ReadCursor::new(body);
+            let parsed = Request::parse(function, &mut cursor).map(Parsed::from);
+            match (parsed, model(function, body)) {
+                (Ok(parsed), Ok(expected)) => {
+                    prop_assert_eq!(parsed, expected);
+                }
+                (Err(rejection), Err(fault)) => {
+                    prop_assert_eq!(rejection.exception(), fault.exception(), "{:?}", fault);
+                    if let (Fault::PastTheEnd, [a, b, c, d, ..]) = (fault, body) {
+                        let start = u16::from_be_bytes([*a, *b]);
+                        let count = u16::from_be_bytes([*c, *d]);
+                        prop_assert_eq!(rejection, Rejection::Address { start, count });
+                    }
+                }
+                (parsed, expected) => {
+                    return Err(TestCaseError::fail(format!(
+                        "parsed {parsed:?}, the model expects {expected:?}"
+                    )));
+                }
+            }
+            Ok(())
+        }
+
+        /// A quantity at or around its function's limits, or any, often within them
+        fn quantity(limit: u16) -> impl Strategy<Value = u16> {
+            prop_oneof![
+                1 => Just(0),
+                2 => Just(1),
+                2 => Just(limit),
+                2 => Just(limit.checked_add(1).unwrap()),
+                1 => 1..=limit,
+                1 => any::<u16>(),
+            ]
+        }
+
+        /// A starting address that `quantity` values often just fit after, or just don't
+        fn start(quantity: u16) -> impl Strategy<Value = u16> {
+            // the last start the values fit after
+            let last = 0x1_0000u32.checked_sub(u32::from(quantity.max(1))).unwrap();
+            let last = u16::try_from(last).unwrap();
+            prop_oneof![
+                1 => Just(0),
+                1 => Just(1),
+                2 => (0..=8u16).prop_map(|k| u16::MAX.checked_sub(k).unwrap()),
+                3 => last.saturating_sub(1)..=last.saturating_add(1),
+                1 => any::<u16>(),
+            ]
+        }
+
+        /// The value of a single write, a coil's often on or off
+        fn value(function: FunctionCode) -> BoxedStrategy<u16> {
+            match function {
+                FunctionCode::WriteSingleCoil => {
+                    prop_oneof![Just(0x0000), Just(0xFF00), any::<u16>()].boxed()
+                }
+                _ => any::<u16>().boxed(),
+            }
+        }
+
+        /// The two fields every request starts with: a start and a quantity, or an address and
+        /// a value
+        fn fields(function: FunctionCode) -> BoxedStrategy<(u16, u16)> {
+            match limit(function) {
+                Some(limit) => quantity(limit)
+                    .prop_flat_map(|quantity| (start(quantity), Just(quantity)))
+                    .boxed(),
+                None => (start(1), value(function)).boxed(),
+            }
+        }
+
+        /// The byte count of a write of multiple values, relative to the quantity's byte length
+        #[derive(Clone, Copy, Debug)]
+        enum ByteCount {
+            Correct,
+            OneMore,
+            OneLess,
+            Any(u8),
+        }
+
+        /// How many bytes of values a write of multiple values carries
+        #[derive(Clone, Copy, Debug)]
+        enum Values {
+            ForQuantity,
+            ForByteCount,
+        }
+
+        /// How a body ends
+        #[derive(Clone, Copy, Debug)]
+        enum Tail {
+            Whole,
+            /// cut short, before its last byte
+            Cut(Index),
+            /// with one byte more
+            Extra(u8),
+        }
+
+        /// The body of a request of `function` whose first fields are `first` and `second`,
+        /// with the byte count and values of a write of multiple values made of `pattern`
+        fn body(
+            function: FunctionCode,
+            (first, second): (u16, u16),
+            byte_count: ByteCount,
+            values: Values,
+            pattern: &[u8],
+            tail: Tail,
+        ) -> Vec<u8> {
+            let mut body = [first.to_be_bytes(), second.to_be_bytes()].concat();
+            if let Some(needed) = byte_length(function, second) {
+                // the low byte, if the length doesn't fit in one
+                let correct = needed.to_le_bytes()[0];
+                let byte_count = match byte_count {
+                    ByteCount::Correct => correct,
+                    ByteCount::OneMore => correct.wrapping_add(1),
+                    ByteCount::OneLess => correct.wrapping_sub(1),
+                    ByteCount::Any(count) => count,
+                };
+                let length = match values {
+                    Values::ForQuantity => needed,
+                    Values::ForByteCount => usize::from(byte_count),
+                };
+                body.push(byte_count);
+                body.extend(pattern.iter().cycle().take(length));
+            }
+            match tail {
+                Tail::Whole => {}
+                Tail::Cut(index) => body.truncate(index.index(body.len())),
+                Tail::Extra(byte) => body.push(byte),
+            }
+            body
+        }
+
+        /// A function and the body of a request of it, often valid, often just not
+        fn request() -> impl Strategy<Value = (FunctionCode, Vec<u8>)> {
+            prop::sample::select(FUNCTIONS.to_vec())
+                .prop_flat_map(|function| {
+                    (
+                        Just(function),
+                        fields(function),
+                        prop_oneof![
+                            3 => Just(ByteCount::Correct),
+                            1 => Just(ByteCount::OneMore),
+                            1 => Just(ByteCount::OneLess),
+                            1 => any::<u8>().prop_map(ByteCount::Any),
+                        ],
+                        prop_oneof![Just(Values::ForQuantity), Just(Values::ForByteCount)],
+                        prop::collection::vec(any::<u8>(), 1..=16),
+                        prop_oneof![
+                            3 => Just(Tail::Whole),
+                            1 => any::<Index>().prop_map(Tail::Cut),
+                            1 => any::<u8>().prop_map(Tail::Extra),
+                        ],
+                    )
+                })
+                .prop_map(|(function, fields, byte_count, values, pattern, tail)| {
+                    let body = body(function, fields, byte_count, values, &pattern, tail);
+                    (function, body)
+                })
+        }
+
+        proptest! {
+            #![proptest_config(ProptestConfig::with_cases(1024))]
+
+            #[test]
+            fn parse_accepts_and_refuses_requests_as_the_spec_does(
+                (function, body) in request()
+            ) {
+                check(function, &body)?;
+            }
+        }
+
+        #[test]
+        fn the_request_generator_reaches_every_outcome_of_every_function() {
+            let mut runner = TestRunner::deterministic();
+            let strategy = request();
+            let mut counts = BTreeMap::<(u8, Option<Fault>), u32>::new();
+            for _ in 0..1024 {
+                let (function, body) = strategy.new_tree(&mut runner).unwrap().current();
+                let outcome = model(function, &body).err();
+                let count = counts.entry((function.get_value(), outcome)).or_default();
+                *count = count.checked_add(1).unwrap();
+            }
+            let read = [
+                None,
+                Some(Fault::Short),
+                Some(Fault::Long),
+                Some(Fault::QuantityZero),
+                Some(Fault::QuantityOverLimit),
+                Some(Fault::PastTheEnd),
+            ];
+            let write_multiple = [
+                None,
+                Some(Fault::Short),
+                Some(Fault::Long),
+                Some(Fault::QuantityZero),
+                Some(Fault::QuantityOverLimit),
+                Some(Fault::ByteCount),
+                Some(Fault::PastTheEnd),
+            ];
+            let mut expected = vec![];
+            for function in FUNCTIONS {
+                let outcomes: &[Option<Fault>] = match function {
+                    FunctionCode::WriteSingleCoil => &[
+                        None,
+                        Some(Fault::Short),
+                        Some(Fault::Long),
+                        Some(Fault::CoilValue),
+                    ],
+                    FunctionCode::WriteSingleRegister => {
+                        &[None, Some(Fault::Short), Some(Fault::Long)]
+                    }
+                    FunctionCode::WriteMultipleCoils | FunctionCode::WriteMultipleRegisters => {
+                        &write_multiple
+                    }
+                    _ => &read,
+                };
+                expected.extend(
+                    outcomes
+                        .iter()
+                        .map(|outcome| (function.get_value(), *outcome)),
+                );
+            }
+            assert_eq!(counts.keys().copied().collect::<Vec<_>>(), expected);
+        }
+    }
 }
