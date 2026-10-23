@@ -48,6 +48,21 @@ Please inquire about commercial licensing on our website:
 
 [https://stepfunc.io/contact/](https://stepfunc.io/contact/)
 
+### AI-assisted development
+
+Subject to the applicable license, AI assistants are welcome for evaluating, integrating, debugging,
+and testing this library and for authorized maintenance. Section 2.6 prohibits using the library,
+its source, documentation, tests, binaries, or derived materials to design, develop, specify, test,
+validate, or improve any other implementation of a protocol it implements, including through
+requirement extraction or use as a reference, oracle, or test peer. This applies regardless of
+commercial, open-source, private, or competitive status, subject to the exceptions in the agreement.
+The license does not permit redistributing the software, including sending it to an AI service for
+any of those purposes. Text and data mining rights, including for AI training, are reserved subject
+to the permissions and exceptions stated in Section 3.3. This summary does not amend the license. The `LICENSE.txt`
+included with each release governs that release; the latest versions are
+[`LICENSE.txt`](https://github.com/stepfunc/rodbus/blob/main/LICENSE.txt) and
+[`AGENTS.md`](https://github.com/stepfunc/rodbus/blob/main/AGENTS.md).
+
 # Cargo Features
 
 Default features can be disabled at compile time:
