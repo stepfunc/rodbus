@@ -7,7 +7,7 @@
 use crate::client::message::{Command, Promise, RequestDetails, Setting};
 use crate::client::requests::read_bits::{self, ReadBits};
 use crate::client::requests::read_registers::{self, ReadRegisters};
-use crate::client::requests::write_multiple::MultipleWriteRequest;
+use crate::client::requests::write_multiple::{LimitedWrite, MultipleWriteRequest};
 use crate::client::requests::write_single::SingleWrite;
 use crate::client::{Channel, RequestParam, WriteMultiple};
 use crate::common::cancellation::ShutdownHandle;
@@ -78,7 +78,7 @@ impl FfiChannel {
     where
         C: FnOnce(Result<BitIterator, RequestError>) + Send + Sync + 'static,
     {
-        self.read(param, range.of_read_bits(), |range| {
+        self.queue(param, range.of_read_bits(), |range| {
             RequestDetails::ReadCoils(ReadBits::new(range, read_bits::Promise::new(callback)))
         })
     }
@@ -96,7 +96,7 @@ impl FfiChannel {
     where
         C: FnOnce(Result<BitIterator, RequestError>) + Send + Sync + 'static,
     {
-        self.read(param, range.of_read_bits(), |range| {
+        self.queue(param, range.of_read_bits(), |range| {
             RequestDetails::ReadDiscreteInputs(ReadBits::new(
                 range,
                 read_bits::Promise::new(callback),
@@ -117,7 +117,7 @@ impl FfiChannel {
     where
         C: FnOnce(Result<RegisterIterator, RequestError>) + Send + Sync + 'static,
     {
-        self.read(param, range.of_read_registers(), |range| {
+        self.queue(param, range.of_read_registers(), |range| {
             RequestDetails::ReadHoldingRegisters(ReadRegisters::new(
                 range,
                 read_registers::Promise::new(callback),
@@ -138,7 +138,7 @@ impl FfiChannel {
     where
         C: FnOnce(Result<RegisterIterator, RequestError>) + Send + Sync + 'static,
     {
-        self.read(param, range.of_read_registers(), |range| {
+        self.queue(param, range.of_read_registers(), |range| {
             RequestDetails::ReadInputRegisters(ReadRegisters::new(
                 range,
                 read_registers::Promise::new(callback),
@@ -188,13 +188,12 @@ impl FfiChannel {
     where
         C: FnOnce(Result<AddressRange, RequestError>) + Send + Sync + 'static,
     {
-        self.send(crate::client::channel::wrap(
-            param,
+        self.queue(param, LimitedWrite::registers(value), |write| {
             RequestDetails::WriteMultipleRegisters(MultipleWriteRequest::new(
-                value,
+                write,
                 Promise::new(callback),
-            )),
-        ))
+            ))
+        })
     }
 
     /// Write multiple contiguous coils to the server
@@ -207,18 +206,18 @@ impl FfiChannel {
     where
         C: FnOnce(Result<AddressRange, RequestError>) + Send + Sync + 'static,
     {
-        self.send(crate::client::channel::wrap(
-            param,
+        self.queue(param, LimitedWrite::coils(value), |write| {
             RequestDetails::WriteMultipleCoils(MultipleWriteRequest::new(
-                value,
+                write,
                 Promise::new(callback),
-            )),
-        ))
+            ))
+        })
     }
 
-    /// Queue a read once its range is valid. The callback only becomes a promise, which completes
-    /// it however the request ends, inside `request`, so a rejected range never calls it.
-    fn read<R>(
+    /// Queue a read or a write of multiple values once its range is valid. The callback only
+    /// becomes a promise, which completes it however the request ends, inside `request`, so a
+    /// rejected range never calls it.
+    fn queue<R>(
         &mut self,
         param: RequestParam,
         range: Result<R, InvalidRange>,
@@ -613,5 +612,73 @@ mod tests {
         }
 
         assert_eq!(rx.try_recv().err(), Some(TryRecvError::Empty));
+    }
+
+    // MODBUS Application Protocol Specification V1.1b3 6.11, 6.12
+    #[test]
+    fn writes_past_their_limit_are_rejected_before_queueing_without_a_callback() {
+        let (mut channel, mut rx) = channel(2);
+
+        let coils = Completions::new();
+        assert_eq!(
+            outcome(channel.write_multiple_coils(
+                param(),
+                WriteMultiple::from(0, vec![true; 1969]).unwrap(),
+                coils.callback()
+            )),
+            Err(Rejected::BadRange(InvalidRange::CountTooLargeForType(
+                1969, 1968
+            )))
+        );
+        assert_eq!(coils.take(), []);
+
+        let registers = Completions::new();
+        assert_eq!(
+            outcome(channel.write_multiple_registers(
+                param(),
+                WriteMultiple::from(0, vec![0; 124]).unwrap(),
+                registers.callback()
+            )),
+            Err(Rejected::BadRange(InvalidRange::CountTooLargeForType(
+                124, 123
+            )))
+        );
+        assert_eq!(registers.take(), []);
+        assert_eq!(rx.try_recv().err(), Some(TryRecvError::Empty));
+
+        // the most each write carries is queued
+        assert_eq!(
+            outcome(channel.write_multiple_coils(
+                param(),
+                WriteMultiple::from(0, vec![true; 1968]).unwrap(),
+                coils.callback()
+            )),
+            Ok(())
+        );
+        assert_eq!(
+            outcome(channel.write_multiple_registers(
+                param(),
+                WriteMultiple::from(0, vec![0; 123]).unwrap(),
+                registers.callback()
+            )),
+            Ok(())
+        );
+        let mut request = next_request(&mut rx);
+        assert_eq!(
+            request.handle_response(&[0x0F, 0x00, 0x00, 0x07, 0xB0], AppDecodeLevel::Nothing),
+            Ok(())
+        );
+        drop(request);
+        assert_eq!(coils.take(), [Ok(AddressRange::try_from(0, 1968).unwrap())]);
+        let mut request = next_request(&mut rx);
+        assert_eq!(
+            request.handle_response(&[0x10, 0x00, 0x00, 0x00, 0x7B], AppDecodeLevel::Nothing),
+            Ok(())
+        );
+        drop(request);
+        assert_eq!(
+            registers.take(),
+            [Ok(AddressRange::try_from(0, 123).unwrap())]
+        );
     }
 }

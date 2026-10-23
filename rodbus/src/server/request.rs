@@ -186,10 +186,10 @@ impl<'a> Request<'a> {
                 let unchecked = decode_range(cursor)?;
                 // the values' length follows from the quantity, so the byte count isn't needed
                 cursor.read_u8()?;
-                // reading the values checks only their length
+                // reading the values checks only their length, then their quantity is checked
                 let values = BitIterator::parse_all(unchecked, cursor).map_err(Rejection::Value)?;
                 Ok(Request::WriteMultipleCoils(WriteCoils::new(
-                    unchecked.validated()?,
+                    unchecked.of_write_coils()?,
                     values,
                 )))
             }
@@ -197,11 +197,11 @@ impl<'a> Request<'a> {
                 let unchecked = decode_range(cursor)?;
                 // the values' length follows from the quantity, so the byte count isn't needed
                 cursor.read_u8()?;
-                // reading the values checks only their length
+                // reading the values checks only their length, then their quantity is checked
                 let values =
                     RegisterIterator::parse_all(unchecked, cursor).map_err(Rejection::Value)?;
                 Ok(Request::WriteMultipleRegisters(WriteRegisters::new(
-                    unchecked.validated()?,
+                    unchecked.of_write_registers()?,
                     values,
                 )))
             }
@@ -359,6 +359,80 @@ mod tests {
             [&[0xFF, 0xFF, 0x00, 0x02], rest].concat()
         }
 
+        /// The body of a write of `count` values from `start` that carries `len` bytes of them,
+        /// with a byte count that matches
+        fn write(start: u16, count: u16, len: usize) -> Vec<u8> {
+            let byte_count = u8::try_from(len).unwrap();
+            [
+                &start.to_be_bytes()[..],
+                &count.to_be_bytes(),
+                &[byte_count],
+                &vec![0; len],
+            ]
+            .concat()
+        }
+
+        /// The body of a write of `count` coils from `start`, all off
+        fn write_coils(start: u16, count: u16) -> Vec<u8> {
+            write(start, count, usize::from(count).div_ceil(8))
+        }
+
+        /// The body of a write of `count` registers from `start`, all zero
+        fn write_registers(start: u16, count: u16) -> Vec<u8> {
+            write(start, count, usize::from(count) * 2)
+        }
+
+        /// The range of a write `Request::parse` accepts, or `None` if it refuses it
+        fn written_range(function: FunctionCode, body: &[u8]) -> Option<AddressRange> {
+            match Request::parse(function, &mut ReadCursor::new(body)) {
+                Ok(Request::WriteMultipleCoils(write)) => Some(write.range),
+                Ok(Request::WriteMultipleRegisters(write)) => Some(write.range),
+                _ => None,
+            }
+        }
+
+        // MODBUS Application Protocol Specification V1.1b3 6.11
+        #[test]
+        fn a_write_of_more_than_1968_coils_is_refused_with_03() {
+            let function = FunctionCode::WriteMultipleCoils;
+            assert_eq!(
+                written_range(function, &write_coils(0, 1968)),
+                Some(AddressRange::try_from(0, 1968).unwrap())
+            );
+            let refused = rejection(function, &write_coils(0, 1969));
+            assert_eq!(
+                refused,
+                Some(Rejection::Value(
+                    InvalidRange::CountTooLargeForType(1969, 1968).into()
+                ))
+            );
+            assert_eq!(
+                refused.map(Rejection::exception),
+                Some(ExceptionCode::IllegalDataValue)
+            );
+        }
+
+        // MODBUS Application Protocol Specification V1.1b3 6.12
+        #[test]
+        fn a_write_of_more_than_123_registers_is_refused_with_03() {
+            let function = FunctionCode::WriteMultipleRegisters;
+            assert_eq!(
+                written_range(function, &write_registers(0, 123)),
+                Some(AddressRange::try_from(0, 123).unwrap())
+            );
+            let refused = rejection(function, &write_registers(0, 124));
+            assert_eq!(
+                refused,
+                Some(Rejection::Value(
+                    InvalidRange::CountTooLargeForType(124, 123).into()
+                ))
+            );
+            assert_eq!(
+                refused.map(Rejection::exception),
+                Some(ExceptionCode::IllegalDataValue)
+            );
+        }
+
         #[test]
         fn valid_values_past_0xffff_are_refused_for_their_address_with_02() {
             let past_the_end = Rejection::Address {
@@ -388,7 +462,7 @@ mod tests {
 
         #[test]
         fn invalid_values_past_0xffff_are_refused_for_their_values_with_03() {
-            let checks: [(FunctionCode, Vec<u8>, RequestError); 6] = [
+            let checks: [(FunctionCode, Vec<u8>, RequestError); 8] = [
                 // one past each read's limit
                 (
                     FunctionCode::ReadCoils,
@@ -399,6 +473,17 @@ mod tests {
                     FunctionCode::ReadHoldingRegisters,
                     vec![0xFF, 0xF0, 0x00, 0x7E],
                     InvalidRange::CountTooLargeForType(126, 125).into(),
+                ),
+                // one past each write's limit, with all its values
+                (
+                    FunctionCode::WriteMultipleCoils,
+                    write_coils(0xFFF0, 1969),
+                    InvalidRange::CountTooLargeForType(1969, 1968).into(),
+                ),
+                (
+                    FunctionCode::WriteMultipleRegisters,
+                    write_registers(0xFFF0, 124),
+                    InvalidRange::CountTooLargeForType(124, 123).into(),
                 ),
                 // a byte too many after a read
                 (
