@@ -32,3 +32,6 @@ ffi/bindings/java/**/target
 
 # Generated CycloneDX SBOMs (produced by cargo-cyclonedx in CI/local runs)
 *.cdx.json
+
+# property-test failures become example tests; seed files are not committed
+proptest-regressions/
