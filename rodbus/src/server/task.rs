@@ -212,11 +212,11 @@ fn accept<'a>(
 
     let request = match Request::parse(function, pdu) {
         Ok(x) => x,
-        Err(err) => {
-            tracing::warn!("error parsing {:?} request: {}", function, err);
+        Err(rejection) => {
+            tracing::warn!("error parsing {:?} request: {}", function, rejection);
             return Err(Refusal::Exception(
                 FunctionField::Exception(function),
-                ExceptionCode::IllegalDataValue,
+                rejection.exception(),
             ));
         }
     };
@@ -708,6 +708,63 @@ mod tests {
         .await;
     }
 
+    /// Requests to unit 1 that are refused before any handler sees them, and the exception
+    /// replies, the same over every framing
+    ///
+    /// The values a request carries are checked before the address range they reach
+    /// (MODBUS Application Protocol Specification V1.1b3 6.1-6.4, 6.11, 6.12): a range past
+    /// address 0xFFFF gets 02 only when its quantity and values are valid, and 03 otherwise.
+    const REFUSED: [(&[u8], &[u8]); 10] = [
+        // a read of two values from 0xFFFF, by each read function
+        (&[0x01, 0xFF, 0xFF, 0x00, 0x02], &[0x81, 0x02]),
+        (&[0x02, 0xFF, 0xFF, 0x00, 0x02], &[0x82, 0x02]),
+        (&[0x03, 0xFF, 0xFF, 0x00, 0x02], &[0x83, 0x02]),
+        (&[0x04, 0xFF, 0xFF, 0x00, 0x02], &[0x84, 0x02]),
+        // a write of two coils, both on, and of two registers, from 0xFFFF
+        (&[0x0F, 0xFF, 0xFF, 0x00, 0x02, 0x01, 0b11], &[0x8F, 0x02]),
+        (
+            &[0x10, 0xFF, 0xFF, 0x00, 0x02, 0x04, 0x12, 0x34, 0x56, 0x78],
+            &[0x90, 0x02],
+        ),
+        // 2001 coils and 126 registers, one past each read's limit, that also run past 0xFFFF
+        (&[0x01, 0xFF, 0xF0, 0x07, 0xD1], &[0x81, 0x03]),
+        (&[0x03, 0xFF, 0xF0, 0x00, 0x7E], &[0x83, 0x03]),
+        // a read and a write of no values
+        (&[0x03, 0x00, 0x10, 0x00, 0x00], &[0x83, 0x03]),
+        (&[0x10, 0x00, 0x10, 0x00, 0x00, 0x00], &[0x90, 0x03]),
+    ];
+
+    #[tokio::test]
+    async fn tcp_checks_a_requests_values_before_its_address_and_calls_no_handler() {
+        crate::common::test_support::watchdog(async {
+            let (mut peer, calls) = tcp_session(&[1]);
+            let tcp_only: [(&[u8], &[u8]); 2] = [
+                // a read from 0xFFFF with a byte after it
+                (&[0x03, 0xFF, 0xFF, 0x00, 0x02, 0x00], &[0x83, 0x03]),
+                // a write of two registers from 0xFFFF that carries only one
+                (
+                    &[0x10, 0xFF, 0xFF, 0x00, 0x02, 0x04, 0x12, 0x34],
+                    &[0x90, 0x03],
+                ),
+            ];
+            for (tx_id, (request, reply)) in (1..).zip(REFUSED.into_iter().chain(tcp_only)) {
+                assert_eq!(
+                    exchange(&mut peer, &mbap(tx_id, 1, request), 9).await,
+                    mbap(tx_id, 1, reply)
+                );
+            }
+            // the session still answers
+            let read = mbap(0x100, 1, &[0x03, 0x00, 0x10, 0x00, 0x01]);
+            assert_eq!(
+                exchange(&mut peer, &read, 11).await,
+                mbap(0x100, 1, &[0x03, 0x02, 0x01, 0x10])
+            );
+            assert_nothing_more_was_sent(peer).await;
+            assert_eq!(*calls.lock().unwrap(), [Call::Read(1, 0x10)]);
+        })
+        .await;
+    }
+
     /// Requests to [`UNSERVED`], which the sessions below don't serve, that every framing carries:
     /// none of them gets a reply or reaches a handler, whether it's valid or not
     const TO_AN_UNSERVED_UNIT: [&[u8]; 3] = [
@@ -982,6 +1039,26 @@ mod tests {
                 );
             }
             assert_nothing_more_was_sent(peer).await;
+        })
+        .await;
+    }
+
+    #[cfg(feature = "serial")]
+    #[tokio::test]
+    async fn rtu_checks_a_requests_values_before_its_address_and_calls_no_handler() {
+        crate::common::test_support::watchdog(async {
+            let (mut peer, calls) = rtu_session(&[1], AuthorizationType::None);
+            for (request, reply) in REFUSED {
+                let request = with_crc(&[&[1], request].concat());
+                assert_eq!(
+                    exchange(&mut peer, &request, 5).await,
+                    with_crc(&[&[1], reply].concat())
+                );
+            }
+            // the session still answers
+            assert_nothing_was_sent(&mut peer).await;
+            assert_nothing_more_was_sent(peer).await;
+            assert_eq!(*calls.lock().unwrap(), [Call::Read(1, 0x10)]);
         })
         .await;
     }

@@ -6,9 +6,9 @@
 
 use crate::common::frame::{FrameHeader, FrameWriter, FunctionField};
 use crate::common::function::FunctionCode;
-use crate::common::traits::{Loggable, Parse, Serialize};
+use crate::common::traits::{Loggable, Serialize};
 use crate::decode::AppDecodeLevel;
-use crate::error::RequestError;
+use crate::error::{AduParseError, InvalidRange, RequestError};
 use crate::exception::ExceptionCode;
 use crate::server::handler::RequestHandler;
 use crate::server::response::{BitWriter, RegisterWriter};
@@ -145,62 +145,140 @@ impl<'a> Request<'a> {
         }
     }
 
+    /// Decodes a request and checks it in the order of the function codes' state diagrams
+    /// (MODBUS Application Protocol Specification V1.1b3 6.1-6.6, 6.11, 6.12): first the values
+    /// it carries (its length, quantity and coil value), then the address range they reach
+    ///
+    /// A value check for a function goes before its range is validated, so that
+    /// [`Rejection::Address`] only ever means the values were valid.
     #[cfg_attr(all(test, rodbus_no_panic), no_panic::no_panic)]
     pub(crate) fn parse(
         function: FunctionCode,
         cursor: &'a mut ReadCursor,
-    ) -> Result<Self, RequestError> {
+    ) -> Result<Self, Rejection> {
         match function {
-            FunctionCode::ReadCoils => {
-                let x = Request::ReadCoils(AddressRange::parse(cursor)?.of_read_bits()?);
-                cursor.expect_empty()?;
-                Ok(x)
-            }
-            FunctionCode::ReadDiscreteInputs => {
-                let x = Request::ReadDiscreteInputs(AddressRange::parse(cursor)?.of_read_bits()?);
-                cursor.expect_empty()?;
-                Ok(x)
-            }
-            FunctionCode::ReadHoldingRegisters => {
-                let x = Request::ReadHoldingRegisters(
-                    AddressRange::parse(cursor)?.of_read_registers()?,
-                );
-                cursor.expect_empty()?;
-                Ok(x)
-            }
-            FunctionCode::ReadInputRegisters => {
-                let x =
-                    Request::ReadInputRegisters(AddressRange::parse(cursor)?.of_read_registers()?);
-                cursor.expect_empty()?;
-                Ok(x)
-            }
+            FunctionCode::ReadCoils => Ok(Request::ReadCoils(read_range(cursor)?.of_read_bits()?)),
+            FunctionCode::ReadDiscreteInputs => Ok(Request::ReadDiscreteInputs(
+                read_range(cursor)?.of_read_bits()?,
+            )),
+            FunctionCode::ReadHoldingRegisters => Ok(Request::ReadHoldingRegisters(
+                read_range(cursor)?.of_read_registers()?,
+            )),
+            FunctionCode::ReadInputRegisters => Ok(Request::ReadInputRegisters(
+                read_range(cursor)?.of_read_registers()?,
+            )),
             FunctionCode::WriteSingleCoil => {
-                let x = Request::WriteSingleCoil(Indexed::<bool>::parse(cursor)?);
+                let index = cursor.read_u16_be()?;
+                let value = cursor.read_u16_be()?;
                 cursor.expect_empty()?;
-                Ok(x)
+                Ok(Request::WriteSingleCoil(Indexed::new(
+                    index,
+                    coil_from_u16(value)?,
+                )))
             }
             FunctionCode::WriteSingleRegister => {
-                let x = Request::WriteSingleRegister(Indexed::<u16>::parse(cursor)?);
+                let index = cursor.read_u16_be()?;
+                let value = cursor.read_u16_be()?;
                 cursor.expect_empty()?;
-                Ok(x)
+                Ok(Request::WriteSingleRegister(Indexed::new(index, value)))
             }
             FunctionCode::WriteMultipleCoils => {
-                let range = AddressRange::parse(cursor)?;
-                // don't care about the count, validated b/c all bytes are consumed
+                let unchecked = decode_range(cursor)?;
+                // the values' length follows from the quantity, so the byte count isn't needed
                 cursor.read_u8()?;
+                // reading the values checks only their length
+                let values = BitIterator::parse_all(unchecked, cursor).map_err(Rejection::Value)?;
                 Ok(Request::WriteMultipleCoils(WriteCoils::new(
-                    range,
-                    BitIterator::parse_all(range, cursor)?,
+                    unchecked.validated()?,
+                    values,
                 )))
             }
             FunctionCode::WriteMultipleRegisters => {
-                let range = AddressRange::parse(cursor)?;
-                // don't care about the count, validated b/c all bytes are consumed
+                let unchecked = decode_range(cursor)?;
+                // the values' length follows from the quantity, so the byte count isn't needed
                 cursor.read_u8()?;
+                // reading the values checks only their length
+                let values =
+                    RegisterIterator::parse_all(unchecked, cursor).map_err(Rejection::Value)?;
                 Ok(Request::WriteMultipleRegisters(WriteRegisters::new(
-                    range,
-                    RegisterIterator::parse_all(range, cursor)?,
+                    unchecked.validated()?,
+                    values,
                 )))
+            }
+        }
+    }
+}
+
+/// A starting address and quantity as a request carries them, not yet checked
+fn decode_range(cursor: &mut ReadCursor) -> Result<AddressRange, Rejection> {
+    let start = cursor.read_u16_be()?;
+    let count = cursor.read_u16_be()?;
+    Ok(AddressRange { start, count })
+}
+
+/// The range of a read, once the request's length is checked, but not its quantity or addresses
+fn read_range(cursor: &mut ReadCursor) -> Result<AddressRange, Rejection> {
+    let range = decode_range(cursor)?;
+    cursor.expect_empty()?;
+    Ok(range)
+}
+
+/// Why [`Request::parse`] refused a request, which decides the exception it's answered with
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) enum Rejection {
+    /// A value the request carries isn't valid for its function, or its length doesn't match
+    /// its function
+    Value(RequestError),
+    /// The values are valid, but the range they address runs past address 0xFFFF
+    Address { start: u16, count: u16 },
+}
+
+impl Rejection {
+    /// The exception a refused request is answered with (MODBUS Application Protocol
+    /// Specification V1.1b3 7)
+    pub(crate) fn exception(self) -> ExceptionCode {
+        match self {
+            Rejection::Value(_) => ExceptionCode::IllegalDataValue,
+            Rejection::Address { .. } => ExceptionCode::IllegalDataAddress,
+        }
+    }
+}
+
+impl From<InvalidRange> for Rejection {
+    fn from(err: InvalidRange) -> Self {
+        match err {
+            InvalidRange::AddressOverflow(start, count) => Rejection::Address { start, count },
+            InvalidRange::CountOfZero | InvalidRange::CountTooLargeForType(..) => {
+                Rejection::Value(err.into())
+            }
+        }
+    }
+}
+
+impl From<AduParseError> for Rejection {
+    fn from(err: AduParseError) -> Self {
+        Rejection::Value(err.into())
+    }
+}
+
+impl From<scursor::ReadError> for Rejection {
+    fn from(err: scursor::ReadError) -> Self {
+        Rejection::Value(err.into())
+    }
+}
+
+impl From<scursor::TrailingBytes> for Rejection {
+    fn from(err: scursor::TrailingBytes) -> Self {
+        Rejection::Value(err.into())
+    }
+}
+
+impl std::fmt::Display for Rejection {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Rejection::Value(err) => write!(f, "{err}"),
+            Rejection::Address { start, count } => {
+                write!(f, "{}", InvalidRange::AddressOverflow(*start, *count))
             }
         }
     }
@@ -264,6 +342,115 @@ impl std::fmt::Display for RequestDisplay<'_, '_> {
 
 #[cfg(test)]
 mod tests {
+    /// The values a request carries are checked before the address range they reach
+    /// (MODBUS Application Protocol Specification V1.1b3 6.1-6.4, 6.11, 6.12)
+    mod validation_order {
+        use scursor::ReadCursor;
+
+        use super::super::*;
+
+        /// How `Request::parse` refuses `body` for `function`, or `None` if it accepts it
+        fn rejection(function: FunctionCode, body: &[u8]) -> Option<Rejection> {
+            Request::parse(function, &mut ReadCursor::new(body)).err()
+        }
+
+        /// A request's body after the function code: 0xFFFF and a quantity of 2, then `rest`
+        fn from_0xffff(rest: &[u8]) -> Vec<u8> {
+            [&[0xFF, 0xFF, 0x00, 0x02], rest].concat()
+        }
+
+        #[test]
+        fn valid_values_past_0xffff_are_refused_for_their_address_with_02() {
+            let past_the_end = Rejection::Address {
+                start: 0xFFFF,
+                count: 2,
+            };
+            let requests: [(FunctionCode, &[u8]); 6] = [
+                (FunctionCode::ReadCoils, &[]),
+                (FunctionCode::ReadDiscreteInputs, &[]),
+                (FunctionCode::ReadHoldingRegisters, &[]),
+                (FunctionCode::ReadInputRegisters, &[]),
+                (FunctionCode::WriteMultipleCoils, &[0x01, 0b11]),
+                (
+                    FunctionCode::WriteMultipleRegisters,
+                    &[0x04, 0x12, 0x34, 0x56, 0x78],
+                ),
+            ];
+            for (function, rest) in requests {
+                assert_eq!(
+                    rejection(function, &from_0xffff(rest)),
+                    Some(past_the_end),
+                    "{function:?}"
+                );
+            }
+            assert_eq!(past_the_end.exception(), ExceptionCode::IllegalDataAddress);
+        }
+
+        #[test]
+        fn invalid_values_past_0xffff_are_refused_for_their_values_with_03() {
+            let checks: [(FunctionCode, Vec<u8>, RequestError); 6] = [
+                // one past each read's limit
+                (
+                    FunctionCode::ReadCoils,
+                    vec![0xFF, 0xF0, 0x07, 0xD1],
+                    InvalidRange::CountTooLargeForType(2001, 2000).into(),
+                ),
+                (
+                    FunctionCode::ReadHoldingRegisters,
+                    vec![0xFF, 0xF0, 0x00, 0x7E],
+                    InvalidRange::CountTooLargeForType(126, 125).into(),
+                ),
+                // a byte too many after a read
+                (
+                    FunctionCode::ReadInputRegisters,
+                    from_0xffff(&[0x00]),
+                    AduParseError::TrailingBytes(1).into(),
+                ),
+                // one register of the two
+                (
+                    FunctionCode::WriteMultipleRegisters,
+                    from_0xffff(&[0x04, 0x12, 0x34]),
+                    AduParseError::InsufficientBytes.into(),
+                ),
+                // a byte too many after the coils
+                (
+                    FunctionCode::WriteMultipleCoils,
+                    from_0xffff(&[0x01, 0b11, 0x00]),
+                    AduParseError::TrailingBytes(1).into(),
+                ),
+                // no values, which no range can hold
+                (
+                    FunctionCode::ReadDiscreteInputs,
+                    vec![0xFF, 0xFF, 0x00, 0x00],
+                    InvalidRange::CountOfZero.into(),
+                ),
+            ];
+            for (function, body, error) in checks {
+                let refused = rejection(function, &body);
+                assert_eq!(refused, Some(Rejection::Value(error)), "{function:?}");
+                assert_eq!(
+                    refused.map(Rejection::exception),
+                    Some(ExceptionCode::IllegalDataValue)
+                );
+            }
+        }
+
+        #[test]
+        fn a_coil_value_other_than_on_or_off_is_refused_with_03() {
+            let refused = rejection(FunctionCode::WriteSingleCoil, &[0xFF, 0xFF, 0x12, 0x34]);
+            assert_eq!(
+                refused,
+                Some(Rejection::Value(
+                    AduParseError::UnknownCoilState(0x1234).into()
+                ))
+            );
+            assert_eq!(
+                refused.map(Rejection::exception),
+                Some(ExceptionCode::IllegalDataValue)
+            );
+        }
+    }
+
     mod coils {
         use scursor::ReadCursor;
 

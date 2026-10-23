@@ -309,24 +309,28 @@ impl AddressRange {
     }
 
     /// The range checked as if it had been made with [`AddressRange::try_from`], since its fields
-    /// are public
-    fn validated(self) -> Result<Self, InvalidRange> {
+    /// are public: a count of zero, then a range past address 0xFFFF
+    pub(crate) fn validated(self) -> Result<Self, InvalidRange> {
         Self::try_from(self.start, self.count)
     }
 
+    /// The range of a read of coils or discrete inputs: its count is checked against the limit
+    /// before its addresses, so [`InvalidRange::AddressOverflow`] means the count was valid
     pub(crate) fn of_read_bits(self) -> Result<ReadBitsRange, InvalidRange> {
         Ok(ReadBitsRange {
             inner: self
-                .validated()?
-                .limited_count(crate::constants::limits::MAX_READ_COILS_COUNT)?,
+                .limited_count(crate::constants::limits::MAX_READ_COILS_COUNT)?
+                .validated()?,
         })
     }
 
+    /// The range of a read of registers: its count is checked against the limit before its
+    /// addresses, so [`InvalidRange::AddressOverflow`] means the count was valid
     pub(crate) fn of_read_registers(self) -> Result<ReadRegistersRange, InvalidRange> {
         Ok(ReadRegistersRange {
             inner: self
-                .validated()?
-                .limited_count(crate::constants::limits::MAX_READ_REGISTERS_COUNT)?,
+                .limited_count(crate::constants::limits::MAX_READ_REGISTERS_COUNT)?
+                .validated()?,
         })
     }
 
@@ -694,6 +698,27 @@ mod tests {
         let empty = AddressRange { start: 0, count: 0 };
         assert_eq!(empty.of_read_bits(), Err(InvalidRange::CountOfZero));
         assert_eq!(empty.of_read_registers(), Err(InvalidRange::CountOfZero));
+    }
+
+    // MODBUS Application Protocol Specification V1.1b3 6.1-6.4: the quantity before the address
+    #[test]
+    fn a_read_past_its_limit_and_past_0xffff_is_refused_for_its_count() {
+        let bits = AddressRange {
+            start: 0xFFF0,
+            count: 2001,
+        };
+        assert_eq!(
+            bits.of_read_bits(),
+            Err(InvalidRange::CountTooLargeForType(2001, 2000))
+        );
+        let registers = AddressRange {
+            start: 0xFFF0,
+            count: 126,
+        };
+        assert_eq!(
+            registers.of_read_registers(),
+            Err(InvalidRange::CountTooLargeForType(126, 125))
+        );
     }
 
     // MODBUS Application Protocol Specification V1.1b3 6.1, 6.2
