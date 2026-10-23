@@ -9,8 +9,8 @@ use std::time::Duration;
 
 use tracing::Instrument;
 
+use crate::common::deadline::Deadline;
 use crate::common::phys::PhysLayer;
-use tokio::time::Instant;
 
 use crate::client::message::{Command, Request, Setting};
 use crate::common::frame::{FrameHeader, FrameWriter, FramedReader, TxId};
@@ -294,10 +294,10 @@ impl ClientLoop {
         )?;
 
         // the timeout covers sending the request as well as receiving the response
-        let deadline = Instant::now() + request.timeout;
+        let deadline = Deadline::after(request.timeout);
 
         tokio::select! {
-            _ = tokio::time::sleep_until(deadline) => {
+            _ = deadline.wait() => {
                 // part of the request may be on the wire, so the session can't continue
                 return Err(RequestError::Io(std::io::ErrorKind::TimedOut));
             }
@@ -307,7 +307,7 @@ impl ClientLoop {
         // loop until we get the response to this request or we timeout
         let response = loop {
             let frame = tokio::select! {
-                _ = tokio::time::sleep_until(deadline) => {
+                _ = deadline.wait() => {
                     return Err(RequestError::ResponseTimeout);
                 }
                 frame = self.reader.next_frame(io, self.decode) => {
@@ -383,9 +383,8 @@ impl ClientLoop {
         &mut self,
         duration: Duration,
     ) -> Result<(), StateChange> {
-        let deadline = Instant::now() + duration;
         tokio::select! {
-            _ = tokio::time::sleep_until(deadline) => {
+            _ = Deadline::after(duration).wait() => {
                 // Timeout occurred
                 Ok(())
             }
@@ -413,6 +412,7 @@ mod tests {
 
     use sfio_tokio_mock_io::Event;
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    use tokio::time::Instant;
 
     fn spawn_client_loop_with_max_timeouts(
         max_timeouts: Option<NonZeroUsize>,
@@ -1207,6 +1207,83 @@ mod tests {
 
             assert_eq!(request.await.unwrap(), Err(RequestError::ResponseTimeout));
             assert_eq!(start.elapsed(), TIMEOUT);
+        })
+        .await;
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_request_with_a_timeout_too_long_to_represent_is_answered() {
+        crate::common::test_support::watchdog(async {
+            let (channel, _task, mut peer) =
+                spawn_client_loop_on_a_pipe_of(64, FrameWriter::tcp(), FramedReader::tcp());
+            let request = tokio::spawn(async move {
+                channel
+                    .read_holding_registers(
+                        RequestParam::new(UnitId::new(1), Duration::MAX),
+                        AddressRange::try_from(0x10, 1).unwrap(),
+                    )
+                    .await
+            });
+            let mut sent = [0u8; 12];
+            peer.read_exact(&mut sent).await.unwrap();
+            assert_eq!(sent, mbap_read_register(0, 1));
+            peer.write_all(&mbap_register_response(0, 1, 0x1234))
+                .await
+                .unwrap();
+            assert_eq!(request.await.unwrap(), Ok(vec![Indexed::new(0x10, 0x1234)]));
+        })
+        .await;
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn failing_requests_for_a_wait_too_long_to_represent_lasts_until_shutdown() {
+        crate::common::test_support::watchdog(async {
+            let (tx, rx) = tokio::sync::mpsc::channel(16);
+            let mut client_loop = ClientLoop::new(
+                rx.into(),
+                FrameWriter::tcp(),
+                FramedReader::tcp(),
+                DecodeLevel::nothing(),
+                None,
+            );
+            let task =
+                tokio::spawn(async move { client_loop.fail_requests_for(Duration::MAX).await });
+            let channel = Channel {
+                tx,
+                shutdown: crate::common::cancellation::pair().0,
+            };
+            let result = channel
+                .read_holding_registers(
+                    RequestParam::new(UnitId::new(1), TIMEOUT),
+                    AddressRange::try_from(0x10, 1).unwrap(),
+                )
+                .await;
+            assert_eq!(result, Err(RequestError::NoConnection));
+            drop(channel);
+            assert_eq!(task.await.unwrap(), Err(StateChange::Shutdown));
+        })
+        .await;
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn failing_requests_for_a_wait_too_long_to_represent_lasts_until_disabled() {
+        crate::common::test_support::watchdog(async {
+            let (tx, rx) = tokio::sync::mpsc::channel(16);
+            let mut client_loop = ClientLoop::new(
+                rx.into(),
+                FrameWriter::tcp(),
+                FramedReader::tcp(),
+                DecodeLevel::nothing(),
+                None,
+            );
+            let task =
+                tokio::spawn(async move { client_loop.fail_requests_for(Duration::MAX).await });
+            let channel = Channel {
+                tx,
+                shutdown: crate::common::cancellation::pair().0,
+            };
+            channel.disable().await.unwrap();
+            assert_eq!(task.await.unwrap(), Err(StateChange::Disable));
         })
         .await;
     }

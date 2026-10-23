@@ -190,8 +190,9 @@ impl PhysLayer {
             #[cfg(feature = "serial")]
             PhysLayerImpl::Serial(x, inter_char_delay, last_activity) => {
                 // Respect inter-character delay
-                if let Some(last_activity) = last_activity {
-                    tokio::time::sleep_until(*last_activity + *inter_char_delay).await;
+                // the delay is a few character times, so the sum is always representable
+                if let Some(ready) = last_activity.and_then(|x| x.checked_add(*inter_char_delay)) {
+                    tokio::time::sleep_until(ready).await;
                 }
                 *last_activity = Some(tokio::time::Instant::now());
 
@@ -232,31 +233,46 @@ impl<'a> std::fmt::Display for PhysDisplay<'a> {
 
 #[cfg(feature = "serial")]
 fn calculate_inter_character_delay(serial: &tokio_serial::SerialStream) -> tokio::time::Duration {
-    use tokio::time::Duration;
     use tokio_serial::SerialPort;
+
+    match serial.baud_rate() {
+        Ok(baud_rate) => inter_frame_delay(baud_rate),
+        Err(_) => {
+            tracing::warn!(
+                "unable to determine the baud rate, defaulting to {} μs",
+                FIXED_INTER_FRAME_DELAY.as_micros()
+            );
+            FIXED_INTER_FRAME_DELAY
+        }
+    }
+}
+
+/// The delay used above [`MAX_TIMED_BAUD_RATE`], or when the baud rate is unknown or zero
+#[cfg(feature = "serial")]
+const FIXED_INTER_FRAME_DELAY: tokio::time::Duration = tokio::time::Duration::from_micros(1750);
+
+/// Above this baud rate the delay is fixed (these constants are taken from the remark on page 13)
+#[cfg(feature = "serial")]
+const MAX_TIMED_BAUD_RATE: u32 = 19200;
+
+/// 3.5 character times at `baud_rate`, or [`FIXED_INTER_FRAME_DELAY`]
+#[cfg(feature = "serial")]
+fn inter_frame_delay(baud_rate: u32) -> tokio::time::Duration {
+    use tokio::time::Duration;
 
     // Modbus RTU uses 11-bit characters (1 start, 8 data, 1 parity or stop, 1 stop)
     const NUM_BITS_IN_CHAR: u64 = 11;
 
-    // If the baud rate is higher than a certain threshold, then we fix the delay
-    // These constants are taken from the remark on page 13
-    const MAX_BAUD_RATE: u32 = 19200;
-    const MIN_DELAY: Duration = Duration::from_micros(1750);
-
-    match serial.baud_rate() {
-        Ok(baud_rate) if baud_rate <= MAX_BAUD_RATE => {
-            let character_time = Duration::from_secs(NUM_BITS_IN_CHAR) / baud_rate;
-            35 * character_time / 10 // multiply by 3.5
-        }
-        Ok(_) => MIN_DELAY,
-        Err(_) => {
-            tracing::warn!(
-                "unable to determine the baud rate, defaulting to {} μs",
-                MIN_DELAY.as_micros()
-            );
-            MIN_DELAY
-        }
+    if baud_rate > MAX_TIMED_BAUD_RATE {
+        return FIXED_INTER_FRAME_DELAY;
     }
+
+    // multiply by 3.5
+    Duration::from_secs(NUM_BITS_IN_CHAR)
+        .checked_div(baud_rate)
+        .and_then(|character_time| character_time.checked_mul(35))
+        .and_then(|x| x.checked_div(10))
+        .unwrap_or(FIXED_INTER_FRAME_DELAY)
 }
 
 const BYTES_PER_DECODE_LINE: usize = 18;
@@ -274,4 +290,25 @@ pub(crate) fn format_bytes(f: &mut std::fmt::Formatter, bytes: &[u8]) -> std::fm
         }
     }
     Ok(())
+}
+
+#[cfg(all(test, feature = "serial"))]
+mod tests {
+    use std::time::Duration;
+
+    use super::*;
+
+    #[test]
+    fn the_inter_frame_delay_is_3_5_character_times_up_to_19200_baud() {
+        assert_eq!(inter_frame_delay(300), Duration::from_nanos(128_333_331));
+        assert_eq!(inter_frame_delay(9600), Duration::from_nanos(4_010_415));
+        assert_eq!(inter_frame_delay(19200), Duration::from_nanos(2_005_206));
+    }
+
+    #[test]
+    fn the_inter_frame_delay_is_fixed_above_19200_baud_and_for_a_baud_rate_of_zero() {
+        for baud_rate in [19201, 115_200, u32::MAX, 0] {
+            assert_eq!(inter_frame_delay(baud_rate), Duration::from_micros(1750));
+        }
+    }
 }
