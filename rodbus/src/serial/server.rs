@@ -4,7 +4,7 @@
 // Text and data mining rights, including for AI training, are reserved under
 // Directive (EU) 2019/790 Art. 4(3), subject to LICENSE.txt Section 3.3.
 
-use crate::common::phys::PhysLayer;
+use crate::common::phys::OpenPort;
 use crate::server::task::SessionTask;
 use crate::server::RequestHandler;
 use crate::{RequestError, RetryStrategy, SerialSettings, Shutdown};
@@ -27,17 +27,7 @@ where
         loop {
             match crate::serial::open(&self.port, self.settings) {
                 Ok(serial) => {
-                    self.retry.reset();
-                    tracing::info!("opened port");
-                    // run an open port until shutdown or failure
-                    let mut phys = PhysLayer::new_serial(serial);
-                    if let RequestError::Shutdown = self.session.run(&mut phys).await {
-                        return Shutdown;
-                    }
-                    // we wait here to prevent any kind of rapid retry scenario if the port opens and immediately fails
-                    let delay = self.retry.after_disconnect();
-                    tracing::warn!("waiting {:?} to reopen port", delay);
-                    if let Err(Shutdown) = self.session.sleep_for(delay).await {
+                    if let Err(Shutdown) = self.run_port(OpenPort::Serial(serial)).await {
                         return Shutdown;
                     }
                 }
@@ -54,6 +44,21 @@ where
                 }
             }
         }
+    }
+
+    /// Serve a port that just opened until shutdown or failure, then wait before it's reopened
+    async fn run_port(&mut self, port: OpenPort) -> Result<(), Shutdown> {
+        self.retry.reset();
+        tracing::info!("opened port");
+        // run an open port until shutdown or failure
+        let mut phys = port.into_phys();
+        if let RequestError::Shutdown = self.session.run(&mut phys).await {
+            return Err(Shutdown);
+        }
+        // we wait here to prevent any kind of rapid retry scenario if the port opens and immediately fails
+        let delay = self.retry.after_disconnect();
+        tracing::warn!("waiting {:?} to reopen port", delay);
+        self.session.sleep_for(delay).await
     }
 }
 

@@ -4,7 +4,7 @@
 // Text and data mining rights, including for AI training, are reserved under
 // Directive (EU) 2019/790 Art. 4(3), subject to LICENSE.txt Section 3.3.
 
-use crate::common::phys::PhysLayer;
+use crate::common::phys::OpenPort;
 use crate::decode::DecodeLevel;
 use crate::serial::SerialSettings;
 
@@ -80,28 +80,30 @@ impl SerialChannelTask {
                 tracing::warn!("{} - waiting {} ms to re-open port", err, delay.as_millis());
                 self.client_loop.fail_requests_for(delay).await
             }
-            Ok(serial) => {
-                self.retry.reset();
-                self.listener.update(PortState::Open).get().await;
-                tracing::info!("serial port open");
-                let mut phys = PhysLayer::new_serial(serial);
+            Ok(serial) => self.run_port(OpenPort::Serial(serial)).await,
+        }
+    }
 
-                match self.client_loop.run(&mut phys).await {
-                    // the mpsc was closed, end the task
-                    SessionError::Shutdown => Err(StateChange::Shutdown),
-                    // don't wait, we're disabled
-                    SessionError::Disabled => Ok(()),
-                    // wait before retrying
-                    SessionError::IoError(_)
-                    | SessionError::BadFrame
-                    | SessionError::MaxTimeouts(_) => {
-                        drop(phys);
-                        let delay = self.retry.after_disconnect();
-                        self.listener.update(PortState::Wait(delay)).get().await;
-                        tracing::warn!("waiting {} ms to re-open port", delay.as_millis());
-                        self.client_loop.fail_requests_for(delay).await
-                    }
-                }
+    /// Run a session on a port that just opened, and wait before reopening it if the session
+    /// failed
+    async fn run_port(&mut self, port: OpenPort) -> Result<(), StateChange> {
+        self.retry.reset();
+        self.listener.update(PortState::Open).get().await;
+        tracing::info!("serial port open");
+        let mut phys = port.into_phys();
+
+        match self.client_loop.run(&mut phys).await {
+            // the mpsc was closed, end the task
+            SessionError::Shutdown => Err(StateChange::Shutdown),
+            // don't wait, we're disabled
+            SessionError::Disabled => Ok(()),
+            // wait before retrying
+            SessionError::IoError(_) | SessionError::BadFrame | SessionError::MaxTimeouts(_) => {
+                drop(phys);
+                let delay = self.retry.after_disconnect();
+                self.listener.update(PortState::Wait(delay)).get().await;
+                tracing::warn!("waiting {} ms to re-open port", delay.as_millis());
+                self.client_loop.fail_requests_for(delay).await
             }
         }
     }
