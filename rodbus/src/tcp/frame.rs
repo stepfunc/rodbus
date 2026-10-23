@@ -131,20 +131,13 @@ impl MbapParser {
     }
 }
 
-#[expect(
-    clippy::expect_used,
-    reason = "a TCP writer only formats headers from the TCP reader or FrameHeader::new_tcp_header, which always carry a transaction id"
-)]
 pub(crate) fn format_mbap(
     cursor: &mut WriteCursor,
-    header: FrameHeader,
+    unit_id: UnitId,
+    tx_id: TxId,
     function: FunctionField,
     msg: &dyn Serialize,
 ) -> Result<FrameInfo, RequestError> {
-    let tx_id = header.tx_id.expect("TCP requires tx id");
-
-    let unit_id = header.destination.into_unit_id();
-
     // Write header
     cursor.write_u16_be(tx_id.to_u16())?;
     cursor.write_u16_be(0)?; // protocol id
@@ -214,7 +207,7 @@ mod tests {
 
     use crate::common::phys::PhysLayer;
 
-    use crate::common::frame::{FrameDestination, FramedReader};
+    use crate::common::frame::FramedReader;
     use crate::common::function::FunctionCode;
     use crate::error::*;
     use crate::DecodeLevel;
@@ -238,10 +231,9 @@ mod tests {
     }
 
     fn assert_equals_simple_frame(frame: &Frame) {
-        assert_eq!(frame.header.tx_id, Some(TxId::new(0x0007)));
         assert_eq!(
-            frame.header.destination,
-            FrameDestination::new_unit_id(0x2A)
+            frame.header,
+            FrameHeader::new_tcp_header(UnitId::new(0x2A), TxId::new(0x0007))
         );
         assert_eq!(frame.payload(), &[0x01, 0xCA, 0xFE]);
     }
@@ -289,7 +281,8 @@ mod tests {
         };
         let _ = format_mbap(
             &mut cursor,
-            FrameHeader::new_tcp_header(UnitId::new(42), TxId::new(7)),
+            UnitId::new(42),
+            TxId::new(7),
             FunctionField::Valid(FunctionCode::ReadCoils),
             &msg,
         )
