@@ -1039,4 +1039,225 @@ mod tests {
             Some(RequestError::Internal(InternalError::BadByteCount(7)))
         );
     }
+
+    mod properties {
+        use proptest::prelude::*;
+
+        use super::*;
+
+        /// The largest RTU frame: the address, the largest PDU and the CRC
+        const MAX_RTU_FRAME_LENGTH: usize = 256;
+
+        #[derive(Clone, Copy, Debug)]
+        enum Direction {
+            Request,
+            Response,
+        }
+
+        impl Direction {
+            fn parser(self) -> RtuParser {
+                match self {
+                    Direction::Request => RtuParser::new_request_parser(),
+                    Direction::Response => RtuParser::new_response_parser(),
+                }
+            }
+        }
+
+        /// What the PDU's leading bytes say about its length
+        #[derive(Clone, Copy, Debug, PartialEq)]
+        enum PduLength {
+            /// The function code has no length for this direction
+            Unknown,
+            /// The length depends on a byte count that hasn't arrived
+            NeedsByteCount,
+            /// The PDU is this long, function code included
+            Known(usize),
+        }
+
+        /// The PDU length the MODBUS Application Protocol Specification V1.1b3 gives for the PDU
+        /// that starts `pdu`: 6.1-6.6, 6.11 and 6.12 for the requests and responses, 7 for
+        /// exception responses
+        fn pdu_length(direction: Direction, pdu: &[u8]) -> PduLength {
+            let byte_count_at = |index: usize| match pdu.get(index) {
+                // the fields up to the byte count, the byte count, then that many bytes
+                Some(count) => {
+                    let length = index.checked_add(1).unwrap();
+                    PduLength::Known(length.checked_add(usize::from(*count)).unwrap())
+                }
+                None => PduLength::NeedsByteCount,
+            };
+            match (direction, pdu.first().copied()) {
+                (_, None) => PduLength::NeedsByteCount,
+                // function code, an address, and a quantity or value
+                (Direction::Request, Some(0x01..=0x06)) => PduLength::Known(5),
+                // function code, address, quantity, byte count
+                (Direction::Request, Some(0x0F | 0x10)) => byte_count_at(5),
+                // function code and exception code
+                (Direction::Response, Some(0x80..=0xFF)) => PduLength::Known(2),
+                // function code, byte count
+                (Direction::Response, Some(0x01..=0x04)) => byte_count_at(1),
+                // function code, address, and a quantity or value
+                (Direction::Response, Some(0x05 | 0x06 | 0x0F | 0x10)) => PduLength::Known(5),
+                _ => PduLength::Unknown,
+            }
+        }
+
+        /// The address, the PDU and the CRC
+        fn frame_length(pdu_length: usize) -> usize {
+            pdu_length.checked_add(3).unwrap()
+        }
+
+        /// What a parse returns, with the parsed frame's fields
+        #[derive(Debug, PartialEq)]
+        enum Parsed {
+            Incomplete,
+            Frame {
+                header: FrameHeader,
+                frame_type: Option<(FrameDestination, u16)>,
+                payload: Vec<u8>,
+            },
+            Error(RequestError),
+        }
+
+        fn bad_frame(error: FrameParseError) -> Parsed {
+            Parsed::Error(RequestError::BadFrame(error))
+        }
+
+        /// What parsing `bytes` from a fresh buffer returns and how many bytes it consumes,
+        /// following Serial Line V1.02 2.5.1 for the frame: the address, the PDU, a CRC sent low
+        /// byte first, at most 256 bytes in all
+        fn expected(direction: Direction, bytes: &[u8]) -> (Parsed, usize) {
+            let Some((address, pdu)) = bytes.split_first() else {
+                return (Parsed::Incomplete, 0);
+            };
+            let pdu_length = match pdu_length(direction, pdu) {
+                PduLength::Unknown => {
+                    let error = FrameParseError::UnknownFunctionCode(pdu[0]);
+                    return (bad_frame(error), 0);
+                }
+                PduLength::NeedsByteCount => return (Parsed::Incomplete, 0),
+                PduLength::Known(length) => length,
+            };
+            // the largest PDU on a serial line (Application Protocol V1.1b3 4.1)
+            if pdu_length > MAX_PDU_LENGTH {
+                let error = FrameParseError::FrameLengthTooBig(pdu_length, MAX_PDU_LENGTH);
+                return (bad_frame(error), 0);
+            }
+            let length = frame_length(pdu_length);
+            if bytes.len() < length {
+                return (Parsed::Incomplete, 0);
+            }
+            let (adu, received) = bytes[..length].split_last_chunk::<2>().unwrap();
+            let received = u16::from_le_bytes(*received);
+            let expected = u16::from_le_bytes(*with_crc(adu).last_chunk().unwrap());
+            if received != expected {
+                let error = FrameParseError::CrcValidationFailure(received, expected);
+                return (bad_frame(error), length);
+            }
+            // address 0 is the broadcast address (Serial Line V1.02 2.2)
+            let destination = match address {
+                0 => FrameDestination::Broadcast,
+                id => FrameDestination::new_unit_id(*id),
+            };
+            let parsed = Parsed::Frame {
+                header: FrameHeader::new_rtu_header(destination),
+                frame_type: Some((destination, received)),
+                payload: adu[1..].to_vec(),
+            };
+            (parsed, length)
+        }
+
+        /// Parses what of `bytes` fits in a fresh buffer, returning the result and how many bytes
+        /// it consumed, and the bytes the buffer took
+        fn parse(direction: Direction, bytes: &[u8]) -> ((Parsed, usize), usize) {
+            let mut buffer = ReadBuffer::new();
+            let taken = buffer.fill(bytes);
+            let parsed = match direction.parser().parse(&mut buffer) {
+                Ok(None) => Parsed::Incomplete,
+                Ok(Some((frame, frame_type))) => Parsed::Frame {
+                    header: frame.header,
+                    frame_type: match frame_type {
+                        FrameType::Rtu(destination, crc) => Some((destination, crc)),
+                        FrameType::Mbap(_) => None,
+                    },
+                    payload: frame.payload().to_vec(),
+                },
+                Err(error) => Parsed::Error(error),
+            };
+            ((parsed, taken.checked_sub(buffer.len()).unwrap()), taken)
+        }
+
+        fn check(bytes: &[u8]) -> Result<(), TestCaseError> {
+            for direction in [Direction::Request, Direction::Response] {
+                let (actual, taken) = parse(direction, bytes);
+                let buffered = &bytes[..taken];
+                prop_assert_eq!(&actual, &expected(direction, buffered), "{:?}", direction);
+                // a full frame always fits, so a buffer that holds one always decides
+                if buffered.len() >= MAX_RTU_FRAME_LENGTH {
+                    prop_assert_ne!(&actual.0, &Parsed::Incomplete, "{:?}", direction);
+                }
+            }
+            Ok(())
+        }
+
+        /// A byte that, at a byte count's position, is often at a length boundary
+        fn byte_count() -> impl Strategy<Value = u8> {
+            prop_oneof![
+                prop::sample::select(vec![0x00, 0xF7, 0xF8, 0xFA, 0xFB, 0xFC, 0xFF]),
+                any::<u8>(),
+            ]
+        }
+
+        fn function_code() -> impl Strategy<Value = u8> {
+            prop_oneof![
+                prop::sample::select(KNOWN_FUNCTION_CODES.to_vec()),
+                0x80..=u8::MAX,
+                any::<u8>(),
+            ]
+        }
+
+        /// Bytes that start like a frame: an address (often broadcast), a function code, five
+        /// bytes that cover the byte count of both directions, an arbitrary tail; with a valid CRC
+        /// planted where the model says the frame for `direction` ends about half the time; then
+        /// often cut short
+        fn frame_like() -> impl Strategy<Value = Vec<u8>> {
+            (
+                prop_oneof![Just(Direction::Request), Just(Direction::Response)],
+                prop_oneof![1 => Just(0u8), 4 => any::<u8>()],
+                function_code(),
+                prop::array::uniform5(byte_count()),
+                prop::collection::vec(any::<u8>(), 0..=300),
+                any::<bool>(),
+                prop_oneof![2 => Just(usize::MAX), 2 => 0usize..=8, 1 => 0usize..=300],
+            )
+                .prop_map(
+                    |(direction, address, function, fields, tail, plant, cut)| {
+                        let mut bytes = vec![address, function];
+                        bytes.extend(fields);
+                        bytes.extend(tail);
+                        if plant {
+                            if let PduLength::Known(pdu) = pdu_length(direction, &bytes[1..]) {
+                                let length = frame_length(pdu);
+                                if bytes.len() < length {
+                                    bytes.resize(length, 0xA5);
+                                }
+                                let framed = with_crc(&bytes[..length.checked_sub(2).unwrap()]);
+                                bytes[..length].copy_from_slice(&framed);
+                            }
+                        }
+                        bytes.truncate(cut);
+                        bytes
+                    },
+                )
+        }
+
+        proptest! {
+            #![proptest_config(ProptestConfig::with_cases(1024))]
+
+            #[test]
+            fn rtu_parsers_frame_by_the_length_the_spec_gives(bytes in frame_like()) {
+                check(&bytes)?;
+            }
+        }
+    }
 }
