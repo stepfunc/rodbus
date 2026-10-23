@@ -847,6 +847,284 @@ mod tests {
         .await;
     }
 
+    #[tokio::test(start_paused = true)]
+    async fn a_maximum_of_zero_sessions_admits_one() {
+        watchdog(admission::check_sessions(
+            0,
+            &[
+                admission::Op::Open,
+                admission::Op::Open,
+                admission::Op::Open,
+            ],
+        ))
+        .await;
+    }
+
+    /// Sessions against a model of admission: the newest session wins, and a close frees a slot
+    mod admission {
+        use std::collections::VecDeque;
+
+        use proptest::prelude::*;
+        use proptest::sample::Index;
+        use tokio::io::DuplexStream;
+        use tokio::sync::mpsc::error::TryRecvError;
+
+        use super::*;
+
+        /// Something that happens to a server's sessions
+        #[derive(Clone, Debug)]
+        pub(super) enum Op {
+            /// A new session starts
+            Open,
+            /// The live session at this position, oldest first, closes
+            Close(Index),
+            /// A close arrives for a session that already ended
+            StaleClose(Index),
+        }
+
+        fn op() -> impl Strategy<Value = Op> {
+            prop_oneof![
+                2 => Just(Op::Open),
+                1 => any::<Index>().prop_map(Op::Close),
+                1 => any::<Index>().prop_map(Op::StaleClose),
+            ]
+        }
+
+        fn ops() -> impl Strategy<Value = Vec<Op>> {
+            prop::collection::vec(op(), 0..=32)
+        }
+
+        /// The sessions a server should have, each represented by what observes it
+        struct Model<S> {
+            /// zero is treated as one
+            max: usize,
+            /// oldest first
+            live: VecDeque<S>,
+            /// evicted or closed
+            ended: Vec<S>,
+        }
+
+        impl<S> Model<S> {
+            fn new(max_sessions: usize) -> Self {
+                Self {
+                    max: max_sessions.max(1),
+                    live: VecDeque::new(),
+                    ended: Vec::new(),
+                }
+            }
+
+            /// Admit a session, evicting the oldest if the server is full
+            fn open(&mut self, session: S) {
+                if self.live.len() >= self.max {
+                    self.ended.extend(self.live.pop_front());
+                }
+                self.live.push_back(session);
+            }
+
+            /// End the live session at `index`, if there is one, and return it
+            fn close(&mut self, index: &Index) -> Option<&mut S> {
+                if self.live.is_empty() {
+                    return None;
+                }
+                self.end(index.index(self.live.len()))
+            }
+
+            /// End the live session at `position`, if there is one, and return it
+            fn end(&mut self, position: usize) -> Option<&mut S> {
+                let session = self.live.remove(position)?;
+                self.ended.push(session);
+                self.ended.last_mut()
+            }
+
+            /// A session that already ended, if there is one
+            fn ended(&self, index: &Index) -> Option<&S> {
+                if self.ended.is_empty() {
+                    return None;
+                }
+                Some(index.get(&self.ended))
+            }
+        }
+
+        /// Run a property case on a runtime of its own, with a paused clock
+        fn run(case: impl Future<Output = ()>) {
+            tokio::runtime::Builder::new_current_thread()
+                .enable_time()
+                .start_paused(true)
+                .build()
+                .unwrap()
+                .block_on(watchdog(case));
+        }
+
+        /// The other ends of a record in a [`SessionTracker`]
+        struct Tracked {
+            id: u128,
+            /// disconnected once the tracker drops the record, which holds the only sender
+            commands: tokio::sync::mpsc::Receiver<ServerCommand>,
+            /// a task that only ends when it is aborted; taken once it has ended
+            task: Option<tokio::task::JoinHandle<()>>,
+        }
+
+        impl Tracked {
+            fn start(tracker: &mut SessionTracker) -> Self {
+                let id = tracker.next_id();
+                let (tx, commands) = tokio::sync::mpsc::channel(1);
+                let task = tokio::spawn(std::future::pending());
+                tracker.add(
+                    id,
+                    SessionRecord {
+                        commands: tx,
+                        task: task.abort_handle(),
+                    },
+                );
+                Self {
+                    id,
+                    commands,
+                    task: Some(task),
+                }
+            }
+        }
+
+        /// The tracker holds the records of the live sessions, and has aborted the others
+        async fn expect_tracked(model: &mut Model<Tracked>) {
+            for session in &mut model.live {
+                assert_eq!(
+                    session.commands.try_recv().err(),
+                    Some(TryRecvError::Empty),
+                    "session {}",
+                    session.id
+                );
+            }
+            for session in &mut model.ended {
+                assert_eq!(
+                    session.commands.try_recv().err(),
+                    Some(TryRecvError::Disconnected),
+                    "session {}",
+                    session.id
+                );
+                if let Some(task) = session.task.take() {
+                    // the paused clock only moves to the timeout once nothing else can run
+                    let ended = tokio::time::timeout(TEST_TIMEOUT, task).await;
+                    assert!(ended.unwrap().unwrap_err().is_cancelled());
+                }
+            }
+        }
+
+        /// Apply `ops` to a [`SessionTracker`] and to the model, and compare them after each
+        async fn check_tracker(max_sessions: usize, ops: &[Op]) {
+            let mut tracker = SessionTracker::new(max_sessions);
+            let mut model = Model::new(max_sessions);
+            for op in ops {
+                match op {
+                    Op::Open => model.open(Tracked::start(&mut tracker)),
+                    Op::Close(index) => {
+                        if let Some(session) = model.close(index) {
+                            tracker.remove(session.id);
+                        }
+                    }
+                    Op::StaleClose(index) => {
+                        if let Some(session) = model.ended(index) {
+                            tracker.remove(session.id);
+                        }
+                    }
+                }
+                expect_tracked(&mut model).await;
+            }
+
+            // dropping the tracker ends every session
+            drop(tracker);
+            model.ended.extend(model.live.drain(..));
+            expect_tracked(&mut model).await;
+        }
+
+        /// A live session's peer is answered, an ended session's peer reads the close
+        async fn expect_served(model: &mut Model<DuplexStream>) {
+            for peer in &mut model.live {
+                assert_eq!(read_coils(peer).await, ILLEGAL_FUNCTION);
+            }
+            for peer in &mut model.ended {
+                // the paused clock only moves to the timeout once nothing else can run
+                let received = tokio::time::timeout(TEST_TIMEOUT, read_to_close(peer)).await;
+                assert_eq!(received.ok(), Some(Vec::new()));
+            }
+        }
+
+        /// Close a session from its peer, and return once the session has ended
+        async fn close(peer: &mut DuplexStream) {
+            peer.shutdown().await.unwrap();
+            // a session sends its close event before it drops its socket
+            assert_eq!(read_to_close(peer).await, []);
+        }
+
+        /// Let `sessions` take the close events that are queued
+        async fn drain(
+            sessions: &mut Sessions<DefaultHandler>,
+            commands: &mut tokio::sync::mpsc::Receiver<ServerCommand>,
+        ) {
+            sessions
+                .serve(commands, tokio::time::sleep(Duration::from_millis(1)))
+                .await
+                .unwrap();
+        }
+
+        /// Apply `ops` to [`Sessions`] over pipes and to the model, and compare them after each
+        pub(super) async fn check_sessions(max_sessions: usize, ops: &[Op]) {
+            let mut sessions = sessions(max_sessions);
+            let mut model = Model::new(max_sessions);
+            let (_tx, mut commands) = tokio::sync::mpsc::channel(1);
+            for op in ops {
+                match op {
+                    Op::Open => model.open(duplex_session(&mut sessions)),
+                    Op::Close(index) => {
+                        if let Some(peer) = model.close(index) {
+                            close(peer).await;
+                            drain(&mut sessions, &mut commands).await;
+                        }
+                    }
+                    Op::StaleClose(_) => {
+                        // the oldest session closes and a new one starts before the server takes
+                        // the close, so a full server evicts the closed session and its close
+                        // arrives afterwards
+                        if let Some(oldest) = model.end(0) {
+                            close(oldest).await;
+                        }
+                        model.open(duplex_session(&mut sessions));
+                        drain(&mut sessions, &mut commands).await;
+                    }
+                }
+                expect_served(&mut model).await;
+            }
+
+            // dropping the sessions ends every session
+            drop(sessions);
+            model.ended.extend(model.live.drain(..));
+            expect_served(&mut model).await;
+        }
+
+        proptest! {
+            #![proptest_config(ProptestConfig::with_cases(256))]
+
+            #[test]
+            fn the_tracker_holds_the_newest_sessions_until_they_close(
+                max_sessions in 0usize..=4,
+                ops in ops(),
+            ) {
+                run(check_tracker(max_sessions, &ops));
+            }
+        }
+
+        proptest! {
+            #![proptest_config(ProptestConfig::with_cases(64))]
+
+            #[test]
+            fn the_newest_sessions_are_served_until_they_close(
+                max_sessions in 0usize..=4,
+                ops in ops(),
+            ) {
+                run(check_sessions(max_sessions, &ops));
+            }
+        }
+    }
+
     /// A read request from unit 1 for `count` items of `function` at `start`
     fn read_request(function: u8, start: u16, count: u16) -> [u8; 12] {
         let [start_hi, start_lo] = start.to_be_bytes();
