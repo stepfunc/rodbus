@@ -919,12 +919,22 @@ mod tests {
     #[cfg(feature = "enable-tls")]
     mod tls {
         use super::*;
+        use crate::common::function::FunctionCode;
+        use crate::server::handler::test_util::{Check, Recorder, Target};
+        use crate::server::AuthorizationHandler;
         use crate::tcp::tls::test_util::{
-            both_versions, connect, handshake_as_client, server_config,
+            both_versions, ca_chain, connect, handshake_as_client, server_config,
         };
-        use crate::tcp::tls::{MinTlsVersion, TLS_HANDSHAKE_TIMEOUT};
+        use crate::tcp::tls::{
+            CertificateMode, MinTlsVersion, RoleError, TlsServerConfig, TLS_HANDSHAKE_TIMEOUT,
+        };
+        use crate::AddressRange;
+        use sfio_rustls_config::ServerNameVerification;
+        use std::sync::Arc;
         use tokio::io::DuplexStream;
         use tokio::time::Instant;
+        use tokio_rustls::rustls;
+        use tokio_rustls::rustls::pki_types::ServerName;
 
         struct Server {
             handle: crate::server::ServerHandle,
@@ -972,6 +982,249 @@ mod tests {
                 let (stream, _) = self.connect().await;
                 handshake_as_client(stream, both_versions()).await.unwrap()
             }
+
+            /// Connect a client configured by `client` and complete its handshake
+            async fn connect_as(
+                &mut self,
+                client: rustls::ClientConfig,
+            ) -> tokio_rustls::client::TlsStream<DuplexStream> {
+                let (stream, _) = self.connect().await;
+                handshake_with(client, stream).await.unwrap()
+            }
+        }
+
+        /// The name in the certificate of [`authority_server`]
+        const SERVER_NAME: &str = "test.com";
+
+        /// The role in the certificate of [`operator`]
+        const ROLE: &str = "operator";
+
+        /// A server presenting the test authority's server certificate and accepting the clients
+        /// it issued certificates to
+        fn authority_server() -> TlsServerConfig {
+            TlsServerConfig::new(
+                &ca_chain("ca_cert.pem"),
+                &ca_chain("server_cert.pem"),
+                &ca_chain("server_key.pem"),
+                None,
+                MinTlsVersion::V1_2,
+                CertificateMode::AuthorityBased,
+            )
+            .unwrap()
+        }
+
+        /// A client of [`authority_server`] presenting the certificate `cert` with key `key`
+        fn authority_client(cert: &str, key: &str) -> rustls::ClientConfig {
+            sfio_rustls_config::client::authority(
+                both_versions(),
+                ServerNameVerification::SanOrCommonName,
+                &ca_chain("ca_cert.pem"),
+                &ca_chain(cert),
+                &ca_chain(key),
+                None,
+            )
+            .unwrap()
+        }
+
+        /// A client whose certificate, issued by the test authority, has the role [`ROLE`]
+        fn operator() -> rustls::ClientConfig {
+            authority_client("client_cert.pem", "client_key.pem")
+        }
+
+        /// A client whose certificate, issued by the test authority, has no role
+        fn without_a_role() -> rustls::ClientConfig {
+            authority_client("server_cert.pem", "server_key.pem")
+        }
+
+        /// Run a handshake over `socket` as a client configured by `client`
+        async fn handshake_with<S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin>(
+            client: rustls::ClientConfig,
+            socket: S,
+        ) -> std::io::Result<tokio_rustls::client::TlsStream<S>> {
+            let name = ServerName::try_from(SERVER_NAME).unwrap();
+            tokio_rustls::TlsConnector::from(Arc::new(client))
+                .connect(name, socket)
+                .await
+        }
+
+        /// A TLS server with one session that checks requests with `authorizer` and answers
+        /// them from [`Values`]
+        fn spawn_authorizing_server(authorizer: Arc<dyn AuthorizationHandler>) -> Server {
+            let (listener, peers) = FaultyListener::new(&[]);
+            let (handle, task) = spawn_server_for(
+                1,
+                listener,
+                TcpServerConnectionHandler::Tls(authority_server(), Some(authorizer)),
+                AddressFilter::Any,
+                ServerHandlerMap::single(UnitId::new(1), Values.wrap()),
+            );
+            Server {
+                handle,
+                task,
+                peers,
+            }
+        }
+
+        /// A read of the holding register at 0x10 from unit 1, which [`Values`] answers with 0x10
+        const READ_REGISTER: [u8; 12] = [0, 1, 0, 0, 0, 6, 1, 3, 0, 0x10, 0, 1];
+        /// The answer to [`READ_REGISTER`]
+        const REGISTER: [u8; 11] = [0, 1, 0, 0, 0, 5, 1, 3, 2, 0, 0x10];
+
+        /// Send [`READ_REGISTER`] and return the response
+        async fn read_register<S: AsyncRead + AsyncWrite + Unpin>(client: &mut S) -> [u8; 11] {
+            client.write_all(&READ_REGISTER).await.unwrap();
+            let mut response = [0u8; 11];
+            client.read_exact(&mut response).await.unwrap();
+            response
+        }
+
+        /// The check of [`READ_REGISTER`] for the role [`ROLE`]
+        fn register_check() -> Check {
+            Check {
+                function: FunctionCode::ReadHoldingRegisters,
+                unit: UnitId::new(1),
+                target: Target::Range(AddressRange::try_from(0x10, 1).unwrap()),
+                role: ROLE.to_string(),
+            }
+        }
+
+        /// The check of [`READ_COILS`] for the role [`ROLE`]
+        fn coils_check() -> Check {
+            Check {
+                function: FunctionCode::ReadCoils,
+                unit: UnitId::new(1),
+                target: Target::Range(AddressRange::try_from(7, 2).unwrap()),
+                role: ROLE.to_string(),
+            }
+        }
+
+        /// What the connection handler made of a connection
+        #[derive(Debug, PartialEq)]
+        enum Admitted {
+            /// A session whose requests aren't checked
+            Unchecked,
+            /// A session whose requests are checked for the role
+            Checked(String),
+            /// Refused for the certificate's role
+            RefusedRole(RoleError),
+        }
+
+        /// Run the handshake of `client` with the connection handler for `server` and
+        /// `authorizer`, and return what the handler made of it
+        async fn admit(
+            server: TlsServerConfig,
+            authorizer: Option<Arc<dyn AuthorizationHandler>>,
+            client: rustls::ClientConfig,
+        ) -> Admitted {
+            let handler = TcpServerConnectionHandler::Tls(server, authorizer);
+            let (client_io, server_io) = tokio::io::duplex(crate::tcp::accept::test_util::PIPE);
+            let (connected, admitted) =
+                tokio::join!(handshake_with(client, client_io), handler.handle(server_io));
+            connected.unwrap();
+            match admitted {
+                Ok((_, AuthorizationType::None)) => Admitted::Unchecked,
+                Ok((_, AuthorizationType::Handler(_, role))) => Admitted::Checked(role),
+                Err(Refused::Role(err)) => Admitted::RefusedRole(err),
+                Err(err) => panic!("refused: {err}"),
+            }
+        }
+
+        #[tokio::test(start_paused = true)]
+        async fn only_an_authorizing_server_takes_the_client_role_and_requires_one() {
+            watchdog(async {
+                let (authorizer, _) = Recorder::denying(&[]);
+                let cases = [
+                    (
+                        Some(authorizer.clone()),
+                        operator(),
+                        Admitted::Checked(ROLE.to_string()),
+                    ),
+                    (
+                        Some(authorizer),
+                        without_a_role(),
+                        Admitted::RefusedRole(RoleError::Missing),
+                    ),
+                    (None, operator(), Admitted::Unchecked),
+                    (None, without_a_role(), Admitted::Unchecked),
+                ];
+                for (authorizer, client, expected) in cases {
+                    assert_eq!(
+                        admit(authority_server(), authorizer, client).await,
+                        expected
+                    );
+                }
+            })
+            .await;
+        }
+
+        #[tokio::test(start_paused = true)]
+        async fn the_client_role_reaches_the_authorization_and_a_denied_request_gets_illegal_function(
+        ) {
+            watchdog(async {
+                let (authorizer, checks) = Recorder::denying(&[FunctionCode::ReadCoils]);
+                let mut server = spawn_authorizing_server(authorizer);
+                let mut client = server.connect_as(operator()).await;
+
+                assert_eq!(read_register(&mut client).await, REGISTER);
+                // Values would answer the coils
+                assert_eq!(read_coils(&mut client).await, ILLEGAL_FUNCTION);
+                assert_eq!(*checks.lock().unwrap(), [register_check(), coils_check()]);
+            })
+            .await;
+        }
+
+        #[tokio::test(start_paused = true)]
+        async fn a_client_without_a_role_is_closed_after_its_handshake_and_doesnt_displace_a_session(
+        ) {
+            watchdog(async {
+                let (authorizer, checks) = Recorder::denying(&[]);
+                let mut server = spawn_authorizing_server(authorizer);
+                let mut client = server.connect_as(operator()).await;
+                assert_eq!(read_register(&mut client).await, REGISTER);
+
+                let mut refused = server.connect_as(without_a_role()).await;
+                refused.write_all(&READ_REGISTER).await.unwrap();
+                // closed without a close_notify, and without an answer
+                let mut buffer = [0u8; 1];
+                assert_eq!(
+                    refused.read(&mut buffer).await.map_err(|err| err.kind()),
+                    Err(std::io::ErrorKind::UnexpectedEof)
+                );
+
+                assert_eq!(read_register(&mut client).await, REGISTER);
+                assert_eq!(
+                    *checks.lock().unwrap(),
+                    [register_check(), register_check()]
+                );
+            })
+            .await;
+        }
+
+        /// The production constructor over real sockets: it gives the server the authorization
+        #[tokio::test]
+        async fn the_authorizing_tls_server_checks_requests_over_tcp() {
+            watchdog(async {
+                let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+                let addr = listener.local_addr().unwrap();
+                let (authorizer, checks) = Recorder::denying(&[FunctionCode::ReadCoils]);
+                let (_handle, task) = crate::server::create_tls_server_task_with_authz(
+                    1,
+                    listener,
+                    ServerHandlerMap::single(UnitId::new(1), Values.wrap()),
+                    authorizer,
+                    authority_server(),
+                    AddressFilter::Any,
+                    DecodeLevel::nothing(),
+                );
+                tokio::spawn(task.run());
+
+                let socket = tokio::net::TcpStream::connect(addr).await.unwrap();
+                let mut client = handshake_with(operator(), socket).await.unwrap();
+                // Values would answer the coils
+                assert_eq!(read_coils(&mut client).await, ILLEGAL_FUNCTION);
+                assert_eq!(*checks.lock().unwrap(), [coils_check()]);
+            })
+            .await;
         }
 
         #[tokio::test(start_paused = true)]

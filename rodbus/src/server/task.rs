@@ -486,15 +486,20 @@ mod tests {
     /// A handler call: a read of (unit, address) or a write of (unit, address, value)
     #[derive(Debug, PartialEq)]
     enum Call {
+        /// A holding register read
         Read(u8, u16),
+        ReadCoil(u8, u16),
+        ReadDiscreteInput(u8, u16),
+        ReadInputRegister(u8, u16),
         WriteCoil(u8, u16, bool),
         WriteRegister(u8, u16, u16),
     }
 
     type Calls = Arc<Mutex<Vec<Call>>>;
 
-    /// Holding registers hold their unit in the high byte and their address in the low byte;
-    /// reads and writes are recorded, and holding register reads and single register writes
+    /// Holding registers hold their unit in the high byte and their address in the low byte,
+    /// input registers the reverse; coils are on at odd addresses and discrete inputs at even
+    /// ones. Reads and writes are recorded, and holding register reads and single register writes
     /// fail at [`BAD_ADDRESS`]
     struct Unit {
         unit: u8,
@@ -508,6 +513,21 @@ mod tests {
     }
 
     impl RequestHandler for Unit {
+        fn read_coil(&self, address: u16) -> Result<bool, ExceptionCode> {
+            self.record(Call::ReadCoil(self.unit, address));
+            Ok(!address.is_multiple_of(2))
+        }
+
+        fn read_discrete_input(&self, address: u16) -> Result<bool, ExceptionCode> {
+            self.record(Call::ReadDiscreteInput(self.unit, address));
+            Ok(address.is_multiple_of(2))
+        }
+
+        fn read_input_register(&self, address: u16) -> Result<u16, ExceptionCode> {
+            self.record(Call::ReadInputRegister(self.unit, address));
+            Ok(u16::from_be_bytes([address.to_be_bytes()[1], self.unit]))
+        }
+
         fn read_holding_register(&self, address: u16) -> Result<u16, ExceptionCode> {
             self.record(Call::Read(self.unit, address));
             if address == BAD_ADDRESS {
@@ -546,13 +566,6 @@ mod tests {
             Ok(())
         }
     }
-
-    /// Refuses every request
-    #[cfg(all(feature = "serial", feature = "enable-tls"))]
-    struct DenyAll;
-
-    #[cfg(all(feature = "serial", feature = "enable-tls"))]
-    impl AuthorizationHandler for DenyAll {}
 
     /// A session serving `units` over a pipe; returns the peer and the handlers' calls
     fn spawn_session(
@@ -730,6 +743,164 @@ mod tests {
         .await;
     }
 
+    /// Sessions whose requests a [`Recorder`] authorizes
+    #[cfg(feature = "enable-tls")]
+    mod authorization {
+        use super::*;
+        use crate::server::handler::test_util::{Check, Recorder, Target};
+        use crate::AddressRange;
+
+        /// The unit the requests below address
+        const UNIT: u8 = 0x2A;
+
+        /// The role the sessions below were authorized for
+        const ROLE: &str = "operator";
+
+        /// A request, what it asks authorization for, and what the session does once it's allowed
+        struct Authorized {
+            request: &'static [u8],
+            function: FunctionCode,
+            target: Target,
+            /// The reply once allowed; once denied, the reply is exception 01
+            reply: &'static [u8],
+            /// The calls to the request handler once allowed; once denied, there are none
+            calls: &'static [Call],
+        }
+
+        const fn range(start: u16, count: u16) -> Target {
+            Target::Range(AddressRange { start, count })
+        }
+
+        /// One request of each function, each to its own addresses
+        const REQUESTS: [Authorized; 8] = [
+            // coils 0x10 off, 0x11 on
+            Authorized {
+                request: &[0x01, 0x00, 0x10, 0x00, 0x02],
+                function: FunctionCode::ReadCoils,
+                target: range(0x10, 2),
+                reply: &[0x01, 0x01, 0b10],
+                calls: &[Call::ReadCoil(UNIT, 0x10), Call::ReadCoil(UNIT, 0x11)],
+            },
+            // discrete inputs 0x20 on, 0x21 off
+            Authorized {
+                request: &[0x02, 0x00, 0x20, 0x00, 0x02],
+                function: FunctionCode::ReadDiscreteInputs,
+                target: range(0x20, 2),
+                reply: &[0x02, 0x01, 0b01],
+                calls: &[
+                    Call::ReadDiscreteInput(UNIT, 0x20),
+                    Call::ReadDiscreteInput(UNIT, 0x21),
+                ],
+            },
+            Authorized {
+                request: &[0x03, 0x00, 0x30, 0x00, 0x01],
+                function: FunctionCode::ReadHoldingRegisters,
+                target: range(0x30, 1),
+                reply: &[0x03, 0x02, UNIT, 0x30],
+                calls: &[Call::Read(UNIT, 0x30)],
+            },
+            Authorized {
+                request: &[0x04, 0x00, 0x40, 0x00, 0x01],
+                function: FunctionCode::ReadInputRegisters,
+                target: range(0x40, 1),
+                reply: &[0x04, 0x02, 0x40, UNIT],
+                calls: &[Call::ReadInputRegister(UNIT, 0x40)],
+            },
+            Authorized {
+                request: &[0x05, 0x00, 0x50, 0xFF, 0x00],
+                function: FunctionCode::WriteSingleCoil,
+                target: Target::Index(0x50),
+                reply: &[0x05, 0x00, 0x50, 0xFF, 0x00],
+                calls: &[Call::WriteCoil(UNIT, 0x50, true)],
+            },
+            Authorized {
+                request: &[0x06, 0x00, 0x60, 0x12, 0x34],
+                function: FunctionCode::WriteSingleRegister,
+                target: Target::Index(0x60),
+                reply: &[0x06, 0x00, 0x60, 0x12, 0x34],
+                calls: &[Call::WriteRegister(UNIT, 0x60, 0x1234)],
+            },
+            // coils 0x70 on, 0x71 off
+            Authorized {
+                request: &[0x0F, 0x00, 0x70, 0x00, 0x02, 0x01, 0b01],
+                function: FunctionCode::WriteMultipleCoils,
+                target: range(0x70, 2),
+                reply: &[0x0F, 0x00, 0x70, 0x00, 0x02],
+                calls: &[
+                    Call::WriteCoil(UNIT, 0x70, true),
+                    Call::WriteCoil(UNIT, 0x71, false),
+                ],
+            },
+            Authorized {
+                request: &[0x10, 0x00, 0x80, 0x00, 0x01, 0x02, 0xAB, 0xCD],
+                function: FunctionCode::WriteMultipleRegisters,
+                target: range(0x80, 1),
+                reply: &[0x10, 0x00, 0x80, 0x00, 0x01],
+                calls: &[Call::WriteRegister(UNIT, 0x80, 0xABCD)],
+            },
+        ];
+
+        /// Every other function of [`REQUESTS`], so that neighbors are decided differently
+        const DENIED: [FunctionCode; 4] = [
+            FunctionCode::ReadCoils,
+            FunctionCode::ReadHoldingRegisters,
+            FunctionCode::WriteSingleCoil,
+            FunctionCode::WriteMultipleCoils,
+        ];
+
+        /// The functions of [`REQUESTS`] that [`DENIED`] doesn't hold
+        const ALLOWED: [FunctionCode; 4] = [
+            FunctionCode::ReadDiscreteInputs,
+            FunctionCode::ReadInputRegisters,
+            FunctionCode::WriteSingleRegister,
+            FunctionCode::WriteMultipleRegisters,
+        ];
+
+        /// Empties `calls`, returning what it held
+        fn take<T>(calls: &Mutex<Vec<T>>) -> Vec<T> {
+            std::mem::take(&mut *calls.lock().unwrap())
+        }
+
+        #[tokio::test]
+        async fn each_request_is_checked_by_its_method_and_a_denied_one_gets_illegal_function() {
+            crate::common::test_support::watchdog(async {
+                // each function is denied in one session and allowed in the other
+                for denied in [&DENIED, &ALLOWED] {
+                    let (authorizer, checks) = Recorder::denying(denied);
+                    let (mut peer, calls) = spawn_session(
+                        &[UNIT],
+                        AuthorizationType::Handler(authorizer, ROLE.to_string()),
+                        FrameWriter::tcp(),
+                        FramedReader::tcp(),
+                    );
+                    for (tx_id, request) in (1..).zip(&REQUESTS) {
+                        let is_denied = denied.contains(&request.function);
+                        let reply = if is_denied {
+                            mbap(tx_id, UNIT, &[request.request[0] | 0x80, 0x01])
+                        } else {
+                            mbap(tx_id, UNIT, request.reply)
+                        };
+                        let sent = mbap(tx_id, UNIT, request.request);
+                        assert_eq!(exchange(&mut peer, &sent, reply.len()).await, reply);
+                        assert_eq!(
+                            take(&checks),
+                            [Check {
+                                function: request.function,
+                                unit: UnitId::new(UNIT),
+                                target: request.target,
+                                role: ROLE.to_string(),
+                            }]
+                        );
+                        let calls_made: &[Call] = if is_denied { &[] } else { request.calls };
+                        assert_eq!(take(&calls), calls_made);
+                    }
+                    assert_nothing_more_was_sent(peer).await;
+                }
+            })
+            .await;
+        }
+    }
+
     #[cfg(feature = "serial")]
     fn rtu_session(units: &[u8], auth: AuthorizationType) -> (tokio::io::DuplexStream, Calls) {
         spawn_session(units, auth, FrameWriter::rtu(), FramedReader::rtu_request())
@@ -827,28 +998,6 @@ mod tests {
             assert_nothing_more_was_sent(peer).await;
             // only the read that checked for silence reached a handler
             assert_eq!(*calls.lock().unwrap(), [Call::Read(1, 0x10)]);
-        })
-        .await;
-    }
-
-    #[cfg(all(feature = "serial", feature = "enable-tls"))]
-    #[tokio::test]
-    async fn a_refused_rtu_broadcast_gets_no_reply_and_a_refused_request_gets_an_exception() {
-        crate::common::test_support::watchdog(async {
-            let (mut peer, calls) = rtu_session(
-                &[1, 2],
-                AuthorizationType::Handler(DenyAll.wrap(), "role".to_string()),
-            );
-            peer.write_all(&with_crc(&[0, 0x06, 0x00, 0x20, 0x12, 0x34]))
-                .await
-                .unwrap();
-            let request = with_crc(&[1, 0x06, 0x00, 0x20, 0x12, 0x34]);
-            assert_eq!(
-                exchange(&mut peer, &request, 5).await,
-                with_crc(&[1, 0x86, 0x01])
-            );
-            assert_nothing_more_was_sent(peer).await;
-            assert_eq!(*calls.lock().unwrap(), []);
         })
         .await;
     }

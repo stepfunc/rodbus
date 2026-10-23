@@ -336,12 +336,183 @@ impl AuthorizationHandler for ReadOnlyAuthorizationHandler {
     }
 }
 
+/// An authorization handler that records the server's checks
+#[cfg(test)]
+#[cfg(feature = "enable-tls")]
+pub(crate) mod test_util {
+    use std::sync::{Arc, Mutex};
+
+    use super::*;
+    use crate::common::function::FunctionCode;
+
+    /// What a request asks for: a range of addresses, or the one address of a single write
+    #[derive(Clone, Copy, Debug, PartialEq)]
+    pub(crate) enum Target {
+        Range(AddressRange),
+        Index(u16),
+    }
+
+    /// A call to one of the methods of an [`AuthorizationHandler`]
+    #[derive(Debug, PartialEq)]
+    pub(crate) struct Check {
+        /// The method, by the function it authorizes
+        pub(crate) function: FunctionCode,
+        pub(crate) unit: UnitId,
+        pub(crate) target: Target,
+        pub(crate) role: String,
+    }
+
+    pub(crate) type Checks = Arc<Mutex<Vec<Check>>>;
+
+    /// Records every check, denies the functions in `denied` and allows the others
+    pub(crate) struct Recorder {
+        denied: &'static [FunctionCode],
+        checks: Checks,
+    }
+
+    impl Recorder {
+        /// A recorder that denies `denied`, and the checks it records
+        pub(crate) fn denying(
+            denied: &'static [FunctionCode],
+        ) -> (Arc<dyn AuthorizationHandler>, Checks) {
+            let checks = Checks::default();
+            let recorder = Self {
+                denied,
+                checks: checks.clone(),
+            };
+            (recorder.wrap(), checks)
+        }
+
+        fn check(
+            &self,
+            function: FunctionCode,
+            unit: UnitId,
+            target: Target,
+            role: &str,
+        ) -> Authorization {
+            self.checks.lock().unwrap().push(Check {
+                function,
+                unit,
+                target,
+                role: role.to_string(),
+            });
+            if self.denied.contains(&function) {
+                Authorization::Deny
+            } else {
+                Authorization::Allow
+            }
+        }
+    }
+
+    impl AuthorizationHandler for Recorder {
+        fn read_coils(&self, unit_id: UnitId, range: AddressRange, role: &str) -> Authorization {
+            self.check(FunctionCode::ReadCoils, unit_id, Target::Range(range), role)
+        }
+
+        fn read_discrete_inputs(
+            &self,
+            unit_id: UnitId,
+            range: AddressRange,
+            role: &str,
+        ) -> Authorization {
+            let function = FunctionCode::ReadDiscreteInputs;
+            self.check(function, unit_id, Target::Range(range), role)
+        }
+
+        fn read_holding_registers(
+            &self,
+            unit_id: UnitId,
+            range: AddressRange,
+            role: &str,
+        ) -> Authorization {
+            let function = FunctionCode::ReadHoldingRegisters;
+            self.check(function, unit_id, Target::Range(range), role)
+        }
+
+        fn read_input_registers(
+            &self,
+            unit_id: UnitId,
+            range: AddressRange,
+            role: &str,
+        ) -> Authorization {
+            let function = FunctionCode::ReadInputRegisters;
+            self.check(function, unit_id, Target::Range(range), role)
+        }
+
+        fn write_single_coil(&self, unit_id: UnitId, idx: u16, role: &str) -> Authorization {
+            let function = FunctionCode::WriteSingleCoil;
+            self.check(function, unit_id, Target::Index(idx), role)
+        }
+
+        fn write_single_register(&self, unit_id: UnitId, idx: u16, role: &str) -> Authorization {
+            let function = FunctionCode::WriteSingleRegister;
+            self.check(function, unit_id, Target::Index(idx), role)
+        }
+
+        fn write_multiple_coils(
+            &self,
+            unit_id: UnitId,
+            range: AddressRange,
+            role: &str,
+        ) -> Authorization {
+            let function = FunctionCode::WriteMultipleCoils;
+            self.check(function, unit_id, Target::Range(range), role)
+        }
+
+        fn write_multiple_registers(
+            &self,
+            unit_id: UnitId,
+            range: AddressRange,
+            role: &str,
+        ) -> Authorization {
+            let function = FunctionCode::WriteMultipleRegisters;
+            self.check(function, unit_id, Target::Range(range), role)
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     struct DefaultHandler;
     impl RequestHandler for DefaultHandler {}
+
+    /// Implements none of the authorization methods
+    struct DefaultAuthorization;
+    impl AuthorizationHandler for DefaultAuthorization {}
+
+    /// What `handler` decides for each of the eight requests: the four reads, then the two
+    /// single writes, then the two multiple writes
+    fn decisions(handler: &dyn AuthorizationHandler) -> [Authorization; 8] {
+        let unit = UnitId::new(1);
+        let range = AddressRange::try_from(0, 1).unwrap();
+        let role = "operator";
+        [
+            handler.read_coils(unit, range, role),
+            handler.read_discrete_inputs(unit, range, role),
+            handler.read_holding_registers(unit, range, role),
+            handler.read_input_registers(unit, range, role),
+            handler.write_single_coil(unit, 0, role),
+            handler.write_single_register(unit, 0, role),
+            handler.write_multiple_coils(unit, range, role),
+            handler.write_multiple_registers(unit, range, role),
+        ]
+    }
+
+    #[test]
+    fn authorization_denies_every_request_by_default() {
+        assert_eq!(decisions(&DefaultAuthorization), [Authorization::Deny; 8]);
+    }
+
+    #[test]
+    fn the_read_only_authorization_allows_exactly_the_reads() {
+        use Authorization::{Allow, Deny};
+        assert_eq!(
+            decisions(ReadOnlyAuthorizationHandler::create().as_ref()),
+            [Allow, Allow, Allow, Allow, Deny, Deny, Deny, Deny]
+        );
+    }
 
     #[test]
     fn default_handler_returns_illegal_function() {
