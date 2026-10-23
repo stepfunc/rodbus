@@ -290,6 +290,8 @@ impl AuthorizationType {
 
 #[cfg(test)]
 mod tests {
+    mod session_model;
+
     use std::sync::{Arc, Mutex};
     #[cfg(feature = "serial")]
     use std::time::Duration;
@@ -565,6 +567,16 @@ mod tests {
             };
             assert!(handlers.add(UnitId::new(*unit), handler.wrap()).is_none());
         }
+        (serve(handlers, auth, writer, reader), calls)
+    }
+
+    /// A session serving `handlers` over a pipe, until the peer closes it; returns the peer
+    fn serve<T: RequestHandler>(
+        handlers: ServerHandlerMap<T>,
+        auth: AuthorizationType,
+        writer: FrameWriter,
+        reader: FramedReader,
+    ) -> tokio::io::DuplexStream {
         let (commands_tx, commands) = tokio::sync::mpsc::channel(1);
         let mut session = SessionTask::new(
             handlers,
@@ -579,7 +591,7 @@ mod tests {
             let _commands_tx = commands_tx;
             session.run(&mut PhysLayer::new_duplex(local)).await
         });
-        (peer, calls)
+        peer
     }
 
     /// Sends `request` and reads a reply of `reply_len` bytes
