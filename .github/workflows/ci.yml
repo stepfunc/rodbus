@@ -96,6 +96,8 @@ jobs:
         run: cargo check --locked -p rodbus --no-default-features --features ffi,serial,tls-aws-lc,serialization
   # Run the unit tests on Linux; Windows too in the merge queue and for releases
   test:
+    # a test that hangs fails the job instead of holding it for GitHub's six-hour default
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:

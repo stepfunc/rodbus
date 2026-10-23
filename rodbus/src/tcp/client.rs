@@ -345,6 +345,15 @@ mod tests {
         }
     }
 
+    /// Wait until the channel reports that it's connected, so that requests go on the wire
+    async fn wait_until_connected(states: &mut tokio::sync::mpsc::UnboundedReceiver<ClientState>) {
+        tokio::time::timeout(TEST_TIMEOUT, async {
+            while states.recv().await.unwrap() != ClientState::Connected {}
+        })
+        .await
+        .expect("the channel didn't connect");
+    }
+
     struct BlockingShutdownListener {
         tx: tokio::sync::mpsc::UnboundedSender<ClientState>,
         release: Option<tokio::sync::oneshot::Receiver<()>>,
@@ -458,10 +467,11 @@ mod tests {
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
 
+        let (tx, mut states) = tokio::sync::mpsc::unbounded_channel();
         let (channel, task) = create_tcp_channel(
             HostAddr::ip(addr.ip(), addr.port()),
             default_retry_strategy(),
-            crate::client::NullListener::create(),
+            Box::new(StateRecorder { tx }),
             ClientOptions::default(),
         );
         let task = tokio::spawn(task.run());
@@ -469,6 +479,8 @@ mod tests {
 
         // accept the connection and read the request, but never answer it
         let (mut socket, _) = listener.accept().await.unwrap();
+        // a request sent while the channel is still connecting would fail at once
+        wait_until_connected(&mut states).await;
         let requester = channel.clone();
         let coils = tokio::spawn(async move {
             requester
@@ -575,6 +587,7 @@ mod tests {
         channel.enable().await.unwrap();
 
         let (mut socket, _) = listener.accept().await.unwrap();
+        wait_until_connected(&mut states).await;
 
         // one request occupies the loop, the rest sit in the queue behind it
         let queued: Vec<_> = (0..4)
@@ -703,7 +716,7 @@ mod tests {
                 );
                 tokio::spawn(task.run());
                 channel.enable().await.unwrap();
-                while states.recv().await.unwrap() != ClientState::Connected {}
+                wait_until_connected(&mut states).await;
 
                 let result = channel
                     .read_coils(
