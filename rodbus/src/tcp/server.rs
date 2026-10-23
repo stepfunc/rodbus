@@ -347,12 +347,21 @@ mod tests {
         listener: FaultyListener,
         connection_handler: TcpServerConnectionHandler,
     ) -> (crate::server::ServerHandle, tokio::task::JoinHandle<()>) {
+        spawn_server_for(listener, connection_handler, handlers())
+    }
+
+    /// Spawn a server for `handlers`, as [`spawn_server_with`] does
+    fn spawn_server_for<T: RequestHandler>(
+        listener: FaultyListener,
+        connection_handler: TcpServerConnectionHandler,
+        handlers: ServerHandlerMap<T>,
+    ) -> (crate::server::ServerHandle, tokio::task::JoinHandle<()>) {
         let (tx, rx) = tokio::sync::mpsc::channel(1);
         let (shutdown, signal) = crate::common::cancellation::pair();
         let task = ServerTask::new(
             1,
             listener,
-            handlers(),
+            handlers,
             connection_handler,
             AddressFilter::Any,
             DecodeLevel::nothing(),
@@ -655,6 +664,108 @@ mod tests {
                 commands.try_recv().err(),
                 Some(tokio::sync::mpsc::error::TryRecvError::Empty)
             );
+        })
+        .await;
+    }
+
+    /// A read request from unit 1 for `count` items of `function` at `start`
+    fn read_request(function: u8, start: u16, count: u16) -> [u8; 12] {
+        let [start_hi, start_lo] = start.to_be_bytes();
+        let [count_hi, count_lo] = count.to_be_bytes();
+        [
+            0, 1, 0, 0, 0, 6, 1, function, start_hi, start_lo, count_hi, count_lo,
+        ]
+    }
+
+    /// The address that makes [`Values`] panic
+    const PANIC_ADDRESS: u16 = 13;
+
+    /// Answers reads from the address itself: odd addresses are on, registers hold their address.
+    /// Panics on a holding register read at [`PANIC_ADDRESS`].
+    struct Values;
+
+    impl RequestHandler for Values {
+        fn read_coil(&self, address: u16) -> Result<bool, crate::ExceptionCode> {
+            Ok(address % 2 == 1)
+        }
+
+        fn read_discrete_input(&self, address: u16) -> Result<bool, crate::ExceptionCode> {
+            Ok(address % 2 == 1)
+        }
+
+        fn read_holding_register(&self, address: u16) -> Result<u16, crate::ExceptionCode> {
+            assert_ne!(address, PANIC_ADDRESS, "the handler's bug");
+            Ok(address)
+        }
+
+        fn read_input_register(&self, address: u16) -> Result<u16, crate::ExceptionCode> {
+            Ok(address)
+        }
+    }
+
+    #[tokio::test]
+    async fn reads_at_the_last_address_are_answered() {
+        watchdog(async {
+            let handler = Values.wrap();
+            let (listener, mut peers) = FaultyListener::new(&[]);
+            let (_handle, _task) = spawn_server_for(
+                listener,
+                TcpServerConnectionHandler::Tcp,
+                ServerHandlerMap::single(UnitId::new(1), handler.clone()),
+            );
+            let (mut client, _) = peers.connect();
+
+            // coils and discrete inputs: one byte, bit 0 on (0xFFFF is odd)
+            for function in [1, 2] {
+                client
+                    .write_all(&read_request(function, 0xFFFF, 1))
+                    .await
+                    .unwrap();
+                let mut response = [0u8; 10];
+                client.read_exact(&mut response).await.unwrap();
+                assert_eq!(response, [0, 1, 0, 0, 0, 4, 1, function, 1, 0x01]);
+            }
+            // holding and input registers: the register holds its address
+            for function in [3, 4] {
+                client
+                    .write_all(&read_request(function, 0xFFFF, 1))
+                    .await
+                    .unwrap();
+                let mut response = [0u8; 11];
+                client.read_exact(&mut response).await.unwrap();
+                assert_eq!(response, [0, 1, 0, 0, 0, 5, 1, function, 2, 0xFF, 0xFF]);
+            }
+            assert!(!handler.is_poisoned());
+        })
+        .await;
+    }
+
+    #[tokio::test]
+    async fn a_handler_that_panicked_still_serves_other_sessions() {
+        watchdog(async {
+            let handler = Values.wrap();
+            let (listener, mut peers) = FaultyListener::new(&[]);
+            let (_handle, _task) = spawn_server_for(
+                listener,
+                TcpServerConnectionHandler::Tcp,
+                ServerHandlerMap::single(UnitId::new(1), handler.clone()),
+            );
+
+            // the handler panics while answering, which ends this session
+            let (mut first, _) = peers.connect();
+            first
+                .write_all(&read_request(3, PANIC_ADDRESS, 1))
+                .await
+                .unwrap();
+            assert_eq!(read_to_close(&mut first).await, []);
+            assert!(handler.is_poisoned());
+
+            let (mut second, _) = peers.connect();
+            second.write_all(&read_request(3, 0x10, 1)).await.unwrap();
+            let mut response = [0u8; 11];
+            second.read_exact(&mut response).await.unwrap();
+            assert_eq!(response, [0, 1, 0, 0, 0, 5, 1, 3, 2, 0x00, 0x10]);
+            assert!(!handler.is_poisoned());
         })
         .await;
     }

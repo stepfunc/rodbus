@@ -8,7 +8,7 @@ use crate::common::frame::{
 use crate::common::function::FunctionCode;
 use crate::error::*;
 use crate::exception::ExceptionCode;
-use crate::server::handler::{RequestHandler, ServerHandlerMap};
+use crate::server::handler::{lock_handler, RequestHandler, ServerHandlerMap};
 use crate::server::request::{Request, RequestDisplay};
 
 use scursor::ReadCursor;
@@ -208,7 +208,7 @@ where
                 // get the reply data (or exception reply)
                 let reply: &[u8] = request.get_reply(
                     frame.header,
-                    handler.lock().unwrap().as_mut(),
+                    lock_handler(handler).as_mut(),
                     &mut self.writer,
                     self.decode,
                 )?;
@@ -220,7 +220,7 @@ where
                 }
                 Some(request) => {
                     for handler in self.handlers.iter_mut() {
-                        request.execute(handler.lock().unwrap().as_mut());
+                        request.execute(lock_handler(handler).as_mut());
                     }
                 }
             },
@@ -279,5 +279,75 @@ impl AuthorizationType {
                 result
             }
         }
+    }
+}
+
+#[cfg(all(test, feature = "serial"))]
+mod tests {
+    use super::*;
+    use crate::common::frame::{FrameWriter, FramedReader};
+    use crate::server::handler::ServerHandlerType;
+    use crate::types::Indexed;
+    use tokio::io::AsyncWriteExt;
+
+    /// Records the registers it is asked to write
+    #[derive(Default)]
+    struct Recorder {
+        writes: Vec<Indexed<u16>>,
+    }
+
+    impl RequestHandler for Recorder {
+        fn write_single_register(&mut self, value: Indexed<u16>) -> Result<(), ExceptionCode> {
+            self.writes.push(value);
+            Ok(())
+        }
+    }
+
+    /// Poison `handler`'s mutex, as a handler that panicked while locked would
+    fn poison(handler: &ServerHandlerType<Recorder>) {
+        let handler = handler.clone();
+        let panicked = std::thread::spawn(move || {
+            let _guard = handler.lock();
+            panic!("the handler's bug");
+        })
+        .join();
+        assert!(panicked.is_err());
+    }
+
+    #[tokio::test]
+    async fn a_broadcast_reaches_a_handler_that_panicked() {
+        crate::common::test_support::watchdog(async {
+            let handler = Recorder::default().wrap();
+            poison(&handler);
+            assert!(handler.is_poisoned());
+
+            let (local, mut peer) = tokio::io::duplex(64);
+            let (_commands, rx) = tokio::sync::mpsc::channel(1);
+            let mut session = SessionTask::new(
+                ServerHandlerMap::single(UnitId::new(1), handler.clone()),
+                AuthorizationType::None,
+                FrameWriter::rtu(),
+                FramedReader::rtu_request(),
+                rx,
+                DecodeLevel::nothing(),
+            );
+            let _task = tokio::spawn(async move {
+                let mut phys = PhysLayer::new_duplex(local);
+                session.run(&mut phys).await
+            });
+
+            // write single register 1 = 0x1234, broadcast (unit 0), which gets no reply
+            let mut frame = vec![0x00, 0x06, 0x00, 0x01, 0x12, 0x34];
+            let crc = crc::Crc::<u16>::new(&crc::CRC_16_MODBUS).checksum(&frame);
+            frame.extend_from_slice(&crc.to_le_bytes());
+            peer.write_all(&frame).await.unwrap();
+
+            // the session clears the poison when it locks the handler
+            while handler.is_poisoned() {
+                tokio::task::yield_now().await;
+            }
+            assert_eq!(lock_handler(&handler).writes, [Indexed::new(1, 0x1234)]);
+        })
+        .await;
     }
 }

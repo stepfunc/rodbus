@@ -1,5 +1,5 @@
 use std::collections::BTreeMap;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, MutexGuard};
 
 use crate::exception::ExceptionCode;
 use crate::server::{WriteCoils, WriteRegisters};
@@ -13,6 +13,10 @@ use crate::types::*;
 ///
 /// If an implementation returns a slice smaller than the requested range, this will result
 /// in [`ExceptionCode::ServerDeviceFailure`] being returned to the client.
+///
+/// If a method panics, the session that made the request ends (on a serial port, the server
+/// task ends). Later requests from other sessions still reach the handler, with its state as
+/// the panic left it.
 pub trait RequestHandler: Send + 'static {
     /// Moves a server handler implementation into a `Arc<Mutex<Box<ServerHandler>>>`
     /// suitable for passing to the server
@@ -84,6 +88,18 @@ where
 
 /// Server handler boxed inside a `Arc<Mutex>`.
 pub type ServerHandlerType<T> = Arc<Mutex<Box<T>>>;
+
+/// Lock a handler for one request
+///
+/// A handler that panicked while locked stays in use: refusing it would turn one failed request
+/// into a permanent failure of every later one.
+pub(crate) fn lock_handler<T: ?Sized>(handler: &Mutex<Box<T>>) -> MutexGuard<'_, Box<T>> {
+    handler.lock().unwrap_or_else(|poisoned| {
+        tracing::warn!("a request handler panicked; continuing with its state as left");
+        handler.clear_poison();
+        poisoned.into_inner()
+    })
+}
 
 /// Type that hides the underlying map implementation
 /// and allows lookups of a [`RequestHandler`] from a [`UnitId`]
