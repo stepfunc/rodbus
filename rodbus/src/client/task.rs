@@ -406,6 +406,9 @@ mod tests {
     #[cfg(feature = "serial")]
     use crate::common::frame::FrameDestination;
     use crate::common::function::FunctionCode;
+    use crate::common::test_support::mbap;
+    #[cfg(feature = "serial")]
+    use crate::common::test_support::with_crc;
     use crate::common::traits::{Loggable, Serialize};
     use crate::decode::*;
     use crate::server::response::BitWriter;
@@ -1034,10 +1037,7 @@ mod tests {
     #[cfg(feature = "serial")]
     fn rtu_response(unit: u8, value: u16) -> Vec<u8> {
         let [high, low] = value.to_be_bytes();
-        let mut frame = vec![unit, 3, 2, high, low];
-        let crc = crc::Crc::<u16>::new(&crc::CRC_16_MODBUS).checksum(&frame);
-        frame.extend_from_slice(&crc.to_le_bytes());
-        frame
+        with_crc(&[unit, 3, 2, high, low])
     }
 
     #[cfg(feature = "serial")]
@@ -1105,15 +1105,13 @@ mod tests {
     }
 
     /// A read of one holding register at 0x10, as the client writes it over TCP
-    fn mbap_read_register(tx_id: u16, unit: u8) -> [u8; 12] {
-        let [tx_high, tx_low] = tx_id.to_be_bytes();
-        [tx_high, tx_low, 0, 0, 0, 6, unit, 3, 0x00, 0x10, 0x00, 0x01]
+    fn mbap_read_register(tx_id: u16, unit: u8) -> Vec<u8> {
+        mbap(tx_id, unit, &[3, 0x00, 0x10, 0x00, 0x01])
     }
 
-    fn mbap_register_response(tx_id: u16, unit: u8, value: u16) -> [u8; 11] {
-        let [tx_high, tx_low] = tx_id.to_be_bytes();
+    fn mbap_register_response(tx_id: u16, unit: u8, value: u16) -> Vec<u8> {
         let [high, low] = value.to_be_bytes();
-        [tx_high, tx_low, 0, 0, 0, 5, unit, 3, 2, high, low]
+        mbap(tx_id, unit, &[3, 2, high, low])
     }
 
     #[tokio::test(start_paused = true)]
@@ -1125,7 +1123,7 @@ mod tests {
                 let request = read_register_from(channel.clone(), unit);
                 let mut sent = [0u8; 12];
                 peer.read_exact(&mut sent).await.unwrap();
-                assert_eq!(sent, mbap_read_register(tx_id, unit));
+                assert_eq!(sent.to_vec(), mbap_read_register(tx_id, unit));
                 peer.write_all(&mbap_register_response(tx_id, unit, 0x1234))
                     .await
                     .unwrap();
@@ -1144,7 +1142,7 @@ mod tests {
             let request = read_register_from(channel, 2);
             let mut sent = [0u8; 12];
             peer.read_exact(&mut sent).await.unwrap();
-            assert_eq!(sent, mbap_read_register(0, 2));
+            assert_eq!(sent.to_vec(), mbap_read_register(0, 2));
             tokio::time::sleep(Duration::from_millis(100)).await;
             peer.write_all(&mbap_register_response(1, 2, 0x1111))
                 .await
@@ -1161,10 +1159,7 @@ mod tests {
     /// A read of one holding register at 0x10, as the client writes it over RTU
     #[cfg(feature = "serial")]
     fn rtu_read_register(unit: u8) -> Vec<u8> {
-        let mut frame = vec![unit, 3, 0x00, 0x10, 0x00, 0x01];
-        let crc = crc::Crc::<u16>::new(&crc::CRC_16_MODBUS).checksum(&frame);
-        frame.extend_from_slice(&crc.to_le_bytes());
-        frame
+        with_crc(&[unit, 3, 0x00, 0x10, 0x00, 0x01])
     }
 
     #[cfg(feature = "serial")]
@@ -1228,7 +1223,7 @@ mod tests {
             });
             let mut sent = [0u8; 12];
             peer.read_exact(&mut sent).await.unwrap();
-            assert_eq!(sent, mbap_read_register(0, 1));
+            assert_eq!(sent.to_vec(), mbap_read_register(0, 1));
             peer.write_all(&mbap_register_response(0, 1, 0x1234))
                 .await
                 .unwrap();

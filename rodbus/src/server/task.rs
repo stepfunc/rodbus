@@ -312,6 +312,9 @@ mod tests {
 
     use super::*;
     use crate::common::frame::{FrameWriter, FramedReader};
+    use crate::common::test_support::mbap;
+    #[cfg(feature = "serial")]
+    use crate::common::test_support::with_crc;
     use crate::server::handler::ServerHandlerMap;
     use crate::server::WriteRegisters;
     use crate::Indexed;
@@ -326,13 +329,6 @@ mod tests {
         fn read_holding_register(&self, address: u16) -> Result<u16, ExceptionCode> {
             Ok(address)
         }
-    }
-
-    #[cfg(feature = "serial")]
-    fn with_crc(mut frame: Vec<u8>) -> Vec<u8> {
-        let crc = crc::Crc::<u16>::new(&crc::CRC_16_MODBUS).checksum(&frame);
-        frame.extend_from_slice(&crc.to_le_bytes());
-        frame
     }
 
     #[cfg(feature = "serial")]
@@ -356,7 +352,7 @@ mod tests {
                 (ended, session.run(&mut PhysLayer::new_duplex(second)).await)
             });
 
-            let request = with_crc(vec![0x01, 0x03, 0x00, 0x10, 0x00, 0x01]);
+            let request = with_crc(&[0x01, 0x03, 0x00, 0x10, 0x00, 0x01]);
             // part of a request, then the port goes away
             first_peer.write_all(&request[..3]).await.unwrap();
             drop(first_peer);
@@ -366,12 +362,9 @@ mod tests {
             second_peer.write_all(&request).await.unwrap();
             let mut response = [0u8; 7];
             second_peer.read_exact(&mut response).await.unwrap();
-            assert_eq!(
-                response.to_vec(),
-                with_crc(vec![0x01, 0x03, 0x02, 0x00, 0x10])
-            );
+            assert_eq!(response.to_vec(), with_crc(&[0x01, 0x03, 0x02, 0x00, 0x10]));
 
-            drop(second_peer);
+            assert_nothing_more_was_sent(second_peer).await;
             let (first_ended, second_ended) = task.await.unwrap();
             assert_eq!(
                 first_ended,
@@ -490,15 +483,16 @@ mod tests {
         reply
     }
 
-    fn mbap(tx_id: u16, unit: u8, pdu: &[u8]) -> Vec<u8> {
-        let [tx_high, tx_low] = tx_id.to_be_bytes();
-        // the length counts the unit id and the PDU
-        let mut unit_and_pdu = vec![unit];
-        unit_and_pdu.extend_from_slice(pdu);
-        let [len_high, len_low] = u16::try_from(unit_and_pdu.len()).unwrap().to_be_bytes();
-        let mut frame = vec![tx_high, tx_low, 0, 0, len_high, len_low];
-        frame.extend_from_slice(&unit_and_pdu);
-        frame
+    /// Closes the requests' direction of the pipe, so the session ends, then checks that the
+    /// session wrote nothing after the replies already read
+    ///
+    /// [`exchange`] reads only the reply it expects, so this catches extra bytes after the last
+    /// one.
+    async fn assert_nothing_more_was_sent(mut peer: tokio::io::DuplexStream) {
+        peer.shutdown().await.unwrap();
+        let mut rest = Vec::new();
+        peer.read_to_end(&mut rest).await.unwrap();
+        assert_eq!(rest, []);
     }
 
     fn tcp_session(units: &[u8]) -> (tokio::io::DuplexStream, Calls) {
@@ -521,6 +515,7 @@ mod tests {
                     mbap(tx_id, unit, &[0x03, 0x02, unit, 0x10])
                 );
             }
+            assert_nothing_more_was_sent(peer).await;
         })
         .await;
     }
@@ -561,6 +556,7 @@ mod tests {
                 exchange(&mut peer, &request, 9).await,
                 mbap(10, 1, &[0x83, 0x03])
             );
+            assert_nothing_more_was_sent(peer).await;
         })
         .await;
     }
@@ -576,29 +572,30 @@ mod tests {
         crate::common::test_support::watchdog(async {
             let (mut peer, _) = rtu_session(&[1, 0xFF], AuthorizationType::None);
             for unit in [1, 0xFF] {
-                let request = with_crc(vec![unit, 0x03, 0x00, 0x10, 0x00, 0x01]);
+                let request = with_crc(&[unit, 0x03, 0x00, 0x10, 0x00, 0x01]);
                 assert_eq!(
                     exchange(&mut peer, &request, 7).await,
-                    with_crc(vec![unit, 0x03, 0x02, unit, 0x10])
+                    with_crc(&[unit, 0x03, 0x02, unit, 0x10])
                 );
             }
             let [bad_high, bad_low] = BAD_ADDRESS.to_be_bytes();
-            let request = with_crc(vec![1, 0x03, bad_high, bad_low, 0x00, 0x01]);
+            let request = with_crc(&[1, 0x03, bad_high, bad_low, 0x00, 0x01]);
             assert_eq!(
                 exchange(&mut peer, &request, 5).await,
-                with_crc(vec![1, 0x83, 0x02])
+                with_crc(&[1, 0x83, 0x02])
             );
             let [high, low] = (BAD_ADDRESS - 1).to_be_bytes();
-            let request = with_crc(vec![1, 0x03, high, low, 0x00, 0x02]);
+            let request = with_crc(&[1, 0x03, high, low, 0x00, 0x02]);
             assert_eq!(
                 exchange(&mut peer, &request, 5).await,
-                with_crc(vec![1, 0x83, 0x02])
+                with_crc(&[1, 0x83, 0x02])
             );
-            let request = with_crc(vec![1, 0x06, bad_high, bad_low, 0x12, 0x34]);
+            let request = with_crc(&[1, 0x06, bad_high, bad_low, 0x12, 0x34]);
             assert_eq!(
                 exchange(&mut peer, &request, 5).await,
-                with_crc(vec![1, 0x86, 0x02])
+                with_crc(&[1, 0x86, 0x02])
             );
+            assert_nothing_more_was_sent(peer).await;
         })
         .await;
     }
@@ -606,10 +603,10 @@ mod tests {
     /// Checks that the session wrote nothing before the reply to a read sent afterwards
     #[cfg(feature = "serial")]
     async fn assert_nothing_was_sent(peer: &mut tokio::io::DuplexStream) {
-        let request = with_crc(vec![1, 0x03, 0x00, 0x10, 0x00, 0x01]);
+        let request = with_crc(&[1, 0x03, 0x00, 0x10, 0x00, 0x01]);
         assert_eq!(
             exchange(peer, &request, 7).await,
-            with_crc(vec![1, 0x03, 0x02, 0x01, 0x10])
+            with_crc(&[1, 0x03, 0x02, 0x01, 0x10])
         );
     }
 
@@ -618,15 +615,16 @@ mod tests {
     async fn an_rtu_broadcast_write_reaches_every_unit_without_a_reply() {
         crate::common::test_support::watchdog(async {
             let (mut peer, calls) = rtu_session(&[1, 2], AuthorizationType::None);
-            peer.write_all(&with_crc(vec![0, 0x06, 0x00, 0x20, 0x12, 0x34]))
+            peer.write_all(&with_crc(&[0, 0x06, 0x00, 0x20, 0x12, 0x34]))
                 .await
                 .unwrap();
-            peer.write_all(&with_crc(vec![
+            peer.write_all(&with_crc(&[
                 0, 0x10, 0x00, 0x30, 0x00, 0x01, 0x02, 0x56, 0x78,
             ]))
             .await
             .unwrap();
             assert_nothing_was_sent(&mut peer).await;
+            assert_nothing_more_was_sent(peer).await;
             assert_eq!(
                 *calls.lock().unwrap(),
                 [
@@ -647,16 +645,17 @@ mod tests {
         crate::common::test_support::watchdog(async {
             let (mut peer, calls) = rtu_session(&[1, 2], AuthorizationType::None);
             // a read
-            peer.write_all(&with_crc(vec![0, 0x03, 0x00, 0x10, 0x00, 0x01]))
+            peer.write_all(&with_crc(&[0, 0x03, 0x00, 0x10, 0x00, 0x01]))
                 .await
                 .unwrap();
             // a write of multiple registers whose byte count doesn't match its quantity
-            peer.write_all(&with_crc(vec![
+            peer.write_all(&with_crc(&[
                 0, 0x10, 0x00, 0x30, 0x00, 0x02, 0x02, 0x56, 0x78,
             ]))
             .await
             .unwrap();
             assert_nothing_was_sent(&mut peer).await;
+            assert_nothing_more_was_sent(peer).await;
             // only the read that checked for silence reached a handler
             assert_eq!(*calls.lock().unwrap(), [Call::Read(1, 0x10)]);
         })
@@ -671,14 +670,15 @@ mod tests {
                 &[1, 2],
                 AuthorizationType::Handler(DenyAll.wrap(), "role".to_string()),
             );
-            peer.write_all(&with_crc(vec![0, 0x06, 0x00, 0x20, 0x12, 0x34]))
+            peer.write_all(&with_crc(&[0, 0x06, 0x00, 0x20, 0x12, 0x34]))
                 .await
                 .unwrap();
-            let request = with_crc(vec![1, 0x06, 0x00, 0x20, 0x12, 0x34]);
+            let request = with_crc(&[1, 0x06, 0x00, 0x20, 0x12, 0x34]);
             assert_eq!(
                 exchange(&mut peer, &request, 5).await,
-                with_crc(vec![1, 0x86, 0x01])
+                with_crc(&[1, 0x86, 0x01])
             );
+            assert_nothing_more_was_sent(peer).await;
             assert_eq!(*calls.lock().unwrap(), []);
         })
         .await;
