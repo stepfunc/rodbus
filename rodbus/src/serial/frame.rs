@@ -27,12 +27,6 @@ pub(crate) mod constants {
 /// precomputes the CRC table as a constant!
 const CRC: crc::Crc<u16> = crc::Crc::<u16>::new(&crc::CRC_16_MODBUS);
 
-#[derive(Clone, Copy)]
-enum ParserType {
-    Request,
-    Response,
-}
-
 /// How to find the length of a PDU from its leading bytes
 #[derive(Clone, Copy)]
 enum LengthMode {
@@ -42,51 +36,57 @@ enum LengthMode {
     ByteCountAfter(usize),
 }
 
-pub(crate) struct RtuParser {
-    parser_type: ParserType,
+/// Reads RTU frames, whose length depends on whether they carry requests or responses
+#[derive(Clone, Copy)]
+pub(crate) enum RtuParser {
+    Request,
+    Response,
 }
 
 impl RtuParser {
     pub(crate) fn new_request_parser() -> Self {
-        Self {
-            parser_type: ParserType::Request,
-        }
+        Self::Request
     }
 
     pub(crate) fn new_response_parser() -> Self {
-        Self {
-            parser_type: ParserType::Response,
-        }
+        Self::Response
     }
 
     /// How to find the length of the PDU, or `None` for a function code it can't be found for
     fn length_mode(&self, function_code: u8) -> Option<LengthMode> {
         // Check exception (only valid for responses)
-        if matches!(self.parser_type, ParserType::Response) && function_code & 0x80 != 0 {
+        if matches!(self, Self::Response) && function_code & 0x80 != 0 {
             return Some(LengthMode::Fixed(1));
         }
 
-        let mode = match self.parser_type {
-            ParserType::Request => match FunctionCode::get(function_code)? {
-                FunctionCode::ReadCoils => LengthMode::Fixed(4),
-                FunctionCode::ReadDiscreteInputs => LengthMode::Fixed(4),
-                FunctionCode::ReadHoldingRegisters => LengthMode::Fixed(4),
-                FunctionCode::ReadInputRegisters => LengthMode::Fixed(4),
-                FunctionCode::WriteSingleCoil => LengthMode::Fixed(4),
-                FunctionCode::WriteSingleRegister => LengthMode::Fixed(4),
-                FunctionCode::WriteMultipleCoils => LengthMode::ByteCountAfter(4),
-                FunctionCode::WriteMultipleRegisters => LengthMode::ByteCountAfter(4),
-            },
-            ParserType::Response => match FunctionCode::get(function_code)? {
-                FunctionCode::ReadCoils => LengthMode::ByteCountAfter(0),
-                FunctionCode::ReadDiscreteInputs => LengthMode::ByteCountAfter(0),
-                FunctionCode::ReadHoldingRegisters => LengthMode::ByteCountAfter(0),
-                FunctionCode::ReadInputRegisters => LengthMode::ByteCountAfter(0),
-                FunctionCode::WriteSingleCoil => LengthMode::Fixed(4),
-                FunctionCode::WriteSingleRegister => LengthMode::Fixed(4),
-                FunctionCode::WriteMultipleCoils => LengthMode::Fixed(4),
-                FunctionCode::WriteMultipleRegisters => LengthMode::Fixed(4),
-            },
+        let mode = match (*self, FunctionCode::get(function_code)?) {
+            (
+                Self::Request,
+                FunctionCode::ReadCoils
+                | FunctionCode::ReadDiscreteInputs
+                | FunctionCode::ReadHoldingRegisters
+                | FunctionCode::ReadInputRegisters
+                | FunctionCode::WriteSingleCoil
+                | FunctionCode::WriteSingleRegister,
+            ) => LengthMode::Fixed(4),
+            (
+                Self::Request,
+                FunctionCode::WriteMultipleCoils | FunctionCode::WriteMultipleRegisters,
+            ) => LengthMode::ByteCountAfter(4),
+            (
+                Self::Response,
+                FunctionCode::ReadCoils
+                | FunctionCode::ReadDiscreteInputs
+                | FunctionCode::ReadHoldingRegisters
+                | FunctionCode::ReadInputRegisters,
+            ) => LengthMode::ByteCountAfter(0),
+            (
+                Self::Response,
+                FunctionCode::WriteSingleCoil
+                | FunctionCode::WriteSingleRegister
+                | FunctionCode::WriteMultipleCoils
+                | FunctionCode::WriteMultipleRegisters,
+            ) => LengthMode::Fixed(4),
         };
         Some(mode)
     }
@@ -147,7 +147,7 @@ impl RtuParser {
             FrameHeader::new_rtu_header(destination),
             pdu_length.read(cursor)?,
         );
-        let received_crc = u16::from_le_bytes([cursor.read_u8()?, cursor.read_u8()?]);
+        let received_crc = cursor.read_array().map(u16::from_le_bytes)?;
 
         let mut digest = CRC.digest();
         digest.update(&[unit_id.value]);

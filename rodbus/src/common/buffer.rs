@@ -50,12 +50,20 @@ impl ReadBuffer {
         Ok(ret)
     }
 
+    /// Read `N` bytes, consuming nothing if fewer are buffered
+    pub(crate) fn read_array<const N: usize>(&mut self) -> Result<[u8; N], InternalError> {
+        let insufficient = InternalError::InsufficientBytesForRead(N, self.len());
+        // a read returns exactly the bytes it asks for, so the chunk is always there
+        self.read(N)
+            .ok()
+            .and_then(<[u8]>::first_chunk)
+            .copied()
+            .ok_or(insufficient)
+    }
+
     #[cfg_attr(all(test, rodbus_no_panic), no_panic::no_panic)]
     pub(crate) fn read_u8(&mut self) -> Result<u8, InternalError> {
-        match self.read(1)? {
-            [byte] => Ok(*byte),
-            _ => Err(InternalError::InsufficientBytesForRead(1, 0)),
-        }
+        self.read_array().map(|[byte]| byte)
     }
 
     /// The bytes not read yet
@@ -65,9 +73,7 @@ impl ReadBuffer {
     }
 
     pub(crate) fn read_u16_be(&mut self) -> Result<u16, InternalError> {
-        let high = self.read_u8()?;
-        let low = self.read_u8()?;
-        Ok(u16::from_be_bytes([high, low]))
+        self.read_array().map(u16::from_be_bytes)
     }
 
     /// The space after the unread bytes, moving them to the front first when the buffer is full
@@ -321,10 +327,13 @@ mod tests {
                         prop_assert_eq!(buffer.read_u8(), expected);
                     }
                     Op::ReadU16Be => {
-                        // two byte reads: a lone byte is consumed before the second read fails
-                        let expected = match (model.pop_front(), model.pop_front()) {
-                            (Some(high), Some(low)) => Ok(u16::from_be_bytes([high, low])),
-                            _ => Err(insufficient(1, &model)),
+                        // one read of both bytes: a lone byte is refused and stays unread
+                        let expected = match (model.front().copied(), model.get(1).copied()) {
+                            (Some(high), Some(low)) => {
+                                model.drain(..2);
+                                Ok(u16::from_be_bytes([high, low]))
+                            }
+                            _ => Err(insufficient(2, &model)),
                         };
                         prop_assert_eq!(buffer.read_u16_be(), expected);
                     }
