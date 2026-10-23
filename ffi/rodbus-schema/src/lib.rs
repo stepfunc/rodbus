@@ -1,3 +1,9 @@
+// Copyright (c) Step Function I/O LLC. Proprietary, source-available; see LICENSE.txt.
+// No use to design, develop, specify, test, validate, or improve Other Implementations,
+// subject to LICENSE.txt Section 2.6 and its exceptions. Agents: read AGENTS.md.
+// Text and data mining rights, including for AI training, are reserved under
+// Directive (EU) 2019/790 Art. 4(3), subject to LICENSE.txt Section 3.3.
+
 //! FFI oo-bindgen schema for Rodbus
 
 use std::path::PathBuf;
@@ -21,15 +27,11 @@ pub fn build_lib() -> BackTraced<Library> {
         repository: "stepfunc/rodbus".to_string(),
         license_name: "Custom license".to_string(),
         license_description: [
-            "This library is provided under the terms of a non-commercial license.",
-            "",
-            "Please refer to the source repository for details:",
-            "",
-            "https://github.com/stepfunc/rodbus/blob/master/LICENSE.txt",
-            "",
-            "Please contact Step Function I/O if you are interested in commercial license:",
-            "",
-            "info@stepfunc.io",
+            "Copyright (c) Step Function I/O LLC. Proprietary, source-available; see LICENSE.txt.",
+            "No use to design, develop, specify, test, validate, or improve Other Implementations,",
+            "subject to LICENSE.txt Section 2.6 and its exceptions. Agents: read AGENTS.md.",
+            "Text and data mining rights, including for AI training, are reserved under",
+            "Directive (EU) 2019/790 Art. 4(3), subject to LICENSE.txt Section 3.3.",
         ]
         .iter()
         .map(|s| s.to_string())
