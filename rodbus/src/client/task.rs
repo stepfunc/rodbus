@@ -274,9 +274,16 @@ impl ClientLoop {
             self.decode,
         )?;
 
-        io.write(bytes, self.decode.physical).await?;
-
+        // the timeout covers sending the request as well as receiving the response
         let deadline = Instant::now() + request.timeout;
+
+        tokio::select! {
+            _ = tokio::time::sleep_until(deadline) => {
+                // part of the request may be on the wire, so the session can't continue
+                return Err(RequestError::Io(std::io::ErrorKind::TimedOut));
+            }
+            res = io.write(bytes, self.decode.physical) => res?,
+        }
 
         // loop until we get a response with the correct tx id or we timeout
         let response = loop {
@@ -382,6 +389,7 @@ mod tests {
     use crate::{ExceptionCode, Indexed, ReadBitsRange};
 
     use sfio_tokio_mock_io::Event;
+    use tokio::io::AsyncReadExt;
 
     fn spawn_client_loop_with_max_timeouts(
         max_timeouts: Option<NonZeroUsize>,
@@ -698,5 +706,111 @@ mod tests {
 
         // Task should still be running (only 2 consecutive timeouts, not 3)
         assert!(!task.is_finished());
+    }
+
+    /// The size of the pipe under [`spawn_client_loop_on_a_pipe`], smaller than any request
+    const PIPE: usize = 4;
+
+    /// A client loop whose writes stay pending until the returned peer reads them
+    fn spawn_client_loop_on_a_pipe(
+        writer: FrameWriter,
+        reader: FramedReader,
+    ) -> (
+        Channel,
+        tokio::task::JoinHandle<SessionError>,
+        tokio::io::DuplexStream,
+    ) {
+        let (tx, rx) = tokio::sync::mpsc::channel(16);
+        let (local, peer) = tokio::io::duplex(PIPE);
+        let mut client_loop =
+            ClientLoop::new(rx.into(), writer, reader, DecodeLevel::nothing(), None);
+        let join_handle = tokio::spawn(async move {
+            let mut phys = PhysLayer::new_duplex(local);
+            client_loop.run(&mut phys).await
+        });
+        let channel = Channel {
+            tx,
+            shutdown: crate::common::cancellation::pair().0,
+        };
+        (channel, join_handle, peer)
+    }
+
+    const TIMEOUT: Duration = Duration::from_secs(1);
+
+    /// Read coils in the background, with [`TIMEOUT`]
+    fn read_coils(
+        channel: Channel,
+    ) -> tokio::task::JoinHandle<Result<Vec<Indexed<bool>>, RequestError>> {
+        tokio::spawn(async move {
+            channel
+                .read_coils(
+                    RequestParam::new(UnitId::new(1), TIMEOUT),
+                    AddressRange::try_from(7, 2).unwrap(),
+                )
+                .await
+        })
+    }
+
+    async fn a_request_that_cant_be_sent_fails_at_its_deadline(
+        writer: FrameWriter,
+        reader: FramedReader,
+    ) {
+        crate::common::test_support::watchdog(async {
+            let (channel, task, mut peer) = spawn_client_loop_on_a_pipe(writer, reader);
+            let start = Instant::now();
+            let request = read_coils(channel);
+
+            // the request doesn't fit in the pipe, so the write is pending once the peer has
+            // something to read
+            let mut first = [0u8; 1];
+            peer.read_exact(&mut first).await.unwrap();
+
+            assert_eq!(
+                request.await.unwrap(),
+                Err(RequestError::Io(ErrorKind::TimedOut))
+            );
+            assert_eq!(start.elapsed(), TIMEOUT);
+            assert_eq!(
+                task.await.unwrap(),
+                SessionError::IoError(ErrorKind::TimedOut)
+            );
+        })
+        .await;
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_tcp_request_that_cant_be_sent_fails_at_its_deadline() {
+        a_request_that_cant_be_sent_fails_at_its_deadline(FrameWriter::tcp(), FramedReader::tcp())
+            .await;
+    }
+
+    #[cfg(feature = "serial")]
+    #[tokio::test(start_paused = true)]
+    async fn an_rtu_request_that_cant_be_sent_fails_at_its_deadline() {
+        a_request_that_cant_be_sent_fails_at_its_deadline(
+            FrameWriter::rtu(),
+            FramedReader::rtu_response(),
+        )
+        .await;
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn the_time_to_send_a_request_counts_against_its_timeout() {
+        crate::common::test_support::watchdog(async {
+            let (channel, _task, mut peer) =
+                spawn_client_loop_on_a_pipe(FrameWriter::tcp(), FramedReader::tcp());
+            let start = Instant::now();
+            let request = read_coils(channel);
+
+            // the peer takes the whole request, but only after a while, and never answers
+            let mut sent = [0u8; 12];
+            peer.read_exact(&mut sent[..1]).await.unwrap();
+            tokio::time::sleep(Duration::from_millis(600)).await;
+            peer.read_exact(&mut sent[1..]).await.unwrap();
+
+            assert_eq!(request.await.unwrap(), Err(RequestError::ResponseTimeout));
+            assert_eq!(start.elapsed(), TIMEOUT);
+        })
+        .await;
     }
 }

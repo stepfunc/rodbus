@@ -4,6 +4,7 @@ use crate::client::requests::read_registers::ReadRegisters;
 use crate::client::requests::write_multiple::MultipleWriteRequest;
 use crate::client::requests::write_single::SingleWrite;
 use crate::client::{Channel, RequestParam, WriteMultiple};
+use crate::common::cancellation::ShutdownHandle;
 use crate::{
     AddressRange, BitIterator, DecodeLevel, Indexed, InvalidRange, RegisterIterator, RequestError,
 };
@@ -15,6 +16,7 @@ use tokio::sync::mpsc::error::TrySendError;
 #[derive(Debug, Clone)]
 pub struct FfiChannel {
     tx: tokio::sync::mpsc::Sender<Command>,
+    shutdown: ShutdownHandle,
 }
 
 /// Errors returned on methods of the FfiSession
@@ -31,7 +33,15 @@ pub enum FfiChannelError {
 impl FfiChannel {
     /// Create a [FfiChannel] from a [Channel] and the specified [RequestParam]
     pub fn new(channel: Channel) -> Self {
-        Self { tx: channel.tx }
+        Self {
+            tx: channel.tx,
+            shutdown: channel.shutdown,
+        }
+    }
+
+    /// Shut down the channel's task, as [`Channel::shutdown`] does
+    pub fn shutdown(&self) {
+        self.shutdown.cancel();
     }
 
     /// Enable the channel

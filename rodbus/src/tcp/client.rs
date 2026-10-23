@@ -135,9 +135,11 @@ impl TcpChannelTask {
         self.listener.update(ClientState::Shutdown).get().await;
     }
 
-    async fn connect(&mut self) -> Result<Result<TcpStream, std::io::Error>, StateChange> {
+    /// Establish a connection, meanwhile failing requests with `NoConnection`. A setting that
+    /// disables the channel, or every handle being dropped, abandons the attempt.
+    async fn connect(&mut self) -> Result<std::io::Result<PhysLayer>, StateChange> {
         tokio::select! {
-            res = self.host.connect() => {
+            res = Self::establish(&self.host, &mut self.connection_handler) => {
                 Ok(res)
             }
             res = self.client_loop.fail_requests() => {
@@ -146,23 +148,27 @@ impl TcpChannelTask {
         }
     }
 
+    /// Connect to `host` and run the connection handler, e.g. a TLS handshake
+    async fn establish(
+        host: &HostAddr,
+        connection_handler: &mut TcpTaskConnectionHandler,
+    ) -> std::io::Result<PhysLayer> {
+        let stream = host.connect().await?;
+        if let Ok(addr) = stream.peer_addr() {
+            // State transition from DISCONNECTED -> CONNECTED so we always log it at INFO
+            tracing::info!("connected to: {}", addr);
+        }
+        if let Err(err) = stream.set_nodelay(true) {
+            tracing::warn!("unable to enable TCP_NODELAY: {}", err);
+        }
+        connection_handler.handle(stream, host).await
+    }
+
     async fn try_connect_and_run(&mut self) -> Result<(), StateChange> {
         self.listener.update(ClientState::Connecting).get().await;
         match self.connect().await? {
             Err(err) => self.handle_failed_connection(err).await,
-            Ok(stream) => {
-                if let Ok(addr) = stream.peer_addr() {
-                    // State transition from DISCONNECTED -> CONNECTED so we always log it at INFO
-                    tracing::info!("connected to: {}", addr);
-                }
-                if let Err(err) = stream.set_nodelay(true) {
-                    tracing::warn!("unable to enable TCP_NODELAY: {}", err);
-                }
-                match self.connection_handler.handle(stream, &self.host).await {
-                    Err(err) => self.handle_failed_connection(err).await,
-                    Ok(phys) => self.run_connection(phys).await,
-                }
-            }
+            Ok(phys) => self.run_connection(phys).await,
         }
     }
     async fn run_connection(&mut self, mut phys: PhysLayer) -> Result<(), StateChange> {
@@ -294,8 +300,8 @@ mod tests {
         assert_eq!(states.recv().await, Some(ClientState::Shutdown));
     }
 
-    #[tokio::test]
-    async fn shutdown_abandons_the_request_in_flight() {
+    /// Shut a connected channel down with `shutdown` while a request is waiting for its response
+    async fn shutdown_abandons_the_request_in_flight_with(shutdown: impl FnOnce(&Channel)) {
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
 
@@ -326,7 +332,7 @@ mod tests {
             .expect("the request never reached the wire");
 
         // the loop is now parked awaiting a response that will never arrive
-        channel.shutdown();
+        shutdown(&channel);
 
         assert_eq!(
             tokio::time::timeout(TEST_TIMEOUT, coils)
@@ -342,6 +348,21 @@ mod tests {
 
         // the peer sees the connection go away rather than a lingering half-open socket
         assert_eq!(socket.read(&mut request).await.unwrap(), 0);
+    }
+
+    #[tokio::test]
+    async fn shutdown_abandons_the_request_in_flight() {
+        shutdown_abandons_the_request_in_flight_with(Channel::shutdown).await;
+    }
+
+    #[cfg(feature = "ffi")]
+    #[tokio::test]
+    async fn ffi_channel_shutdown_abandons_the_request_in_flight() {
+        // the test keeps its own handle, so only the shutdown can end the task
+        shutdown_abandons_the_request_in_flight_with(|channel| {
+            crate::client::FfiChannel::new(channel.clone()).shutdown()
+        })
+        .await;
     }
 
     #[tokio::test]
@@ -450,5 +471,123 @@ mod tests {
         // the handle outlives the task it terminated
         channel.shutdown();
         assert_eq!(channel.enable().await, Err(crate::error::Shutdown));
+    }
+
+    #[cfg(feature = "enable-tls")]
+    mod tls {
+        use super::*;
+        use crate::common::test_support::{watchdog, with_the_clock_held};
+        use crate::tcp::tls::client::create_tls_channel;
+        use crate::tcp::tls::test_util::client_config;
+        use crate::tcp::tls::{MinTlsVersion, TLS_HANDSHAKE_TIMEOUT};
+        use tokio::time::Instant;
+
+        /// An enabled TLS channel whose peer reads the ClientHello and never answers
+        struct Stalled {
+            channel: Channel,
+            task: tokio::task::JoinHandle<()>,
+            states: tokio::sync::mpsc::UnboundedReceiver<ClientState>,
+            _peer: TcpStream,
+            /// when the peer received the start of the ClientHello
+            hello_at: Instant,
+        }
+
+        /// Start a channel and return once its handshake is stalled. The clock is held so that
+        /// the handshake's timer can't run while the connection is set up.
+        async fn stalled_handshake() -> Stalled {
+            with_the_clock_held(async {
+                let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+                let addr = listener.local_addr().unwrap();
+                let (tx, mut states) = tokio::sync::mpsc::unbounded_channel();
+                let (channel, task) = create_tls_channel(
+                    HostAddr::ip(addr.ip(), addr.port()),
+                    Box::new(NeverRetry),
+                    client_config(MinTlsVersion::V1_2),
+                    ClientOptions::default(),
+                    Box::new(StateRecorder { tx }),
+                );
+                let task = tokio::spawn(task.run());
+                channel.enable().await.unwrap();
+                assert_eq!(states.recv().await, Some(ClientState::Disabled));
+                assert_eq!(states.recv().await, Some(ClientState::Connecting));
+
+                let (mut peer, _) = listener.accept().await.unwrap();
+                let mut first = [0u8; 1];
+                peer.read_exact(&mut first).await.unwrap();
+                Stalled {
+                    channel,
+                    task,
+                    states,
+                    _peer: peer,
+                    hello_at: Instant::now(),
+                }
+            })
+            .await
+        }
+
+        #[tokio::test(start_paused = true)]
+        async fn a_stalled_handshake_fails_the_connection_attempt_after_the_timeout() {
+            watchdog(async {
+                let mut stalled = stalled_handshake().await;
+
+                assert_eq!(
+                    stalled.states.recv().await,
+                    Some(ClientState::WaitAfterFailedConnect(NEVER))
+                );
+                // the client's timer started before it sent the ClientHello, and no time had
+                // passed since
+                assert_eq!(stalled.hello_at.elapsed(), TLS_HANDSHAKE_TIMEOUT);
+            })
+            .await;
+        }
+
+        #[tokio::test(start_paused = true)]
+        async fn requests_fail_at_once_during_a_stalled_handshake() {
+            watchdog(async {
+                let stalled = stalled_handshake().await;
+
+                let result = with_the_clock_held(stalled.channel.read_coils(
+                    RequestParam::new(UnitId::new(1), NEVER),
+                    AddressRange::try_from(7, 2).unwrap(),
+                ))
+                .await;
+
+                assert_eq!(result, Err(RequestError::NoConnection));
+                assert_eq!(stalled.hello_at.elapsed(), Duration::ZERO);
+            })
+            .await;
+        }
+
+        #[tokio::test(start_paused = true)]
+        async fn disabling_the_channel_abandons_a_stalled_handshake() {
+            watchdog(async {
+                let mut stalled = stalled_handshake().await;
+
+                with_the_clock_held(stalled.channel.disable())
+                    .await
+                    .unwrap();
+
+                assert_eq!(
+                    with_the_clock_held(stalled.states.recv()).await,
+                    Some(ClientState::Disabled)
+                );
+                assert_eq!(stalled.hello_at.elapsed(), Duration::ZERO);
+            })
+            .await;
+        }
+
+        #[tokio::test(start_paused = true)]
+        async fn dropping_every_handle_ends_the_task_during_a_stalled_handshake() {
+            watchdog(async {
+                let mut stalled = stalled_handshake().await;
+
+                drop(stalled.channel);
+
+                with_the_clock_held(stalled.task).await.unwrap();
+                assert_eq!(stalled.states.recv().await, Some(ClientState::Shutdown));
+                assert_eq!(stalled.hello_at.elapsed(), Duration::ZERO);
+            })
+            .await;
+        }
     }
 }

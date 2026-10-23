@@ -294,7 +294,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::common::test_support::watchdog;
+    use crate::common::test_support::{watchdog, with_the_clock_held};
     use crate::server::create_tcp_server_task;
     use crate::tcp::accept::test_util::{
         expect_attempt_gaps, Fault, FaultyListener, RESET, UNKNOWN,
@@ -354,22 +354,6 @@ mod tests {
             signal.run_until_cancelled(task.run(rx)).await;
         });
         (crate::server::ServerHandle::new(tx, shutdown), task)
-    }
-
-    /// Run `future` without letting a paused clock advance
-    ///
-    /// Awaiting socket I/O leaves the runtime idle, and an idle runtime advances a paused clock to
-    /// its next timer. Yielding between polls keeps a task ready instead, while the runtime still
-    /// polls for I/O and runs the other tasks.
-    async fn with_the_clock_held<F: Future>(future: F) -> F::Output {
-        let mut future = std::pin::pin!(future);
-        loop {
-            tokio::select! {
-                biased;
-                output = &mut future => return output,
-                _ = tokio::task::yield_now() => {}
-            }
-        }
     }
 
     /// Read `peer` until the other end closes it

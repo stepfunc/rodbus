@@ -85,6 +85,13 @@ pub struct RequestParam {
     /// Unit ID of the target device
     pub id: UnitId,
     /// Response timeout
+    ///
+    /// It covers sending the request and receiving the response. A request that can't be sent in
+    /// time fails with [`RequestError::Io`] of kind [`std::io::ErrorKind::TimedOut`], and the
+    /// connection (or serial port) is closed and reopened, whatever the channel's limit on
+    /// consecutive response timeouts. A response that doesn't arrive in time is
+    /// [`RequestError::ResponseTimeout`]. On a serial port, the delay between frames is part of
+    /// sending the request.
     pub response_timeout: Duration,
 }
 
