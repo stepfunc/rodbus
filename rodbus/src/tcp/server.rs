@@ -677,11 +677,7 @@ mod tests {
         ]
     }
 
-    /// The address that makes [`Values`] panic
-    const PANIC_ADDRESS: u16 = 13;
-
-    /// Answers reads from the address itself: odd addresses are on, registers hold their address.
-    /// Panics on a holding register read at [`PANIC_ADDRESS`].
+    /// Answers reads from the address itself: odd addresses are on, registers hold their address
     struct Values;
 
     impl RequestHandler for Values {
@@ -694,7 +690,6 @@ mod tests {
         }
 
         fn read_holding_register(&self, address: u16) -> Result<u16, crate::ExceptionCode> {
-            assert_ne!(address, PANIC_ADDRESS, "the handler's bug");
             Ok(address)
         }
 
@@ -735,36 +730,6 @@ mod tests {
                 client.read_exact(&mut response).await.unwrap();
                 assert_eq!(response, [0, 1, 0, 0, 0, 5, 1, function, 2, 0xFF, 0xFF]);
             }
-            assert!(!handler.is_poisoned());
-        })
-        .await;
-    }
-
-    #[tokio::test]
-    async fn a_handler_that_panicked_still_serves_other_sessions() {
-        watchdog(async {
-            let handler = Values.wrap();
-            let (listener, mut peers) = FaultyListener::new(&[]);
-            let (_handle, _task) = spawn_server_for(
-                listener,
-                TcpServerConnectionHandler::Tcp,
-                ServerHandlerMap::single(UnitId::new(1), handler.clone()),
-            );
-
-            // the handler panics while answering, which ends this session
-            let (mut first, _) = peers.connect();
-            first
-                .write_all(&read_request(3, PANIC_ADDRESS, 1))
-                .await
-                .unwrap();
-            assert_eq!(read_to_close(&mut first).await, []);
-            assert!(handler.is_poisoned());
-
-            let (mut second, _) = peers.connect();
-            second.write_all(&read_request(3, 0x10, 1)).await.unwrap();
-            let mut response = [0u8; 11];
-            second.read_exact(&mut response).await.unwrap();
-            assert_eq!(response, [0, 1, 0, 0, 0, 5, 1, 3, 2, 0x00, 0x10]);
             assert!(!handler.is_poisoned());
         })
         .await;
