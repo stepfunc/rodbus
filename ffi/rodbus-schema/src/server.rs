@@ -53,7 +53,7 @@ pub(crate) fn build_server(
         .param("address", StringType, address_doc)?
         .param("port", Primitive::U16, port_doc)?
         .param("filter", address_filter.declaration(), "Filter used to limit which IP address(es) can connect")?
-        .param("max_sessions", Primitive::U16, "Maximum number of concurrent sessions")?
+        .param("max_sessions", Primitive::U16, "Maximum number of concurrent sessions. When a new connection would exceed it, the oldest session is closed. Zero is treated as one.")?
         .param(
             "endpoints",
             handler_map.declaration(),
@@ -114,7 +114,7 @@ pub(crate) fn build_server(
         .param("address", StringType, address_doc)?
         .param("port", Primitive::U16, port_doc)?
         .param("filter", address_filter.declaration(), "Filter used to limit which IP address(es) can connect")?
-        .param("max_sessions", Primitive::U16, "Maximum number of concurrent sessions")?
+        .param("max_sessions", Primitive::U16, "Maximum number of concurrent sessions. A connection becomes a session once its TLS handshake completes; if that exceeds the maximum, the oldest session is closed. Handshakes run one at a time, each limited to 5 seconds. Zero is treated as one.")?
         .param(
             "endpoints",
             handler_map.declaration(),
@@ -149,7 +149,7 @@ pub(crate) fn build_server(
         .param("address", StringType, address_doc)?
         .param("port", Primitive::U16, port_doc)?
         .param("filter", address_filter.declaration(), "Filter used to limit which IP address(es) can connect")?
-        .param("max_sessions", Primitive::U16, "Maximum number of concurrent sessions")?
+        .param("max_sessions", Primitive::U16, "Maximum number of concurrent sessions. A connection becomes a session once its TLS handshake completes; if that exceeds the maximum, the oldest session is closed. Handshakes run one at a time, each limited to 5 seconds. Zero is treated as one.")?
         .param(
             "endpoints",
             handler_map.declaration(),

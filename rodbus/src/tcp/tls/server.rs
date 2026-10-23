@@ -8,7 +8,9 @@ use tokio_rustls::rustls;
 use crate::common::phys::PhysLayer;
 use crate::server::task::AuthorizationType;
 use crate::server::AuthorizationHandler;
-use crate::tcp::tls::{CertificateMode, MinTlsVersion, TlsError};
+use crate::tcp::tls::{
+    handshake, CertificateMode, HandshakeError, MinTlsVersion, TlsError, TLS_HANDSHAKE_TIMEOUT,
+};
 
 /// TLS configuration
 #[derive(Clone)]
@@ -55,8 +57,15 @@ impl TlsServerConfig {
         auth_handler: Option<Arc<dyn AuthorizationHandler>>,
     ) -> Result<(PhysLayer, AuthorizationType), String> {
         let connector = tokio_rustls::TlsAcceptor::from(self.inner.clone());
-        match connector.accept(socket).await {
-            Err(err) => Err(format!("failed to establish TLS session: {err}")),
+        // the server runs one handshake at a time, so one that stalls would stop it
+        match handshake(connector.accept(socket)).await {
+            Err(HandshakeError::Timeout) => Err(format!(
+                "TLS handshake didn't complete within {} seconds",
+                TLS_HANDSHAKE_TIMEOUT.as_secs()
+            )),
+            Err(HandshakeError::Failed(err)) => {
+                Err(format!("failed to establish TLS session: {err}"))
+            }
             Ok(stream) => {
                 let auth_type = match auth_handler {
                     // bare TLS mode without authz

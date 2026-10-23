@@ -96,24 +96,128 @@ impl From<MinTlsVersion> for sfio_rustls_config::ProtocolVersions {
     }
 }
 
+/// How long a TLS handshake may take, so that a peer that stalls its handshake can't hold up
+/// whatever is waiting for it
+pub(crate) const TLS_HANDSHAKE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
+
+/// Why a TLS handshake didn't produce a session
+#[derive(Debug)]
+pub(crate) enum HandshakeError {
+    /// The peer didn't complete the handshake within [`TLS_HANDSHAKE_TIMEOUT`]
+    Timeout,
+    /// The handshake failed
+    Failed(std::io::Error),
+}
+
+/// Run a handshake, giving up if it doesn't complete within [`TLS_HANDSHAKE_TIMEOUT`]
+pub(crate) async fn handshake<S>(
+    handshake: impl std::future::Future<Output = std::io::Result<S>>,
+) -> Result<S, HandshakeError> {
+    match tokio::time::timeout(TLS_HANDSHAKE_TIMEOUT, handshake).await {
+        Err(_) => Err(HandshakeError::Timeout),
+        Ok(Err(err)) => Err(HandshakeError::Failed(err)),
+        Ok(Ok(stream)) => Ok(stream),
+    }
+}
+
+#[cfg(test)]
+pub(crate) mod test_util {
+    use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+    use std::path::{Path, PathBuf};
+    use std::sync::Arc;
+
+    use sfio_rustls_config::ProtocolVersions;
+    use tokio::net::TcpStream;
+    use tokio_rustls::rustls;
+    use tokio_rustls::rustls::pki_types::ServerName;
+
+    use super::*;
+
+    /// One of the repository's self-signed test certificates or keys
+    pub(crate) fn cert(name: &str) -> PathBuf {
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../certs/self_signed")
+            .join(name)
+    }
+
+    /// The rodbus server under test presents entity1 and expects entity2
+    pub(crate) fn server_config(min: MinTlsVersion) -> TlsServerConfig {
+        TlsServerConfig::new(
+            &cert("entity2_cert.pem"),
+            &cert("entity1_cert.pem"),
+            &cert("entity1_key.pem"),
+            None,
+            min,
+            CertificateMode::SelfSigned,
+        )
+        .unwrap()
+    }
+
+    /// A client that the server under test accepts, configured directly with `versions` so that
+    /// rodbus's version mapping isn't involved
+    pub(crate) fn peer_client_config(versions: ProtocolVersions) -> rustls::ClientConfig {
+        sfio_rustls_config::client::self_signed(
+            versions,
+            &cert("entity1_cert.pem"),
+            &cert("entity2_cert.pem"),
+            &cert("entity2_key.pem"),
+            None,
+        )
+        .unwrap()
+    }
+
+    /// Connect to `addr` and run a handshake as a client offering `versions`
+    pub(crate) async fn connect(
+        addr: SocketAddr,
+        versions: ProtocolVersions,
+    ) -> std::io::Result<tokio_rustls::client::TlsStream<TcpStream>> {
+        let socket = TcpStream::connect(addr).await?;
+        // an IP address so that the client doesn't send SNI, as the rodbus client does
+        let name = ServerName::IpAddress(IpAddr::V4(Ipv4Addr::UNSPECIFIED).into());
+        tokio_rustls::TlsConnector::from(Arc::new(peer_client_config(versions)))
+            .connect(name, socket)
+            .await
+    }
+
+    pub(crate) fn both_versions() -> ProtocolVersions {
+        ProtocolVersions::new().enable_v12().enable_v13()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::future::Future;
-    use std::net::{IpAddr, Ipv4Addr, SocketAddr};
-    use std::path::{Path, PathBuf};
+    use std::net::{Ipv4Addr, SocketAddr};
     use std::sync::Arc;
     use std::time::Duration;
 
     use sfio_rustls_config::ProtocolVersions;
     use tokio::net::{TcpListener, TcpStream};
     use tokio_rustls::rustls;
-    use tokio_rustls::rustls::pki_types::ServerName;
     use tokio_rustls::rustls::{AlertDescription, PeerIncompatible, ProtocolVersion};
 
+    use super::test_util::*;
     use super::*;
     use crate::client::HostAddr;
 
     const TIMEOUT: Duration = Duration::from_secs(5);
+
+    #[tokio::test(start_paused = true)]
+    async fn a_handshake_that_never_completes_times_out() {
+        let start = tokio::time::Instant::now();
+        let result = handshake(std::future::pending::<std::io::Result<()>>()).await;
+        assert!(matches!(result, Err(HandshakeError::Timeout)));
+        assert_eq!(start.elapsed(), TLS_HANDSHAKE_TIMEOUT);
+    }
+
+    #[tokio::test]
+    async fn a_failed_handshake_is_reported_at_once() {
+        let start = tokio::time::Instant::now();
+        let failure = std::io::ErrorKind::ConnectionReset;
+        let result = handshake(async { std::io::Result::<()>::Err(failure.into()) }).await;
+        assert!(matches!(result, Err(HandshakeError::Failed(err)) if err.kind() == failure));
+        assert!(start.elapsed() < TLS_HANDSHAKE_TIMEOUT);
+    }
 
     #[test]
     fn minimum_v1_2_allows_both_versions() {
@@ -210,21 +314,7 @@ mod tests {
         addr: SocketAddr,
         versions: ProtocolVersions,
     ) -> Result<ProtocolVersion, rustls::Error> {
-        let config = sfio_rustls_config::client::self_signed(
-            versions,
-            &cert("entity1_cert.pem"),
-            &cert("entity2_cert.pem"),
-            &cert("entity2_key.pem"),
-            None,
-        )
-        .unwrap();
-        let socket = TcpStream::connect(addr).await.unwrap();
-        // an IP address so that the client doesn't send SNI, as the rodbus client does
-        let name = ServerName::IpAddress(IpAddr::V4(Ipv4Addr::UNSPECIFIED).into());
-        let stream = tokio_rustls::TlsConnector::from(Arc::new(config))
-            .connect(name, socket)
-            .await
-            .map_err(tls_error)?;
+        let stream = connect(addr, versions).await.map_err(tls_error)?;
         Ok(stream.get_ref().1.protocol_version().unwrap())
     }
 
@@ -249,19 +339,6 @@ mod tests {
         Ok(stream.get_ref().1.protocol_version().unwrap())
     }
 
-    /// The rodbus server under test presents entity1 and expects entity2
-    fn server_config(min: MinTlsVersion) -> TlsServerConfig {
-        TlsServerConfig::new(
-            &cert("entity2_cert.pem"),
-            &cert("entity1_cert.pem"),
-            &cert("entity1_key.pem"),
-            None,
-            min,
-            CertificateMode::SelfSigned,
-        )
-        .unwrap()
-    }
-
     /// The rodbus client under test presents entity2 and expects entity1
     fn client_config(min: MinTlsVersion) -> TlsClientConfig {
         TlsClientConfig::self_signed(
@@ -279,16 +356,6 @@ mod tests {
         *err.into_inner()
             .and_then(|inner| inner.downcast::<rustls::Error>().ok())
             .expect("a TLS error")
-    }
-
-    fn both_versions() -> ProtocolVersions {
-        ProtocolVersions::new().enable_v12().enable_v13()
-    }
-
-    fn cert(name: &str) -> PathBuf {
-        Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../certs/self_signed")
-            .join(name)
     }
 
     async fn bind() -> (TcpListener, SocketAddr) {
