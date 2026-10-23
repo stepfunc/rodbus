@@ -85,6 +85,13 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn a_completed_operation_returns_its_output() {
+        let (_handle, signal) = pair();
+
+        assert_eq!(signal.run_until_cancelled(async { 7 }).await, Some(7));
+    }
+
+    #[tokio::test]
     async fn cancellation_wins_without_polling_the_operation() {
         let (handle, signal) = pair();
         handle.cancel();

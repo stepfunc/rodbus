@@ -709,4 +709,33 @@ mod tests {
         assert_eq!(empty.of_read_bits(), Err(InvalidRange::CountOfZero));
         assert_eq!(empty.of_read_registers(), Err(InvalidRange::CountOfZero));
     }
+
+    // MODBUS Application Protocol Specification V1.1b3 6.1, 6.2
+    #[test]
+    fn a_read_of_bits_is_limited_to_2000() {
+        let most = AddressRange::try_from(0, 2000).unwrap();
+        assert_eq!(most.of_read_bits().map(ReadBitsRange::get), Ok(most));
+
+        let too_many = AddressRange::try_from(0, 2001).unwrap();
+        assert_eq!(
+            too_many.of_read_bits(),
+            Err(InvalidRange::CountTooLargeForType(2001, 2000))
+        );
+    }
+
+    // MODBUS Application Protocol Specification V1.1b3 6.3, 6.4
+    #[test]
+    fn a_read_of_registers_is_limited_to_125() {
+        let most = AddressRange::try_from(0, 125).unwrap();
+        assert_eq!(
+            most.of_read_registers().map(ReadRegistersRange::get),
+            Ok(most)
+        );
+
+        let too_many = AddressRange::try_from(0, 126).unwrap();
+        assert_eq!(
+            too_many.of_read_registers(),
+            Err(InvalidRange::CountTooLargeForType(126, 125))
+        );
+    }
 }
