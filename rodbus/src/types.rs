@@ -333,14 +333,20 @@ impl std::fmt::Display for AddressRange {
     }
 }
 
+/// The addresses of a range, counted in `u32` so that reaching 0xFFFF can't overflow
+///
+/// A range whose public fields were set past 0xFFFF ends at 0xFFFF.
 pub(crate) struct AddressIterator {
-    pub(crate) current: u16,
-    pub(crate) remain: u16,
+    next: u32,
+    end: u32,
 }
 
 impl AddressIterator {
-    pub(crate) fn new(current: u16, remain: u16) -> Self {
-        Self { current, remain }
+    pub(crate) fn new(start: u16, count: u16) -> Self {
+        Self {
+            next: u32::from(start),
+            end: u32::from(start) + u32::from(count),
+        }
     }
 }
 
@@ -348,15 +354,12 @@ impl Iterator for AddressIterator {
     type Item = u16;
 
     fn next(&mut self) -> Option<Self::Item> {
-        match self.remain.checked_sub(1) {
-            Some(x) => {
-                let ret = self.current;
-                self.current += 1;
-                self.remain = x;
-                Some(ret)
-            }
-            None => None,
+        if self.next >= self.end {
+            return None;
         }
+        let address = u16::try_from(self.next).ok()?;
+        self.next += 1;
+        Some(address)
     }
 }
 
@@ -495,6 +498,42 @@ mod tests {
     use crate::error::*;
 
     use super::*;
+
+    fn addresses(start: u16, count: u16) -> Vec<u16> {
+        AddressIterator::new(start, count).collect()
+    }
+
+    #[test]
+    fn addresses_of_a_range_in_order() {
+        assert_eq!(addresses(0, 3), [0, 1, 2]);
+    }
+
+    #[test]
+    fn addresses_reach_the_last_address() {
+        assert_eq!(addresses(0xFFFF, 1), [0xFFFF]);
+        assert_eq!(addresses(0xFFFE, 2), [0xFFFE, 0xFFFF]);
+    }
+
+    #[test]
+    fn addresses_of_an_empty_range() {
+        assert_eq!(addresses(7, 0), []);
+    }
+
+    #[test]
+    fn addresses_past_the_end_of_the_address_space_stop_at_the_last() {
+        let mut addresses = AddressIterator::new(0xFFFF, 2);
+        assert_eq!(addresses.next(), Some(0xFFFF));
+        assert_eq!(addresses.next(), None);
+        assert_eq!(addresses.next(), None);
+    }
+
+    #[test]
+    fn addresses_stay_exhausted() {
+        let mut addresses = AddressIterator::new(0xFFFE, 2);
+        assert_eq!(addresses.by_ref().count(), 2);
+        assert_eq!(addresses.next(), None);
+        assert_eq!(addresses.next(), None);
+    }
 
     #[test]
     fn address_start_max_count_of_one_is_allowed() {
