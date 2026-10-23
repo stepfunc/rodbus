@@ -312,4 +312,77 @@ mod tests {
         range.serialize(&mut cursor).unwrap();
         assert_eq!(buffer, [0x00, 0x03, 0x02, 0x00]);
     }
+
+    #[test]
+    fn byte_counts_for_bits_and_registers() {
+        assert_eq!(calc_bytes_for_bits(0), Ok(0));
+        assert_eq!(calc_bytes_for_bits(1), Ok(1));
+        assert_eq!(calc_bytes_for_bits(8), Ok(1));
+        assert_eq!(calc_bytes_for_bits(9), Ok(2));
+        assert_eq!(calc_bytes_for_bits(2040), Ok(255));
+        assert_eq!(
+            calc_bytes_for_bits(2041),
+            Err(InternalError::BadByteCount(256))
+        );
+        assert_eq!(calc_bytes_for_registers(0), Ok(0));
+        assert_eq!(calc_bytes_for_registers(127), Ok(254));
+        assert_eq!(
+            calc_bytes_for_registers(128),
+            Err(InternalError::BadByteCount(256))
+        );
+        assert_eq!(
+            calc_bytes_for_bits(usize::MAX),
+            Err(InternalError::BadByteCount(usize::MAX / 8 + 1))
+        );
+        assert_eq!(
+            calc_bytes_for_registers(usize::MAX / 2),
+            Err(InternalError::BadByteCount(usize::MAX - 1))
+        );
+    }
+
+    fn serialize_bits(start: u16, count: u16) -> Vec<u8> {
+        let range = AddressRange::try_from(start, count)
+            .unwrap()
+            .of_read_bits()
+            .unwrap();
+        // odd addresses are on
+        let writer = crate::server::response::BitWriter::new(range, |address| Ok(address % 2 == 1));
+        let mut buffer = [0u8; 300];
+        let mut cursor = WriteCursor::new(&mut buffer);
+        writer.serialize(&mut cursor).unwrap();
+        let len = cursor.position();
+        buffer[..len].to_vec()
+    }
+
+    #[test]
+    fn packs_bits_into_whole_and_partial_bytes() {
+        assert_eq!(serialize_bits(0, 1), [1, 0x00]);
+        assert_eq!(serialize_bits(1, 1), [1, 0x01]);
+        assert_eq!(serialize_bits(0, 8), [1, 0xAA]);
+        assert_eq!(serialize_bits(0, 9), [2, 0xAA, 0x00]);
+        assert_eq!(serialize_bits(0xFFF7, 9), [2, 0x55, 0x01]);
+        assert_eq!(serialize_bits(0, 16), [2, 0xAA, 0xAA]);
+    }
+
+    fn serialize_slice(bits: &[bool]) -> Vec<u8> {
+        let mut buffer = [0u8; 8];
+        let mut cursor = WriteCursor::new(&mut buffer);
+        bits.serialize(&mut cursor).unwrap();
+        let len = cursor.position();
+        buffer[..len].to_vec()
+    }
+
+    #[test]
+    fn packs_a_slice_of_bits() {
+        assert_eq!(serialize_slice(&[]), [0]);
+        assert_eq!(
+            serialize_slice(&[true, false, true, true, false, false, false, false, true]),
+            [2, 0x0D, 0x01]
+        );
+        assert_eq!(serialize_slice(&[true; 8]), [1, 0xFF]);
+        let mut bits = [false; 15];
+        bits[7] = true;
+        bits[14] = true;
+        assert_eq!(serialize_slice(&bits), [2, 0x80, 0x40]);
+    }
 }

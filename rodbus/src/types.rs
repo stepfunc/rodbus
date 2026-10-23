@@ -607,4 +607,81 @@ mod tests {
         assert!(UnitId::new(255).is_rtu_reserved());
         assert!(!UnitId::new(41).is_rtu_reserved());
     }
+
+    #[test]
+    fn bits_at_the_top_of_the_address_space() {
+        let range = AddressRange::try_from(0xFFFE, 2).unwrap();
+        let bytes = [0b0000_0010];
+        let mut cursor = ReadCursor::new(&bytes);
+        let mut bits = BitIterator::parse_all(range, &mut cursor).unwrap();
+        assert_eq!(bits.len(), 2);
+        assert_eq!(bits.size_hint(), (2, Some(2)));
+        assert_eq!(bits.next(), Some(Indexed::new(0xFFFE, false)));
+        assert_eq!(bits.len(), 1);
+        assert_eq!(bits.next(), Some(Indexed::new(0xFFFF, true)));
+        assert_eq!(bits.len(), 0);
+        assert_eq!(bits.size_hint(), (0, Some(0)));
+        assert_eq!(bits.next(), None);
+        assert_eq!(bits.next(), None);
+        assert_eq!(bits.len(), 0);
+    }
+
+    #[test]
+    fn bits_across_a_byte_boundary() {
+        // ten bits from 0xFFF0; the padding bits of the last byte are set but not read
+        let range = AddressRange::try_from(0xFFF0, 10).unwrap();
+        let bytes = [0b1000_0001, 0b1111_1110];
+        let mut cursor = ReadCursor::new(&bytes);
+        let bits: Vec<_> = BitIterator::parse_all(range, &mut cursor)
+            .unwrap()
+            .collect();
+        let expected: Vec<_> = [
+            true, false, false, false, false, false, false, true, false, true,
+        ]
+        .into_iter()
+        .zip(0xFFF0..)
+        .map(|(value, address)| Indexed::new(address, value))
+        .collect();
+        assert_eq!(bits, expected);
+    }
+
+    #[test]
+    fn registers_at_the_top_of_the_address_space() {
+        let range = AddressRange::try_from(0xFFFE, 2).unwrap();
+        let bytes = [0x12, 0x34, 0x56, 0x78];
+        let expected = [Indexed::new(0xFFFE, 0x1234), Indexed::new(0xFFFF, 0x5678)];
+
+        let mut cursor = ReadCursor::new(&bytes);
+        let registers = RegisterIterator::parse_all(range, &mut cursor).unwrap();
+        assert_eq!(registers.collect_vec(), expected);
+
+        let mut cursor = ReadCursor::new(&bytes);
+        let mut registers = RegisterIterator::parse_all(range, &mut cursor).unwrap();
+        assert_eq!(registers.len(), 2);
+        assert_eq!(registers.size_hint(), (2, Some(2)));
+        assert_eq!(registers.next(), Some(expected[0]));
+        assert_eq!(registers.len(), 1);
+        assert_eq!(registers.next(), Some(expected[1]));
+        assert_eq!(registers.len(), 0);
+        assert_eq!(registers.size_hint(), (0, Some(0)));
+        assert_eq!(registers.next(), None);
+        assert_eq!(registers.next(), None);
+        assert_eq!(registers.len(), 0);
+    }
+
+    #[test]
+    fn std_range_of_the_whole_address_space() {
+        let range = AddressRange::try_from(0, 0xFFFF).unwrap();
+        assert_eq!(range.to_std_range(), 0..0xFFFF);
+        let range = AddressRange::try_from(0xFFFF, 1).unwrap();
+        assert_eq!(range.to_std_range(), 0xFFFF..0x10000);
+        // built from its fields, past the end of the address space
+        let range = AddressRange {
+            start: 0xFFFF,
+            count: 0xFFFF,
+        };
+        assert_eq!(range.to_std_range(), 0xFFFF..0x1FFFE);
+        let range = AddressRange { start: 5, count: 0 };
+        assert_eq!(range.to_std_range(), 5..5);
+    }
 }
