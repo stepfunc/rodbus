@@ -347,11 +347,13 @@ impl ClientLoop {
             )
             .map_err(ExchangeError::Request)?;
 
-        // the timeout covers sending the request as well as receiving the response
-        let deadline = Deadline::after(request.timeout());
+        // the timeout covers sending the request as well as receiving the response. Both phases
+        // share one wait, so the request registers at most one timer, and it is never polled once
+        // it completed: each branch that waits on it returns
+        let mut deadline = std::pin::pin!(Deadline::after(request.timeout()).wait());
 
         tokio::select! {
-            _ = deadline.wait() => {
+            _ = deadline.as_mut() => {
                 // part of the request may be on the wire, so the session can't continue
                 return Err(ExchangeError::Write(std::io::ErrorKind::TimedOut));
             }
@@ -363,7 +365,7 @@ impl ClientLoop {
         // loop until we get the response to this request or we timeout
         let response = loop {
             let frame = tokio::select! {
-                _ = deadline.wait() => {
+                _ = deadline.as_mut() => {
                     return Err(ExchangeError::Request(RequestError::ResponseTimeout));
                 }
                 frame = self.reader.next_frame(io, self.decode) => {
