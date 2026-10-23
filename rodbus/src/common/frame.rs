@@ -206,10 +206,10 @@ impl Frame {
     /// A frame holding a copy of `pdu`, which always fits
     pub(crate) fn new(header: FrameHeader, pdu: Pdu<'_>) -> Frame {
         let mut buffer = [0; constants::MAX_PDU_LENGTH];
-        let mut length: usize = 0;
-        for (dest, src) in buffer.iter_mut().zip(pdu.0) {
-            *dest = *src;
-            length = length.saturating_add(1);
+        // a PDU is never longer than the buffer, so this copies all of it
+        let length = pdu.0.len().min(buffer.len());
+        if let (Some(dest), Some(src)) = (buffer.get_mut(..length), pdu.0.get(..length)) {
+            dest.copy_from_slice(src);
         }
         Frame {
             header,
