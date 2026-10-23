@@ -84,6 +84,7 @@ pub(crate) enum FrameDestination {
     /// Normal unit ID
     UnitId(UnitId),
     /// Broadcast ID (only in RTU)
+    #[cfg(feature = "serial")]
     Broadcast,
 }
 
@@ -93,19 +94,12 @@ impl FrameDestination {
         Self::UnitId(UnitId::new(value))
     }
 
+    #[cfg(feature = "serial")]
     pub(crate) fn value(&self) -> u8 {
         match self {
             Self::UnitId(unit_id) => unit_id.value,
             Self::Broadcast => UnitId::broadcast().value,
         }
-    }
-
-    pub(crate) fn into_unit_id(self) -> UnitId {
-        UnitId::new(self.value())
-    }
-
-    pub(crate) fn is_broadcast(&self) -> bool {
-        std::matches!(self, FrameDestination::Broadcast)
     }
 }
 
@@ -113,6 +107,7 @@ impl std::fmt::Display for FrameDestination {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::UnitId(unit_id) => write!(f, "{unit_id}"),
+            #[cfg(feature = "serial")]
             Self::Broadcast => write!(f, "BCAST ({})", UnitId::broadcast()),
         }
     }

@@ -156,6 +156,7 @@ where
         self.handlers.insert(id, server)
     }
 
+    #[cfg(feature = "serial")]
     pub(crate) fn iter_mut(&mut self) -> impl Iterator<Item = &mut ServerHandlerType<T>> {
         self.handlers.values_mut()
     }
