@@ -562,16 +562,25 @@ mod tests {
     ///
     /// Whenever the reader needs more bytes, the pending `next_frame` future is dropped and a new
     /// one is created for the next chunk, the way a session's `select!` cancels it.
+    ///
+    /// The chunks go through a pipe that holds all of them, so a chunk larger than the space left
+    /// in the reader's buffer waits there to be read in parts, as bytes wait in a port's receive
+    /// buffer.
     fn read_chunks_with(
         reader: &mut FramedReader,
         decode_level: DecodeLevel,
         chunks: &[&[u8]],
     ) -> Vec<Outcome> {
-        let (io, mut io_handle) = sfio_tokio_mock_io::mock();
-        let mut layer = PhysLayer::new_mock(io);
+        use tokio::io::AsyncWriteExt;
+
+        let capacity: usize = chunks.iter().map(|x| x.len()).sum();
+        let (local, mut remote) = tokio::io::duplex(capacity.max(1));
+        let mut layer = PhysLayer::new_duplex(local);
         let mut outcomes = Vec::new();
         for (chunk, bytes) in chunks.iter().enumerate() {
-            io_handle.read(bytes);
+            let mut write = tokio_test::task::spawn(remote.write_all(bytes));
+            assert!(matches!(write.poll(), Poll::Ready(Ok(()))));
+            drop(write);
             loop {
                 let mut task = tokio_test::task::spawn(reader.next_frame(&mut layer, decode_level));
                 match task.poll() {
@@ -943,9 +952,9 @@ mod tests {
         }
     }
 
-    /// Formats `frame`'s unit id, function and body after `offset` bytes, then checks the bytes
-    /// written and the frame info
-    fn assert_frame_formatting(function: FunctionField, frame: &[u8], offset: usize) {
+    /// Formats `frame`'s unit id, function and body after `offset` bytes, checks the bytes written
+    /// and the frame info, and returns the bytes written
+    fn assert_frame_formatting(function: FunctionField, frame: &[u8], offset: usize) -> Vec<u8> {
         let mut buffer: [u8; 300] = [0; 300];
         let mut cursor = WriteCursor::new(&mut buffer);
         cursor.skip(offset).unwrap();
@@ -964,6 +973,7 @@ mod tests {
             info.pdu_body,
             offset.checked_add(2).unwrap()..end.checked_sub(2).unwrap()
         );
+        buffer[offset..end].to_vec()
     }
 
     #[test]
@@ -1257,6 +1267,345 @@ mod tests {
             #[test]
             fn rtu_parsers_frame_by_the_length_the_spec_gives(bytes in frame_like()) {
                 check(&bytes)?;
+            }
+        }
+
+        impl Direction {
+            fn reader(self) -> FramedReader {
+                match self {
+                    Direction::Request => FramedReader::rtu_request(),
+                    Direction::Response => FramedReader::rtu_response(),
+                }
+            }
+        }
+
+        fn direction() -> impl Strategy<Value = Direction> {
+            prop_oneof![Just(Direction::Request), Just(Direction::Response)]
+        }
+
+        /// A frame to send, by its fields
+        #[derive(Clone, Debug)]
+        struct Record {
+            address: u8,
+            function: u8,
+            /// the PDU after the function code
+            body: Vec<u8>,
+            /// where in the frame the byte count is, for a PDU whose length depends on one
+            byte_count_at: Option<usize>,
+        }
+
+        impl Record {
+            /// The frame, encoded here: the address, the PDU, and the CRC low byte first
+            fn encode(&self) -> Vec<u8> {
+                let mut adu = vec![self.address, self.function];
+                adu.extend(&self.body);
+                with_crc(&adu)
+            }
+
+            /// The PDU: the function code and the body
+            fn pdu(&self) -> Vec<u8> {
+                let mut pdu = vec![self.function];
+                pdu.extend(&self.body);
+                pdu
+            }
+
+            /// How `format_rtu_pdu` is told the function code
+            fn function_field(&self) -> FunctionField {
+                let exception = self.function & 0x80 != 0;
+                match FunctionCode::get(self.function & 0x7F) {
+                    Some(code) if exception => FunctionField::Exception(code),
+                    Some(code) => FunctionField::Valid(code),
+                    // only exceptions are generated with unknown function codes
+                    None => FunctionField::UnknownFunction(self.function),
+                }
+            }
+        }
+
+        /// Any address, often broadcast or reserved
+        fn address() -> impl Strategy<Value = u8> {
+            prop_oneof![1 => Just(0u8), 1 => 248u8..=u8::MAX, 3 => any::<u8>()]
+        }
+
+        /// A byte count up to `max` (often 0 or `max`), followed by that many bytes
+        fn counted_bytes(max: usize, boundaries: Vec<usize>) -> impl Strategy<Value = Vec<u8>> {
+            prop_oneof![prop::sample::select(boundaries), 0..=max]
+                .prop_flat_map(|count| prop::collection::vec(any::<u8>(), count))
+                .prop_map(|bytes| {
+                    let mut counted = vec![u8::try_from(bytes.len()).unwrap()];
+                    counted.extend(bytes);
+                    counted
+                })
+        }
+
+        /// The requests of Application Protocol V1.1b3 6.1-6.6, 6.11 and 6.12
+        fn request(address: u8) -> BoxedStrategy<Record> {
+            prop_oneof![
+                (0x01u8..=0x06, prop::array::uniform4(any::<u8>())).prop_map(
+                    move |(function, fields)| Record {
+                        address,
+                        function,
+                        body: fields.to_vec(),
+                        byte_count_at: None,
+                    }
+                ),
+                (
+                    prop::sample::select(vec![0x0Fu8, 0x10]),
+                    prop::array::uniform4(any::<u8>()),
+                    counted_bytes(0xF7, vec![0, 0xF7]),
+                )
+                    .prop_map(move |(function, fields, counted)| {
+                        let mut body = fields.to_vec();
+                        body.extend(counted);
+                        Record {
+                            address,
+                            function,
+                            body,
+                            // after the address, the function code, the address and quantity
+                            byte_count_at: Some(6),
+                        }
+                    }),
+            ]
+            .boxed()
+        }
+
+        /// The responses of Application Protocol V1.1b3 6.1-6.6, 6.11 and 6.12, and exception
+        /// responses (7)
+        fn response(address: u8) -> BoxedStrategy<Record> {
+            prop_oneof![
+                (0x01u8..=0x04, counted_bytes(0xFB, vec![0, 0xFA, 0xFB])).prop_map(
+                    move |(function, body)| Record {
+                        address,
+                        function,
+                        body,
+                        // after the address and the function code
+                        byte_count_at: Some(2),
+                    }
+                ),
+                (
+                    prop::sample::select(vec![0x05u8, 0x06, 0x0F, 0x10]),
+                    prop::array::uniform4(any::<u8>()),
+                )
+                    .prop_map(move |(function, fields)| Record {
+                        address,
+                        function,
+                        body: fields.to_vec(),
+                        byte_count_at: None,
+                    }),
+                (0x80u8..=u8::MAX, any::<u8>()).prop_map(move |(function, exception)| Record {
+                    address,
+                    function,
+                    body: vec![exception],
+                    byte_count_at: None,
+                }),
+            ]
+            .boxed()
+        }
+
+        fn record(direction: Direction) -> impl Strategy<Value = Record> {
+            address().prop_flat_map(move |address| match direction {
+                Direction::Request => request(address),
+                Direction::Response => response(address),
+            })
+        }
+
+        /// How a stream arrives
+        #[derive(Clone, Debug)]
+        enum Reads {
+            Whole,
+            ByteByByte,
+            /// in chunks of these lengths, repeated until the stream ends
+            Chunks(Vec<usize>),
+        }
+
+        impl Reads {
+            fn split<'a>(&self, stream: &'a [u8]) -> Vec<&'a [u8]> {
+                match self {
+                    Reads::Whole => vec![stream],
+                    Reads::ByteByByte => bytes_of(stream),
+                    Reads::Chunks(lengths) => {
+                        let mut chunks = Vec::new();
+                        let mut rest = stream;
+                        for length in lengths.iter().cycle() {
+                            if rest.is_empty() {
+                                break;
+                            }
+                            let (chunk, tail) = rest.split_at((*length).min(rest.len()));
+                            chunks.push(chunk);
+                            rest = tail;
+                        }
+                        chunks
+                    }
+                }
+            }
+        }
+
+        fn reads() -> impl Strategy<Value = Reads> {
+            prop_oneof![
+                Just(Reads::Whole),
+                Just(Reads::ByteByByte),
+                prop::collection::vec(1usize..=300, 1..16).prop_map(Reads::Chunks),
+            ]
+        }
+
+        /// The index of the chunk that holds the stream's byte at `index`
+        fn chunk_holding(chunks: &[&[u8]], index: usize) -> usize {
+            let mut end: usize = 0;
+            chunks
+                .iter()
+                .position(|chunk| {
+                    end = end.checked_add(chunk.len()).unwrap();
+                    index < end
+                })
+                .unwrap()
+        }
+
+        /// A byte to change in one of the frames: the frame, the byte, and the bits to flip
+        type Corruption = (prop::sample::Index, prop::sample::Index, u8);
+
+        fn corruption() -> impl Strategy<Value = Corruption> {
+            (
+                any::<prop::sample::Index>(),
+                any::<prop::sample::Index>(),
+                1u8..=u8::MAX,
+            )
+        }
+
+        /// Reads the frames, each formatted by `format_rtu_pdu` and the corrupted one changed in a
+        /// byte other than its function code and byte count, and checks the reader returns each
+        /// frame on the read holding its last byte, up to a CRC error for the corrupted one
+        fn check_frames(
+            direction: Direction,
+            records: &[Record],
+            corruption: Option<Corruption>,
+            reads: &Reads,
+        ) -> Result<(), TestCaseError> {
+            let mut frames: Vec<Vec<u8>> = records
+                .iter()
+                .map(|x| assert_frame_formatting(x.function_field(), &x.encode(), 0))
+                .collect();
+            let corrupted = corruption.map(|(frame, byte, mask)| {
+                let frame = frame.index(frames.len());
+                // the length doesn't depend on any of these
+                let positions: Vec<usize> = (0..frames[frame].len())
+                    .filter(|x| *x != 1 && Some(*x) != records[frame].byte_count_at)
+                    .collect();
+                frames[frame][*byte.get(&positions)] ^= mask;
+                frame
+            });
+
+            let stream = frames.concat();
+            let chunks = reads.split(&stream);
+            let mut expected = Vec::new();
+            let mut end: usize = 0;
+            for (index, (record, frame)) in records.iter().zip(&frames).enumerate() {
+                end = end.checked_add(frame.len()).unwrap();
+                let chunk = chunk_holding(&chunks, end.checked_sub(1).unwrap());
+                if corrupted == Some(index) {
+                    let (adu, received) = frame.split_last_chunk::<2>().unwrap();
+                    let received = u16::from_le_bytes(*received);
+                    let expected_crc = u16::from_le_bytes(*with_crc(adu).last_chunk().unwrap());
+                    let error = FrameParseError::CrcValidationFailure(received, expected_crc);
+                    expected.push(error_on(chunk, error));
+                    break;
+                }
+                expected.push(Outcome::Frame {
+                    chunk,
+                    destination: destination_of(&[record.address]),
+                    payload: record.pdu(),
+                });
+            }
+
+            prop_assert_eq!(read_chunks(direction.reader(), &chunks), expected);
+            Ok(())
+        }
+
+        fn frames() -> impl Strategy<Value = (Direction, Vec<Record>)> {
+            direction().prop_flat_map(|direction| {
+                (
+                    Just(direction),
+                    prop::collection::vec(record(direction), 1..=8),
+                )
+            })
+        }
+
+        /// The outcomes without the read each came on
+        fn ignoring_reads(outcomes: Vec<Outcome>) -> Vec<Outcome> {
+            outcomes
+                .into_iter()
+                .map(|x| match x {
+                    Outcome::Frame {
+                        destination,
+                        payload,
+                        ..
+                    } => Outcome::Frame {
+                        chunk: 0,
+                        destination,
+                        payload,
+                    },
+                    Outcome::Error { error, .. } => Outcome::Error { chunk: 0, error },
+                })
+                .collect()
+        }
+
+        /// Up to 600 bytes: arbitrary ones, or frames of either direction and arbitrary bytes
+        /// strung together, often with a byte changed
+        fn stream() -> impl Strategy<Value = Vec<u8>> {
+            let segment = prop_oneof![
+                record(Direction::Request).prop_map(|x| x.encode()),
+                record(Direction::Response).prop_map(|x| x.encode()),
+                prop::collection::vec(any::<u8>(), 0..=8),
+            ];
+            let strung = (
+                prop::collection::vec(segment, 0..=6),
+                prop::option::of((any::<prop::sample::Index>(), 1u8..=u8::MAX)),
+            )
+                .prop_map(|(segments, change)| {
+                    let mut stream = segments.concat();
+                    if let Some((byte, mask)) = change {
+                        if !stream.is_empty() {
+                            let byte = byte.index(stream.len());
+                            stream[byte] ^= mask;
+                        }
+                    }
+                    stream.truncate(600);
+                    stream
+                });
+            prop_oneof![prop::collection::vec(any::<u8>(), 0..=600), strung]
+        }
+
+        /// Any chunking reads the same frames, then the same first error, as one read
+        fn check_chunking(bytes: &[u8], reads: &Reads) -> Result<(), TestCaseError> {
+            for direction in [Direction::Request, Direction::Response] {
+                let whole = read_chunks(direction.reader(), &[bytes]);
+                let chunked = read_chunks(direction.reader(), &reads.split(bytes));
+                prop_assert_eq!(
+                    ignoring_reads(chunked),
+                    ignoring_reads(whole),
+                    "{:?}",
+                    direction
+                );
+            }
+            Ok(())
+        }
+
+        proptest! {
+            #![proptest_config(ProptestConfig::with_cases(256))]
+
+            #[test]
+            fn rtu_readers_read_generated_frames_however_they_arrive(
+                (direction, records) in frames(),
+                corruption in prop::option::of(corruption()),
+                reads in reads(),
+            ) {
+                check_frames(direction, &records, corruption, &reads)?;
+            }
+
+            #[test]
+            fn rtu_readers_read_any_bytes_the_same_however_they_arrive(
+                bytes in stream(),
+                reads in reads(),
+            ) {
+                check_chunking(&bytes, &reads)?;
             }
         }
     }
