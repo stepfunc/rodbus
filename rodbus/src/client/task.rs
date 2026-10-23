@@ -401,392 +401,183 @@ impl ClientLoop {
 mod tests {
     use std::io::ErrorKind;
 
+    use tokio::io::{AsyncReadExt, AsyncWriteExt, DuplexStream};
+    use tokio::task::JoinHandle;
+    use tokio::time::Instant;
+
     use super::*;
     use crate::client::{Channel, RequestParam};
     #[cfg(feature = "serial")]
     use crate::common::frame::FrameDestination;
-    use crate::common::function::FunctionCode;
-    use crate::common::test_support::mbap;
     #[cfg(feature = "serial")]
     use crate::common::test_support::with_crc;
-    use crate::common::traits::{Loggable, Serialize};
-    use crate::decode::*;
-    use crate::server::response::BitWriter;
+    use crate::common::test_support::{mbap, watchdog};
+    use crate::decode::AppDecodeLevel;
     use crate::types::{AddressRange, UnitId};
-    use crate::{ExceptionCode, Indexed};
+    use crate::Indexed;
 
-    use sfio_tokio_mock_io::Event;
-    use tokio::io::{AsyncReadExt, AsyncWriteExt};
-    use tokio::time::Instant;
-
-    fn spawn_client_loop_with_max_timeouts(
-        max_timeouts: Option<NonZeroUsize>,
-    ) -> (
-        Channel,
-        tokio::task::JoinHandle<SessionError>,
-        sfio_tokio_mock_io::Handle,
-    ) {
-        let (tx, rx) = tokio::sync::mpsc::channel(16);
-        let (mock, io_handle) = sfio_tokio_mock_io::mock();
-        let mut client_loop = ClientLoop::new(
-            rx.into(),
-            FrameWriter::tcp(),
-            FramedReader::tcp(),
-            DecodeLevel::default().application(AppDecodeLevel::DataValues),
-            max_timeouts,
-        );
-        let join_handle = tokio::spawn(async move {
-            let mut phys = PhysLayer::new_mock(mock);
-            client_loop.run(&mut phys).await
-        });
-        let channel = Channel {
-            tx,
-            shutdown: crate::common::cancellation::pair().0,
-        };
-        (channel, join_handle, io_handle)
-    }
-
-    fn spawn_client_loop() -> (
-        Channel,
-        tokio::task::JoinHandle<SessionError>,
-        sfio_tokio_mock_io::Handle,
-    ) {
-        spawn_client_loop_with_max_timeouts(None)
-    }
-
-    fn get_framed_adu<T>(function: FunctionCode, payload: &T) -> Vec<u8>
-    where
-        T: Serialize + Loggable + Sized,
-    {
-        let mut fmt = FrameWriter::tcp();
-        let (_, bytes) = fmt
-            .format_request(
-                UnitId::new(1),
-                TxId::new(0),
-                function,
-                payload,
-                DecodeLevel::nothing(),
-            )
-            .unwrap();
-        Vec::from(bytes)
-    }
-
-    #[tokio::test]
-    async fn task_completes_with_shutdown_error_when_all_channels_dropped() {
-        let (channel, task, _io) = spawn_client_loop();
-        drop(channel);
-        assert_eq!(task.await.unwrap(), SessionError::Shutdown);
-    }
-
-    #[tokio::test]
-    async fn returns_io_error_when_write_fails() {
-        let (channel, _task, mut io) = spawn_client_loop();
-
-        let error_kind = ErrorKind::ConnectionReset;
-
-        // fail the first write, doesn't matter what the error is so long as it gets returned the same
-        io.write_error(error_kind);
-
-        // ask for a read coils
-        let result = channel
-            .read_coils(
-                RequestParam::new(UnitId::new(1), Duration::from_secs(5)),
-                AddressRange::try_from(7, 2).unwrap(),
-            )
-            .await;
-
-        assert_eq!(result, Err(RequestError::Io(error_kind)));
-    }
-
-    #[tokio::test]
-    async fn returns_timeout_when_no_response() {
-        let (channel, _task, mut io) = spawn_client_loop();
-
-        // the expected request
-        let range = AddressRange::try_from(7, 2).unwrap();
-        let request = get_framed_adu(FunctionCode::ReadCoils, &range);
-
-        // spawn a task that will perform the read coils
-        let request_task = tokio::spawn(async move {
-            channel
-                .read_coils(
-                    RequestParam::new(UnitId::new(1), Duration::from_secs(5)),
-                    range,
-                )
-                .await
-        });
-        // wait until the task writes the request so that we know it's in the correct state
-        assert_eq!(io.next_event().await, Event::Write(request));
-
-        // pausing the time will cause the timer to "auto advance"
-        tokio::time::pause();
-
-        let result = request_task.await.unwrap();
-        assert_eq!(result, Err(RequestError::ResponseTimeout));
-    }
-
-    #[tokio::test]
-    async fn returns_shutdown_when_task_dropped() {
-        let (channel, task, mut io) = spawn_client_loop();
-
-        // the expected request
-        let range = AddressRange::try_from(7, 2).unwrap();
-        let request = get_framed_adu(FunctionCode::ReadCoils, &range);
-
-        // spawn a task that will perform the read coils
-        let request_task = tokio::spawn(async move {
-            channel
-                .read_coils(
-                    RequestParam::new(UnitId::new(1), Duration::from_secs(5)),
-                    range,
-                )
-                .await
-        });
-        // wait until the task writes the request so that we know it's in the correct state
-        assert_eq!(io.next_event().await, Event::Write(request));
-
-        // now drop the task
-        task.abort();
-        assert!(task.await.unwrap_err().is_cancelled());
-
-        // the promise will get dropped causing the request to fail with Shutdown
-        let res = request_task.await.unwrap();
-        assert_eq!(res, Err(RequestError::Shutdown));
-    }
-
-    #[tokio::test]
-    async fn framing_errors_kill_the_session_while_idle() {
-        let (_channel, task, mut io) = spawn_client_loop();
-
-        io.read(&[0x00, 0x00, 0xCA, 0xFE, 0x00, 0x01, 0x01]); // non-Modbus protocol id
-
-        assert_eq!(task.await.unwrap(), SessionError::BadFrame);
-    }
-
-    #[tokio::test]
-    async fn transmit_read_coils_when_requested() {
-        let (channel, _task, mut io) = spawn_client_loop();
-
-        let range = AddressRange::try_from(7, 2).unwrap();
-        let request = get_framed_adu(FunctionCode::ReadCoils, &range);
-        let response = get_framed_adu(
-            FunctionCode::ReadCoils,
-            &BitWriter::new(range.of_read_bits().unwrap(), |idx| match idx {
-                7 => Ok(true),
-                8 => Ok(false),
-                _ => Err(ExceptionCode::IllegalDataAddress),
-            }),
-        );
-
-        let coils = tokio::spawn(async move {
-            channel
-                .read_coils(
-                    RequestParam::new(UnitId::new(1), Duration::from_secs(1)),
-                    range,
-                )
-                .await
-        });
-
-        assert_eq!(io.next_event().await, Event::Write(request));
-        io.read(&response);
-
-        assert_eq!(
-            coils.await.unwrap().unwrap(),
-            vec![Indexed::new(7, true), Indexed::new(8, false)]
-        );
-    }
-
-    #[tokio::test]
-    async fn terminates_after_max_consecutive_timeouts() {
-        let (channel, task, mut io) = spawn_client_loop_with_max_timeouts(NonZeroUsize::new(3));
-
-        tokio::time::pause();
-
-        let range = AddressRange::try_from(7, 2).unwrap();
-
-        // spawn 3 requests that will all timeout
-        for _ in 0..3 {
-            let ch = channel.clone();
-            tokio::spawn(async move {
-                ch.read_coils(
-                    RequestParam::new(UnitId::new(1), Duration::from_secs(1)),
-                    range,
-                )
-                .await
-            });
-
-            // wait for write, don't care about exact tx_id
-            match io.next_event().await {
-                Event::Write(_) => {}
-                other => panic!("Expected Write, got {:?}", other),
-            }
-        }
-
-        // session should terminate with MaxTimeouts(3)
-        assert_eq!(task.await.unwrap(), SessionError::MaxTimeouts(3));
-    }
-
-    #[tokio::test]
-    async fn disabled_when_none_allows_unlimited_timeouts() {
-        let (channel, task, mut io) = spawn_client_loop_with_max_timeouts(None);
-
-        tokio::time::pause();
-
-        let range = AddressRange::try_from(7, 2).unwrap();
-
-        // send 10 requests that all timeout
-        for _ in 0..10 {
-            let ch = channel.clone();
-            tokio::spawn(async move {
-                ch.read_coils(
-                    RequestParam::new(UnitId::new(1), Duration::from_secs(1)),
-                    range,
-                )
-                .await
-            });
-
-            match io.next_event().await {
-                Event::Write(_) => {}
-                other => panic!("Expected Write, got {:?}", other),
-            }
-        }
-
-        // task should still be running
-        assert!(!task.is_finished());
-    }
-
-    #[tokio::test]
-    async fn counter_resets_on_successful_request() {
-        let (channel, task, mut io) = spawn_client_loop_with_max_timeouts(NonZeroUsize::new(3));
-
-        tokio::time::pause();
-
-        let range = AddressRange::try_from(7, 2).unwrap();
-
-        // Pattern: timeout -> timeout -> success -> timeout -> timeout
-        // With max=3, this should NOT terminate because the success resets the counter
-
-        // First two timeouts
-        for _ in 0..2 {
-            let ch = channel.clone();
-            tokio::spawn(async move {
-                ch.read_coils(
-                    RequestParam::new(UnitId::new(1), Duration::from_secs(1)),
-                    range,
-                )
-                .await
-            });
-            match io.next_event().await {
-                Event::Write(_) => {}
-                other => panic!("Expected Write, got {:?}", other),
-            }
-        }
-
-        // Successful request
-        let success_task = tokio::spawn({
-            let ch = channel.clone();
-            async move {
-                ch.read_coils(
-                    RequestParam::new(UnitId::new(1), Duration::from_secs(1)),
-                    range,
-                )
-                .await
-            }
-        });
-
-        // Get the request and respond with matching tx_id
-        let request_bytes = match io.next_event().await {
-            Event::Write(bytes) => bytes,
-            other => panic!("Expected Write, got {:?}", other),
-        };
-
-        let mut response = get_framed_adu(
-            FunctionCode::ReadCoils,
-            &BitWriter::new(range.of_read_bits().unwrap(), |idx| match idx {
-                7 => Ok(true),
-                8 => Ok(false),
-                _ => Err(ExceptionCode::IllegalDataAddress),
-            }),
-        );
-        response[0] = request_bytes[0];
-        response[1] = request_bytes[1];
-
-        io.read(&response);
-
-        // The response will be read by the client loop
-        match io.next_event().await {
-            Event::Read => {} // Expected - client loop reads our response
-            other => panic!("Expected Read after providing response, got {:?}", other),
-        }
-
-        success_task.await.unwrap().unwrap();
-
-        // Two more timeouts - should NOT terminate since counter was reset
-        for _ in 0..2 {
-            let ch = channel.clone();
-            tokio::spawn(async move {
-                ch.read_coils(
-                    RequestParam::new(UnitId::new(1), Duration::from_secs(1)),
-                    range,
-                )
-                .await
-            });
-            match io.next_event().await {
-                Event::Write(_) => {}
-                other => panic!("Expected Write, got {:?}", other),
-            }
-        }
-
-        // Task should still be running (only 2 consecutive timeouts, not 3)
-        assert!(!task.is_finished());
-    }
-
-    /// The size of the pipe under [`spawn_client_loop_on_a_pipe`], smaller than any request
-    const PIPE: usize = 4;
-
-    /// A client loop whose writes stay pending until the returned peer reads them
-    fn spawn_client_loop_on_a_pipe(
-        writer: FrameWriter,
-        reader: FramedReader,
-    ) -> (
-        Channel,
-        tokio::task::JoinHandle<SessionError>,
-        tokio::io::DuplexStream,
-    ) {
-        spawn_client_loop_on_a_pipe_of(PIPE, writer, reader)
-    }
-
-    /// A client loop over a pipe that holds `capacity` bytes in each direction
-    fn spawn_client_loop_on_a_pipe_of(
-        capacity: usize,
-        writer: FrameWriter,
-        reader: FramedReader,
-    ) -> (
-        Channel,
-        tokio::task::JoinHandle<SessionError>,
-        tokio::io::DuplexStream,
-    ) {
-        let (tx, rx) = tokio::sync::mpsc::channel(16);
-        let (local, peer) = tokio::io::duplex(capacity);
-        let mut client_loop =
-            ClientLoop::new(rx.into(), writer, reader, DecodeLevel::nothing(), None);
-        let join_handle = tokio::spawn(async move {
-            let mut phys = PhysLayer::new_duplex(local);
-            client_loop.run(&mut phys).await
-        });
-        let channel = Channel {
-            tx,
-            shutdown: crate::common::cancellation::pair().0,
-        };
-        (channel, join_handle, peer)
-    }
-
+    /// The response timeout of the requests the tests make
     const TIMEOUT: Duration = Duration::from_secs(1);
 
-    /// Read coils in the background, with [`TIMEOUT`]
-    fn read_coils(
-        channel: Channel,
-    ) -> tokio::task::JoinHandle<Result<Vec<Indexed<bool>>, RequestError>> {
+    /// The size of a pipe that holds any request or response, in each direction
+    const PIPE: usize = 64;
+
+    /// The size of a pipe smaller than any request, so a write stays pending until the peer reads
+    const SMALL_PIPE: usize = 4;
+
+    /// The PDU of a read of coils 7 and 8
+    const READ_COILS: [u8; 5] = [0x01, 0x00, 0x07, 0x00, 0x02];
+
+    /// The PDU of a response to [`READ_COILS`]: coil 7 on, coil 8 off
+    const COILS_ON_OFF: [u8; 3] = [0x01, 0x01, 0b01];
+
+    /// The PDU of a read of the holding register at 0x10
+    const READ_REGISTER: [u8; 5] = [0x03, 0x00, 0x10, 0x00, 0x01];
+
+    /// The PDU of a response to [`READ_REGISTER`] with `value`
+    fn register_value(value: u16) -> [u8; 4] {
+        let [high, low] = value.to_be_bytes();
+        [0x03, 0x02, high, low]
+    }
+
+    /// An RTU frame carrying `pdu` to or from `unit`
+    #[cfg(feature = "serial")]
+    fn rtu(unit: u8, pdu: &[u8]) -> Vec<u8> {
+        let mut frame = vec![unit];
+        frame.extend_from_slice(pdu);
+        with_crc(&frame)
+    }
+
+    /// How to build a client loop under test
+    struct Setup {
+        writer: FrameWriter,
+        reader: FramedReader,
+        capacity: usize,
+        decode: DecodeLevel,
+        max_timeouts: Option<NonZeroUsize>,
+    }
+
+    impl Setup {
+        fn tcp() -> Self {
+            Self::new(FrameWriter::tcp(), FramedReader::tcp())
+        }
+
+        #[cfg(feature = "serial")]
+        fn rtu() -> Self {
+            Self::new(FrameWriter::rtu(), FramedReader::rtu_response())
+        }
+
+        fn new(writer: FrameWriter, reader: FramedReader) -> Self {
+            Self {
+                writer,
+                reader,
+                capacity: PIPE,
+                decode: DecodeLevel::nothing(),
+                max_timeouts: None,
+            }
+        }
+
+        /// Run over a pipe of `capacity` bytes in each direction instead of [`PIPE`]
+        fn capacity(self, capacity: usize) -> Self {
+            Self { capacity, ..self }
+        }
+
+        fn decode(self, decode: DecodeLevel) -> Self {
+            Self { decode, ..self }
+        }
+
+        /// End the session after `max` consecutive response timeouts
+        fn max_timeouts(self, max: usize) -> Self {
+            Self {
+                max_timeouts: NonZeroUsize::new(max),
+                ..self
+            }
+        }
+
+        /// A client loop, and a channel to it, that isn't running
+        fn build(self) -> (Channel, ClientLoop) {
+            let (tx, rx) = tokio::sync::mpsc::channel(16);
+            let client_loop = ClientLoop::new(
+                rx.into(),
+                self.writer,
+                self.reader,
+                self.decode,
+                self.max_timeouts,
+            );
+            let channel = Channel {
+                tx,
+                shutdown: crate::common::cancellation::pair().0,
+            };
+            (channel, client_loop)
+        }
+
+        /// A client loop running a session, and a channel to it
+        fn spawn(self) -> (Channel, Session) {
+            let capacity = self.capacity;
+            let (channel, client_loop) = self.build();
+            (channel, Session::run(client_loop, capacity))
+        }
+    }
+
+    /// A client loop running a session over a pipe, and the peer at the other end of the pipe
+    struct Session {
+        peer: DuplexStream,
+        task: JoinHandle<(SessionError, ClientLoop)>,
+    }
+
+    impl Session {
+        /// Run a session of `client_loop` over a pipe of `capacity` bytes in each direction
+        fn run(mut client_loop: ClientLoop, capacity: usize) -> Self {
+            let (local, peer) = tokio::io::duplex(capacity);
+            let task = tokio::spawn(async move {
+                let mut phys = PhysLayer::new_duplex(local);
+                let ended = client_loop.run(&mut phys).await;
+                (ended, client_loop)
+            });
+            Self { peer, task }
+        }
+
+        /// The next `N` bytes the client wrote
+        async fn read<const N: usize>(&mut self) -> [u8; N] {
+            let mut bytes = [0; N];
+            self.peer.read_exact(&mut bytes).await.unwrap();
+            bytes
+        }
+
+        /// Check that the next bytes the client wrote are `expected`
+        async fn expect(&mut self, expected: &[u8]) {
+            let mut bytes = vec![0; expected.len()];
+            self.peer.read_exact(&mut bytes).await.unwrap();
+            assert_eq!(bytes, expected);
+        }
+
+        /// Read a TCP request of 12 bytes, as all the tests' requests are, and return its
+        /// transaction id
+        async fn tcp_request(&mut self) -> u16 {
+            let [high, low, ..] = self.read::<12>().await;
+            u16::from_be_bytes([high, low])
+        }
+
+        async fn send(&mut self, bytes: &[u8]) {
+            self.peer.write_all(bytes).await.unwrap();
+        }
+
+        /// How the session ended, keeping the peer's end open until then
+        async fn ended(self) -> SessionError {
+            let (ended, _) = self.task.await.unwrap();
+            ended
+        }
+
+        /// Close the peer's end, then return how the session ended and the loop to run the next
+        async fn hang_up(self) -> (SessionError, ClientLoop) {
+            drop(self.peer);
+            self.task.await.unwrap()
+        }
+    }
+
+    /// Read coils 7 and 8 from unit 1 in the background
+    fn read_coils(channel: &Channel) -> JoinHandle<Result<Vec<Indexed<bool>>, RequestError>> {
+        let channel = channel.clone();
         tokio::spawn(async move {
             channel
                 .read_coils(
@@ -797,19 +588,174 @@ mod tests {
         })
     }
 
-    async fn a_request_that_cant_be_sent_fails_at_its_deadline(
-        writer: FrameWriter,
-        reader: FramedReader,
-    ) {
-        crate::common::test_support::watchdog(async {
-            let (channel, task, mut peer) = spawn_client_loop_on_a_pipe(writer, reader);
+    /// Read the holding register at 0x10 from `unit` in the background
+    fn read_register(
+        channel: &Channel,
+        unit: u8,
+    ) -> JoinHandle<Result<Vec<Indexed<u16>>, RequestError>> {
+        read_register_within(channel, unit, TIMEOUT)
+    }
+
+    /// Read the holding register at 0x10 from `unit` in the background, with `timeout`
+    fn read_register_within(
+        channel: &Channel,
+        unit: u8,
+        timeout: Duration,
+    ) -> JoinHandle<Result<Vec<Indexed<u16>>, RequestError>> {
+        let channel = channel.clone();
+        tokio::spawn(async move {
+            channel
+                .read_holding_registers(
+                    RequestParam::new(UnitId::new(unit), timeout),
+                    AddressRange::try_from(0x10, 1).unwrap(),
+                )
+                .await
+        })
+    }
+
+    /// A read of coils that times out, unanswered
+    async fn a_read_of_coils_times_out(channel: &Channel, session: &mut Session) {
+        let request = read_coils(channel);
+        session.tcp_request().await;
+        assert_eq!(request.await.unwrap(), Err(RequestError::ResponseTimeout));
+    }
+
+    /// A read of coils that is answered
+    async fn a_read_of_coils_is_answered(channel: &Channel, session: &mut Session) {
+        let request = read_coils(channel);
+        let tx_id = session.tcp_request().await;
+        session.send(&mbap(tx_id, 1, &COILS_ON_OFF)).await;
+        assert_eq!(
+            request.await.unwrap(),
+            Ok(vec![Indexed::new(7, true), Indexed::new(8, false)])
+        );
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn task_completes_with_shutdown_error_when_all_channels_dropped() {
+        watchdog(async {
+            let (channel, session) = Setup::tcp().spawn();
+            drop(channel);
+            assert_eq!(session.ended().await, SessionError::Shutdown);
+        })
+        .await;
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn returns_io_error_when_write_fails() {
+        watchdog(async {
+            let (channel, mut session) = Setup::tcp().capacity(SMALL_PIPE).spawn();
+            let request = read_coils(&channel);
+            // the request doesn't fit in the pipe, so the write is pending once the peer has
+            // something to read, and fails when the peer goes away
+            session.read::<1>().await;
+            drop(session);
+            assert_eq!(
+                request.await.unwrap(),
+                Err(RequestError::Io(ErrorKind::BrokenPipe))
+            );
+        })
+        .await;
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn returns_shutdown_when_task_dropped() {
+        watchdog(async {
+            let (channel, mut session) = Setup::tcp().spawn();
+            let request = read_coils(&channel);
+            // once the request is written, the loop is waiting for the response
+            session.expect(&mbap(0, 1, &READ_COILS)).await;
+
+            session.task.abort();
+            assert!(session.task.await.is_err_and(|err| err.is_cancelled()));
+
+            // dropping the loop drops the request's promise, which fails it with Shutdown
+            assert_eq!(request.await.unwrap(), Err(RequestError::Shutdown));
+        })
+        .await;
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn framing_errors_kill_the_session_while_idle() {
+        watchdog(async {
+            let (_channel, mut session) = Setup::tcp().spawn();
+            // a non-Modbus protocol id
+            session
+                .send(&[0x00, 0x00, 0xCA, 0xFE, 0x00, 0x01, 0x01])
+                .await;
+            assert_eq!(session.ended().await, SessionError::BadFrame);
+        })
+        .await;
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn transmit_read_coils_when_requested() {
+        watchdog(async {
+            let (channel, mut session) = Setup::tcp()
+                .decode(DecodeLevel::default().application(AppDecodeLevel::DataValues))
+                .spawn();
+            let request = read_coils(&channel);
+            session.expect(&mbap(0, 1, &READ_COILS)).await;
+            session.send(&mbap(0, 1, &COILS_ON_OFF)).await;
+            assert_eq!(
+                request.await.unwrap(),
+                Ok(vec![Indexed::new(7, true), Indexed::new(8, false)])
+            );
+        })
+        .await;
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn terminates_after_max_consecutive_timeouts() {
+        watchdog(async {
+            let (channel, mut session) = Setup::tcp().max_timeouts(3).spawn();
+            for _ in 0..3 {
+                a_read_of_coils_times_out(&channel, &mut session).await;
+            }
+            assert_eq!(session.ended().await, SessionError::MaxTimeouts(3));
+        })
+        .await;
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn disabled_when_none_allows_unlimited_timeouts() {
+        watchdog(async {
+            let (channel, mut session) = Setup::tcp().spawn();
+            for _ in 0..10 {
+                a_read_of_coils_times_out(&channel, &mut session).await;
+            }
+            // the session is still running
+            a_read_of_coils_is_answered(&channel, &mut session).await;
+        })
+        .await;
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn counter_resets_on_successful_request() {
+        watchdog(async {
+            let (channel, mut session) = Setup::tcp().max_timeouts(3).spawn();
+            for _ in 0..2 {
+                a_read_of_coils_times_out(&channel, &mut session).await;
+            }
+            a_read_of_coils_is_answered(&channel, &mut session).await;
+            for _ in 0..2 {
+                a_read_of_coils_times_out(&channel, &mut session).await;
+            }
+            // only two consecutive timeouts, so the session is still running
+            a_read_of_coils_is_answered(&channel, &mut session).await;
+        })
+        .await;
+    }
+
+    async fn a_request_that_cant_be_sent_fails_at_its_deadline(setup: Setup) {
+        watchdog(async {
+            let (channel, mut session) = setup.capacity(SMALL_PIPE).spawn();
             let start = Instant::now();
-            let request = read_coils(channel);
+            let request = read_coils(&channel);
 
             // the request doesn't fit in the pipe, so the write is pending once the peer has
             // something to read
-            let mut first = [0u8; 1];
-            peer.read_exact(&mut first).await.unwrap();
+            session.read::<1>().await;
 
             assert_eq!(
                 request.await.unwrap(),
@@ -817,7 +763,7 @@ mod tests {
             );
             assert_eq!(start.elapsed(), TIMEOUT);
             assert_eq!(
-                task.await.unwrap(),
+                session.ended().await,
                 SessionError::IoError(ErrorKind::TimedOut)
             );
         })
@@ -826,33 +772,26 @@ mod tests {
 
     #[tokio::test(start_paused = true)]
     async fn a_tcp_request_that_cant_be_sent_fails_at_its_deadline() {
-        a_request_that_cant_be_sent_fails_at_its_deadline(FrameWriter::tcp(), FramedReader::tcp())
-            .await;
+        a_request_that_cant_be_sent_fails_at_its_deadline(Setup::tcp()).await;
     }
 
     #[cfg(feature = "serial")]
     #[tokio::test(start_paused = true)]
     async fn an_rtu_request_that_cant_be_sent_fails_at_its_deadline() {
-        a_request_that_cant_be_sent_fails_at_its_deadline(
-            FrameWriter::rtu(),
-            FramedReader::rtu_response(),
-        )
-        .await;
+        a_request_that_cant_be_sent_fails_at_its_deadline(Setup::rtu()).await;
     }
 
     #[tokio::test(start_paused = true)]
     async fn the_time_to_send_a_request_counts_against_its_timeout() {
-        crate::common::test_support::watchdog(async {
-            let (channel, _task, mut peer) =
-                spawn_client_loop_on_a_pipe(FrameWriter::tcp(), FramedReader::tcp());
+        watchdog(async {
+            let (channel, mut session) = Setup::tcp().capacity(SMALL_PIPE).spawn();
             let start = Instant::now();
-            let request = read_coils(channel);
+            let request = read_coils(&channel);
 
             // the peer takes the whole request, but only after a while, and never answers
-            let mut sent = [0u8; 12];
-            peer.read_exact(&mut sent[..1]).await.unwrap();
+            session.read::<1>().await;
             tokio::time::sleep(Duration::from_millis(600)).await;
-            peer.read_exact(&mut sent[1..]).await.unwrap();
+            session.read::<11>().await;
 
             assert_eq!(request.await.unwrap(), Err(RequestError::ResponseTimeout));
             assert_eq!(start.elapsed(), TIMEOUT);
@@ -860,80 +799,27 @@ mod tests {
         .await;
     }
 
-    /// A client loop that runs over one pipe, then over a second, keeping its reader
-    ///
-    /// Returns the channel, the peers of the two pipes (the second once the first session has
-    /// ended) and how the first session ended.
-    fn spawn_client_loop_over_two_pipes() -> (
-        Channel,
-        tokio::io::DuplexStream,
-        tokio::sync::oneshot::Receiver<(SessionError, tokio::io::DuplexStream)>,
-    ) {
-        let (tx, rx) = tokio::sync::mpsc::channel(16);
-        let (first, first_peer) = tokio::io::duplex(64);
-        let (ended_tx, ended_rx) = tokio::sync::oneshot::channel();
-        let mut client_loop = ClientLoop::new(
-            rx.into(),
-            FrameWriter::tcp(),
-            FramedReader::tcp(),
-            DecodeLevel::nothing(),
-            None,
-        );
-        tokio::spawn(async move {
-            let mut phys = PhysLayer::new_duplex(first);
-            let ended = client_loop.run(&mut phys).await;
-            let (second, second_peer) = tokio::io::duplex(64);
-            ended_tx.send((ended, second_peer)).ok();
-            let mut phys = PhysLayer::new_duplex(second);
-            client_loop.run(&mut phys).await
-        });
-        let channel = Channel {
-            tx,
-            shutdown: crate::common::cancellation::pair().0,
-        };
-        (channel, first_peer, ended_rx)
-    }
-
-    fn read_register(
-        channel: &Channel,
-    ) -> tokio::task::JoinHandle<Result<Vec<Indexed<u16>>, RequestError>> {
-        let channel = channel.clone();
-        tokio::spawn(async move {
-            channel
-                .read_holding_registers(
-                    RequestParam::new(UnitId::new(1), TIMEOUT),
-                    AddressRange::try_from(0x10, 1).unwrap(),
-                )
-                .await
-        })
-    }
-
     /// The first connection ends after the peer sent `partial` of a response; a request over the
     /// second connection is answered in full
     async fn a_partial_response_doesnt_reach_the_next_connection(partial: &[u8]) {
-        crate::common::test_support::watchdog(async {
-            let (channel, mut first, ended) = spawn_client_loop_over_two_pipes();
+        watchdog(async {
+            let (channel, mut first) = Setup::tcp().spawn();
 
-            let request = read_register(&channel);
-            let mut sent = [0u8; 12];
-            first.read_exact(&mut sent).await.unwrap();
-            first.write_all(partial).await.unwrap();
-            drop(first);
+            let request = read_register(&channel, 1);
+            first.tcp_request().await;
+            first.send(partial).await;
             // the client reads what was written before it sees the end of the connection
-            let (ended, mut second) = ended.await.unwrap();
+            let (ended, client_loop) = first.hang_up().await;
             assert_eq!(ended, SessionError::IoError(ErrorKind::UnexpectedEof));
             assert_eq!(
                 request.await.unwrap(),
                 Err(RequestError::Io(ErrorKind::UnexpectedEof))
             );
 
-            let request = read_register(&channel);
-            second.read_exact(&mut sent).await.unwrap();
-            let [tx_high, tx_low, ..] = sent;
-            second
-                .write_all(&[tx_high, tx_low, 0, 0, 0, 5, 1, 3, 2, 0x12, 0x34])
-                .await
-                .unwrap();
+            let mut second = Session::run(client_loop, PIPE);
+            let request = read_register(&channel, 1);
+            let tx_id = second.tcp_request().await;
+            second.send(&mbap(tx_id, 1, &register_value(0x1234))).await;
             assert_eq!(request.await.unwrap(), Ok(vec![Indexed::new(0x10, 0x1234)]));
         })
         .await;
@@ -970,15 +856,6 @@ mod tests {
         ));
     }
 
-    #[test]
-    fn tcp_units_0_and_255_are_ordinary_units() {
-        let tx_id = TxId::new(7);
-        for unit in [UnitId::new(0), UnitId::new(0xFF)] {
-            let request = FrameHeader::new_tcp_header(unit, tx_id);
-            assert!(answers(FrameHeader::new_tcp_header(unit, tx_id), request));
-        }
-    }
-
     #[cfg(feature = "serial")]
     #[test]
     fn an_rtu_frame_answers_only_from_the_same_unit() {
@@ -996,38 +873,16 @@ mod tests {
         assert!(!answers(to(UnitId::new(1)), broadcast));
     }
 
-    /// Read one holding register from `unit` in the background, with [`TIMEOUT`]
-    fn read_register_from(
-        channel: Channel,
-        unit: u8,
-    ) -> tokio::task::JoinHandle<Result<Vec<Indexed<u16>>, RequestError>> {
-        tokio::spawn(async move {
-            channel
-                .read_holding_registers(
-                    RequestParam::new(UnitId::new(unit), TIMEOUT),
-                    AddressRange::try_from(0x10, 1).unwrap(),
-                )
-                .await
-        })
-    }
-
     #[tokio::test(start_paused = true)]
     async fn a_tcp_response_from_another_unit_is_skipped() {
-        crate::common::test_support::watchdog(async {
-            let (channel, _task, mut peer) =
-                spawn_client_loop_on_a_pipe_of(64, FrameWriter::tcp(), FramedReader::tcp());
-            let request = read_register_from(channel, 2);
+        watchdog(async {
+            let (channel, mut session) = Setup::tcp().spawn();
+            let request = read_register(&channel, 2);
 
-            let mut sent = [0u8; 12];
-            peer.read_exact(&mut sent).await.unwrap();
-            let [tx_high, tx_low, ..] = sent;
+            let tx_id = session.tcp_request().await;
             // the same transaction id, from unit 1 and then from unit 2
-            for (unit, value) in [(1, 0x1111u16), (2, 0x2222)] {
-                let [high, low] = value.to_be_bytes();
-                peer.write_all(&[tx_high, tx_low, 0, 0, 0, 5, unit, 3, 2, high, low])
-                    .await
-                    .unwrap();
-            }
+            session.send(&mbap(tx_id, 1, &register_value(0x1111))).await;
+            session.send(&mbap(tx_id, 2, &register_value(0x2222))).await;
 
             assert_eq!(request.await.unwrap(), Ok(vec![Indexed::new(0x10, 0x2222)]));
         })
@@ -1035,27 +890,16 @@ mod tests {
     }
 
     #[cfg(feature = "serial")]
-    fn rtu_response(unit: u8, value: u16) -> Vec<u8> {
-        let [high, low] = value.to_be_bytes();
-        with_crc(&[unit, 3, 2, high, low])
-    }
-
-    #[cfg(feature = "serial")]
     #[tokio::test(start_paused = true)]
     async fn an_rtu_response_from_another_unit_is_skipped() {
-        crate::common::test_support::watchdog(async {
-            let (channel, _task, mut peer) = spawn_client_loop_on_a_pipe_of(
-                64,
-                FrameWriter::rtu(),
-                FramedReader::rtu_response(),
-            );
-            let request = read_register_from(channel, 2);
+        watchdog(async {
+            let (channel, mut session) = Setup::rtu().spawn();
+            let request = read_register(&channel, 2);
 
-            let mut sent = [0u8; 8];
-            peer.read_exact(&mut sent).await.unwrap();
+            session.read::<8>().await;
             // a late reply from unit 1, then unit 2's
-            peer.write_all(&rtu_response(1, 0x1111)).await.unwrap();
-            peer.write_all(&rtu_response(2, 0x2222)).await.unwrap();
+            session.send(&rtu(1, &register_value(0x1111))).await;
+            session.send(&rtu(2, &register_value(0x2222))).await;
 
             assert_eq!(request.await.unwrap(), Ok(vec![Indexed::new(0x10, 0x2222)]));
         })
@@ -1065,18 +909,13 @@ mod tests {
     #[cfg(feature = "serial")]
     #[tokio::test(start_paused = true)]
     async fn an_rtu_request_answered_only_by_another_unit_times_out() {
-        crate::common::test_support::watchdog(async {
-            let (channel, _task, mut peer) = spawn_client_loop_on_a_pipe_of(
-                64,
-                FrameWriter::rtu(),
-                FramedReader::rtu_response(),
-            );
+        watchdog(async {
+            let (channel, mut session) = Setup::rtu().spawn();
             let start = Instant::now();
-            let request = read_register_from(channel, 2);
+            let request = read_register(&channel, 2);
 
-            let mut sent = [0u8; 8];
-            peer.read_exact(&mut sent).await.unwrap();
-            peer.write_all(&rtu_response(1, 0x1111)).await.unwrap();
+            session.read::<8>().await;
+            session.send(&rtu(1, &register_value(0x1111))).await;
 
             assert_eq!(request.await.unwrap(), Err(RequestError::ResponseTimeout));
             assert_eq!(start.elapsed(), TIMEOUT);
@@ -1084,49 +923,16 @@ mod tests {
         .await;
     }
 
-    #[cfg(feature = "serial")]
-    #[tokio::test(start_paused = true)]
-    async fn a_stray_reply_doesnt_complete_a_broadcast() {
-        crate::common::test_support::watchdog(async {
-            let (channel, _task, mut peer) = spawn_client_loop_on_a_pipe_of(
-                64,
-                FrameWriter::rtu(),
-                FramedReader::rtu_response(),
-            );
-            let request = read_register_from(channel, 0);
-
-            let mut sent = [0u8; 8];
-            peer.read_exact(&mut sent).await.unwrap();
-            peer.write_all(&rtu_response(1, 0x1111)).await.unwrap();
-
-            assert_eq!(request.await.unwrap(), Err(RequestError::ResponseTimeout));
-        })
-        .await;
-    }
-
-    /// A read of one holding register at 0x10, as the client writes it over TCP
-    fn mbap_read_register(tx_id: u16, unit: u8) -> Vec<u8> {
-        mbap(tx_id, unit, &[3, 0x00, 0x10, 0x00, 0x01])
-    }
-
-    fn mbap_register_response(tx_id: u16, unit: u8, value: u16) -> Vec<u8> {
-        let [high, low] = value.to_be_bytes();
-        mbap(tx_id, unit, &[3, 2, high, low])
-    }
-
     #[tokio::test(start_paused = true)]
     async fn tcp_requests_carry_the_unit_and_successive_transaction_ids() {
-        crate::common::test_support::watchdog(async {
-            let (channel, _task, mut peer) =
-                spawn_client_loop_on_a_pipe_of(64, FrameWriter::tcp(), FramedReader::tcp());
+        watchdog(async {
+            let (channel, mut session) = Setup::tcp().spawn();
             for (tx_id, unit) in [(0, 0), (1, 0xFF), (2, 1)] {
-                let request = read_register_from(channel.clone(), unit);
-                let mut sent = [0u8; 12];
-                peer.read_exact(&mut sent).await.unwrap();
-                assert_eq!(sent.to_vec(), mbap_read_register(tx_id, unit));
-                peer.write_all(&mbap_register_response(tx_id, unit, 0x1234))
-                    .await
-                    .unwrap();
+                let request = read_register(&channel, unit);
+                session.expect(&mbap(tx_id, unit, &READ_REGISTER)).await;
+                session
+                    .send(&mbap(tx_id, unit, &register_value(0x1234)))
+                    .await;
                 assert_eq!(request.await.unwrap(), Ok(vec![Indexed::new(0x10, 0x1234)]));
             }
         })
@@ -1135,48 +941,29 @@ mod tests {
 
     #[tokio::test(start_paused = true)]
     async fn a_tcp_response_with_another_transaction_id_is_skipped() {
-        crate::common::test_support::watchdog(async {
-            let (channel, _task, mut peer) =
-                spawn_client_loop_on_a_pipe_of(64, FrameWriter::tcp(), FramedReader::tcp());
+        watchdog(async {
+            let (channel, mut session) = Setup::tcp().spawn();
             let start = Instant::now();
-            let request = read_register_from(channel, 2);
-            let mut sent = [0u8; 12];
-            peer.read_exact(&mut sent).await.unwrap();
-            assert_eq!(sent.to_vec(), mbap_read_register(0, 2));
+            let request = read_register(&channel, 2);
+            session.expect(&mbap(0, 2, &READ_REGISTER)).await;
             tokio::time::sleep(Duration::from_millis(100)).await;
-            peer.write_all(&mbap_register_response(1, 2, 0x1111))
-                .await
-                .unwrap();
-            peer.write_all(&mbap_register_response(0, 2, 0x2222))
-                .await
-                .unwrap();
+            session.send(&mbap(1, 2, &register_value(0x1111))).await;
+            session.send(&mbap(0, 2, &register_value(0x2222))).await;
             assert_eq!(request.await.unwrap(), Ok(vec![Indexed::new(0x10, 0x2222)]));
             assert_eq!(start.elapsed(), Duration::from_millis(100));
         })
         .await;
     }
 
-    /// A read of one holding register at 0x10, as the client writes it over RTU
-    #[cfg(feature = "serial")]
-    fn rtu_read_register(unit: u8) -> Vec<u8> {
-        with_crc(&[unit, 3, 0x00, 0x10, 0x00, 0x01])
-    }
-
     #[cfg(feature = "serial")]
     #[tokio::test(start_paused = true)]
     async fn rtu_requests_carry_the_unit_address() {
-        crate::common::test_support::watchdog(async {
-            let (channel, _task, mut peer) = spawn_client_loop_on_a_pipe_of(
-                64,
-                FrameWriter::rtu(),
-                FramedReader::rtu_response(),
-            );
+        watchdog(async {
+            let (channel, mut session) = Setup::rtu().spawn();
             for unit in [1, 0xFF] {
-                let request = read_register_from(channel.clone(), unit);
-                let mut sent = [0u8; 8];
-                peer.read_exact(&mut sent).await.unwrap();
-                assert_eq!(sent.to_vec(), rtu_read_register(unit));
-                peer.write_all(&rtu_response(unit, 0x1234)).await.unwrap();
+                let request = read_register(&channel, unit);
+                session.expect(&rtu(unit, &READ_REGISTER)).await;
+                session.send(&rtu(unit, &register_value(0x1234))).await;
                 assert_eq!(request.await.unwrap(), Ok(vec![Indexed::new(0x10, 0x1234)]));
             }
         })
@@ -1185,22 +972,18 @@ mod tests {
 
     #[cfg(feature = "serial")]
     #[tokio::test(start_paused = true)]
-    async fn a_broadcast_goes_to_address_zero_and_a_reply_from_address_zero_doesnt_complete_it() {
-        crate::common::test_support::watchdog(async {
-            let (channel, _task, mut peer) = spawn_client_loop_on_a_pipe_of(
-                64,
-                FrameWriter::rtu(),
-                FramedReader::rtu_response(),
-            );
+    async fn a_broadcast_goes_to_address_zero_and_no_reply_completes_it() {
+        watchdog(async {
+            let (channel, mut session) = Setup::rtu().spawn();
             let start = Instant::now();
-            let request = read_register_from(channel, 0);
+            let request = read_register(&channel, 0);
 
-            let mut sent = [0u8; 8];
-            peer.read_exact(&mut sent).await.unwrap();
-            assert_eq!(sent.to_vec(), rtu_read_register(0));
-            // a reply partway to the deadline must not restart it
+            session.expect(&rtu(0, &READ_REGISTER)).await;
+            // replies partway to the deadline must not restart it
             tokio::time::sleep(TIMEOUT / 2).await;
-            peer.write_all(&rtu_response(0, 0x1111)).await.unwrap();
+            // a stray reply from unit 1, then a reply from address 0
+            session.send(&rtu(1, &register_value(0x1111))).await;
+            session.send(&rtu(0, &register_value(0x2222))).await;
 
             assert_eq!(request.await.unwrap(), Err(RequestError::ResponseTimeout));
             assert_eq!(start.elapsed(), TIMEOUT);
@@ -1210,23 +993,11 @@ mod tests {
 
     #[tokio::test(start_paused = true)]
     async fn a_request_with_a_timeout_too_long_to_represent_is_answered() {
-        crate::common::test_support::watchdog(async {
-            let (channel, _task, mut peer) =
-                spawn_client_loop_on_a_pipe_of(64, FrameWriter::tcp(), FramedReader::tcp());
-            let request = tokio::spawn(async move {
-                channel
-                    .read_holding_registers(
-                        RequestParam::new(UnitId::new(1), Duration::MAX),
-                        AddressRange::try_from(0x10, 1).unwrap(),
-                    )
-                    .await
-            });
-            let mut sent = [0u8; 12];
-            peer.read_exact(&mut sent).await.unwrap();
-            assert_eq!(sent.to_vec(), mbap_read_register(0, 1));
-            peer.write_all(&mbap_register_response(0, 1, 0x1234))
-                .await
-                .unwrap();
+        watchdog(async {
+            let (channel, mut session) = Setup::tcp().spawn();
+            let request = read_register_within(&channel, 1, Duration::MAX);
+            session.expect(&mbap(0, 1, &READ_REGISTER)).await;
+            session.send(&mbap(0, 1, &register_value(0x1234))).await;
             assert_eq!(request.await.unwrap(), Ok(vec![Indexed::new(0x10, 0x1234)]));
         })
         .await;
@@ -1234,28 +1005,14 @@ mod tests {
 
     #[tokio::test(start_paused = true)]
     async fn failing_requests_for_a_wait_too_long_to_represent_lasts_until_shutdown() {
-        crate::common::test_support::watchdog(async {
-            let (tx, rx) = tokio::sync::mpsc::channel(16);
-            let mut client_loop = ClientLoop::new(
-                rx.into(),
-                FrameWriter::tcp(),
-                FramedReader::tcp(),
-                DecodeLevel::nothing(),
-                None,
-            );
+        watchdog(async {
+            let (channel, mut client_loop) = Setup::tcp().build();
             let task =
                 tokio::spawn(async move { client_loop.fail_requests_for(Duration::MAX).await });
-            let channel = Channel {
-                tx,
-                shutdown: crate::common::cancellation::pair().0,
-            };
-            let result = channel
-                .read_holding_registers(
-                    RequestParam::new(UnitId::new(1), TIMEOUT),
-                    AddressRange::try_from(0x10, 1).unwrap(),
-                )
-                .await;
-            assert_eq!(result, Err(RequestError::NoConnection));
+            assert_eq!(
+                read_register(&channel, 1).await.unwrap(),
+                Err(RequestError::NoConnection)
+            );
             drop(channel);
             assert_eq!(task.await.unwrap(), Err(StateChange::Shutdown));
         })
@@ -1264,21 +1021,10 @@ mod tests {
 
     #[tokio::test(start_paused = true)]
     async fn failing_requests_for_a_wait_too_long_to_represent_lasts_until_disabled() {
-        crate::common::test_support::watchdog(async {
-            let (tx, rx) = tokio::sync::mpsc::channel(16);
-            let mut client_loop = ClientLoop::new(
-                rx.into(),
-                FrameWriter::tcp(),
-                FramedReader::tcp(),
-                DecodeLevel::nothing(),
-                None,
-            );
+        watchdog(async {
+            let (channel, mut client_loop) = Setup::tcp().build();
             let task =
                 tokio::spawn(async move { client_loop.fail_requests_for(Duration::MAX).await });
-            let channel = Channel {
-                tx,
-                shutdown: crate::common::cancellation::pair().0,
-            };
             channel.disable().await.unwrap();
             assert_eq!(task.await.unwrap(), Err(StateChange::Disable));
         })
