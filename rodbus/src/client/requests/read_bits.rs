@@ -4,132 +4,43 @@
 // Text and data mining rights, including for AI training, are reserved under
 // Directive (EU) 2019/790 Art. 4(3), subject to LICENSE.txt Section 3.3.
 
-use crate::common::function::FunctionCode;
-use crate::common::traits::Serialize;
+use std::fmt::Display;
+
+use super::read::{self, ReadKind, ReadRequest};
 use crate::decode::AppDecodeLevel;
-use crate::error::RequestError;
+use crate::error::AduParseError;
 use crate::types::{AddressRange, BitIterator, BitIteratorDisplay, ReadBitsRange};
 use crate::Indexed;
 
-use scursor::{ReadCursor, WriteCursor};
+use scursor::ReadCursor;
 
-pub(crate) trait BitsCallback:
-    FnOnce(Result<BitIterator, RequestError>) + Send + Sync + 'static
-{
-}
-impl<T> BitsCallback for T where T: FnOnce(Result<BitIterator, RequestError>) + Send + Sync + 'static
-{}
+/// Reads of coils and discrete inputs
+pub(crate) enum Bits {}
 
-enum PromiseInner {
-    Oneshot(tokio::sync::oneshot::Sender<Result<Vec<Indexed<bool>>, RequestError>>),
-    Boxed(Box<dyn BitsCallback>),
-}
+impl ReadKind for Bits {
+    type Range = ReadBitsRange;
+    type Value = bool;
+    type Iter<'a> = BitIterator<'a>;
 
-pub(crate) struct Promise {
-    inner: Option<PromiseInner>,
-}
-
-impl Drop for Promise {
-    fn drop(&mut self) {
-        self.failure(RequestError::Shutdown);
-    }
-}
-
-impl Promise {
-    pub(crate) fn new<T>(callback: T) -> Self
-    where
-        T: BitsCallback,
-    {
-        Self {
-            inner: Some(PromiseInner::Boxed(Box::new(callback))),
-        }
+    fn addresses(range: ReadBitsRange) -> AddressRange {
+        range.get()
     }
 
-    fn oneshot(tx: tokio::sync::oneshot::Sender<Result<Vec<Indexed<bool>>, RequestError>>) -> Self {
-        Self {
-            inner: Some(PromiseInner::Oneshot(tx)),
-        }
-    }
-
-    pub(crate) fn failure(&mut self, err: RequestError) {
-        if let Some(inner) = self.inner.take() {
-            match inner {
-                PromiseInner::Oneshot(tx) => {
-                    tx.send(Err(err)).ok();
-                }
-                PromiseInner::Boxed(callback) => callback(Err(err)),
-            }
-        }
-    }
-
-    pub(crate) fn success(&mut self, iter: BitIterator) {
-        if let Some(inner) = self.inner.take() {
-            match inner {
-                PromiseInner::Oneshot(tx) => {
-                    tx.send(Ok(iter.collect())).ok();
-                }
-                PromiseInner::Boxed(callback) => callback(Ok(iter)),
-            }
-        }
-    }
-}
-
-impl From<tokio::sync::oneshot::Sender<Result<Vec<Indexed<bool>>, RequestError>>> for Promise {
-    fn from(tx: tokio::sync::oneshot::Sender<Result<Vec<Indexed<bool>>, RequestError>>) -> Self {
-        Self::oneshot(tx)
-    }
-}
-
-pub(crate) struct ReadBits {
-    pub(crate) request: ReadBitsRange,
-    promise: Promise,
-}
-
-impl ReadBits {
-    pub(crate) fn new(request: ReadBitsRange, promise: Promise) -> Self {
-        Self { request, promise }
-    }
-
-    #[cfg(test)]
-    pub(crate) fn channel(
-        request: ReadBitsRange,
-        tx: tokio::sync::oneshot::Sender<Result<Vec<Indexed<bool>>, RequestError>>,
-    ) -> Self {
-        Self::new(request, Promise::oneshot(tx))
-    }
-
-    pub(crate) fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
-        self.request.get().serialize(cursor)
-    }
-
-    pub(crate) fn failure(&mut self, err: RequestError) {
-        self.promise.failure(err)
-    }
-
-    pub(crate) fn handle_response(
-        &mut self,
-        mut cursor: ReadCursor,
-        function: FunctionCode,
-        decode: AppDecodeLevel,
-    ) -> Result<(), RequestError> {
-        let response = Self::parse_bits_response(self.request.get(), &mut cursor)?;
-
-        if decode.enabled() {
-            tracing::info!(
-                "PDU RX - {} {}",
-                function,
-                BitIteratorDisplay::new(decode, response)
-            );
-        }
-
-        self.promise.success(response);
-        Ok(())
-    }
-
-    fn parse_bits_response<'a>(
+    fn parse<'a>(
         range: AddressRange,
         cursor: &'a mut ReadCursor,
-    ) -> Result<BitIterator<'a>, RequestError> {
-        Ok(BitIterator::parse_counted(range, cursor)?)
+    ) -> Result<BitIterator<'a>, AduParseError> {
+        BitIterator::parse_counted(range, cursor)
+    }
+
+    fn collect(iter: BitIterator) -> Vec<Indexed<bool>> {
+        iter.collect()
+    }
+
+    fn display(level: AppDecodeLevel, iter: Self::Iter<'_>) -> impl Display {
+        BitIteratorDisplay::new(level, iter)
     }
 }
+
+pub(crate) type Promise = read::Promise<Bits>;
+pub(crate) type ReadBits = ReadRequest<Bits>;
