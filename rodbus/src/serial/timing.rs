@@ -6,6 +6,38 @@
 
 //! Timing on a serial line: the silence between RTU frames
 
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+/// A serial port whose writes keep the frames on the line apart by at least t3.5 of silence
+pub(crate) struct SerialPort {
+    stream: tokio_serial::SerialStream,
+    gap: InterFrameGap,
+}
+
+impl SerialPort {
+    /// A port that opens now, timed for `baud_rate`
+    pub(crate) fn new(stream: tokio_serial::SerialStream, baud_rate: u32) -> Self {
+        Self {
+            stream,
+            gap: InterFrameGap::new(baud_rate),
+        }
+    }
+
+    /// Read into `buffer`, counting any bytes received as activity on the line
+    pub(crate) async fn read(&mut self, buffer: &mut [u8]) -> std::io::Result<usize> {
+        let length = self.stream.read(buffer).await?;
+        self.gap.after_read(length);
+        Ok(length)
+    }
+
+    /// Write `data` once the line has been quiet for t3.5
+    pub(crate) async fn write(&mut self, data: &[u8]) -> std::io::Result<()> {
+        self.gap.before_write().await;
+        let _transmission = self.gap.transmission(data.len());
+        self.stream.write_all(data).await
+    }
+}
+
 /// Keeps the frames sent on a serial port apart by at least t3.5 of silence on the line
 ///
 /// MODBUS over Serial Line V1.02 2.5.1.1 separates RTU frames by a silent interval of at least
@@ -15,7 +47,7 @@
 /// character time per byte after its write stopped. What was on the line before the port opened
 /// is unknown, so the first frame also waits until the line has been quiet for t3.5 since then,
 /// as the initial state of Figure 14 in the same clause does.
-pub(crate) struct InterFrameGap {
+struct InterFrameGap {
     /// t3.5, the minimum silence between two frames
     t3_5: tokio::time::Duration,
     /// how long one character takes to send
@@ -26,7 +58,7 @@ pub(crate) struct InterFrameGap {
 
 impl InterFrameGap {
     /// Timing for a port that opens now
-    pub(crate) fn new(baud_rate: u32) -> Self {
+    fn new(baud_rate: u32) -> Self {
         Self {
             t3_5: inter_frame_delay(baud_rate),
             char_time: character_time(baud_rate),
@@ -35,7 +67,7 @@ impl InterFrameGap {
     }
 
     /// Record that `length` bytes were just received
-    pub(crate) fn after_read(&mut self, length: usize) {
+    fn after_read(&mut self, length: usize) {
         if length > 0 {
             self.line_busy_until(tokio::time::Instant::now());
         }
@@ -57,14 +89,14 @@ impl InterFrameGap {
     /// The guard drops when the write completes, fails or is cancelled. A cancelled write may
     /// already have handed some or all of its bytes to the driver, so every case is treated as if
     /// all of them were, which can only lengthen the silence.
-    pub(crate) fn transmission(&mut self, length: usize) -> Transmission<'_> {
+    fn transmission(&mut self, length: usize) -> Transmission<'_> {
         Transmission { gap: self, length }
     }
 
     /// Wait until the line has been quiet for t3.5
     ///
     /// It doesn't change the state, so a cancelled wait leaves it as it was.
-    pub(crate) async fn before_write(&self) {
+    async fn before_write(&self) {
         tokio::time::sleep_until(self.ready_at()).await;
     }
 
@@ -84,7 +116,7 @@ impl InterFrameGap {
 }
 
 /// Records a write in its [`InterFrameGap`] when dropped
-pub(crate) struct Transmission<'a> {
+struct Transmission<'a> {
     gap: &'a mut InterFrameGap,
     length: usize,
 }
@@ -419,7 +451,7 @@ mod tests {
     #[cfg(unix)]
     mod port {
         use tokio::io::{AsyncReadExt, AsyncWriteExt};
-        use tokio_serial::SerialPort;
+        use tokio_serial::SerialPort as _;
 
         use super::*;
         use crate::common::phys::PhysLayer;

@@ -77,10 +77,7 @@ impl Socket for tokio::io::DuplexStream {
 pub(crate) enum PhysLayerImpl {
     Tcp(tokio::net::TcpStream),
     #[cfg(feature = "serial")]
-    Serial(
-        tokio_serial::SerialStream,
-        crate::serial::timing::InterFrameGap,
-    ),
+    Serial(crate::serial::timing::SerialPort),
     // TLS type is boxed because its size is huge
     #[cfg(feature = "enable-tls")]
     Tls(Box<tokio_rustls::TlsStream<tokio::net::TcpStream>>),
@@ -98,7 +95,7 @@ impl std::fmt::Debug for PhysLayer {
         match &self.layer {
             PhysLayerImpl::Tcp(_) => f.write_str("Tcp"),
             #[cfg(feature = "serial")]
-            PhysLayerImpl::Serial(_, _) => f.write_str("Serial"),
+            PhysLayerImpl::Serial(_) => f.write_str("Serial"),
             #[cfg(feature = "enable-tls")]
             PhysLayerImpl::Tls(_) => f.write_str("Tls"),
             #[cfg(test)]
@@ -121,9 +118,8 @@ impl PhysLayer {
     /// A layer on a serial port, timed for the `baud_rate` the port was configured with
     #[cfg(feature = "serial")]
     pub(crate) fn new_serial(stream: tokio_serial::SerialStream, baud_rate: u32) -> Self {
-        let gap = crate::serial::timing::InterFrameGap::new(baud_rate);
         Self {
-            layer: PhysLayerImpl::Serial(stream, gap),
+            layer: PhysLayerImpl::Serial(crate::serial::timing::SerialPort::new(stream, baud_rate)),
         }
     }
 
@@ -156,11 +152,7 @@ impl PhysLayer {
         let length = match &mut self.layer {
             PhysLayerImpl::Tcp(x) => x.read(buffer).await?,
             #[cfg(feature = "serial")]
-            PhysLayerImpl::Serial(x, gap) => {
-                let length = x.read(buffer).await?;
-                gap.after_read(length);
-                length
-            }
+            PhysLayerImpl::Serial(x) => x.read(buffer).await?,
             #[cfg(feature = "enable-tls")]
             PhysLayerImpl::Tls(x) => x.read(buffer).await?,
             #[cfg(test)]
@@ -192,11 +184,7 @@ impl PhysLayer {
         match &mut self.layer {
             PhysLayerImpl::Tcp(x) => x.write_all(data).await,
             #[cfg(feature = "serial")]
-            PhysLayerImpl::Serial(x, gap) => {
-                gap.before_write().await;
-                let _transmission = gap.transmission(data.len());
-                x.write_all(data).await
-            }
+            PhysLayerImpl::Serial(x) => x.write(data).await,
             #[cfg(feature = "enable-tls")]
             PhysLayerImpl::Tls(x) => x.write_all(data).await,
             #[cfg(test)]
