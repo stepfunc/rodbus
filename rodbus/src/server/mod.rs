@@ -440,3 +440,27 @@ fn create_tls_server_task_impl<T: RequestHandler>(
     );
     (handle, ServerTask::tcp(task))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::error::Shutdown;
+
+    #[tokio::test]
+    async fn set_decode_level_sends_the_change_until_the_task_has_ended() {
+        let (tx, mut rx) = tokio::sync::mpsc::channel(1);
+        let (shutdown, _signal) = crate::common::cancellation::pair();
+        let mut handle = ServerHandle::new(tx, shutdown);
+        let level = DecodeLevel::nothing().application(crate::decode::AppDecodeLevel::DataValues);
+
+        assert_eq!(handle.set_decode_level(level).await, Ok(()));
+        let Ok(ServerCommand::ChangeDecoding(received)) = rx.try_recv() else {
+            panic!("expected a command");
+        };
+        assert_eq!(received, level);
+
+        // the task owns the receiver
+        drop(rx);
+        assert_eq!(handle.set_decode_level(level).await, Err(Shutdown));
+    }
+}

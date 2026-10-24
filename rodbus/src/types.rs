@@ -1128,4 +1128,44 @@ mod tests {
             }
         }
     }
+
+    #[test]
+    fn each_client_option_setter_changes_only_its_own_value() {
+        type Fields = (ChannelLoggingMode, usize, DecodeLevel, Option<NonZeroUsize>);
+        fn fields(options: ClientOptions) -> Fields {
+            (
+                options.channel_logging,
+                options.max_queued_requests,
+                options.decode_level,
+                options.max_timeouts,
+            )
+        }
+
+        // no field has its default, so a setter that resets another one is seen
+        let logging = ChannelLoggingMode::StateChanges;
+        let decode = AppDecodeLevel::DataValues.into();
+        let timeouts = NonZeroUsize::new(2);
+        let options = ClientOptions {
+            channel_logging: logging,
+            max_queued_requests: 3,
+            decode_level: decode,
+            max_timeouts: timeouts,
+        };
+        assert_eq!(
+            fields(options.channel_logging(ChannelLoggingMode::Verbose)),
+            (ChannelLoggingMode::Verbose, 3, decode, timeouts)
+        );
+        assert_eq!(
+            fields(options.max_queued_requests(4)),
+            (logging, 4, decode, timeouts)
+        );
+        assert_eq!(
+            fields(options.decode_level(DecodeLevel::nothing())),
+            (logging, 3, DecodeLevel::nothing(), timeouts)
+        );
+        assert_eq!(
+            fields(options.max_response_timeouts(None)),
+            (logging, 3, decode, None)
+        );
+    }
 }

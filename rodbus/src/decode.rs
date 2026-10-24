@@ -181,3 +181,37 @@ impl PhysDecodeLevel {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn each_setter_changes_only_its_own_level() {
+        use AppDecodeLevel::*;
+        use FrameDecodeLevel::{Header, Payload};
+        use PhysDecodeLevel::{Data, Length};
+
+        let level = DecodeLevel::new(DataValues, Payload, Data);
+        assert_eq!(
+            level.application(FunctionCode),
+            DecodeLevel::new(FunctionCode, Payload, Data)
+        );
+        assert_eq!(
+            level.frame(Header),
+            DecodeLevel::new(DataValues, Header, Data)
+        );
+        assert_eq!(
+            level.physical(Length),
+            DecodeLevel::new(DataValues, Payload, Length)
+        );
+        assert_eq!(
+            DecodeLevel::from(DataHeaders),
+            DecodeLevel::new(
+                DataHeaders,
+                FrameDecodeLevel::Nothing,
+                PhysDecodeLevel::Nothing
+            )
+        );
+    }
+}
