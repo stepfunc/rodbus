@@ -976,6 +976,79 @@ mod tests {
         .await;
     }
 
+    /// A spawned channel task that connects through a [`test_util::MemoryConnector`] with no
+    /// faults, the states it reports and the peers of the connections it makes
+    fn spawn_memory_channel() -> (
+        Channel,
+        tokio::task::JoinHandle<()>,
+        tokio::sync::mpsc::UnboundedReceiver<ClientState>,
+        tokio::sync::mpsc::UnboundedReceiver<tokio::io::DuplexStream>,
+    ) {
+        let (connector, peers) = test_util::MemoryConnector::new(Vec::new());
+        let (tx, states) = tokio::sync::mpsc::unbounded_channel();
+        let (channel, task) = test_util::memory_channel(
+            connector,
+            TcpTaskConnectionHandler::Tcp,
+            default_retry_strategy(),
+            ClientOptions::default(),
+            Box::new(StateRecorder { tx }),
+        );
+        (channel, tokio::spawn(task.run()), states, peers)
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn dropping_every_handle_of_a_connected_channel_ends_the_task_and_closes_the_connection()
+    {
+        crate::common::test_support::watchdog(async {
+            let (channel, task, mut states, mut peers) = spawn_memory_channel();
+            channel.enable().await.unwrap();
+            let mut peer = peers.recv().await.unwrap();
+            for state in [
+                ClientState::Disabled,
+                ClientState::Connecting,
+                ClientState::Connected,
+            ] {
+                assert_eq!(states.recv().await, Some(state));
+            }
+
+            let dropped_at = tokio::time::Instant::now();
+            drop(channel);
+
+            // the task reports its end rather than connecting again
+            assert_eq!(states.recv().await, Some(ClientState::Shutdown));
+            task.await.unwrap();
+            assert_eq!(dropped_at.elapsed(), Duration::ZERO);
+            // the listener went with the task, so `Shutdown` was the last state
+            assert_eq!(states.recv().await, None);
+            // the peer sees the connection go away rather than a lingering half-open one
+            let mut buffer = [0u8; 1];
+            assert_eq!(peer.read(&mut buffer).await.unwrap(), 0);
+            // the task ended without attempting another connection
+            assert!(peers.recv().await.is_none());
+        })
+        .await;
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn dropping_every_handle_of_a_channel_never_enabled_ends_the_task_without_connecting() {
+        crate::common::test_support::watchdog(async {
+            let (channel, task, mut states, mut peers) = spawn_memory_channel();
+            assert_eq!(states.recv().await, Some(ClientState::Disabled));
+
+            let dropped_at = tokio::time::Instant::now();
+            drop(channel);
+
+            assert_eq!(states.recv().await, Some(ClientState::Shutdown));
+            task.await.unwrap();
+            assert_eq!(dropped_at.elapsed(), Duration::ZERO);
+            // the listener went with the task, so `Shutdown` was the last state
+            assert_eq!(states.recv().await, None);
+            // nothing was ever dialed
+            assert!(peers.recv().await.is_none());
+        })
+        .await;
+    }
+
     #[tokio::test(start_paused = true)]
     async fn queued_requests_fail_before_shutdown_listener_completes() {
         crate::common::test_support::watchdog(async {
