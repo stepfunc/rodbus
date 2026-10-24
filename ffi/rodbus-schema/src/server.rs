@@ -276,7 +276,10 @@ fn build_delete_method(
             Primitive::U16,
             format!("Address of the {spaced_name}"),
         )?
-        .returns(Primitive::Bool, "true if the value is new, false otherwise")?
+        .returns(
+            Primitive::Bool,
+            "true if the point was defined, false otherwise",
+        )?
         .doc(format!("Remove a {spaced_name} address from the database"))?
         .build()?;
 
@@ -430,7 +433,7 @@ fn build_handler_map(
         )?
         .returns(
             Primitive::Bool,
-            "True if the unit id doesn't already exists, false otherwise",
+            "True if the unit id doesn't already exist, false otherwise",
         )?
         .doc("Add an endpoint to the map")?
         .build()?;
@@ -515,7 +518,7 @@ fn build_authorization_handler(
             "Authorize a Write Multiple Coils request",
         )?
         .param("unit_id", Primitive::U8, "Target unit ID")?
-        .param("range", common.address_range.clone(), "Range to read")?
+        .param("range", common.address_range.clone(), "Range to write")?
         .param("role", StringType, "Authenticated Modbus role")?
         .returns(auth_result.clone(), "Authorization result")?
         .end_callback()?
@@ -524,7 +527,7 @@ fn build_authorization_handler(
             "Authorize a Write Multiple Registers request",
         )?
         .param("unit_id", Primitive::U8, "Target unit ID")?
-        .param("range", common.address_range.clone(), "Range to read")?
+        .param("range", common.address_range.clone(), "Range to write")?
         .param("role", StringType, "Authenticated Modbus role")?
         .returns(auth_result, "Authorization result")?
         .end_callback()?
@@ -546,7 +549,7 @@ fn build_tls_server_config(
         .add(
             "peer_cert_path",
             StringType,
-            "Path to the PEM-encoded certificate of the peer",
+            "Path to the PEM-encoded trusted CA certificate(s) in {enum:certificate_mode.authority_based} mode, or to the peer's own certificate in {enum:certificate_mode.self_signed} mode",
         )?
         .add(
             "local_cert_path",
@@ -556,7 +559,7 @@ fn build_tls_server_config(
         .add(
             "private_key_path",
             StringType,
-            "Path to the the PEM-encoded private key",
+            "Path to the PEM-encoded private key",
         )?
         .add(
             "password",
@@ -573,14 +576,14 @@ fn build_tls_server_config(
         .add(
             &certificate_mode_field,
             common.certificate_mode.clone(),
-            "Certficate validation mode",
+            "Certificate validation mode",
         )?
         .doc("TLS server configuration")?
         .end_fields()?
         .begin_initializer(
             "init",
             InitializerType::Normal,
-            "Initialize a TLS client configuration",
+            "Initialize a TLS server configuration",
         )?
         .default_variant(&min_tls_version_field, "v12")?
         .default_variant(&certificate_mode_field, "authority_based")?
@@ -622,7 +625,7 @@ fn build_write_handler_interface(
         // --- write single register ---
         .begin_callback(
             "write_single_register",
-            "write a single coil received from the client",
+            "write a single register received from the client",
         )?
         .param("index", Primitive::U16, "Index of the register")?
         .param("value", Primitive::U16, "Value of the register to write")?
@@ -744,7 +747,8 @@ fn define_address_filter(
         .doc(
             doc("Create an address filter that matches one or more IP addresses. Ipv4 or IPv6 addresses are allowed.")
                 .details("Examples: 192.168.1.26, 192.168.0.*, *.*.*.*")
-                .details("Wildcards are only supported for IPv4 addresses"),
+                .details("Wildcards are only supported for IPv4 addresses")
+                .details("IPv4 addresses also match clients that connect with the IPv4-mapped IPv6 form (::ffff:a.b.c.d), e.g. to a server bound to [::]"),
         )?
         .build()?;
 

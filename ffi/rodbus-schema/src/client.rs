@@ -31,7 +31,7 @@ pub(crate) fn build(lib: &mut LibraryBuilder, common: &CommonDefinitions) -> Bac
         .param(
             "max_queued_requests",
             Primitive::U16,
-            "Maximum number of requests to queue before failing the next request",
+            "Maximum number of requests to queue before failing the next request (0 is treated as 1)",
         )?
         .param(
             "retry_strategy",
@@ -50,7 +50,7 @@ pub(crate) fn build(lib: &mut LibraryBuilder, common: &CommonDefinitions) -> Bac
         )?
         .returns(channel.clone(), "Pointer to the created channel")?
         .fails_with(common.error_type.clone())?
-        .doc("Create a new TCP channel instance")?
+        .doc(doc("Create a new TCP channel instance").details("The channel is created disabled: it doesn't connect until {class:client_channel.enable()} is called, and requests made before that fail with {enum:request_error.no_connection}."))?
         .build_static("create_tcp")?;
 
     let rtu_client_create_fn = lib
@@ -73,7 +73,7 @@ pub(crate) fn build(lib: &mut LibraryBuilder, common: &CommonDefinitions) -> Bac
         .param(
             "max_queued_requests",
             Primitive::U16,
-            "Maximum number of requests to queue before failing the next request",
+            "Maximum number of requests to queue before failing the next request (0 is treated as 1)",
         )?
         .param(
             "retry_strategy",
@@ -92,7 +92,7 @@ pub(crate) fn build(lib: &mut LibraryBuilder, common: &CommonDefinitions) -> Bac
         )?
         .returns(channel.clone(), "Pointer to the created channel")?
         .fails_with(common.error_type.clone())?
-        .doc("Create a new RTU channel instance")?
+        .doc(doc("Create a new RTU channel instance").details("The channel is created disabled: it doesn't open the serial port until {class:client_channel.enable()} is called, and requests made before that fail with {enum:request_error.no_connection}."))?
         .build_static("create_rtu")?;
 
     let tls_client_create_fn = lib
@@ -111,7 +111,7 @@ pub(crate) fn build(lib: &mut LibraryBuilder, common: &CommonDefinitions) -> Bac
         .param(
             "max_queued_requests",
             Primitive::U16,
-            "Maximum number of requests to queue before failing the next request",
+            "Maximum number of requests to queue before failing the next request (0 is treated as 1)",
         )?
         .param(
             "retry_strategy",
@@ -134,7 +134,7 @@ pub(crate) fn build(lib: &mut LibraryBuilder, common: &CommonDefinitions) -> Bac
             "Pointer to the created channel or {null} if an error occurred",
         )?
         .fails_with(common.error_type.clone())?
-        .doc("Create a new TLS channel instance")?
+        .doc(doc("Create a new TLS channel instance").details("The channel is created disabled: it doesn't connect until {class:client_channel.enable()} is called, and requests made before that fail with {enum:request_error.no_connection}."))?
         .build_static("create_tls")?;
 
     let destroy_channel_fn = lib.define_destructor(
@@ -479,7 +479,7 @@ fn build_tls_client_config(
         .add(
             "peer_cert_path",
             StringType,
-            "Path to the PEM-encoded certificate of the peer",
+            "Path to the PEM-encoded trusted CA certificate(s) in {enum:certificate_mode.authority_based} mode, or to the peer's own certificate in {enum:certificate_mode.self_signed} mode",
         )?
         .add(
             "local_cert_path",
@@ -489,7 +489,7 @@ fn build_tls_client_config(
         .add(
             "private_key_path",
             StringType,
-            "Path to the the PEM-encoded private key",
+            "Path to the PEM-encoded private key",
         )?
         .add(
             "password",
