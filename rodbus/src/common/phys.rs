@@ -253,15 +253,17 @@ mod tests {
 
     #[tokio::test]
     async fn tcp_streams_get_nodelay() {
-        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-        let addr = listener.local_addr().unwrap();
-        let (stream, accepted) =
-            tokio::join!(tokio::net::TcpStream::connect(addr), listener.accept());
-        let (stream, _peer) = (stream.unwrap(), accepted.unwrap());
-        stream.set_nodelay(false).unwrap();
+        crate::common::test_support::watchdog(async {
+            let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let addr = listener.local_addr().unwrap();
+            let (stream, _accepted) =
+                tokio::try_join!(tokio::net::TcpStream::connect(addr), listener.accept()).unwrap();
+            stream.set_nodelay(false).unwrap();
 
-        <tokio::net::TcpStream as Socket>::set_nodelay(&stream);
-        assert!(stream.nodelay().unwrap());
+            <tokio::net::TcpStream as Socket>::set_nodelay(&stream);
+            assert!(stream.nodelay().unwrap());
+        })
+        .await;
     }
 
     const FIRST: &str = "00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F 10 11";
