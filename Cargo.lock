@@ -1112,6 +1112,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "rodbus-ffi-c"
+version = "1.6.0-M3"
+dependencies = [
+ "rodbus-ffi",
+]
+
+[[package]]
 name = "rodbus-ffi-java"
 version = "1.6.0-M3"
 dependencies = [

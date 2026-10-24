@@ -18,10 +18,10 @@ fn main() {
     let library = rodbus_schema::build_lib().unwrap();
 
     let builder_settings = oo_bindgen::cli::BindingBuilderSettings {
-        ffi_target_name: "rodbus-ffi",
+        ffi_target_name: "rodbus-ffi-c",
         jni_target_name: "rodbus-ffi-java",
         ffi_name: "rodbus_ffi",
-        ffi_path: PathBuf::from("ffi/rodbus-ffi"),
+        ffi_path: PathBuf::from("ffi/rodbus-ffi-c"),
         java_group_id: "io.stepfunc",
         destination_path: PathBuf::from("ffi/bindings"),
         library: Rc::new(library),

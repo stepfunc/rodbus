@@ -13,6 +13,7 @@ members = [
   # FFI crates
   "ffi/rodbus-bindings",
   "ffi/rodbus-ffi",
+  "ffi/rodbus-ffi-c",
   "ffi/rodbus-ffi-java",
   "ffi/rodbus-schema",
 ]
