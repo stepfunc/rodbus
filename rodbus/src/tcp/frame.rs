@@ -559,7 +559,9 @@ mod tests {
         fn function_field(function: u8) -> Option<FunctionField> {
             match FunctionCode::get(function) {
                 Some(code) => Some(FunctionField::Valid(code)),
-                None if function & 0x80 != 0 => Some(FunctionField::unknown(function & 0x7F)),
+                None if function & 0x80 != 0 => {
+                    Some(FunctionField::UnknownFunction(function & 0x7F))
+                }
                 None => None,
             }
         }
@@ -607,7 +609,8 @@ mod tests {
         ///
         /// It refuses an unknown protocol id first, then a length too big to be a frame, then a
         /// length of zero, which can't count the unit id; otherwise it reads a frame whose PDU is
-        /// the rest of the length, once all of it has arrived.
+        /// the rest of the length, once all of it has arrived. After a refused header the reader
+        /// is reset, as sessions do, so how much of the stream the error consumed isn't pinned.
         fn check_header(header: [u8; 7], split_at: usize, body: &[u8], next: &MbapFrame) {
             let [_, _, protocol_high, protocol_low, length_high, length_low, _] = header;
             let protocol_id = u16::from_be_bytes([protocol_high, protocol_low]);
@@ -634,6 +637,8 @@ mod tests {
                         read_chunks(&mut reader, &chunks),
                         [(1, Outcome::Error(RequestError::BadFrame(error)))]
                     );
+                    // sessions reset the reader after an error before reading again
+                    reader.reset();
                 }
                 None => {
                     let pdu_length = usize::from(length).checked_sub(1).unwrap();
@@ -656,7 +661,7 @@ mod tests {
                 }
             }
 
-            // the reader starts over after the frame or the error
+            // the reader starts over after the frame, or after the reset that follows the error
             check_reads_frames(&mut reader, std::slice::from_ref(next), &[usize::MAX]);
         }
 

@@ -389,6 +389,22 @@ impl FramedReader {
     }
 }
 
+impl FrameDestination {
+    /// The address byte that starts an RTU frame for this destination
+    fn value(&self) -> u8 {
+        match self {
+            Self::UnitId(unit_id) => unit_id.value,
+            Self::Broadcast => UnitId::broadcast().value,
+        }
+    }
+}
+
+impl FrameHeader {
+    pub(crate) fn new_rtu_header(destination: FrameDestination) -> Self {
+        Self::Rtu(destination)
+    }
+}
+
 pub(crate) fn format_rtu_pdu(
     cursor: &mut WriteCursor,
     destination: FrameDestination,
@@ -798,7 +814,7 @@ mod tests {
     fn destination_of(frame: &[u8]) -> FrameDestination {
         match frame[0] {
             0 => FrameDestination::Broadcast,
-            id => FrameDestination::new_unit_id(id),
+            id => FrameDestination::UnitId(UnitId::new(id)),
         }
     }
 
@@ -1542,7 +1558,7 @@ mod tests {
         let mut cursor = WriteCursor::new(&mut buffer);
         let result = format_rtu_pdu(
             &mut cursor,
-            FrameDestination::new_unit_id(UNIT_ID),
+            FrameDestination::UnitId(UnitId::new(UNIT_ID)),
             FunctionField::Valid(FunctionCode::ReadCoils),
             &MockMessage {
                 frame: READ_COILS_REQUEST,
@@ -1562,7 +1578,7 @@ mod tests {
         let mut cursor = WriteCursor::new(&mut buffer);
         let result = format_rtu_pdu(
             &mut cursor,
-            FrameDestination::new_unit_id(UNIT_ID),
+            FrameDestination::UnitId(UnitId::new(UNIT_ID)),
             FunctionField::Valid(FunctionCode::ReadCoils),
             &FailingMessage,
         );
@@ -1704,7 +1720,7 @@ mod tests {
             // address 0 is the broadcast address (Serial Line V1.02 2.2)
             let destination = match address {
                 0 => FrameDestination::Broadcast,
-                id => FrameDestination::new_unit_id(*id),
+                id => FrameDestination::UnitId(UnitId::new(*id)),
             };
             let frame = ParsedFrame {
                 header: FrameHeader::new_rtu_header(destination),
