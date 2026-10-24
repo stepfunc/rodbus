@@ -31,6 +31,24 @@ const PAST_TIMEOUT: Duration = Duration::from_millis(7 * 143);
 /// The address of the register every request reads
 const REGISTER: u16 = 0x10;
 
+/// A transaction id next to a request's
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+enum Adjacent {
+    /// the previous request's, which a late answer to it carries
+    Previous,
+    Next,
+}
+
+impl Adjacent {
+    /// The transaction id next to `tx_id`
+    fn of(self, tx_id: u16) -> u16 {
+        match self {
+            Adjacent::Previous => tx_id.wrapping_sub(1),
+            Adjacent::Next => tx_id.wrapping_add(1),
+        }
+    }
+}
+
 /// What the peer does once it read a request
 #[derive(Copy, Clone, Debug)]
 enum Reply {
@@ -40,11 +58,12 @@ enum Reply {
     Exception(u8, ExceptionCode),
     /// a response with another function code: one to a read of coils
     WrongFunction,
-    /// a response with another value from the next unit up, then the answer
-    OtherUnitThenAnswer(u16),
-    /// a response with another value and the previous transaction id, then the answer; TCP only,
-    /// since RTU frames carry no transaction id
-    StaleTxThenAnswer(u16),
+    /// a response with another value from unit `from`, which isn't the request's, then the
+    /// answer with `value`
+    OtherUnitThenAnswer { from: u8, value: u16 },
+    /// a response with another value and a transaction id next to the request's, then the answer
+    /// with `value`; TCP only, since RTU frames carry no transaction id
+    OtherTxThenAnswer { tx: Adjacent, value: u16 },
     /// nothing, so the request times out
     Silence,
     /// nothing until the request timed out, then the answer, while no request is outstanding
@@ -79,7 +98,7 @@ enum Kind {
     Exception,
     WrongFunction,
     OtherUnitThenAnswer,
-    StaleTxThenAnswer,
+    OtherTxThenAnswer(Adjacent),
     Silence,
     LateAfterTimeout,
     Garbage,
@@ -95,8 +114,8 @@ impl Step {
                 Reply::Answer(_) => Kind::Answer,
                 Reply::Exception(..) => Kind::Exception,
                 Reply::WrongFunction => Kind::WrongFunction,
-                Reply::OtherUnitThenAnswer(_) => Kind::OtherUnitThenAnswer,
-                Reply::StaleTxThenAnswer(_) => Kind::StaleTxThenAnswer,
+                Reply::OtherUnitThenAnswer { .. } => Kind::OtherUnitThenAnswer,
+                Reply::OtherTxThenAnswer { tx, .. } => Kind::OtherTxThenAnswer(tx),
                 Reply::Silence => Kind::Silence,
                 Reply::LateAfterTimeout(_) => Kind::LateAfterTimeout,
                 Reply::Garbage => Kind::Garbage,
@@ -171,8 +190,8 @@ impl Model {
             _ if self.is_broadcast(unit) => Err(RequestError::ResponseTimeout),
             Reply::Silence | Reply::LateAfterTimeout(_) => Err(RequestError::ResponseTimeout),
             Reply::Answer(value)
-            | Reply::OtherUnitThenAnswer(value)
-            | Reply::StaleTxThenAnswer(value) => Ok(vec![Indexed::new(REGISTER, value)]),
+            | Reply::OtherUnitThenAnswer { value, .. }
+            | Reply::OtherTxThenAnswer { value, .. } => Ok(vec![Indexed::new(REGISTER, value)]),
             Reply::Exception(_, exception) => Err(RequestError::Exception(exception)),
             Reply::WrongFunction => Err(RequestError::BadResponse(
                 AduParseError::UnknownResponseFunction(0x01, 0x03, 0x83),
@@ -259,29 +278,32 @@ fn reply_bytes(link: Link, tx_id: u16, unit: u8, reply: Reply) -> Vec<u8> {
         Reply::Answer(value) => answer(value),
         Reply::Exception(code, _) => frame(link, tx_id, unit, &[0x83, code]),
         Reply::WrongFunction => frame(link, tx_id, unit, &COILS_ON_OFF),
-        Reply::OtherUnitThenAnswer(value) => {
-            let other = unit.wrapping_add(1);
-            [
-                frame(link, tx_id, other, &register_value(!value)),
-                answer(value),
-            ]
-            .concat()
-        }
-        Reply::StaleTxThenAnswer(value) => {
-            let stale = tx_id.wrapping_sub(1);
-            [
-                frame(link, stale, unit, &register_value(!value)),
-                answer(value),
-            ]
-            .concat()
-        }
+        Reply::OtherUnitThenAnswer { from, value } => [
+            frame(link, tx_id, from, &register_value(!value)),
+            answer(value),
+        ]
+        .concat(),
+        Reply::OtherTxThenAnswer { tx, value } => [
+            frame(link, tx.of(tx_id), unit, &register_value(!value)),
+            answer(value),
+        ]
+        .concat(),
         Reply::Silence | Reply::LateAfterTimeout(_) => vec![],
         Reply::Garbage => garbage(link, tx_id, unit).0,
     }
 }
 
+/// The bytes of a request step: what the client wrote, and what the peer wrote back before the
+/// request's deadline
+#[derive(Debug, PartialEq)]
+struct Exchange {
+    request: Vec<u8>,
+    reply: Vec<u8>,
+}
+
 /// Make a request of `unit` that the peer replies to with `reply`, check what the client wrote
-/// and the result against the model, and return how the session ends with it, if it does
+/// and the result against the model, and return the bytes exchanged and how the session ends
+/// with it, if it does
 async fn request(
     link: Link,
     model: &mut Model,
@@ -289,17 +311,19 @@ async fn request(
     session: &mut Session,
     unit: u8,
     reply: Reply,
-) -> Option<SessionEnd> {
+) -> (Exchange, Option<SessionEnd>) {
     let (tx_id, expected, ends) = model.request(unit, reply);
     let started = Instant::now();
     let request = {
         let request = read_register(channel, unit);
         tokio::spawn(async move { (request.await.unwrap(), Instant::now()) })
     };
-    session
-        .expect(&frame(link, tx_id, unit, &READ_REGISTER))
-        .await;
-    session.send(&reply_bytes(link, tx_id, unit, reply)).await;
+    let exchange = Exchange {
+        request: frame(link, tx_id, unit, &READ_REGISTER),
+        reply: reply_bytes(link, tx_id, unit, reply),
+    };
+    session.expect(&exchange.request).await;
+    session.send(&exchange.reply).await;
 
     // a result is due at once, or at the deadline
     let wait = if expected.elapsed == TIMEOUT {
@@ -323,7 +347,7 @@ async fn request(
             .await;
         tokio::time::sleep(TICK).await;
     }
-    ends
+    (exchange, ends)
 }
 
 /// Change a setting through the channel, and return how the session ends with it, if it does
@@ -348,8 +372,13 @@ async fn finish(mut session: Session) -> SessionEnd {
     ended
 }
 
-/// Run a session of `steps`, checking each against the model, and return how it ended
-async fn execute(link: Link, max_timeouts: Option<NonZeroUsize>, steps: &[Step]) -> Ending {
+/// Run a session of `steps`, checking each against the model, and return how it ended and the
+/// bytes of each request step it ran
+async fn execute(
+    link: Link,
+    max_timeouts: Option<NonZeroUsize>,
+    steps: &[Step],
+) -> (Ending, Vec<Exchange>) {
     let setup = match link {
         Link::Tcp => Setup::tcp(),
         #[cfg(feature = "serial")]
@@ -360,11 +389,15 @@ async fn execute(link: Link, max_timeouts: Option<NonZeroUsize>, steps: &[Step])
     client_loop.change_setting(Setting::Enable);
     let mut session = Session::run(client_loop, PIPE);
     let mut model = Model::new(link, max_timeouts);
+    let mut exchanges = vec![];
 
     for step in steps {
         let ends = match *step {
             Step::Request { unit, reply } => {
-                request(link, &mut model, &channel, &mut session, unit, reply).await
+                let (exchange, ends) =
+                    request(link, &mut model, &channel, &mut session, unit, reply).await;
+                exchanges.push(exchange);
+                ends
             }
             Step::Setting(setting) => change(&model, &channel, setting).await,
         };
@@ -376,14 +409,14 @@ async fn execute(link: Link, max_timeouts: Option<NonZeroUsize>, steps: &[Step])
                 );
                 let ended = finish(session).await;
                 assert_eq!(ended, expected);
-                return Ending::Ended(ended);
+                return (Ending::Ended(ended), exchanges);
             }
             None => assert!(!session.task.is_finished(), "the session ended"),
         }
     }
 
     // the session is still running: it answers a request, then ends once the channel is dropped
-    let ends = request(
+    let (_, ends) = request(
         link,
         &mut model,
         &channel,
@@ -398,22 +431,31 @@ async fn execute(link: Link, max_timeouts: Option<NonZeroUsize>, steps: &[Step])
         finish(session).await,
         SessionEnd::Stopped(StateChange::Shutdown)
     );
-    Ending::Running
+    (Ending::Running, exchanges)
 }
 
 /// Run a session of `steps` on its own paused runtime, checking each against the model, and
 /// return how it ended
 fn check(link: Link, max_timeouts: Option<NonZeroUsize>, steps: &[Step]) -> Ending {
+    check_exchanges(link, max_timeouts, steps).0
+}
+
+/// [`check`], also returning the bytes of each request step the session ran
+fn check_exchanges(
+    link: Link,
+    max_timeouts: Option<NonZeroUsize>,
+    steps: &[Step],
+) -> (Ending, Vec<Exchange>) {
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .start_paused(true)
         .build()
         .unwrap();
-    let mut ending = None;
+    let mut ran = None;
     runtime.block_on(watchdog(async {
-        ending = Some(execute(link, max_timeouts, steps).await);
+        ran = Some(execute(link, max_timeouts, steps).await);
     }));
-    ending.unwrap()
+    ran.unwrap()
 }
 
 /// Exception codes, and the exceptions the client reports for them
@@ -436,20 +478,30 @@ fn timeout() -> impl Strategy<Value = Reply> {
     ]
 }
 
-fn reply(link: Link) -> BoxedStrategy<Reply> {
+/// What the peer does once it read a request to `unit`
+fn reply(link: Link, unit: u8) -> BoxedStrategy<Reply> {
     let reply = prop_oneof![
         4 => any::<u16>().prop_map(Reply::Answer),
         2 => prop::sample::select(EXCEPTIONS.to_vec())
             .prop_map(|(code, exception)| Reply::Exception(code, exception)),
         1 => Just(Reply::WrongFunction),
-        2 => any::<u16>().prop_map(Reply::OtherUnitThenAnswer),
+        2 => (1..=u8::MAX, any::<u16>()).prop_map(move |(offset, value)| {
+            Reply::OtherUnitThenAnswer {
+                from: unit.wrapping_add(offset),
+                value,
+            }
+        }),
         4 => timeout(),
         1 => Just(Reply::Garbage),
     ];
     match link {
         Link::Tcp => prop_oneof![
             14 => reply,
-            2 => any::<u16>().prop_map(Reply::StaleTxThenAnswer),
+            2 => (
+                prop::sample::select(vec![Adjacent::Previous, Adjacent::Next]),
+                any::<u16>(),
+            )
+                .prop_map(|(tx, value)| Reply::OtherTxThenAnswer { tx, value }),
         ]
         .boxed(),
         #[cfg(feature = "serial")]
@@ -458,7 +510,9 @@ fn reply(link: Link) -> BoxedStrategy<Reply> {
 }
 
 fn step(link: Link) -> impl Strategy<Value = Step> {
-    let request = (unit(), reply(link)).prop_map(|(unit, reply)| Step::Request { unit, reply });
+    let request = unit().prop_flat_map(move |unit| {
+        reply(link, unit).prop_map(move |reply| Step::Request { unit, reply })
+    });
     let decode = DecodeLevel::new(
         AppDecodeLevel::DataValues,
         FrameDecodeLevel::Payload,
@@ -513,16 +567,6 @@ proptest! {
     }
 }
 
-#[cfg(feature = "serial")]
-proptest! {
-    #![proptest_config(ProptestConfig::with_cases(128))]
-
-    #[test]
-    fn rtu_sessions_match_the_model(max_timeouts in max_timeouts(), steps in steps(Link::Rtu)) {
-        check(Link::Rtu, max_timeouts, &steps);
-    }
-}
-
 /// Check that cases drawn as the property tests draw them run every kind of step, and end in
 /// every way, by the model
 fn assert_generator_reaches_everything(link: Link, kinds: &[Kind], endings_reached: &[Ending]) {
@@ -568,7 +612,8 @@ fn the_tcp_generator_reaches_every_step_and_ending() {
             Kind::Exception,
             Kind::WrongFunction,
             Kind::OtherUnitThenAnswer,
-            Kind::StaleTxThenAnswer,
+            Kind::OtherTxThenAnswer(Adjacent::Previous),
+            Kind::OtherTxThenAnswer(Adjacent::Next),
             Kind::Silence,
             Kind::LateAfterTimeout,
             Kind::Garbage,
@@ -577,28 +622,6 @@ fn the_tcp_generator_reaches_every_step_and_ending() {
             Kind::Disable,
         ],
         &endings(true),
-    );
-}
-
-/// RTU sessions drop the bytes of a bad frame rather than end
-#[cfg(feature = "serial")]
-#[test]
-fn the_rtu_generator_reaches_every_step_but_a_stale_transaction_and_every_ending_but_a_bad_frame() {
-    assert_generator_reaches_everything(
-        Link::Rtu,
-        &[
-            Kind::Answer,
-            Kind::Exception,
-            Kind::WrongFunction,
-            Kind::OtherUnitThenAnswer,
-            Kind::Silence,
-            Kind::LateAfterTimeout,
-            Kind::Garbage,
-            Kind::DecodeLevel,
-            Kind::Enable,
-            Kind::Disable,
-        ],
-        &endings(false),
     );
 }
 
@@ -678,4 +701,173 @@ fn a_late_answer_while_idle_is_ignored() {
     };
     // the next request is answered with its own transaction id
     assert_eq!(check(Link::Tcp, None, &[late]), Ending::Running);
+}
+
+/// The requests a session wrote, in order
+fn requests(exchanges: Vec<Exchange>) -> Vec<Vec<u8>> {
+    exchanges
+        .into_iter()
+        .map(|exchange| exchange.request)
+        .collect()
+}
+
+#[test]
+fn tcp_requests_carry_the_unit_and_successive_transaction_ids() {
+    let steps = [0, 0xFF, 1].map(|unit| Step::Request {
+        unit,
+        reply: Reply::Answer(0x1234),
+    });
+    // the model checks that each request reports 0x1234 from 0x10
+    let (ending, exchanges) = check_exchanges(Link::Tcp, None, &steps);
+    assert_eq!(ending, Ending::Running);
+    assert_eq!(
+        requests(exchanges),
+        [
+            mbap(0, 0, &READ_REGISTER),
+            mbap(1, 0xFF, &READ_REGISTER),
+            mbap(2, 1, &READ_REGISTER),
+        ]
+    );
+}
+
+/// A request to unit 2 that unit 1 replies to first, then unit 2 with 0x2222
+const FROM_UNIT_1_THEN_2: Step = Step::Request {
+    unit: 2,
+    reply: Reply::OtherUnitThenAnswer {
+        from: 1,
+        value: 0x2222,
+    },
+};
+
+#[test]
+fn a_tcp_response_from_another_unit_is_skipped() {
+    // the model checks that the request reports 0x2222 at once
+    let (ending, exchanges) = check_exchanges(Link::Tcp, None, &[FROM_UNIT_1_THEN_2]);
+    assert_eq!(ending, Ending::Running);
+    // the same transaction id, from unit 1 and then from unit 2
+    assert_eq!(
+        exchanges,
+        [Exchange {
+            request: mbap(0, 2, &READ_REGISTER),
+            reply: [
+                mbap(0, 1, &register_value(0xDDDD)),
+                mbap(0, 2, &register_value(0x2222)),
+            ]
+            .concat(),
+        }]
+    );
+}
+
+#[test]
+fn a_tcp_frame_answers_only_with_the_same_transaction_and_unit() {
+    // seven answered requests, so the next is written with transaction id 7
+    let earlier = [ANSWERED; 7];
+    // a frame to unit 2 with transaction id 8, and one to unit 1 with transaction id 7
+    let skipped = [
+        (
+            Reply::OtherTxThenAnswer {
+                tx: Adjacent::Next,
+                value: 0x2222,
+            },
+            mbap(8, 2, &register_value(0xDDDD)),
+        ),
+        (
+            Reply::OtherUnitThenAnswer {
+                from: 1,
+                value: 0x2222,
+            },
+            mbap(7, 1, &register_value(0xDDDD)),
+        ),
+    ];
+    for (reply, skipped) in skipped {
+        let steps: Vec<_> = earlier
+            .into_iter()
+            .chain([Step::Request { unit: 2, reply }])
+            .collect();
+        // the model checks that the request reports 0x2222 at once
+        let (ending, exchanges) = check_exchanges(Link::Tcp, None, &steps);
+        assert_eq!(ending, Ending::Running);
+        assert_eq!(
+            exchanges.last(),
+            Some(&Exchange {
+                request: mbap(7, 2, &READ_REGISTER),
+                reply: [skipped, mbap(7, 2, &register_value(0x2222))].concat(),
+            })
+        );
+    }
+}
+
+/// The cases only RTU framing runs
+#[cfg(feature = "serial")]
+mod rtu_cases {
+    use super::*;
+
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(128))]
+
+        #[test]
+        fn rtu_sessions_match_the_model(max_timeouts in max_timeouts(), steps in steps(Link::Rtu)) {
+            check(Link::Rtu, max_timeouts, &steps);
+        }
+    }
+
+    /// RTU sessions drop the bytes of a bad frame rather than end
+    #[test]
+    fn the_rtu_generator_reaches_every_step_but_another_transaction_and_every_ending_but_a_bad_frame(
+    ) {
+        assert_generator_reaches_everything(
+            Link::Rtu,
+            &[
+                Kind::Answer,
+                Kind::Exception,
+                Kind::WrongFunction,
+                Kind::OtherUnitThenAnswer,
+                Kind::Silence,
+                Kind::LateAfterTimeout,
+                Kind::Garbage,
+                Kind::DecodeLevel,
+                Kind::Enable,
+                Kind::Disable,
+            ],
+            &endings(false),
+        );
+    }
+
+    #[test]
+    fn rtu_requests_carry_the_unit_address() {
+        use crate::serial::test_util::rtu;
+
+        let steps = [1, 0xFF].map(|unit| Step::Request {
+            unit,
+            reply: Reply::Answer(0x1234),
+        });
+        // the model checks that each request reports 0x1234 from 0x10
+        let (ending, exchanges) = check_exchanges(Link::Rtu, None, &steps);
+        assert_eq!(ending, Ending::Running);
+        assert_eq!(
+            requests(exchanges),
+            [rtu(1, &READ_REGISTER), rtu(0xFF, &READ_REGISTER)]
+        );
+    }
+
+    #[test]
+    fn an_rtu_response_from_another_unit_is_skipped() {
+        use crate::serial::test_util::rtu;
+
+        // the model checks that the request reports 0x2222 at once
+        let (ending, exchanges) = check_exchanges(Link::Rtu, None, &[FROM_UNIT_1_THEN_2]);
+        assert_eq!(ending, Ending::Running);
+        // a reply from unit 1, then unit 2's
+        assert_eq!(
+            exchanges,
+            [Exchange {
+                request: rtu(2, &READ_REGISTER),
+                reply: [
+                    rtu(1, &register_value(0xDDDD)),
+                    rtu(2, &register_value(0x2222)),
+                ]
+                .concat(),
+            }]
+        );
+    }
 }
