@@ -113,7 +113,7 @@ impl Step {
 enum Ending {
     /// it was still running after the last step, and answered one more request
     Running,
-    Ended(SessionError),
+    Ended(SessionEnd),
 }
 
 /// What the model expects of a request
@@ -151,7 +151,7 @@ impl Model {
 
     /// The transaction id a request is written with, its outcome, and how the session ends with
     /// it, if it does
-    fn request(&mut self, unit: u8, reply: Reply) -> (u16, Outcome, Option<SessionError>) {
+    fn request(&mut self, unit: u8, reply: Reply) -> (u16, Outcome, Option<SessionEnd>) {
         let tx_id = self.next_tx_id;
         self.next_tx_id = tx_id.wrapping_add(1);
         let result = match reply {
@@ -162,7 +162,11 @@ impl Model {
                     result: Err(RequestError::BadFrame(error)),
                     elapsed: Duration::ZERO,
                 };
-                return (tx_id, outcome, Some(SessionError::BadFrame));
+                return (
+                    tx_id,
+                    outcome,
+                    Some(SessionEnd::Failed(SessionFailure::BadFrame)),
+                );
             }
             _ if self.is_broadcast(unit) => Err(RequestError::ResponseTimeout),
             Reply::Silence | Reply::LateAfterTimeout(_) => Err(RequestError::ResponseTimeout),
@@ -179,7 +183,7 @@ impl Model {
             let ends = self
                 .max_timeouts
                 .filter(|max| self.timeouts >= *max)
-                .map(SessionError::MaxTimeouts);
+                .map(|max| SessionEnd::Failed(SessionFailure::MaxTimeouts(max)));
             let outcome = Outcome {
                 result,
                 elapsed: TIMEOUT,
@@ -196,15 +200,15 @@ impl Model {
     }
 
     /// How the session ends with a setting, if it does
-    fn setting(&self, change: Change) -> Option<SessionError> {
+    fn setting(&self, change: Change) -> Option<SessionEnd> {
         match change {
             Change::DecodeLevel(_) | Change::Enable => None,
-            Change::Disable => Some(SessionError::Disabled),
+            Change::Disable => Some(SessionEnd::Stopped(StateChange::Disable)),
         }
     }
 
     /// How the session ends with a step, if it does
-    fn step(&mut self, step: Step) -> Option<SessionError> {
+    fn step(&mut self, step: Step) -> Option<SessionEnd> {
         match step {
             Step::Request { unit, reply } => self.request(unit, reply).2,
             Step::Setting(change) => self.setting(change),
@@ -285,7 +289,7 @@ async fn request(
     session: &mut Session,
     unit: u8,
     reply: Reply,
-) -> Option<SessionError> {
+) -> Option<SessionEnd> {
     let (tx_id, expected, ends) = model.request(unit, reply);
     let started = Instant::now();
     let request = {
@@ -323,7 +327,7 @@ async fn request(
 }
 
 /// Change a setting through the channel, and return how the session ends with it, if it does
-async fn change(model: &Model, channel: &Channel, change: Change) -> Option<SessionError> {
+async fn change(model: &Model, channel: &Channel, change: Change) -> Option<SessionEnd> {
     match change {
         Change::DecodeLevel(level) => channel.set_decode_level(level).await,
         Change::Enable => channel.enable().await,
@@ -335,7 +339,7 @@ async fn change(model: &Model, channel: &Channel, change: Change) -> Option<Sess
 }
 
 /// How the session ended, after checking it wrote nothing more
-async fn finish(mut session: Session) -> SessionError {
+async fn finish(mut session: Session) -> SessionEnd {
     let (ended, _) = (&mut session.task).await.unwrap();
     // the session dropped its end of the pipe, so the peer reads what is left, then the end
     let mut rest = vec![];
@@ -390,7 +394,10 @@ async fn execute(link: Link, max_timeouts: Option<usize>, steps: &[Step]) -> End
     .await;
     assert_eq!(ends, None);
     drop(channel);
-    assert_eq!(finish(session).await, SessionError::Shutdown);
+    assert_eq!(
+        finish(session).await,
+        SessionEnd::Stopped(StateChange::Shutdown)
+    );
     Ending::Running
 }
 
@@ -534,14 +541,14 @@ fn assert_generator_reaches_everything(link: Link, kinds: &[Kind], endings_reach
 fn endings(bad_frame: bool) -> Vec<Ending> {
     let mut endings = vec![
         Ending::Running,
-        Ending::Ended(SessionError::MaxTimeouts(1)),
-        Ending::Ended(SessionError::MaxTimeouts(2)),
-        Ending::Ended(SessionError::MaxTimeouts(3)),
-        Ending::Ended(SessionError::MaxTimeouts(4)),
-        Ending::Ended(SessionError::Disabled),
+        Ending::Ended(SessionEnd::Failed(SessionFailure::MaxTimeouts(1))),
+        Ending::Ended(SessionEnd::Failed(SessionFailure::MaxTimeouts(2))),
+        Ending::Ended(SessionEnd::Failed(SessionFailure::MaxTimeouts(3))),
+        Ending::Ended(SessionEnd::Failed(SessionFailure::MaxTimeouts(4))),
+        Ending::Ended(SessionEnd::Stopped(StateChange::Disable)),
     ];
     if bad_frame {
-        endings.push(Ending::Ended(SessionError::BadFrame));
+        endings.push(Ending::Ended(SessionEnd::Failed(SessionFailure::BadFrame)));
     }
     endings
 }
@@ -605,7 +612,7 @@ const ANSWERED: Step = Step::Request {
 fn terminates_after_max_consecutive_timeouts() {
     assert_eq!(
         check(Link::Tcp, Some(3), &[SILENCE; 3]),
-        Ending::Ended(SessionError::MaxTimeouts(3))
+        Ending::Ended(SessionEnd::Failed(SessionFailure::MaxTimeouts(3)))
     );
 }
 
@@ -646,7 +653,7 @@ fn disabling_the_channel_ends_the_session_and_other_settings_dont() {
     ];
     assert_eq!(
         check(Link::Tcp, None, &steps),
-        Ending::Ended(SessionError::Disabled)
+        Ending::Ended(SessionEnd::Stopped(StateChange::Disable))
     );
 }
 

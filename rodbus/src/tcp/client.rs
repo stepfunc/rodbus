@@ -11,7 +11,7 @@ use crate::common::cancellation::ShutdownSignal;
 use crate::common::phys::{PhysLayer, Socket};
 
 use crate::client::message::Command;
-use crate::client::task::{AfterSession, ClientLoop, StateChange};
+use crate::client::task::{ClientLoop, SessionEnd, StateChange};
 use crate::common::frame::{FrameWriter, FramedReader};
 use crate::error::Shutdown;
 use crate::retry::RetryStrategy;
@@ -164,12 +164,12 @@ impl<C: Connect> TcpChannelTask<C> {
                 return Shutdown;
             }
 
-            if let Err(StateChange::Shutdown) = self.try_connect_and_run().await {
-                return Shutdown;
-            }
-
-            if !self.client_loop.is_enabled() {
-                self.listener.update(ClientState::Disabled).get().await;
+            match self.try_connect_and_run().await {
+                Ok(()) => {}
+                Err(StateChange::Disable) => {
+                    self.listener.update(ClientState::Disabled).get().await;
+                }
+                Err(StateChange::Shutdown) => return Shutdown,
             }
         }
     }
@@ -208,6 +208,8 @@ impl<C: Connect> TcpChannelTask<C> {
         connection_handler.handle(stream, host).await
     }
 
+    /// Connect and run a session, then wait out any retry delay. `Ok` means connect again;
+    /// `Err` is what stopped the channel meanwhile.
     async fn try_connect_and_run(&mut self) -> Result<(), StateChange> {
         self.listener.update(ClientState::Connecting).get().await;
         match self.connect().await? {
@@ -221,10 +223,9 @@ impl<C: Connect> TcpChannelTask<C> {
         // we do this here so that the reset happens after a TLS handshake
         self.connect_retry.reset();
 
-        match self.client_loop.run(&mut phys).await.after() {
-            AfterSession::End => Err(StateChange::Shutdown),
-            AfterSession::Idle => Ok(()),
-            AfterSession::Reconnect => {
+        match self.client_loop.run(&mut phys).await {
+            SessionEnd::Stopped(change) => Err(change),
+            SessionEnd::Failed(_) => {
                 drop(phys);
                 let delay = self.connect_retry.after_disconnect();
                 log_channel_event(

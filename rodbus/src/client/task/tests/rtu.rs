@@ -90,7 +90,10 @@ async fn an_rtu_request_times_out_under_continuing_noise_and_the_session_carries
         assert_eq!(request.await.unwrap(), Ok(vec![Indexed::new(0x10, 0x2222)]));
 
         drop(channel);
-        assert_eq!(session.ended().await, SessionError::Shutdown);
+        assert_eq!(
+            session.ended().await,
+            SessionEnd::Stopped(StateChange::Shutdown)
+        );
     })
     .await;
 }
