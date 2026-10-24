@@ -141,6 +141,11 @@ where
         self.promise.failure(err)
     }
 
+    /// Complete a write that nothing answers, a broadcast, with the range it wrote
+    pub(crate) fn complete_unanswered(&mut self) {
+        self.promise.success(self.request.range())
+    }
+
     pub(crate) fn handle_response(
         &mut self,
         cursor: ReadCursor,

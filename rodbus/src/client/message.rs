@@ -220,6 +220,34 @@ impl RequestDetails {
         }
     }
 
+    /// Whether this is a write, the only kind of request a broadcast can carry
+    pub(crate) fn is_write(&self) -> bool {
+        matches!(
+            self,
+            RequestDetails::WriteSingleCoil(_)
+                | RequestDetails::WriteSingleRegister(_)
+                | RequestDetails::WriteMultipleCoils(_)
+                | RequestDetails::WriteMultipleRegisters(_)
+        )
+    }
+
+    /// Complete a write that nothing answers, a broadcast, with what a response would have given
+    ///
+    /// Returns `false` for a read, which has no result without a response
+    pub(crate) fn complete_unanswered_write(&mut self) -> bool {
+        match self {
+            RequestDetails::ReadCoils(_)
+            | RequestDetails::ReadDiscreteInputs(_)
+            | RequestDetails::ReadHoldingRegisters(_)
+            | RequestDetails::ReadInputRegisters(_) => return false,
+            RequestDetails::WriteSingleCoil(x) => x.complete_unanswered(),
+            RequestDetails::WriteSingleRegister(x) => x.complete_unanswered(),
+            RequestDetails::WriteMultipleCoils(x) => x.complete_unanswered(),
+            RequestDetails::WriteMultipleRegisters(x) => x.complete_unanswered(),
+        }
+        true
+    }
+
     fn handle_response(
         &mut self,
         cursor: ReadCursor,

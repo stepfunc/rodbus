@@ -30,6 +30,12 @@ impl SerialPort {
         Ok(length)
     }
 
+    /// When the line went, or is expected to go, quiet: after a write, the estimated end of its
+    /// transmission, which the driver may still be sending
+    pub(crate) fn quiet_from(&self) -> tokio::time::Instant {
+        self.gap.quiet_from
+    }
+
     /// Write `data` once the line has been quiet for t3.5
     pub(crate) async fn write(&mut self, data: &[u8]) -> std::io::Result<()> {
         self.gap.before_write().await;

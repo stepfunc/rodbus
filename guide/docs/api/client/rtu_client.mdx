@@ -19,8 +19,9 @@ Otherwise, `create_rtu_client_task` returns the `Channel` and a `ClientTask`; sp
 
 :::info
 A request to unit ID `0x00` is sent as a broadcast. Servers apply a broadcast write without replying, so once it is sent the
-request ends with a response timeout, unless another error (such as failing to send it in time) ends it first. A response
-timeout doesn't mean the write wasn't applied.
+client waits the request's response timeout as the turnaround delay that lets every server process it, and then completes the write
+successfully with the value or range it wrote. Give broadcasts a short timeout, typically 100 to 200 ms. A read can't be
+broadcast: one sent to `0x00` ends with a response timeout.
 :::
 
 <Tabs

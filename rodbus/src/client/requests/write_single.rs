@@ -38,6 +38,14 @@ where
         self.promise.failure(err)
     }
 
+    /// Complete a write that nothing answers, a broadcast, with the value it wrote
+    pub(crate) fn complete_unanswered(&mut self)
+    where
+        T: Copy,
+    {
+        self.promise.success(self.request)
+    }
+
     pub(crate) fn handle_response(
         &mut self,
         cursor: ReadCursor,

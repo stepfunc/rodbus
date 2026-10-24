@@ -172,6 +172,16 @@ impl PhysLayer {
         Ok(length)
     }
 
+    /// When the line went, or is expected to go, quiet after the last write: for a serial port,
+    /// the estimated end of the transmission, which its driver may still be sending; otherwise now
+    pub(crate) fn quiet_from(&self) -> tokio::time::Instant {
+        #[cfg(feature = "serial")]
+        if let PhysLayerImpl::Serial(port) = &self.layer {
+            return port.quiet_from();
+        }
+        tokio::time::Instant::now()
+    }
+
     pub(crate) async fn write(
         &mut self,
         data: &[u8],
