@@ -296,16 +296,10 @@ impl std::fmt::Display for RequestDisplay<'_, '_> {
 
         if self.level.data_headers() {
             match self.request {
-                Request::ReadCoils(range) => {
+                Request::ReadCoils(range) | Request::ReadDiscreteInputs(range) => {
                     write!(f, " {}", range.get())?;
                 }
-                Request::ReadDiscreteInputs(range) => {
-                    write!(f, " {}", range.get())?;
-                }
-                Request::ReadHoldingRegisters(range) => {
-                    write!(f, " {}", range.get())?;
-                }
-                Request::ReadInputRegisters(range) => {
+                Request::ReadHoldingRegisters(range) | Request::ReadInputRegisters(range) => {
                     write!(f, " {}", range.get())?;
                 }
                 Request::Write(WriteRequest::SingleCoil(request)) => {
