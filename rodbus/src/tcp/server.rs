@@ -291,7 +291,7 @@ where
             id
         );
 
-        let (tx, rx) = tokio::sync::mpsc::channel(8); // all we do is change settings, so a constant is fine
+        let (tx, rx) = tokio::sync::mpsc::channel(SERVER_COMMAND_CHANNEL_CAPACITY);
         let notify_close = self.tx.clone();
         let handler_map = self.handlers.clone();
         let decode_level = self.decode;
