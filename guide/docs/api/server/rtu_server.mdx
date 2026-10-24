@@ -41,7 +41,9 @@ The server doesn't reply to a request for a unit ID that isn't in its map, since
 
 ### Reserved addresses
 
-Do not use addresses 248 (`0xF8`) to 255 (`0xFF`), which are reserved by the specification. The library does not enforce this requirement but generates a warning as a reminder of potential interoperability issues.
+Do not use addresses 248 (`0xF8`) to 255 (`0xFF`), which are reserved by the specification. The library does not enforce this
+requirement: it processes such frames like any other, and logs one warning, the first time a frame uses a reserved address after the
+port opens, as a reminder of potential interoperability issues.
 
 ## Creating a server
 
