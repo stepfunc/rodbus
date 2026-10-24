@@ -411,92 +411,39 @@ mod test {
         LimitedWrite, MultipleWriteRequest, WriteMultiple,
     };
     use crate::client::requests::write_single::SingleWrite;
+    use crate::client::test_support::Completions;
     use crate::types::{ReadBitsRange, ReadRegistersRange};
-    use crate::{
-        AddressRange, AduParseError, AppDecodeLevel, BitIterator, ExceptionCode, Indexed,
-        RegisterIterator, RequestError, UnitId,
-    };
+    use crate::{AddressRange, AduParseError, AppDecodeLevel, Indexed, RequestError, UnitId};
     use std::borrow::Cow;
-    use std::collections::VecDeque;
-    use std::sync::{Arc, Mutex};
     use std::time::Duration;
-
-    #[derive(Clone)]
-    struct Errors {
-        inner: Arc<Mutex<VecDeque<RequestError>>>,
-    }
-
-    impl Errors {
-        fn new() -> Self {
-            Self {
-                inner: Default::default(),
-            }
-        }
-
-        fn push(&mut self, err: RequestError) {
-            let mut guard = self.inner.lock().unwrap();
-            guard.push_back(err);
-        }
-
-        fn pop(&mut self) -> (Option<RequestError>, usize) {
-            let mut guard = self.inner.lock().unwrap();
-            let ret = guard.pop_front();
-            (ret, guard.len())
-        }
-    }
-
-    fn create_read_bits(mut errors: Errors) -> RequestDetails {
-        let range = AddressRange::try_from(0, 5)
-            .unwrap()
-            .of_read_bits()
-            .unwrap();
-        let callback = move |result: Result<BitIterator, RequestError>| {
-            errors.push(result.err().unwrap());
-        };
-        RequestDetails::ReadCoils(ReadBits::new(
-            range,
-            crate::client::requests::read_bits::Promise::new(callback),
-        ))
-    }
-
-    fn create_read_registers(mut errors: Errors) -> RequestDetails {
-        let range = AddressRange::try_from(0, 5)
-            .unwrap()
-            .of_read_registers()
-            .unwrap();
-        let callback = move |result: Result<RegisterIterator, RequestError>| {
-            errors.push(result.err().unwrap());
-        };
-        RequestDetails::ReadHoldingRegisters(ReadRegisters::new(
-            range,
-            crate::client::requests::read_registers::Promise::new(callback),
-        ))
-    }
-
-    fn create_write_coil(mut errors: Errors) -> RequestDetails {
-        let callback = move |result: Result<Indexed<bool>, RequestError>| {
-            errors.push(result.err().unwrap());
-        };
-        RequestDetails::WriteSingleCoil(SingleWrite::new(
-            Indexed::new(0, true),
-            Promise::new(callback),
-        ))
-    }
 
     #[test]
     fn dropping_request_details_invokes_callback() {
-        let mut errors = Errors::new();
+        let range = AddressRange::try_from(0, 5).unwrap();
 
-        let generators = [create_read_registers, create_read_bits, create_write_coil];
+        let bits = Completions::new();
+        let promise = read_bits::Promise::new(bits.bits());
+        drop(RequestDetails::ReadCoils(ReadBits::new(
+            range.of_read_bits().unwrap(),
+            promise,
+        )));
+        assert_eq!(bits.take(), [Err(RequestError::Shutdown)]);
 
-        for gen in generators {
-            // generate a RequestDetails and then immediately drop it
-            drop(gen(errors.clone()));
-            // check that this produces a callback
-            let (error, remaining) = errors.pop();
-            assert_eq!(error, Some(RequestError::Shutdown));
-            assert_eq!(remaining, 0);
-        }
+        let registers = Completions::new();
+        let promise = read_registers::Promise::new(registers.registers());
+        drop(RequestDetails::ReadHoldingRegisters(ReadRegisters::new(
+            range.of_read_registers().unwrap(),
+            promise,
+        )));
+        assert_eq!(registers.take(), [Err(RequestError::Shutdown)]);
+
+        let coil = Completions::new();
+        let promise = Promise::new(coil.callback());
+        drop(RequestDetails::WriteSingleCoil(SingleWrite::new(
+            Indexed::new(0, true),
+            promise,
+        )));
+        assert_eq!(coil.take(), [Err(RequestError::Shutdown)]);
     }
 
     /// The request a response answers
@@ -554,16 +501,16 @@ mod test {
     /// What a promise delivered, in order
     type Delivered = Vec<Result<Outcome, RequestError>>;
 
-    /// What a boxed callback delivered
-    type Slot = Arc<Mutex<Delivered>>;
-
-    fn record(slot: &Slot, result: Result<Outcome, RequestError>) {
-        slot.lock().unwrap().push(result);
-    }
-
-    /// What the callback delivered since the last call
-    fn drain(slot: &Slot) -> Delivered {
-        std::mem::take(&mut *slot.lock().unwrap())
+    /// What the callbacks delivered since the last call
+    fn taken<T>(completions: &Completions<T>, wrap: fn(T) -> Outcome) -> Delivered
+    where
+        T: Send + 'static,
+    {
+        completions
+            .take()
+            .into_iter()
+            .map(|x| x.map(wrap))
+            .collect()
     }
 
     /// What the oneshot delivered since the last call
@@ -651,14 +598,10 @@ mod test {
                 })
             }
             Completion::Callback => {
-                let slot = Slot::default();
-                let sink = slot.clone();
-                let promise =
-                    read_bits::Promise::new(move |result: Result<BitIterator, RequestError>| {
-                        record(&sink, result.map(|values| Outcome::Bits(values.collect())));
-                    });
+                let completions = Completions::new();
+                let promise = read_bits::Promise::new(completions.bits());
                 exchange(make(ReadBits::new(range, promise)), payload, || {
-                    drain(&slot)
+                    taken(&completions, Outcome::Bits)
                 })
             }
         }
@@ -678,18 +621,10 @@ mod test {
                 })
             }
             Completion::Callback => {
-                let slot = Slot::default();
-                let sink = slot.clone();
-                let promise = read_registers::Promise::new(
-                    move |result: Result<RegisterIterator, RequestError>| {
-                        record(
-                            &sink,
-                            result.map(|values| Outcome::Registers(values.collect())),
-                        );
-                    },
-                );
+                let completions = Completions::new();
+                let promise = read_registers::Promise::new(completions.registers());
                 exchange(make(ReadRegisters::new(range, promise)), payload, || {
-                    drain(&slot)
+                    taken(&completions, Outcome::Registers)
                 })
             }
         }
@@ -712,12 +647,9 @@ mod test {
                 })
             }
             Completion::Callback => {
-                let slot = Slot::default();
-                let sink = slot.clone();
-                let promise = Promise::new(move |result: Result<T, RequestError>| {
-                    record(&sink, result.map(wrap));
-                });
-                exchange(make(promise), payload, || drain(&slot))
+                let completions = Completions::new();
+                let promise = Promise::new(completions.callback());
+                exchange(make(promise), payload, || taken(&completions, wrap))
             }
         }
     }
@@ -789,15 +721,10 @@ mod test {
         Outcome::Rejected(RequestError::BadResponse(err))
     }
 
-    fn exception(code: ExceptionCode) -> Outcome {
-        Outcome::Rejected(RequestError::Exception(code))
-    }
-
     fn range(start: u16, count: u16) -> Outcome {
         Outcome::Range(AddressRange::try_from(start, count).unwrap())
     }
 
-    const READ_REGISTER: Sent = Sent::ReadHoldingRegisters { start: 0, count: 1 };
     const WRITE_COIL: Sent = Sent::WriteSingleCoil(Indexed {
         index: 0x0010,
         value: true,
@@ -821,92 +748,11 @@ mod test {
         values: Cow::Borrowed(&[0x000A, 0x0102]),
     };
 
+    /// Each layout written out, and responses with two faults; the properties below make every
+    /// single corruption
     fn rows() -> Vec<(Sent, &'static [u8], Outcome)> {
         vec![
-            // A response that can't hold a function code
-            (
-                READ_REGISTER,
-                &[],
-                rejected(AduParseError::InsufficientBytes),
-            ),
-            // Function codes other than the request's or its exception code (caught if the
-            // function comparison or the error-bit check went)
-            (
-                READ_REGISTER,
-                &[0x04, 0x02, 0x12, 0x34],
-                rejected(AduParseError::UnknownResponseFunction(0x04, 0x03, 0x83)),
-            ),
-            (
-                READ_REGISTER,
-                &[0x84, 0x02],
-                rejected(AduParseError::UnknownResponseFunction(0x84, 0x03, 0x83)),
-            ),
-            (
-                WRITE_COIL,
-                &[0x2B, 0x00, 0x10, 0xFF, 0x00],
-                rejected(AduParseError::UnknownResponseFunction(0x2B, 0x05, 0x85)),
-            ),
-            (
-                WRITE_REGISTERS,
-                &[0x03, 0x02, 0x00, 0x00],
-                rejected(AduParseError::UnknownResponseFunction(0x03, 0x10, 0x90)),
-            ),
-            // Exceptions, known and unknown values (caught if the code were mapped wrongly)
-            (
-                Sent::ReadCoils { start: 0, count: 1 },
-                &[0x81, 0x01],
-                exception(ExceptionCode::IllegalFunction),
-            ),
-            (
-                READ_REGISTER,
-                &[0x83, 0x02],
-                exception(ExceptionCode::IllegalDataAddress),
-            ),
-            (
-                WRITE_COILS,
-                &[0x8F, 0x04],
-                exception(ExceptionCode::ServerDeviceFailure),
-            ),
-            (
-                WRITE_REGISTER,
-                &[0x86, 0x0B],
-                exception(ExceptionCode::GatewayTargetDeviceFailedToRespond),
-            ),
-            (
-                WRITE_REGISTER,
-                &[0x86, 0x00],
-                exception(ExceptionCode::Unknown(0x00)),
-            ),
-            (
-                READ_REGISTER,
-                &[0x83, 0x09],
-                exception(ExceptionCode::Unknown(0x09)),
-            ),
-            (
-                READ_REGISTER,
-                &[0x83, 0xFF],
-                exception(ExceptionCode::Unknown(0xFF)),
-            ),
-            // An exception with no code, or with bytes after it (the second caught if the
-            // exception's trailing-byte check went)
-            (
-                READ_REGISTER,
-                &[0x83],
-                rejected(AduParseError::InsufficientBytes),
-            ),
-            (
-                READ_REGISTER,
-                &[0x83, 0x02, 0x00],
-                rejected(AduParseError::TrailingBytes(1)),
-            ),
-            (
-                WRITE_COIL,
-                &[0x85, 0x02, 0x00, 0x00],
-                rejected(AduParseError::TrailingBytes(2)),
-            ),
-            // Write single coil: the echo is compared with the request (caught if the
-            // comparison went) and its value must be ON or OFF (caught if `coil_from_u16`
-            // accepted other values)
+            // Write single coil: ON is 0xFF00 and OFF is 0x0000
             (
                 WRITE_COIL,
                 &[0x05, 0x00, 0x10, 0xFF, 0x00],
@@ -917,88 +763,21 @@ mod test {
                 &[0x05, 0x00, 0x10, 0x00, 0x00],
                 Outcome::Coil(Indexed::new(0x0010, false)),
             ),
-            (
-                WRITE_COIL,
-                &[0x05, 0x00, 0x11, 0xFF, 0x00],
-                rejected(AduParseError::ReplyEchoMismatch),
-            ),
-            (
-                WRITE_COIL,
-                &[0x05, 0x00, 0x10, 0x00, 0x00],
-                rejected(AduParseError::ReplyEchoMismatch),
-            ),
-            (
-                WRITE_COIL_OFF,
-                &[0x05, 0x00, 0x10, 0xFF, 0x00],
-                rejected(AduParseError::ReplyEchoMismatch),
-            ),
-            (
-                WRITE_COIL,
-                &[0x05, 0x00, 0x10, 0xFF, 0x01],
-                rejected(AduParseError::UnknownCoilState(0xFF01)),
-            ),
-            (
-                WRITE_COIL_OFF,
-                &[0x05, 0x00, 0x10, 0x00, 0x01],
-                rejected(AduParseError::UnknownCoilState(0x0001)),
-            ),
-            // Write single coil: bytes after the echo, or a truncated echo (caught if the
-            // trailing-byte check went, or the parse read past the end); the response's length is
-            // checked before the coil value it echoes
-            (
-                WRITE_COIL,
-                &[0x05, 0x00, 0x10, 0xFF, 0x00, 0x00],
-                rejected(AduParseError::TrailingBytes(1)),
-            ),
+            // Write single coil: the response's length is checked before the coil value it
+            // echoes
             (
                 WRITE_COIL,
                 &[0x05, 0x00, 0x10, 0xFF, 0x01, 0x00],
                 rejected(AduParseError::TrailingBytes(1)),
             ),
-            (
-                WRITE_COIL,
-                &[0x05, 0x00, 0x10, 0xFF],
-                rejected(AduParseError::InsufficientBytes),
-            ),
-            (
-                WRITE_COIL,
-                &[0x05, 0x00, 0x10],
-                rejected(AduParseError::InsufficientBytes),
-            ),
-            (
-                WRITE_COIL,
-                &[0x05],
-                rejected(AduParseError::InsufficientBytes),
-            ),
-            // Write single register: the same echo checks
+            // Write single register: the address, then the value, high bytes first
             (
                 WRITE_REGISTER,
                 &[0x06, 0x00, 0x01, 0x12, 0x34],
                 Outcome::Register(Indexed::new(0x0001, 0x1234)),
             ),
-            (
-                WRITE_REGISTER,
-                &[0x06, 0x00, 0x02, 0x12, 0x34],
-                rejected(AduParseError::ReplyEchoMismatch),
-            ),
-            (
-                WRITE_REGISTER,
-                &[0x06, 0x00, 0x01, 0x12, 0x35],
-                rejected(AduParseError::ReplyEchoMismatch),
-            ),
-            (
-                WRITE_REGISTER,
-                &[0x06, 0x00, 0x01, 0x12, 0x34, 0x00],
-                rejected(AduParseError::TrailingBytes(1)),
-            ),
-            (
-                WRITE_REGISTER,
-                &[0x06, 0x00, 0x01, 0x12],
-                rejected(AduParseError::InsufficientBytes),
-            ),
             // Write multiple coils: nothing may follow the echoed range, which is then compared
-            // with the request's (caught if the comparison went); a range no request can have is
-            // a mismatch like any other
+            // with the request's
             (
                 WRITE_COILS,
                 &[0x0F, 0x00, 0x13, 0x00, 0x0A],
@@ -1006,77 +785,16 @@ mod test {
             ),
             (
                 WRITE_COILS,
-                &[0x0F, 0x00, 0x14, 0x00, 0x0A],
-                rejected(AduParseError::ReplyEchoMismatch),
-            ),
-            (
-                WRITE_COILS,
-                &[0x0F, 0x00, 0x13, 0x00, 0x09],
-                rejected(AduParseError::ReplyEchoMismatch),
-            ),
-            (
-                WRITE_COILS,
-                &[0x0F, 0x00, 0x13, 0x00, 0x0A, 0x00],
-                rejected(AduParseError::TrailingBytes(1)),
-            ),
-            (
-                WRITE_COILS,
                 &[0x0F, 0x00, 0x14, 0x00, 0x0A, 0x00],
                 rejected(AduParseError::TrailingBytes(1)),
             ),
-            (
-                WRITE_COILS,
-                &[0x0F, 0x00, 0x13, 0x00, 0x00],
-                rejected(AduParseError::ReplyEchoMismatch),
-            ),
-            (
-                WRITE_COILS,
-                &[0x0F, 0xFF, 0xFF, 0x00, 0x0A],
-                rejected(AduParseError::ReplyEchoMismatch),
-            ),
-            (
-                WRITE_COILS,
-                &[0x0F, 0x00, 0x13, 0x00],
-                rejected(AduParseError::InsufficientBytes),
-            ),
-            // Write multiple registers: the same echo checks
+            // Write multiple registers: the starting address, then the quantity
             (
                 WRITE_REGISTERS,
                 &[0x10, 0x00, 0x01, 0x00, 0x02],
                 range(0x0001, 2),
             ),
-            (
-                WRITE_REGISTERS,
-                &[0x10, 0x00, 0x00, 0x00, 0x02],
-                rejected(AduParseError::ReplyEchoMismatch),
-            ),
-            (
-                WRITE_REGISTERS,
-                &[0x10, 0x00, 0x01, 0x00, 0x03],
-                rejected(AduParseError::ReplyEchoMismatch),
-            ),
-            (
-                WRITE_REGISTERS,
-                &[0x10, 0x00, 0x01, 0x00, 0x02, 0x00, 0x00],
-                rejected(AduParseError::TrailingBytes(2)),
-            ),
-            (
-                WRITE_REGISTERS,
-                &[0x10, 0x00, 0x01],
-                rejected(AduParseError::InsufficientBytes),
-            ),
-            (
-                WRITE_REGISTERS,
-                &[0x10, 0x00, 0x01, 0x00, 0x00],
-                rejected(AduParseError::ReplyEchoMismatch),
-            ),
-            (
-                WRITE_REGISTERS,
-                &[0x10, 0xFF, 0xFF, 0x00, 0x02],
-                rejected(AduParseError::ReplyEchoMismatch),
-            ),
-            // Reads deliver one value per address, bits LSB first (caught if the bit order or
-            // the addresses assigned to the values changed)
+            // Reads deliver one value per address, bits LSB first
             (
                 Sent::ReadCoils {
                     start: 1,
@@ -1097,66 +815,9 @@ mod test {
                 ]),
             ),
             (
-                Sent::ReadDiscreteInputs {
-                    start: 0xFFFE,
-                    count: 2,
-                },
-                &[0x02, 0x01, 0b0000_0010],
-                Outcome::Bits(vec![
-                    Indexed::new(0xFFFE, false),
-                    Indexed::new(0xFFFF, true),
-                ]),
-            ),
-            (
                 Sent::ReadHoldingRegisters { start: 7, count: 2 },
                 &[0x03, 0x04, 0x12, 0x34, 0xAB, 0xCD],
                 Outcome::Registers(vec![Indexed::new(7, 0x1234), Indexed::new(8, 0xABCD)]),
-            ),
-            (
-                Sent::ReadInputRegisters {
-                    start: 0xFFFF,
-                    count: 1,
-                },
-                &[0x04, 0x02, 0xFF, 0xFE],
-                Outcome::Registers(vec![Indexed::new(0xFFFF, 0xFFFE)]),
-            ),
-            // A read's byte count must match the bytes after it (caught if the count were
-            // ignored): too few, too many, and a count with no values, for each read function;
-            // then the bytes must be what the quantity needs
-            (
-                Sent::ReadCoils { start: 1, count: 2 },
-                &[0x01, 0x00, 0b01],
-                rejected(AduParseError::InsufficientBytesForByteCount(0, 1)),
-            ),
-            (
-                Sent::ReadDiscreteInputs { start: 1, count: 2 },
-                &[0x02, 0x02, 0b01],
-                rejected(AduParseError::InsufficientBytesForByteCount(2, 1)),
-            ),
-            (
-                Sent::ReadHoldingRegisters { start: 7, count: 1 },
-                &[0x03, 0xFF, 0x12, 0x34],
-                rejected(AduParseError::InsufficientBytesForByteCount(255, 2)),
-            ),
-            (
-                Sent::ReadInputRegisters { start: 7, count: 1 },
-                &[0x04, 0x02],
-                rejected(AduParseError::InsufficientBytesForByteCount(2, 0)),
-            ),
-            (
-                Sent::ReadCoils { start: 1, count: 9 },
-                &[0x01, 0x01, 0xFF],
-                rejected(AduParseError::InsufficientBytes),
-            ),
-            (
-                Sent::ReadHoldingRegisters { start: 7, count: 1 },
-                &[0x03, 0x03, 0x12, 0x34, 0x56],
-                rejected(AduParseError::TrailingBytes(1)),
-            ),
-            (
-                Sent::ReadInputRegisters { start: 7, count: 1 },
-                &[0x04],
-                rejected(AduParseError::InsufficientBytes),
             ),
         ]
     }
@@ -1189,6 +850,7 @@ mod test {
         use crate::common::traits::Serialize;
         use crate::server::response::{BitWriter, RegisterWriter};
         use crate::types::strategies::{packed_bits, packed_registers, values};
+        use crate::ExceptionCode;
 
         /// The kinds of request
         #[derive(Clone, Copy, Debug)]

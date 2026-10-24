@@ -235,15 +235,13 @@ impl<T> From<TrySendError<T>> for FfiChannelError {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::{Arc, Mutex};
     use std::time::Duration;
 
-    use scursor::WriteCursor;
     use tokio::sync::mpsc::error::TryRecvError;
 
     use super::*;
     use crate::client::message::Request;
-    use crate::common::traits::Serialize;
+    use crate::client::test_support::{self, pdu, Completions};
     use crate::decode::AppDecodeLevel;
     use crate::UnitId;
 
@@ -263,51 +261,6 @@ mod tests {
         })
     }
 
-    /// Records every completion of the callbacks it hands out
-    struct Completions<T> {
-        results: Arc<Mutex<Vec<Result<T, RequestError>>>>,
-    }
-
-    impl<T> Completions<T>
-    where
-        T: Send + 'static,
-    {
-        fn new() -> Self {
-            Self {
-                results: Arc::new(Mutex::new(Vec::new())),
-            }
-        }
-
-        fn take(&self) -> Vec<Result<T, RequestError>> {
-            std::mem::take(&mut *self.results.lock().unwrap())
-        }
-
-        fn callback(&self) -> impl FnOnce(Result<T, RequestError>) + Send + Sync + 'static {
-            let results = self.results.clone();
-            move |result| results.lock().unwrap().push(result)
-        }
-    }
-
-    impl Completions<Vec<Indexed<bool>>> {
-        fn bits(&self) -> impl FnOnce(Result<BitIterator, RequestError>) + Send + Sync + 'static {
-            let results = self.results.clone();
-            move |result: Result<BitIterator, RequestError>| {
-                results.lock().unwrap().push(result.map(|x| x.collect()))
-            }
-        }
-    }
-
-    impl Completions<Vec<Indexed<u16>>> {
-        fn registers(
-            &self,
-        ) -> impl FnOnce(Result<RegisterIterator, RequestError>) + Send + Sync + 'static {
-            let results = self.results.clone();
-            move |result: Result<RegisterIterator, RequestError>| {
-                results.lock().unwrap().push(result.map(|x| x.collect()))
-            }
-        }
-    }
-
     fn param() -> RequestParam {
         RequestParam::new(UnitId::new(1), Duration::from_secs(1))
     }
@@ -318,9 +271,8 @@ mod tests {
 
     /// An [`FfiChannel`] with no task: the test is the receiving end of its queue
     fn channel(capacity: usize) -> (FfiChannel, tokio::sync::mpsc::Receiver<Command>) {
-        let (tx, rx) = tokio::sync::mpsc::channel(capacity);
-        let (shutdown, _) = crate::common::cancellation::pair();
-        (FfiChannel::new(Channel { tx, shutdown }), rx)
+        let (channel, rx) = test_support::channel(capacity);
+        (FfiChannel::new(channel), rx)
     }
 
     fn next_request(rx: &mut tokio::sync::mpsc::Receiver<Command>) -> Request {
@@ -464,18 +416,6 @@ mod tests {
 
         drop(rx);
         assert_eq!(queued.take(), [Err(RequestError::Shutdown)]);
-    }
-
-    /// The PDU `request` is sent as: its function code, then its fields
-    fn pdu(request: &Request) -> Vec<u8> {
-        let mut buffer = [0u8; 253];
-        let mut cursor = WriteCursor::new(&mut buffer);
-        cursor
-            .write_u8(request.details.function().get_value())
-            .unwrap();
-        request.details.serialize(&mut cursor).unwrap();
-        let len = cursor.position();
-        buffer[..len].to_vec()
     }
 
     /// A request made by a method of [`FfiChannel`]
