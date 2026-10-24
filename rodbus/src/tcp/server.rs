@@ -38,6 +38,15 @@ impl Drop for SessionRecord {
     }
 }
 
+/// The id of a session that hasn't been added to a [`SessionTracker`] yet, which adding it consumes
+struct SessionId(u128);
+
+impl SessionId {
+    fn get(&self) -> u128 {
+        self.0
+    }
+}
+
 struct SessionTracker {
     max_sessions: NonZeroUsize,
     id: u128,
@@ -57,24 +66,24 @@ impl SessionTracker {
         }
     }
 
-    fn next_id(&mut self) -> u128 {
-        let ret = self.id;
+    fn next_id(&mut self) -> SessionId {
+        let ret = SessionId(self.id);
         self.id = self.id.wrapping_add(1);
         ret
     }
 
-    fn add(&mut self, id: u128, session: SessionRecord) {
+    fn add(&mut self, id: SessionId, session: SessionRecord) {
         if self.sessions.len() >= self.max_sessions.get() {
-            if let Some(oldest) = self.sessions.keys().next().copied() {
+            // dropping the record ends the session
+            if let Some((oldest, _record)) = self.sessions.pop_first() {
                 tracing::warn!(
                     "exceeded max connections, closing oldest session: {}",
                     oldest
                 );
-                self.sessions.remove(&oldest);
             }
         }
 
-        self.sessions.insert(id, session);
+        self.sessions.insert(id.0, session);
     }
 
     fn remove(&mut self, id: u128) {
@@ -274,7 +283,8 @@ where
     }
 
     fn start(&mut self, mut phys: PhysLayer, auth: AuthorizationType, addr: SocketAddr) {
-        let id = self.tracker.next_id();
+        let session_id = self.tracker.next_id();
+        let id = session_id.get();
         tracing::info!(
             "accepted connection from: {} - assigned session id: {}",
             addr,
@@ -303,7 +313,8 @@ where
 
         // spawn the session off onto another task
         let task = tokio::spawn(session).abort_handle();
-        self.tracker.add(id, SessionRecord { commands: tx, task });
+        self.tracker
+            .add(session_id, SessionRecord { commands: tx, task });
     }
 }
 
@@ -951,11 +962,12 @@ mod tests {
 
         impl Tracked {
             fn start(tracker: &mut SessionTracker) -> Self {
-                let id = tracker.next_id();
+                let session_id = tracker.next_id();
+                let id = session_id.get();
                 let (tx, commands) = tokio::sync::mpsc::channel(1);
                 let task = tokio::spawn(std::future::pending());
                 tracker.add(
-                    id,
+                    session_id,
                     SessionRecord {
                         commands: tx,
                         task: task.abort_handle(),
