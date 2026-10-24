@@ -147,7 +147,7 @@ pub(crate) mod test_util {
     use std::path::{Path, PathBuf};
     use std::sync::Arc;
 
-    use sfio_rustls_config::ProtocolVersions;
+    use sfio_rustls_config::{ProtocolVersions, ServerNameVerification};
     use tokio::io::{AsyncRead, AsyncWrite};
     use tokio::net::TcpStream;
     use tokio_rustls::rustls;
@@ -229,6 +229,60 @@ pub(crate) mod test_util {
 
     pub(crate) fn both_versions() -> ProtocolVersions {
         ProtocolVersions::new().enable_v12().enable_v13()
+    }
+
+    /// The name in the certificate of [`authority_server`]
+    const SERVER_NAME: &str = "test.com";
+
+    /// The role in the certificate of [`operator`]
+    pub(crate) const ROLE: &str = "operator";
+
+    /// A server presenting the test authority's server certificate and accepting the clients it
+    /// issued certificates to
+    pub(crate) fn authority_server() -> TlsServerConfig {
+        TlsServerConfig::new(
+            &ca_chain("ca_cert.pem"),
+            &ca_chain("server_cert.pem"),
+            &ca_chain("server_key.pem"),
+            None,
+            MinTlsVersion::V1_2,
+            CertificateMode::AuthorityBased,
+        )
+        .unwrap()
+    }
+
+    /// A client of [`authority_server`] presenting the certificate `cert` with key `key`
+    fn authority_client(cert: &str, key: &str) -> rustls::ClientConfig {
+        sfio_rustls_config::client::authority(
+            both_versions(),
+            ServerNameVerification::SanOrCommonName,
+            &ca_chain("ca_cert.pem"),
+            &ca_chain(cert),
+            &ca_chain(key),
+            None,
+        )
+        .unwrap()
+    }
+
+    /// A client whose certificate, issued by the test authority, has the role [`ROLE`]
+    pub(crate) fn operator() -> rustls::ClientConfig {
+        authority_client("client_cert.pem", "client_key.pem")
+    }
+
+    /// A client whose certificate, issued by the test authority, has no role
+    pub(crate) fn without_a_role() -> rustls::ClientConfig {
+        authority_client("server_cert.pem", "server_key.pem")
+    }
+
+    /// Run a handshake over `socket` as a client configured by `client`
+    pub(crate) async fn handshake_with<S: AsyncRead + AsyncWrite + Unpin>(
+        client: rustls::ClientConfig,
+        socket: S,
+    ) -> std::io::Result<tokio_rustls::client::TlsStream<S>> {
+        let name = ServerName::try_from(SERVER_NAME).unwrap();
+        tokio_rustls::TlsConnector::from(Arc::new(client))
+            .connect(name, socket)
+            .await
     }
 }
 

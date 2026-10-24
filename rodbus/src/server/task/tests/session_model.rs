@@ -802,7 +802,8 @@ async fn execute_case(link: Link, auth: Auth, case: &Case) -> Seen {
             assert_eq!(link, Link::Tcp);
             let (authorizer, checks) = Recorder::denying(denied);
             recorded = Some(checks);
-            let auth = AuthorizationType::Handler(authorizer, ROLE.to_string());
+            let authorizer = crate::tcp::tls::RoleAuthorizer::new(authorizer, ROLE.to_string());
+            let auth = AuthorizationType::Handler(authorizer);
             serve(|commands| {
                 SessionTask::tcp(handlers, auth, commands, crate::DecodeLevel::nothing())
             })
