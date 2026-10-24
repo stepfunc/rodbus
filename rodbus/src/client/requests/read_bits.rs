@@ -130,6 +130,6 @@ impl ReadBits {
         range: AddressRange,
         cursor: &'a mut ReadCursor,
     ) -> Result<BitIterator<'a>, RequestError> {
-        BitIterator::parse_counted(range, cursor)
+        Ok(BitIterator::parse_counted(range, cursor)?)
     }
 }

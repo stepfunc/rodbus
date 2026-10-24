@@ -133,6 +133,6 @@ impl ReadRegisters {
         range: AddressRange,
         cursor: &'a mut ReadCursor,
     ) -> Result<RegisterIterator<'a>, RequestError> {
-        RegisterIterator::parse_counted(range, cursor)
+        Ok(RegisterIterator::parse_counted(range, cursor)?)
     }
 }

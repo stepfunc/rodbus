@@ -11,8 +11,6 @@ use std::num::NonZeroUsize;
 
 use scursor::ReadCursor;
 
-use crate::error::RequestError;
-
 /// Modbus unit identifier, just a type-safe wrapper around `u8`
 #[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Ord, Eq)]
 #[cfg_attr(
@@ -166,13 +164,22 @@ impl std::fmt::Display for UnitId {
 /// Only the count is checked here, not whether the block is the length its quantity needs, so that
 /// [`AduParseError::InsufficientBytesForByteCount`] keeps its meaning: the count and the bytes
 /// actually present disagree.
-fn read_byte_count(cursor: &mut ReadCursor) -> Result<(), RequestError> {
-    let advertised = usize::from(cursor.read_u8()?);
+fn read_byte_count(cursor: &mut ReadCursor) -> Result<(), AduParseError> {
+    let advertised = usize::from(cursor.read_u8().map_err(AduParseError::too_short)?);
     let remaining = cursor.remaining();
     if advertised != remaining {
-        return Err(AduParseError::InsufficientBytesForByteCount(advertised, remaining).into());
+        return Err(AduParseError::InsufficientBytesForByteCount(
+            advertised, remaining,
+        ));
     }
     Ok(())
+}
+
+/// The `len` bytes left in `cursor`, which must be all of them
+fn read_exactly<'a>(cursor: &mut ReadCursor<'a>, len: usize) -> Result<&'a [u8], AduParseError> {
+    let bytes = cursor.read_bytes(len).map_err(AduParseError::too_short)?;
+    cursor.expect_empty().map_err(AduParseError::too_long)?;
+    Ok(bytes)
 }
 
 impl<'a> BitIterator<'a> {
@@ -182,7 +189,7 @@ impl<'a> BitIterator<'a> {
     pub(crate) fn parse_counted(
         range: AddressRange,
         cursor: &'a mut ReadCursor,
-    ) -> Result<Self, RequestError> {
+    ) -> Result<Self, AduParseError> {
         read_byte_count(cursor)?;
         Self::parse_all(range, cursor)
     }
@@ -191,9 +198,8 @@ impl<'a> BitIterator<'a> {
     pub(crate) fn parse_all(
         range: AddressRange,
         cursor: &'a mut ReadCursor,
-    ) -> Result<Self, RequestError> {
-        let bytes = cursor.read_bytes(crate::common::bits::num_bytes_for_bits(range.count))?;
-        cursor.expect_empty()?;
+    ) -> Result<Self, AduParseError> {
+        let bytes = read_exactly(cursor, crate::common::bits::num_bytes_for_bits(range.count))?;
         Ok(Self {
             bytes,
             range,
@@ -230,7 +236,7 @@ impl<'a> RegisterIterator<'a> {
     pub(crate) fn parse_counted(
         range: AddressRange,
         cursor: &'a mut ReadCursor,
-    ) -> Result<Self, RequestError> {
+    ) -> Result<Self, AduParseError> {
         read_byte_count(cursor)?;
         Self::parse_all(range, cursor)
     }
@@ -239,9 +245,8 @@ impl<'a> RegisterIterator<'a> {
     pub(crate) fn parse_all(
         range: AddressRange,
         cursor: &'a mut ReadCursor,
-    ) -> Result<Self, RequestError> {
-        let bytes = cursor.read_bytes(num_bytes_for_registers(range.count))?;
-        cursor.expect_empty()?;
+    ) -> Result<Self, AduParseError> {
+        let bytes = read_exactly(cursor, num_bytes_for_registers(range.count))?;
         Ok(Self {
             bytes,
             range,
@@ -1145,17 +1150,17 @@ mod tests {
     /// `parse` fails on `bytes` without their last byte, and with a byte added
     fn check_length_errors(
         bytes: &[u8],
-        parse: impl Fn(&mut ReadCursor) -> Result<(), RequestError>,
+        parse: impl Fn(&mut ReadCursor) -> Result<(), AduParseError>,
     ) {
         let (_, short) = bytes.split_last().unwrap();
         assert_eq!(
             parse(&mut ReadCursor::new(short)),
-            Err(RequestError::BadResponse(AduParseError::InsufficientBytes))
+            Err(AduParseError::InsufficientBytes)
         );
         let long: Vec<u8> = bytes.iter().copied().chain([0xFF]).collect();
         assert_eq!(
             parse(&mut ReadCursor::new(&long)),
-            Err(RequestError::BadResponse(AduParseError::TrailingBytes(1)))
+            Err(AduParseError::TrailingBytes(1))
         );
     }
 
