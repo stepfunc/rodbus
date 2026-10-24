@@ -101,7 +101,9 @@ async fn an_rtu_session_answers_requests_after_bytes_that_cant_start_a_frame() {
         let task =
             tokio::spawn(async move { session.run(&mut PhysLayer::new_duplex(local)).await });
 
-        // 0xA5 isn't a function code, so each of these bytes is dropped on its own
+        // each of these bytes is dropped on its own: the first two because 0xA5 isn't a function
+        // code, the last because the read of coils it would start with the request's unit id as
+        // its function code fails its CRC
         answers_after(&mut peer, &[0xA5, 0xA5, 0xA5]).await;
         // the session is still running
         answers_after(&mut peer, &[0xA5]).await;

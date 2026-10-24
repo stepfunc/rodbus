@@ -79,7 +79,7 @@ const ILLEGAL_FUNCTION: u8 = 0x01;
 const ILLEGAL_DATA_ADDRESS: u8 = 0x02;
 const ILLEGAL_DATA_VALUE: u8 = 0x03;
 
-/// The largest number of values a write of multiple coils or registers carries in the largest PDU
+/// The largest number of value bytes a write of multiple coils or registers carries in the largest PDU
 /// (253 bytes): the function code, the start, the quantity and the byte count take 6
 const MAX_DATA: u8 = 247;
 

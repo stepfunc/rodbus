@@ -237,7 +237,7 @@ impl std::fmt::Display for FrameParseError {
             }
             FrameParseError::FrameLengthTooBig(size, max) => write!(
                 f,
-                "Received TCP frame with length ({size}) that exceeds max allowed size ({max})"
+                "Received frame with length ({size}) that exceeds max allowed size ({max})"
             ),
             FrameParseError::UnknownProtocolId(id) => {
                 write!(f, "Received TCP frame with non-Modbus protocol id: {id}")
