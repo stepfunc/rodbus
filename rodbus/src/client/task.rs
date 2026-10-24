@@ -17,32 +17,56 @@ use crate::common::frame::{FrameHeader, FrameWriter, FramedReader, ReadError, Tx
 use crate::error::*;
 use crate::DecodeLevel;
 
-/**
-* We execute requests in a session until one of the following occurs
-*/
+/// How a session ends: the channel stopped it, or it failed
 #[derive(Debug, PartialEq)]
-pub(crate) enum SessionError {
-    /// the stream errors
-    IoError(std::io::ErrorKind),
-    /// unrecoverable framing issue,
-    BadFrame,
-    /// channel was disabled
-    Disabled,
-    /// maximum number of consecutive response timeouts reached
-    MaxTimeouts(usize),
-    /// the mpsc is closed (dropped) on the sender side
-    Shutdown,
+pub(crate) enum SessionEnd {
+    /// The channel was disabled, or every handle was dropped. The transport closes the port or
+    /// connection without a retry delay, then waits to be enabled or ends
+    Stopped(StateChange),
+    /// The transport closes the port or connection, then waits the retry strategy's
+    /// `after_disconnect` delay, failing requests meanwhile, before opening it again
+    Failed(SessionFailure),
 }
 
-impl From<Shutdown> for SessionError {
+impl From<Shutdown> for SessionEnd {
     fn from(_: Shutdown) -> Self {
-        SessionError::Shutdown
+        SessionEnd::Stopped(StateChange::Shutdown)
     }
 }
 
+impl std::fmt::Display for SessionEnd {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            SessionEnd::Stopped(StateChange::Disable) => f.write_str("Channel was disabled"),
+            SessionEnd::Stopped(StateChange::Shutdown) => f.write_str("Shutdown was requested"),
+            SessionEnd::Failed(SessionFailure::Io(err)) => write!(f, "I/O error: {err}"),
+            SessionEnd::Failed(SessionFailure::BadFrame) => {
+                f.write_str("Parser encountered a bad frame")
+            }
+            SessionEnd::Failed(SessionFailure::MaxTimeouts(max)) => {
+                write!(f, "Maximum number ({max}) of consecutive timeouts reached")
+            }
+        }
+    }
+}
+
+/// Why a session failed
+#[derive(Debug, PartialEq)]
+pub(crate) enum SessionFailure {
+    /// the stream errors
+    Io(std::io::ErrorKind),
+    /// unrecoverable framing issue
+    BadFrame,
+    /// maximum number of consecutive response timeouts reached
+    MaxTimeouts(usize),
+}
+
+/// What stops a channel's session, or its waiting to open the next one
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub(crate) enum StateChange {
+    /// the channel was disabled
     Disable,
+    /// the mpsc is closed (dropped) on the sender side
     Shutdown,
 }
 
@@ -52,47 +76,12 @@ impl From<Shutdown> for StateChange {
     }
 }
 
-impl std::fmt::Display for SessionError {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self {
-            SessionError::IoError(err) => {
-                write!(f, "I/O error: {err}")
-            }
-            SessionError::BadFrame => {
-                write!(f, "Parser encountered a bad frame")
-            }
-            SessionError::Disabled => {
-                write!(f, "Channel was disabled")
-            }
-            SessionError::Shutdown => {
-                write!(f, "Shutdown was requested")
-            }
-            SessionError::MaxTimeouts(max) => {
-                write!(f, "Maximum number ({max}) of consecutive timeouts reached")
-            }
-        }
-    }
-}
-
-impl From<ReadError> for SessionError {
+impl From<ReadError> for SessionFailure {
     fn from(err: ReadError) -> Self {
         match err {
-            ReadError::Io(kind) => SessionError::IoError(kind),
+            ReadError::Io(kind) => SessionFailure::Io(kind),
             // the reader's place in the stream is unknown after an internal error too
-            ReadError::BadFrame(_) | ReadError::Internal(_) => SessionError::BadFrame,
-        }
-    }
-}
-
-impl SessionError {
-    /// What the transport does now that the session has ended
-    pub(crate) fn after(&self) -> AfterSession {
-        match self {
-            SessionError::Shutdown => AfterSession::End,
-            SessionError::Disabled => AfterSession::Idle,
-            SessionError::IoError(_) | SessionError::BadFrame | SessionError::MaxTimeouts(_) => {
-                AfterSession::Reconnect
-            }
+            ReadError::BadFrame(_) | ReadError::Internal(_) => SessionFailure::BadFrame,
         }
     }
 }
@@ -126,19 +115,6 @@ impl From<ExchangeError> for RequestError {
     }
 }
 
-/// What a transport does once a session on its port or connection ends
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub(crate) enum AfterSession {
-    /// Every handle was dropped: end the task
-    End,
-    /// The channel was disabled: close the port or connection and wait to be enabled, with no
-    /// retry delay
-    Idle,
-    /// The session failed: close the port or connection, then wait the retry strategy's
-    /// `after_disconnect` delay, failing requests meanwhile, before opening it again
-    Reconnect,
-}
-
 enum TimeoutCounterState {
     Disabled,
     Enabled { current: usize, max: usize },
@@ -170,13 +146,13 @@ impl TimeoutCounter {
         }
     }
 
-    fn increment(&mut self) -> Result<(), SessionError> {
+    fn increment(&mut self) -> Result<(), SessionFailure> {
         match &mut self.state {
             TimeoutCounterState::Disabled => Ok(()),
             TimeoutCounterState::Enabled { current, max } => {
                 *current = current.saturating_add(1);
                 if current >= max {
-                    Err(SessionError::MaxTimeouts(*max))
+                    Err(SessionFailure::MaxTimeouts(*max))
                 } else {
                     Ok(())
                 }
@@ -223,24 +199,23 @@ impl ClientLoop {
         }
     }
 
-    pub(crate) fn is_enabled(&self) -> bool {
-        self.enabled
-    }
-
     pub(crate) async fn shutdown(&mut self) {
         self.rx.close_and_drain().await;
     }
 
-    async fn run_cmd(&mut self, cmd: Command, io: &mut PhysLayer) -> Result<(), SessionError> {
+    async fn run_cmd(&mut self, cmd: Command, io: &mut PhysLayer) -> Result<(), SessionEnd> {
         match cmd {
             Command::Setting(setting) => {
                 self.change_setting(setting);
                 if !self.enabled {
-                    return Err(SessionError::Disabled);
+                    return Err(SessionEnd::Stopped(StateChange::Disable));
                 }
                 Ok(())
             }
-            Command::Request(mut request) => self.run_one_request(io, &mut request).await,
+            Command::Request(mut request) => self
+                .run_one_request(io, &mut request)
+                .await
+                .map_err(SessionEnd::Failed),
         }
     }
 
@@ -257,7 +232,7 @@ impl ClientLoop {
     }
 
     /// Run requests over `io` until the session ends, leaving no partial frame behind for the next
-    pub(crate) async fn run(&mut self, io: &mut PhysLayer) -> SessionError {
+    pub(crate) async fn run(&mut self, io: &mut PhysLayer) -> SessionEnd {
         self.timeout_counter.reset();
         let err = loop {
             if let Err(err) = self.poll(io).await {
@@ -269,7 +244,7 @@ impl ClientLoop {
         err
     }
 
-    async fn poll(&mut self, io: &mut PhysLayer) -> Result<(), SessionError> {
+    async fn poll(&mut self, io: &mut PhysLayer) -> Result<(), SessionEnd> {
         tokio::select! {
             frame = self.reader.next_frame(io, self.decode) => {
                 match frame {
@@ -278,7 +253,7 @@ impl ClientLoop {
                         tracing::debug!("Received unexpected frame while idle: {:?}", frame.header);
                         Ok(())
                     }
-                    Err(err) => Err(err.into()),
+                    Err(err) => Err(SessionEnd::Failed(err.into())),
                 }
             }
             res = self.rx.recv() => {
@@ -292,7 +267,7 @@ impl ClientLoop {
         &mut self,
         io: &mut PhysLayer,
         request: &mut Request,
-    ) -> Result<(), SessionError> {
+    ) -> Result<(), SessionFailure> {
         let tx_id = self.tx_id.next();
         let result = if self.decode != DecodeLevel::nothing() {
             self.execute_request(io, request, tx_id)
@@ -313,7 +288,7 @@ impl ClientLoop {
 
                 match err {
                     // the stream failed, so the session ends
-                    ExchangeError::Write(kind) => return Err(SessionError::IoError(kind)),
+                    ExchangeError::Write(kind) => return Err(SessionFailure::Io(kind)),
                     ExchangeError::Read(err) => return Err(err.into()),
                     // if we reach the maximum number of consecutive timeouts,
                     // this can also terminate the session
@@ -564,7 +539,7 @@ mod tests {
     /// A client loop running a session over a pipe, and the peer at the other end of the pipe
     struct Session {
         peer: DuplexStream,
-        task: JoinHandle<(SessionError, ClientLoop)>,
+        task: JoinHandle<(SessionEnd, ClientLoop)>,
     }
 
     impl Session {
@@ -605,13 +580,13 @@ mod tests {
         }
 
         /// How the session ended, keeping the peer's end open until then
-        async fn ended(self) -> SessionError {
+        async fn ended(self) -> SessionEnd {
             let (ended, _) = self.task.await.unwrap();
             ended
         }
 
         /// Close the peer's end, then return how the session ended and the loop to run the next
-        async fn hang_up(self) -> (SessionError, ClientLoop) {
+        async fn hang_up(self) -> (SessionEnd, ClientLoop) {
             drop(self.peer);
             self.task.await.unwrap()
         }
@@ -678,7 +653,10 @@ mod tests {
         watchdog(async {
             let (channel, session) = Setup::tcp().spawn();
             drop(channel);
-            assert_eq!(session.ended().await, SessionError::Shutdown);
+            assert_eq!(
+                session.ended().await,
+                SessionEnd::Stopped(StateChange::Shutdown)
+            );
         })
         .await;
     }
@@ -725,7 +703,10 @@ mod tests {
             session
                 .send(&[0x00, 0x00, 0xCA, 0xFE, 0x00, 0x01, 0x01])
                 .await;
-            assert_eq!(session.ended().await, SessionError::BadFrame);
+            assert_eq!(
+                session.ended().await,
+                SessionEnd::Failed(SessionFailure::BadFrame)
+            );
         })
         .await;
     }
@@ -755,7 +736,7 @@ mod tests {
                 a_read_of_coils_times_out(&channel, &mut first).await;
             }
             let (ended, client_loop) = first.hang_up().await;
-            assert_eq!(ended, SessionError::MaxTimeouts(2));
+            assert_eq!(ended, SessionEnd::Failed(SessionFailure::MaxTimeouts(2)));
 
             let mut second = Session::run(client_loop, PIPE);
             a_read_of_coils_times_out(&channel, &mut second).await;
@@ -782,7 +763,7 @@ mod tests {
             assert_eq!(start.elapsed(), TIMEOUT);
             assert_eq!(
                 session.ended().await,
-                SessionError::IoError(ErrorKind::TimedOut)
+                SessionEnd::Failed(SessionFailure::Io(ErrorKind::TimedOut))
             );
         })
         .await;
@@ -835,7 +816,10 @@ mod tests {
             first.send(partial).await;
             // the client reads what was written before it sees the end of the connection
             let (ended, client_loop) = first.hang_up().await;
-            assert_eq!(ended, SessionError::IoError(ErrorKind::UnexpectedEof));
+            assert_eq!(
+                ended,
+                SessionEnd::Failed(SessionFailure::Io(ErrorKind::UnexpectedEof))
+            );
             assert_eq!(
                 request.await.unwrap(),
                 Err(RequestError::Io(ErrorKind::UnexpectedEof))
@@ -879,23 +863,6 @@ mod tests {
             FrameHeader::new_tcp_header(UnitId::new(1), tx_id),
             request
         ));
-    }
-
-    #[test]
-    fn shutdown_ends_the_task_disabling_idles_and_a_failure_reconnects() {
-        let cases = [
-            (SessionError::Shutdown, AfterSession::End),
-            (SessionError::Disabled, AfterSession::Idle),
-            (
-                SessionError::IoError(ErrorKind::UnexpectedEof),
-                AfterSession::Reconnect,
-            ),
-            (SessionError::BadFrame, AfterSession::Reconnect),
-            (SessionError::MaxTimeouts(1), AfterSession::Reconnect),
-        ];
-        for (end, after) in cases {
-            assert_eq!(end.after(), after, "{end:?}");
-        }
     }
 
     #[tokio::test(start_paused = true)]
@@ -1059,7 +1026,7 @@ mod tests {
             let (waited, client_loop) = task.await.unwrap();
             assert_eq!(waited, Err(Shutdown));
             assert_eq!(client_loop.decode, level);
-            assert!(!client_loop.is_enabled());
+            assert!(!client_loop.enabled);
         })
         .await;
     }

@@ -9,7 +9,7 @@ use crate::serial::OpenPort;
 use crate::serial::SerialSettings;
 
 use crate::client::message::Command;
-use crate::client::task::{AfterSession, ClientLoop, StateChange};
+use crate::client::task::{ClientLoop, SessionEnd, StateChange};
 use crate::client::{Listener, PortState, RetryStrategy};
 use crate::common::frame::{FrameWriter, FramedReader};
 use crate::error::Shutdown;
@@ -55,12 +55,12 @@ impl SerialChannelTask {
                 return Shutdown;
             }
 
-            if let Err(StateChange::Shutdown) = self.try_open_and_run().await {
-                return Shutdown;
-            }
-
-            if !self.client_loop.is_enabled() {
-                self.listener.update(PortState::Disabled).get().await;
+            match self.try_open_and_run().await {
+                Ok(()) => {}
+                Err(StateChange::Disable) => {
+                    self.listener.update(PortState::Disabled).get().await;
+                }
+                Err(StateChange::Shutdown) => return Shutdown,
             }
         }
     }
@@ -72,6 +72,8 @@ impl SerialChannelTask {
         self.listener.update(PortState::Shutdown).get().await;
     }
 
+    /// Open the port and run a session, then wait out any retry delay. `Ok` means open it again;
+    /// `Err` is what stopped the channel meanwhile.
     pub(crate) async fn try_open_and_run(&mut self) -> Result<(), StateChange> {
         match crate::serial::open(self.path.as_str(), self.serial_settings) {
             Err(err) => {
@@ -92,10 +94,9 @@ impl SerialChannelTask {
         tracing::info!("serial port open");
         let mut phys = port.into_phys();
 
-        match self.client_loop.run(&mut phys).await.after() {
-            AfterSession::End => Err(StateChange::Shutdown),
-            AfterSession::Idle => Ok(()),
-            AfterSession::Reconnect => {
+        match self.client_loop.run(&mut phys).await {
+            SessionEnd::Stopped(change) => Err(change),
+            SessionEnd::Failed(_) => {
                 drop(phys);
                 let delay = self.retry.after_disconnect();
                 self.listener.update(PortState::Wait(delay)).get().await;
@@ -414,7 +415,7 @@ mod tests {
 
             let (result, elapsed, recorded) = port.run().await;
 
-            assert_eq!(result, Ok(()));
+            assert_eq!(result, Err(StateChange::Disable));
             assert_eq!(elapsed, Duration::ZERO);
             assert_eq!(
                 recorded,
