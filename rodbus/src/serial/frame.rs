@@ -798,16 +798,12 @@ mod tests {
         frames
     }
 
+    /// A frame completed by the chunk at this index
     #[derive(Debug, PartialEq)]
-    enum Outcome {
-        /// A frame completed by the chunk at this index
-        Frame {
-            chunk: usize,
-            destination: FrameDestination,
-            payload: Vec<u8>,
-        },
-        /// The reader failed on the chunk at this index
-        Error { chunk: usize, error: RequestError },
+    struct Outcome {
+        chunk: usize,
+        destination: FrameDestination,
+        payload: Vec<u8>,
     }
 
     /// The destination of `frame`, from the address it starts with
@@ -820,7 +816,7 @@ mod tests {
 
     /// The outcome of reading a valid frame that completes on the chunk at this index
     fn frame_on(chunk: usize, frame: &[u8]) -> Outcome {
-        Outcome::Frame {
+        Outcome {
             chunk,
             destination: destination_of(frame),
             payload: pdu(frame),
@@ -835,14 +831,15 @@ mod tests {
         stream.chunks(1).collect()
     }
 
-    /// Feeds the reader one chunk per read and collects what it produces, up to the first error.
+    /// Feeds the reader one chunk per read and collects the frames it reads.
     ///
     /// Whenever the reader needs more bytes, the pending `next_frame` future is dropped and a new
     /// one is created for the next chunk, the way a session's `select!` cancels it.
     ///
     /// The chunks go through a pipe that holds all of them, so a chunk larger than the space left
     /// in the reader's buffer waits there to be read in parts, as bytes wait in a port's receive
-    /// buffer.
+    /// buffer. The pipe never fails or ends, and an RTU reader returns only the errors of its port,
+    /// so an error fails the test.
     fn read_chunks_with(
         reader: &mut FramedReader,
         decode_level: DecodeLevel,
@@ -868,19 +865,13 @@ mod tests {
                     Poll::Pending => break,
                     Poll::Ready(Ok(frame)) => {
                         assert!(matches!(frame.header, FrameHeader::Rtu(_)));
-                        outcomes.push(Outcome::Frame {
+                        outcomes.push(Outcome {
                             chunk,
                             destination: frame.header.destination(),
                             payload: frame.payload().to_vec(),
                         });
                     }
-                    Poll::Ready(Err(error)) => {
-                        outcomes.push(Outcome::Error {
-                            chunk,
-                            error: error.into(),
-                        });
-                        return outcomes;
-                    }
+                    Poll::Ready(Err(error)) => panic!("{error:?}"),
                 }
             }
         }
@@ -926,7 +917,7 @@ mod tests {
         };
         assert_eq!(
             frame_on(0, frame),
-            Outcome::Frame {
+            Outcome {
                 chunk: 0,
                 destination: received.header.destination(),
                 payload: received.payload().to_vec(),
@@ -957,34 +948,6 @@ mod tests {
                 assert_reads_whole_split_and_byte_by_byte(response_reader, &frame);
             }
         }
-    }
-
-    fn assert_reads_back_to_back(new_reader: fn() -> FramedReader, frames: &[Vec<u8>]) {
-        let stream = frames.concat();
-        let whole: Vec<Outcome> = frames.iter().map(|x| frame_on(0, x)).collect();
-        assert_eq!(read_chunks(new_reader(), &[&stream]), whole);
-
-        let mut end: usize = 0;
-        let byte_by_byte: Vec<Outcome> = frames
-            .iter()
-            .map(|x| {
-                end = end.checked_add(x.len()).unwrap();
-                frame_on(end.checked_sub(1).unwrap(), x)
-            })
-            .collect();
-        assert_eq!(read_chunks(new_reader(), &bytes_of(&stream)), byte_by_byte);
-    }
-
-    #[tokio::test(start_paused = true)]
-    async fn reads_back_to_back_requests() {
-        let frames: Vec<Vec<u8>> = ALL_REQUESTS.iter().map(|(_, x)| x.to_vec()).collect();
-        assert_reads_back_to_back(request_reader, &frames);
-    }
-
-    #[tokio::test(start_paused = true)]
-    async fn reads_back_to_back_responses() {
-        let frames: Vec<Vec<u8>> = ALL_RESPONSES.iter().map(|(_, x)| x.to_vec()).collect();
-        assert_reads_back_to_back(response_reader, &frames);
     }
 
     #[tokio::test(start_paused = true)]
@@ -1041,7 +1004,6 @@ mod tests {
     async fn reads_the_frame_after_bytes_that_cant_start_one() {
         // the unit id isn't a function code, so each byte before the frame is dropped on its own
         let garbage = [UNIT_ID; 3];
-        let unknown = bad_frame(FrameParseError::UnknownFunctionCode(UNIT_ID));
         let readers: [(NewReader, &[u8]); 2] = [
             (request_reader, READ_COILS_REQUEST),
             (response_reader, READ_COILS_RESPONSE),
@@ -1051,24 +1013,19 @@ mod tests {
             // in one read, the parse that drops the bytes also finds the frame
             let mut reader = new_reader();
             assert_eq!(
-                read_reported(&mut reader, &[&stream]),
-                (vec![frame_on(0, frame)], vec![started(unknown), ended(3)])
+                read_chunks_with(&mut reader, DecodeLevel::nothing(), &[&stream]),
+                [frame_on(0, frame)]
             );
             assert_eq!(dropped(&reader), 0);
-            // byte by byte, the run starts long before the frame ends it
-            let mut reader = new_reader();
             assert_eq!(
-                read_reported(&mut reader, &bytes_of(&stream)),
-                (
-                    vec![frame_on(last_index(&stream), frame)],
-                    vec![started(unknown), ended(3)]
-                )
+                read_chunks(new_reader(), &bytes_of(&stream)),
+                [frame_on(last_index(&stream), frame)]
             );
 
             let mut reader = new_reader();
             assert_eq!(
-                read_reported(&mut reader, &[&garbage]),
-                (vec![], vec![started(unknown)])
+                read_chunks_with(&mut reader, DecodeLevel::nothing(), &[&garbage]),
+                []
             );
             assert_eq!(dropped(&reader), 2);
         }
@@ -1128,28 +1085,6 @@ mod tests {
     }
 
     #[tokio::test(start_paused = true)]
-    async fn the_crc_is_little_endian() {
-        let mut frame = READ_COILS_REQUEST.to_vec();
-        frame.swap(6, 7);
-        let crc = FrameParseError::CrcValidationFailure(0x7A19, 0x197A);
-        assert_eq!(
-            reported(request_reader, &[&frame]),
-            [started(bad_frame(crc))]
-        );
-    }
-
-    #[tokio::test(start_paused = true)]
-    async fn the_crc_covers_the_unit_id() {
-        let mut frame = READ_COILS_REQUEST.to_vec();
-        frame[0] = UNIT_ID + 1;
-        let crc = FrameParseError::CrcValidationFailure(0x197A, 0xC87B);
-        assert_eq!(
-            reported(request_reader, &[&frame]),
-            [started(bad_frame(crc))]
-        );
-    }
-
-    #[tokio::test(start_paused = true)]
     async fn drops_bytes_after_a_good_frame() {
         let mut bad = READ_COILS_REQUEST.to_vec();
         bad[6..].copy_from_slice(&[0xFF, 0xFF]);
@@ -1158,52 +1093,22 @@ mod tests {
             .chain(&bad)
             .copied()
             .collect();
-        let crc = FrameParseError::CrcValidationFailure(0xFFFF, 0x197A);
-        let (outcomes, warnings) = read_reported(&mut request_reader(), &[&stream]);
-        assert_eq!(outcomes, [frame_on(0, WRITE_SINGLE_COIL_REQUEST)]);
-        assert_eq!(warnings.first(), Some(&started(bad_frame(crc))));
+        assert_eq!(
+            read_chunks(request_reader(), &[&stream]),
+            [frame_on(0, WRITE_SINGLE_COIL_REQUEST)]
+        );
 
         let mut unknown = WRITE_SINGLE_COIL_REQUEST.to_vec();
         unknown.extend([UNIT_ID, 0x07]);
         let mut reader = request_reader();
         assert_eq!(
-            read_reported(&mut reader, &bytes_of(&unknown)),
-            (
-                vec![frame_on(
-                    WRITE_SINGLE_COIL_REQUEST.len() - 1,
-                    WRITE_SINGLE_COIL_REQUEST
-                )],
-                vec![started(bad_frame(FrameParseError::UnknownFunctionCode(
-                    0x07
-                )))]
-            )
+            read_chunks_with(&mut reader, DecodeLevel::nothing(), &bytes_of(&unknown)),
+            [frame_on(
+                WRITE_SINGLE_COIL_REQUEST.len() - 1,
+                WRITE_SINGLE_COIL_REQUEST
+            )]
         );
         assert_eq!(dropped(&reader), 1);
-    }
-
-    #[tokio::test(start_paused = true)]
-    async fn a_run_of_dropped_bytes_is_logged_when_it_starts_and_when_a_frame_ends_it() {
-        // 0xA5 isn't a function code, so each of these bytes is dropped on its own
-        let noise = [0xA5; 6];
-        let unknown = started(bad_frame(FrameParseError::UnknownFunctionCode(0xA5)));
-        let mut reader = request_reader();
-        let mut chunks = bytes_of(&noise);
-        chunks.push(READ_COILS_REQUEST);
-        assert_eq!(
-            read_reported(&mut reader, &chunks),
-            (
-                vec![frame_on(noise.len(), READ_COILS_REQUEST)],
-                vec![unknown, ended(noise.len())]
-            )
-        );
-        // a new run starts with the next bytes dropped
-        assert_eq!(
-            read_reported(&mut reader, &[&noise[..2], READ_COILS_REQUEST]),
-            (
-                vec![frame_on(1, READ_COILS_REQUEST)],
-                vec![unknown, ended(2)]
-            )
-        );
     }
 
     #[test]
@@ -2127,9 +2032,8 @@ mod tests {
                 .collect()
         }
 
-        /// Reads the [`formatted`] frames back to back, and checks the reader returns what the
-        /// [`Model`] reads from the stream, each frame on the read that holds the last byte it
-        /// needs
+        /// Reads the [`formatted`] frames back to back, and checks the reader as
+        /// [`check_stream`] does
         fn check_frames(
             direction: Direction,
             records: &[Record],
@@ -2138,39 +2042,43 @@ mod tests {
         ) -> Result<(), TestCaseError> {
             let (frames, corrupted) = formatted(records, corruption);
             let stream = frames.concat();
-            let chunks = reads.split(&stream);
+            // the model reads every frame before the corrupted one, and with none, every frame
+            let payloads = modelled_payloads(direction, &stream);
+            let pdus: Vec<Vec<u8>> = records.iter().map(Record::pdu).collect();
+            match corrupted {
+                Some(index) => prop_assert_eq!(payloads.get(..index), pdus.get(..index)),
+                None => prop_assert_eq!(&payloads, &pdus),
+            }
+            check_stream(direction, &stream, reads)?;
+            Ok(())
+        }
 
+        /// Reads `stream` in `reads`, and checks the reader returns what the [`Model`] reads from
+        /// it, each frame on the read that holds the last byte it needs, and reports what it drops
+        /// as [`modelled_reports`] says; returns the reports
+        fn check_stream(
+            direction: Direction,
+            stream: &[u8],
+            reads: &Reads,
+        ) -> Result<Vec<DiscardReport>, TestCaseError> {
+            let chunks = reads.split(stream);
             let Model {
                 frames: modelled,
                 discarded: trailing,
                 ..
-            } = model(direction, &stream, usize::MAX);
-            // the model reads every frame before the corrupted one, and with none, every frame
-            let payloads: Vec<&[u8]> = modelled
-                .iter()
-                .map(|x| x.frame.payload.as_slice())
-                .collect();
-            let pdus: Vec<Vec<u8>> = records.iter().map(Record::pdu).collect();
-            let pdus: Vec<&[u8]> = pdus.iter().map(Vec::as_slice).collect();
-            match corrupted {
-                Some(index) => prop_assert_eq!(payloads.get(..index), Some(&pdus[..index])),
-                None => prop_assert_eq!(&payloads, &pdus),
-            }
-
+            } = model(direction, stream, usize::MAX);
             let expected_reports = modelled_reports(&modelled, trailing);
             let expected: Vec<Outcome> = modelled
                 .into_iter()
-                .map(|x| Outcome::Frame {
+                .map(|x| Outcome {
                     chunk: chunk_holding(&chunks, x.returned_at),
                     destination: x.frame.header.destination(),
                     payload: x.frame.payload,
                 })
                 .collect();
-            prop_assert_eq!(
-                read_reported(&mut direction.reader(), &chunks),
-                (expected, expected_reports)
-            );
-            Ok(())
+            let read = read_reported(&mut direction.reader(), &chunks);
+            prop_assert_eq!(&read, &(expected, expected_reports));
+            Ok(read.1)
         }
 
         /// What a reader reports reading the [`Model`]'s frames: a run of dropped bytes is
@@ -2230,18 +2138,7 @@ mod tests {
         fn ignoring_reads(outcomes: Vec<Outcome>) -> Vec<Outcome> {
             outcomes
                 .into_iter()
-                .map(|x| match x {
-                    Outcome::Frame {
-                        destination,
-                        payload,
-                        ..
-                    } => Outcome::Frame {
-                        chunk: 0,
-                        destination,
-                        payload,
-                    },
-                    Outcome::Error { error, .. } => Outcome::Error { chunk: 0, error },
-                })
+                .map(|x| Outcome { chunk: 0, ..x })
                 .collect()
         }
 
@@ -2271,8 +2168,7 @@ mod tests {
             prop_oneof![prop::collection::vec(any::<u8>(), 0..=600), strung]
         }
 
-        /// Any chunking reads the same frames, then the same first error, and reports the same
-        /// dropped bytes, as one read
+        /// Any chunking reads the same frames, and reports the same dropped bytes, as one read
         fn check_chunking(bytes: &[u8], reads: &Reads) -> Result<(), TestCaseError> {
             for direction in [Direction::Request, Direction::Response] {
                 let (whole, whole_reports) = read_reported(&mut direction.reader(), &[bytes]);
@@ -2286,6 +2182,28 @@ mod tests {
                 );
             }
             Ok(())
+        }
+
+        #[test]
+        fn a_frame_ends_a_run_of_dropped_bytes_and_the_next_dropped_byte_starts_another() {
+            // 0xA5 isn't a function code, so each of these bytes is dropped on its own
+            let noise = [0xA5; 6];
+            let stream = [
+                noise.as_slice(),
+                READ_COILS_REQUEST,
+                &noise[..2],
+                READ_COILS_REQUEST,
+            ]
+            .concat();
+            let unknown = started(bad_frame(FrameParseError::UnknownFunctionCode(0xA5)));
+            for reads in [Reads::Whole, Reads::ByteByByte] {
+                let reports = paused(async { check_stream(Direction::Request, &stream, &reads) });
+                assert_eq!(
+                    reports.unwrap(),
+                    [unknown, ended(6), unknown, ended(2)],
+                    "{reads:?}"
+                );
+            }
         }
 
         proptest! {

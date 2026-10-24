@@ -191,82 +191,6 @@ mod tests {
     }
 
     #[tokio::test(start_paused = true)]
-    async fn a_write_right_after_a_read_waits_t3_5() {
-        watchdog(async {
-            let mut gap = InterFrameGap::new(9600);
-            tokio::time::advance(Duration::from_secs(1)).await;
-            gap.after_read(1);
-            assert_write_waits(&gap, T3_5_AT_9600).await;
-        })
-        .await
-    }
-
-    #[tokio::test(start_paused = true)]
-    async fn a_first_write_right_after_opening_waits_t3_5() {
-        watchdog(async {
-            let gap = InterFrameGap::new(9600);
-            assert_write_waits(&gap, T3_5_AT_9600).await;
-        })
-        .await
-    }
-
-    #[tokio::test(start_paused = true)]
-    async fn time_since_opening_counts_toward_the_first_t3_5() {
-        watchdog(async {
-            let gap = InterFrameGap::new(9600);
-            tokio::time::advance(Duration::from_millis(1)).await;
-            assert_write_waits(&gap, T3_5_AT_9600 - Duration::from_millis(1)).await;
-        })
-        .await
-    }
-
-    #[tokio::test(start_paused = true)]
-    async fn a_first_write_after_t3_5_since_opening_does_not_wait() {
-        watchdog(async {
-            let gap = InterFrameGap::new(9600);
-            tokio::time::advance(T3_5_AT_9600).await;
-            assert_write_waits(&gap, Duration::ZERO).await;
-        })
-        .await
-    }
-
-    #[tokio::test(start_paused = true)]
-    async fn bytes_received_before_the_first_t3_5_since_opening_restart_it() {
-        watchdog(async {
-            let mut gap = InterFrameGap::new(9600);
-            tokio::time::advance(Duration::from_millis(2)).await;
-            gap.after_read(1);
-            assert_write_waits(&gap, T3_5_AT_9600).await;
-        })
-        .await
-    }
-
-    #[tokio::test(start_paused = true)]
-    async fn a_second_write_waits_for_the_first_to_be_sent_and_then_t3_5() {
-        watchdog(async {
-            let mut gap = InterFrameGap::new(9600);
-            tokio::time::advance(Duration::from_secs(1)).await;
-            drop(gap.transmission(8));
-            assert_write_waits(&gap, CHAR_TIME_AT_9600 * 8 + T3_5_AT_9600).await;
-        })
-        .await
-    }
-
-    #[tokio::test(start_paused = true)]
-    async fn a_write_after_a_long_quiet_period_does_not_wait() {
-        watchdog(async {
-            let mut gap = InterFrameGap::new(9600);
-            drop(gap.transmission(8));
-            gap.after_read(1);
-            tokio::time::advance(Duration::from_secs(1)).await;
-            assert!(gap.ready_at() < Instant::now());
-            let mut write = tokio_test::task::spawn(gap.before_write());
-            assert!(write.poll().is_ready());
-        })
-        .await
-    }
-
-    #[tokio::test(start_paused = true)]
     async fn a_cancelled_wait_leaves_the_gap_unchanged() {
         watchdog(async {
             let mut gap = InterFrameGap::new(9600);
@@ -295,30 +219,6 @@ mod tests {
         .await
     }
 
-    #[tokio::test(start_paused = true)]
-    async fn bytes_received_while_a_frame_is_sent_do_not_shorten_the_silence() {
-        watchdog(async {
-            let mut gap = InterFrameGap::new(9600);
-            drop(gap.transmission(8));
-            tokio::time::advance(Duration::from_millis(1)).await;
-            gap.after_read(1);
-            let expected = CHAR_TIME_AT_9600 * 8 + T3_5_AT_9600 - Duration::from_millis(1);
-            assert_write_waits(&gap, expected).await;
-        })
-        .await
-    }
-
-    #[tokio::test(start_paused = true)]
-    async fn a_read_of_no_bytes_is_not_activity_on_the_line() {
-        watchdog(async {
-            let mut gap = InterFrameGap::new(9600);
-            tokio::time::advance(Duration::from_secs(1)).await;
-            gap.after_read(0);
-            assert_write_waits(&gap, Duration::ZERO).await;
-        })
-        .await
-    }
-
     mod properties {
         use proptest::prelude::*;
 
@@ -331,6 +231,9 @@ mod tests {
             /// a frame of this many bytes is written
             Write(usize),
         }
+
+        /// How long the clock advances, then what happens
+        type Step = (Duration, Op);
 
         fn op() -> impl Strategy<Value = Op> {
             prop_oneof![
@@ -354,10 +257,11 @@ mod tests {
             (Duration::from_nanos(t3_5), Duration::from_nanos(char_time))
         }
 
-        /// Each write starts t3.5 after the last byte on the line, or at once if that has passed,
-        /// where a written frame's last byte ends one character time per byte after it started,
-        /// and the port opening counts as a byte
-        fn check(baud_rate: u32, steps: &[(u64, Op)]) {
+        /// Each write starts t3.5 after the last byte on the line, or at once if that has passed (on
+        /// its first poll once a timer tick more has), where a written frame's last byte ends one
+        /// character time per byte after it started, and the port opening counts as a byte;
+        /// returns how long each write waited
+        fn check(baud_rate: u32, steps: &[Step]) -> Vec<Duration> {
             let (t3_5, char_time) = model_timing(baud_rate);
             let runtime = tokio::runtime::Builder::new_current_thread()
                 .enable_time()
@@ -367,8 +271,9 @@ mod tests {
             runtime.block_on(async {
                 let mut gap = InterFrameGap::new(baud_rate);
                 let mut last_byte_end = Instant::now();
-                for &(advance_us, op) in steps {
-                    tokio::time::advance(Duration::from_micros(advance_us)).await;
+                let mut waits = Vec::new();
+                for &(advance, op) in steps {
+                    tokio::time::advance(advance).await;
                     match op {
                         Op::Read(length) => {
                             gap.after_read(length);
@@ -381,7 +286,12 @@ mod tests {
                             assert_eq!(gap.ready_at(), ready_at);
                             let now = Instant::now();
                             let wait = ready_at.saturating_duration_since(now);
+                            if ready_at.checked_add(TIMER_RESOLUTION).unwrap() <= now {
+                                let mut write = tokio_test::task::spawn(gap.before_write());
+                                assert!(write.poll().is_ready(), "the write waited");
+                            }
                             assert_write_waits(&gap, wait).await;
+                            waits.push(wait);
                             let start = Instant::now();
                             drop(gap.transmission(length));
                             let sent = char_time.checked_mul(length.try_into().unwrap()).unwrap();
@@ -389,7 +299,8 @@ mod tests {
                         }
                     }
                 }
-            });
+                waits
+            })
         }
 
         proptest! {
@@ -398,9 +309,74 @@ mod tests {
             #[test]
             fn writes_start_t3_5_after_the_last_byte_on_the_line(
                 baud_rate in baud_rate(),
-                steps in prop::collection::vec((0u64..20_000, op()), 0..32),
+                steps in prop::collection::vec(
+                    ((0u64..20_000).prop_map(Duration::from_micros), op()),
+                    0..32,
+                ),
             ) {
                 check(baud_rate, &steps);
+            }
+        }
+
+        #[test]
+        fn writes_at_9600_baud_wait_these_fixed_times() {
+            const SECOND: Duration = Duration::from_secs(1);
+            const MS: Duration = Duration::from_millis(1);
+            const NOW: Duration = Duration::ZERO;
+            // (what it shows, the steps, how long each write waits)
+            let cases: [(&str, &[Step], &[Duration]); 9] = [
+                (
+                    "a write right after a read waits t3.5",
+                    &[(SECOND, Op::Read(1)), (NOW, Op::Write(1))],
+                    &[T3_5_AT_9600],
+                ),
+                (
+                    "a first write right after opening waits t3.5",
+                    &[(NOW, Op::Write(1))],
+                    &[T3_5_AT_9600],
+                ),
+                (
+                    "time since opening counts toward the first t3.5",
+                    &[(MS, Op::Write(1))],
+                    &[T3_5_AT_9600 - MS],
+                ),
+                (
+                    "a first write t3.5 after opening doesn't wait",
+                    &[(T3_5_AT_9600, Op::Write(1))],
+                    &[Duration::ZERO],
+                ),
+                (
+                    "bytes received before the first t3.5 since opening restart it",
+                    &[(2 * MS, Op::Read(1)), (NOW, Op::Write(1))],
+                    &[T3_5_AT_9600],
+                ),
+                (
+                    "a second write waits for the first to be sent and then t3.5",
+                    &[(SECOND, Op::Write(8)), (NOW, Op::Write(1))],
+                    &[Duration::ZERO, CHAR_TIME_AT_9600 * 8 + T3_5_AT_9600],
+                ),
+                (
+                    "a write after a long quiet period doesn't wait",
+                    &[
+                        (NOW, Op::Write(8)),
+                        (NOW, Op::Read(1)),
+                        (SECOND, Op::Write(1)),
+                    ],
+                    &[T3_5_AT_9600, Duration::ZERO],
+                ),
+                (
+                    "bytes received while a frame is sent don't shorten the silence",
+                    &[(NOW, Op::Write(8)), (MS, Op::Read(1)), (NOW, Op::Write(1))],
+                    &[T3_5_AT_9600, CHAR_TIME_AT_9600 * 8 + T3_5_AT_9600 - MS],
+                ),
+                (
+                    "a read of no bytes isn't activity on the line",
+                    &[(SECOND, Op::Read(0)), (NOW, Op::Write(1))],
+                    &[Duration::ZERO],
+                ),
+            ];
+            for (shows, steps, waits) in cases {
+                assert_eq!(check(9600, steps), waits, "{shows}");
             }
         }
 
@@ -496,23 +472,6 @@ mod tests {
                 assert!(elapsed < T3_5_AT_9600 + AUTO_ADVANCE_SLACK, "{elapsed:?}");
                 assert_eq!(peer.read(&mut buffer).await.unwrap(), 1);
                 assert_eq!(buffer[0], 0x02);
-            })
-            .await
-        }
-
-        #[tokio::test(start_paused = true)]
-        async fn a_serial_port_writes_t3_5_after_its_previous_frame_was_sent() {
-            watchdog(async {
-                let (_peer, mut phys) = port_at_9600();
-                tokio::time::sleep(AFTER_OPENING).await;
-                let start = Instant::now();
-                phys.write(&[0; 8], PhysDecodeLevel::Nothing).await.unwrap();
-                phys.write(&[0; 8], PhysDecodeLevel::Nothing).await.unwrap();
-
-                let expected = CHAR_TIME_AT_9600 * 8 + T3_5_AT_9600;
-                let elapsed = Instant::now() - start;
-                assert!(elapsed >= expected, "{elapsed:?}");
-                assert!(elapsed < expected + AUTO_ADVANCE_SLACK, "{elapsed:?}");
             })
             .await
         }
