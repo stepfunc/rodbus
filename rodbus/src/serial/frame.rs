@@ -114,6 +114,8 @@ pub(crate) struct RtuParser {
     /// when the last bytes arrived, from which the reader times the silence that ends a partial
     /// frame
     last_read: Option<Instant>,
+    /// whether a frame with a reserved address was logged since the port opened
+    reserved_logged: bool,
     /// everything reported, for the tests to check
     #[cfg(test)]
     reports: Vec<DiscardReport>,
@@ -136,6 +138,7 @@ impl RtuParser {
             silence: crate::serial::timing::rtu_silence(baud_rate),
             discarded: None,
             last_read: None,
+            reserved_logged: false,
             #[cfg(test)]
             reports: Vec::new(),
         }
@@ -382,17 +385,25 @@ impl RtuParser {
         if let Some(run) = self.discarded.take() {
             self.report(DiscardReport::Ended(run.count));
         }
+        // processed like any other (MODBUS over Serial Line V1.02 2.2 reserves 248-255 without
+        // saying what a receiver does), and logged once, so a device using one can't flood the log
         if let FrameDestination::UnitId(unit_id) = destination {
-            if unit_id.is_rtu_reserved() {
-                tracing::warn!("received reserved unit ID {}, violating Modbus RTU spec. Passing it through nevertheless.", unit_id);
+            if unit_id.is_rtu_reserved() && !self.reserved_logged {
+                self.reserved_logged = true;
+                tracing::warn!(
+                    "received a frame with the reserved unit ID {}, processing it anyway; others on this port won't be logged",
+                    unit_id
+                );
             }
         }
     }
 
-    /// Forget the bytes dropped so far and when the last ones arrived, for a buffer just emptied
+    /// Forget the bytes dropped so far, when the last ones arrived and whether a reserved address
+    /// was logged, for a buffer just emptied at the end of a session
     pub(crate) fn reset(&mut self) {
         self.discarded = None;
         self.last_read = None;
+        self.reserved_logged = false;
     }
 
     /// Everything reported so far
