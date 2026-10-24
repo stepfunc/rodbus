@@ -52,7 +52,8 @@ impl FromStr for WildcardIPv4 {
 }
 
 impl WildcardIPv4 {
-    pub(crate) fn matches(&self, addr: std::net::IpAddr) -> bool {
+    /// Whether each octet of `addr` is the one this names or a wildcard
+    fn matches(&self, addr: std::net::Ipv4Addr) -> bool {
         fn bm(b: u8, other: Option<u8>) -> bool {
             match other {
                 Some(x) => b == x,
@@ -60,13 +61,8 @@ impl WildcardIPv4 {
             }
         }
 
-        match addr.to_canonical() {
-            std::net::IpAddr::V4(x) => {
-                let [b3, b2, b1, b0] = x.octets();
-                bm(b3, self.b3) && bm(b2, self.b2) && bm(b1, self.b1) && bm(b0, self.b0)
-            }
-            std::net::IpAddr::V6(_) => false,
-        }
+        let [b3, b2, b1, b0] = addr.octets();
+        bm(b3, self.b3) && bm(b2, self.b2) && bm(b1, self.b1) && bm(b0, self.b0)
     }
 }
 
@@ -105,7 +101,11 @@ impl AddressFilter {
                 }
                 std::net::IpAddr::V6(_) => set.contains(&addr),
             },
-            AddressFilter::WildcardIpv4(wc) => wc.matches(addr),
+            AddressFilter::WildcardIpv4(wc) => match addr {
+                std::net::IpAddr::V4(v4) => wc.matches(v4),
+                // a canonical IPv6 address isn't IPv4-mapped, so no wildcard names it
+                std::net::IpAddr::V6(_) => false,
+            },
         }
     }
 }
