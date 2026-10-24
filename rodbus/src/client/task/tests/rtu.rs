@@ -218,6 +218,23 @@ async fn the_next_request_waits_the_turnaround_delay_after_a_broadcast_is_sent()
     .await;
 }
 
+// a read can't be broadcast, so it keeps its deadline from when it started
+#[tokio::test(start_paused = true)]
+async fn a_broadcast_read_that_is_slow_to_send_still_times_out_at_its_deadline() {
+    watchdog(async {
+        let (channel, mut session) = Setup::rtu().capacity(SMALL_PIPE).spawn();
+        let start = Instant::now();
+        let request = read_register(&channel, 0);
+        // the pipe holds only part of the frame, so the write lasts until the peer reads it
+        tokio::time::sleep(TIMEOUT / 2).await;
+        session.expect(&rtu(0, &READ_REGISTER)).await;
+
+        assert_eq!(request.await.unwrap(), Err(RequestError::ResponseTimeout));
+        assert_eq!(start.elapsed(), TIMEOUT);
+    })
+    .await;
+}
+
 #[tokio::test(start_paused = true)]
 async fn a_broadcast_read_goes_to_address_zero_and_times_out() {
     watchdog(async {

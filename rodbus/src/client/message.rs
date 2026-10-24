@@ -220,6 +220,17 @@ impl RequestDetails {
         }
     }
 
+    /// Whether this is a write, the only kind of request a broadcast can carry
+    pub(crate) fn is_write(&self) -> bool {
+        matches!(
+            self,
+            RequestDetails::WriteSingleCoil(_)
+                | RequestDetails::WriteSingleRegister(_)
+                | RequestDetails::WriteMultipleCoils(_)
+                | RequestDetails::WriteMultipleRegisters(_)
+        )
+    }
+
     /// Complete a write that nothing answers, a broadcast, with what a response would have given
     ///
     /// Returns `false` for a read, which has no result without a response

@@ -364,7 +364,7 @@ impl ClientLoop {
             .map_err(ExchangeError::Rejected)?;
 
         // the timeout covers sending the request as well as receiving the response. Both phases
-        // share one wait (a broadcast replaces it once sent), so the request has at most one timer
+        // share one wait (a broadcast write replaces it once sent), so the request has at most one timer
         // at a time, and it is never polled once it completed: each branch that waits on it returns
         let mut deadline = std::pin::pin!(Deadline::after(request.timeout()).wait());
 
@@ -378,10 +378,11 @@ impl ClientLoop {
             }
         }
 
-        // nothing answers a broadcast: the master waits a turnaround delay, here the request's
-        // timeout, from the end of the transmission (Serial Line V1.02 2.4.1)
-        let broadcast = self.framing.is_broadcast(request.id);
-        if broadcast {
+        // nothing answers a broadcast: after a write the master waits a turnaround delay, here the
+        // request's timeout, from the end of the transmission (Serial Line V1.02 2.4.1). A read
+        // can't be broadcast, so it keeps its deadline and times out
+        let broadcast_write = self.framing.is_broadcast(request.id) && request.details.is_write();
+        if broadcast_write {
             deadline.set(Deadline::after_from(io.quiet_from(), request.timeout()).wait());
         }
 
@@ -390,7 +391,7 @@ impl ClientLoop {
             let frame = tokio::select! {
                 _ = deadline.as_mut() => {
                     // after the turnaround delay a broadcast write is done
-                    if broadcast && request.details.complete_unanswered_write() {
+                    if broadcast_write && request.details.complete_unanswered_write() {
                         return Ok(());
                     }
                     return Err(ExchangeError::Timeout);
