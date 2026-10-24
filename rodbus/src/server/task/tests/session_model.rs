@@ -26,10 +26,11 @@
 //! The requests are written back to back and the session handles them in order, so everything it
 //! writes until the requests end is compared with the model's replies in one piece, without timing.
 //!
-//! Every request fits in the largest PDU, since the framing refuses a longer one and the session
-//! ends. RTU cases also send no function codes the server doesn't implement: the RTU framing can't
-//! tell where such a frame ends, so it ends the session too, rather than the frame being answered
-//! or ignored.
+//! Every request fits in the largest PDU: over TCP a longer frame ends the session, and the RTU
+//! reader drops its bytes. RTU cases also send only well-formed frames of functions the server
+//! implements: the RTU reader can't tell where any other frame ends, so it drops its bytes one at
+//! a time and may find a frame among the rest, which this model doesn't predict (the reader's
+//! properties and `rtu.rs` cover that).
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::{Arc, Mutex};
@@ -850,8 +851,10 @@ fn check(link: Link, auth: Auth, case: &Case) {
         kinds.last().is_some_and(|probe| probe.is_answered()),
         "the probe is answered"
     );
+    // on the paused clock the RTU reader's silence timer can't expire while bytes are in flight
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
+        .start_paused(true)
         .build()
         .unwrap();
     runtime.block_on(watchdog(async {
