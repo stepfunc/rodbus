@@ -88,13 +88,6 @@ impl<T: RequestHandler> ServerTask<T> {
         }
     }
 
-    #[cfg(feature = "serial")]
-    fn rtu(task: crate::serial::server::RtuServerTask<T>) -> Self {
-        Self {
-            inner: ServerTaskInner::Rtu(Box::new(task)),
-        }
-    }
-
     /// Run the server task until the associated [`ServerHandle`] is dropped or
     /// [`ServerHandle::shutdown`] is called.
     pub async fn run(self) {
@@ -240,26 +233,12 @@ pub fn create_rtu_server_task<T: RequestHandler>(
     handlers: ServerHandlerMap<T>,
     decode: DecodeLevel,
 ) -> (ServerHandle, ServerTask<T>) {
-    let (tx, rx) = tokio::sync::mpsc::channel(SERVER_COMMAND_CHANNEL_CAPACITY);
-    let (shutdown, signal) = crate::common::cancellation::pair();
-    let session = crate::server::task::SessionTask::new(
-        handlers,
-        crate::server::task::AuthorizationType::None,
-        crate::common::frame::FrameWriter::rtu(),
-        crate::common::frame::FramedReader::rtu_request(settings.baud_rate),
-        rx,
-        decode,
-    );
-
-    let rtu = crate::serial::server::RtuServerTask {
-        port: path.to_string(),
-        retry,
-        settings,
-        session,
-        shutdown: signal,
+    let (handle, task) =
+        crate::serial::server::RtuServerTask::new(path, settings, retry, handlers, decode);
+    let task = ServerTask {
+        inner: ServerTaskInner::Rtu(Box::new(task)),
     };
-
-    (ServerHandle::new(tx, shutdown), ServerTask::rtu(rtu))
+    (handle, task)
 }
 
 /// Spawns a "raw" TLS server task onto the runtime. This TLS server does NOT require that

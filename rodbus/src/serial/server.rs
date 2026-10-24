@@ -6,25 +6,47 @@
 
 use crate::common::cancellation::ShutdownSignal;
 use crate::serial::OpenPort;
-use crate::server::task::SessionTask;
-use crate::server::RequestHandler;
-use crate::{RequestError, RetryStrategy, SerialSettings, Shutdown};
+use crate::server::task::{SessionEnd, SessionTask};
+use crate::server::{
+    RequestHandler, ServerHandle, ServerHandlerMap, SERVER_COMMAND_CHANNEL_CAPACITY,
+};
+use crate::{DecodeLevel, RetryStrategy, SerialSettings, Shutdown};
 
 pub(crate) struct RtuServerTask<T>
 where
     T: RequestHandler,
 {
-    pub(crate) port: String,
-    pub(crate) retry: Box<dyn RetryStrategy>,
-    pub(crate) settings: SerialSettings,
-    pub(crate) session: SessionTask<T>,
-    pub(crate) shutdown: ShutdownSignal,
+    port: String,
+    retry: Box<dyn RetryStrategy>,
+    settings: SerialSettings,
+    session: SessionTask<T>,
+    shutdown: ShutdownSignal,
 }
 
 impl<T> RtuServerTask<T>
 where
     T: RequestHandler,
 {
+    /// A task serving `handlers` on the port at `path`, opened with `settings`, and its handle
+    pub(crate) fn new(
+        path: &str,
+        settings: SerialSettings,
+        retry: Box<dyn RetryStrategy>,
+        handlers: ServerHandlerMap<T>,
+        decode: DecodeLevel,
+    ) -> (ServerHandle, Self) {
+        let (tx, rx) = tokio::sync::mpsc::channel(SERVER_COMMAND_CHANNEL_CAPACITY);
+        let (shutdown, signal) = crate::common::cancellation::pair();
+        let task = Self {
+            port: path.to_string(),
+            retry,
+            settings,
+            session: SessionTask::rtu(handlers, settings.baud_rate, rx, decode),
+            shutdown: signal,
+        };
+        (ServerHandle::new(tx, shutdown), task)
+    }
+
     /// Run until the handle is dropped or shutdown is requested
     pub(crate) async fn run_until_shutdown(&mut self) {
         // cloned because `run` borrows the whole task
@@ -61,7 +83,7 @@ where
         tracing::info!("opened port");
         // run an open port until shutdown or failure
         let mut phys = port.into_phys();
-        if let RequestError::Shutdown = self.session.run(&mut phys).await {
+        if let SessionEnd::Shutdown = self.session.run(&mut phys).await {
             return Err(Shutdown);
         }
         // we wait here to prevent any kind of rapid retry scenario if the port opens and immediately fails
@@ -80,13 +102,11 @@ mod tests {
     use tokio::sync::mpsc::UnboundedReceiver;
     use tokio::time::Instant;
 
-    use crate::common::frame::{FrameWriter, FramedReader};
     use crate::common::phys::PhysLayer;
     use crate::common::test_support::watchdog;
     use crate::serial::test_util::{RecordingRetry, RetryCall, DELAY, UNOPENABLE};
-    use crate::server::task::{AuthorizationType, ServerCommand};
-    use crate::server::{create_rtu_server_task, ServerHandlerMap};
-    use crate::{DecodeLevel, UnitId};
+    use crate::server::create_rtu_server_task;
+    use crate::UnitId;
 
     use super::*;
 
@@ -157,35 +177,27 @@ mod tests {
         port: OpenPort,
         /// the other end of the port
         peer: tokio::io::DuplexStream,
-        /// the only handle sending the task commands
-        commands: tokio::sync::mpsc::Sender<ServerCommand>,
+        /// the task's only handle
+        handle: ServerHandle,
         retry: UnboundedReceiver<RetryCall>,
     }
 
     impl PipePort {
         fn new() -> Self {
             let (port, peer) = tokio::io::duplex(64);
-            let (commands, rx) = tokio::sync::mpsc::channel(1);
             let (calls, retry) = tokio::sync::mpsc::unbounded_channel();
-            let task = RtuServerTask {
-                port: "unused".to_string(),
-                retry: Box::new(RecordingRetry { calls }),
-                settings: SerialSettings::default(),
-                session: SessionTask::new(
-                    ServerHandlerMap::single(UnitId::new(1), DefaultHandler.wrap()),
-                    AuthorizationType::None,
-                    FrameWriter::rtu(),
-                    FramedReader::rtu_request(crate::serial::SerialSettings::default().baud_rate),
-                    rx,
-                    DecodeLevel::nothing(),
-                ),
-                shutdown: crate::common::cancellation::pair().1,
-            };
+            let (handle, task) = RtuServerTask::new(
+                "unused",
+                SerialSettings::default(),
+                Box::new(RecordingRetry { calls }),
+                ServerHandlerMap::single(UnitId::new(1), DefaultHandler.wrap()),
+                DecodeLevel::nothing(),
+            );
             Self {
                 task,
                 port: OpenPort::Phys(PhysLayer::new_duplex(port)),
                 peer,
-                commands,
+                handle,
                 retry,
             }
         }
@@ -215,7 +227,7 @@ mod tests {
                 task,
                 port,
                 mut peer,
-                commands: _commands,
+                handle: _handle,
                 mut retry,
             } = PipePort::new();
             let started = Instant::now();
@@ -244,11 +256,11 @@ mod tests {
                 task,
                 port,
                 mut peer,
-                commands,
+                handle,
                 mut retry,
             } = PipePort::new();
             let started = Instant::now();
-            drop(commands);
+            drop(handle);
 
             let (result, returned_at) = spawn_run_port(task, port).await.unwrap();
 
@@ -268,7 +280,7 @@ mod tests {
                 task,
                 port,
                 mut peer,
-                commands,
+                handle,
                 mut retry,
             } = PipePort::new();
             peer.shutdown().await.unwrap();
@@ -277,7 +289,7 @@ mod tests {
             assert_eq!(retry.recv().await, Some(RetryCall::AfterDisconnect));
             let waiting_since = Instant::now();
 
-            drop(commands);
+            drop(handle);
 
             let (result, returned_at) = run.await.unwrap();
             assert_eq!(result, Err(Shutdown));
