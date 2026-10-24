@@ -541,31 +541,29 @@ mod tests {
     }
 
     #[test]
-    fn packs_bits_into_whole_and_partial_bytes() {
-        for (start, count, expected) in [
-            (0, 1, &[1, 0x00][..]),
-            (1, 1, &[1, 0x01]),
-            (0, 8, &[1, 0xAA]),
-            (0, 9, &[2, 0xAA, 0x00]),
-            (0xFFF7, 9, &[2, 0x55, 0x01]),
-            (0, 16, &[2, 0xAA, 0xAA]),
+    fn packs_bits_from_the_lowest_bit_of_each_byte_into_whole_and_partial_bytes() {
+        for (start, bits, expected) in [
+            (0, odd_addresses_on(0, 1), &[1, 0x00][..]),
+            (1, odd_addresses_on(1, 1), &[1, 0x01]),
+            (0, odd_addresses_on(0, 8), &[1, 0xAA]),
+            (0, odd_addresses_on(0, 9), &[2, 0xAA, 0x00]),
+            (0xFFF7, odd_addresses_on(0xFFF7, 9), &[2, 0x55, 0x01]),
+            (0, odd_addresses_on(0, 16), &[2, 0xAA, 0xAA]),
+            (
+                0,
+                vec![true, false, true, true, false, false, false, false, true],
+                &[2, 0x0D, 0x01],
+            ),
+            (0, vec![true; 8], &[1, 0xFF]),
+            // bits 7 and 14 on
+            (
+                0,
+                (0..15).map(|bit| bit == 7 || bit == 14).collect(),
+                &[2, 0x80, 0x40],
+            ),
         ] {
-            check_packed_bits(start, &odd_addresses_on(start, count), expected);
+            check_packed_bits(start, &bits, expected);
         }
-    }
-
-    #[test]
-    fn packs_bits_from_the_lowest_bit_of_each_byte() {
-        check_packed_bits(
-            0,
-            &[true, false, true, true, false, false, false, false, true],
-            &[2, 0x0D, 0x01],
-        );
-        check_packed_bits(0, &[true; 8], &[1, 0xFF]);
-        let mut bits = [false; 15];
-        bits[7] = true;
-        bits[14] = true;
-        check_packed_bits(0, &bits, &[2, 0x80, 0x40]);
     }
 
     /// A read of `bits` from `start` serializes to `expected`
