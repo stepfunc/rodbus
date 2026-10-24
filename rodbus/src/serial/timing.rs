@@ -179,7 +179,7 @@ mod tests {
     use tokio::time::Instant;
 
     use super::*;
-    use crate::common::test_support::watchdog;
+    use crate::common::test_support::{run_paused, watchdog};
     use crate::serial::test_util::TIMER_RESOLUTION;
 
     #[test]
@@ -295,12 +295,7 @@ mod tests {
         /// returns how long each write waited
         fn check(baud_rate: u32, steps: &[Step]) -> Vec<Duration> {
             let (t3_5, char_time) = model_timing(baud_rate);
-            let runtime = tokio::runtime::Builder::new_current_thread()
-                .enable_time()
-                .start_paused(true)
-                .build()
-                .unwrap();
-            runtime.block_on(async {
+            run_paused(async {
                 let mut gap = InterFrameGap::new(baud_rate);
                 let mut last_byte_end = Instant::now();
                 let mut waits = Vec::new();

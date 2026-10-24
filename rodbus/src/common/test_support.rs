@@ -56,7 +56,7 @@ const ABORT_GRACE: Duration = Duration::from_secs(5);
 /// The test fails by panicking when the runtime next polls it. A test that never yields, such as
 /// one busy-looping on a current-thread runtime, is never polled again, so the thread aborts the
 /// process if the test still hasn't finished [`ABORT_GRACE`] after the watchdog expired.
-pub(crate) async fn watchdog(test: impl Future<Output = ()>) {
+pub(crate) async fn watchdog<T>(test: impl Future<Output = T>) -> T {
     let name = std::thread::current()
         .name()
         .unwrap_or("<unnamed>")
@@ -89,9 +89,21 @@ pub(crate) async fn watchdog(test: impl Future<Output = ()>) {
         }
     });
     tokio::select! {
-        _ = test => {}
+        output = test => output,
         _ = expired_rx => panic!("the test didn't finish within {WATCHDOG:?} of wall-clock time"),
     }
+}
+
+/// Run a test on a current-thread runtime of its own with the clock paused, under a [`watchdog`]
+///
+/// The runtime has only the time driver: the tests run over in-memory pipes.
+pub(crate) fn run_paused<T>(test: impl Future<Output = T>) -> T {
+    tokio::runtime::Builder::new_current_thread()
+        .enable_time()
+        .start_paused(true)
+        .build()
+        .unwrap()
+        .block_on(watchdog(test))
 }
 
 /// Settles a [`watchdog`] when the test finishes, panics or is dropped, so the watchdog thread

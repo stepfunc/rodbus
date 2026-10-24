@@ -17,7 +17,7 @@ use proptest::strategy::ValueTree;
 use proptest::test_runner::TestRunner;
 
 use super::*;
-use crate::common::test_support::{frame, Link};
+use crate::common::test_support::{frame, run_paused, Link};
 use crate::decode::{FrameDecodeLevel, PhysDecodeLevel};
 use crate::error::{AduParseError, FrameParseError};
 use crate::exception::ExceptionCode;
@@ -446,16 +446,7 @@ fn check_exchanges(
     max_timeouts: Option<NonZeroUsize>,
     steps: &[Step],
 ) -> (Ending, Vec<Exchange>) {
-    let runtime = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .start_paused(true)
-        .build()
-        .unwrap();
-    let mut ran = None;
-    runtime.block_on(watchdog(async {
-        ran = Some(execute(link, max_timeouts, steps).await);
-    }));
-    ran.unwrap()
+    run_paused(execute(link, max_timeouts, steps))
 }
 
 /// Exception codes, and the exceptions the client reports for them
