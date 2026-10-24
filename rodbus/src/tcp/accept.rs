@@ -415,8 +415,10 @@ mod tests {
             UNKNOWN,
             Fault::Kind(ErrorKind::ConnectionRefused),
             Fault::Kind(ErrorKind::Interrupted),
+            UNKNOWN,
+            UNKNOWN,
         ];
-        watchdog(accepts_with_gaps(FAULTS, &[NOW, D, NOW, D, NOW, NOW])).await;
+        watchdog(accepts_with_gaps(FAULTS, &[NOW, D, NOW, D, NOW, NOW, D, D])).await;
     }
 
     #[tokio::test(start_paused = true)]
