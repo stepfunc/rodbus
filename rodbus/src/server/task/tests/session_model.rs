@@ -1714,149 +1714,151 @@ fn an_rtu_broadcast_write_reaches_every_unit_in_turn_without_a_reply() {
     );
 }
 
-/// A request of each function, what it asks authorization for, and what the session does once
-/// it's allowed
+/// The authorization cases, which only a TLS server runs
 #[cfg(feature = "enable-tls")]
-struct Authorized {
-    request: &'static [u8],
-    function: FunctionCode,
-    target: Target,
-    /// the reply and the request's kind once allowed; once denied, the reply is exception 01
-    reply: &'static [u8],
-    kind: Kind,
-    /// the calls to unit 1's handler once allowed; once denied, there are none
-    calls: &'static [Call],
-}
+mod authorized_cases {
+    use super::*;
 
-#[cfg(feature = "enable-tls")]
-const fn range(start: u16, count: u16) -> Target {
-    Target::Range(AddressRange { start, count })
-}
+    /// A request of each function, what it asks authorization for, and what the session does once
+    /// it's allowed
+    struct Authorized {
+        request: &'static [u8],
+        function: FunctionCode,
+        target: Target,
+        /// the reply and the request's kind once allowed; once denied, the reply is exception 01
+        reply: &'static [u8],
+        kind: Kind,
+        /// the calls to unit 1's handler once allowed; once denied, there are none
+        calls: &'static [Call],
+    }
 
-/// One request of each function to unit 1, each to its own addresses
-#[cfg(feature = "enable-tls")]
-const AUTHORIZED: [Authorized; 8] = [
-    // coils 0x10 off, 0x11 on
-    Authorized {
-        request: &[0x01, 0x00, 0x10, 0x00, 0x02],
-        function: FunctionCode::ReadCoils,
-        target: range(0x10, 2),
-        reply: &[0x01, 0x01, 0b10],
-        kind: Kind::Read,
-        calls: &[
-            Call::Read(Table::Coils, 0x10),
-            Call::Read(Table::Coils, 0x11),
-        ],
-    },
-    // discrete inputs 0x20 on, 0x21 off
-    Authorized {
-        request: &[0x02, 0x00, 0x20, 0x00, 0x02],
-        function: FunctionCode::ReadDiscreteInputs,
-        target: range(0x20, 2),
-        reply: &[0x02, 0x01, 0b01],
-        kind: Kind::Read,
-        calls: &[
-            Call::Read(Table::DiscreteInputs, 0x20),
-            Call::Read(Table::DiscreteInputs, 0x21),
-        ],
-    },
-    Authorized {
-        request: &[0x03, 0x00, 0x30, 0x00, 0x01],
-        function: FunctionCode::ReadHoldingRegisters,
-        target: range(0x30, 1),
-        reply: &[0x03, 0x02, 0x01, 0x30],
-        kind: Kind::Read,
-        calls: &[Call::Read(Table::HoldingRegisters, 0x30)],
-    },
-    Authorized {
-        request: &[0x04, 0x00, 0x40, 0x00, 0x01],
-        function: FunctionCode::ReadInputRegisters,
-        target: range(0x40, 1),
-        reply: &[0x04, 0x02, 0xFF, 0xBE],
-        kind: Kind::Read,
-        calls: &[Call::Read(Table::InputRegisters, 0x40)],
-    },
-    Authorized {
-        request: &[0x05, 0x00, 0x50, 0xFF, 0x00],
-        function: FunctionCode::WriteSingleCoil,
-        target: Target::Index(0x50),
-        reply: &[0x05, 0x00, 0x50, 0xFF, 0x00],
-        kind: Kind::Write,
-        calls: &[Call::WriteCoil(0x50, true)],
-    },
-    Authorized {
-        request: &[0x06, 0x00, 0x60, 0x12, 0x34],
-        function: FunctionCode::WriteSingleRegister,
-        target: Target::Index(0x60),
-        reply: &[0x06, 0x00, 0x60, 0x12, 0x34],
-        kind: Kind::Write,
-        calls: &[Call::WriteRegister(0x60, 0x1234)],
-    },
-    // coils 0x70 on, 0x71 off
-    Authorized {
-        request: &[0x0F, 0x00, 0x70, 0x00, 0x02, 0x01, 0b01],
-        function: FunctionCode::WriteMultipleCoils,
-        target: range(0x70, 2),
-        reply: &[0x0F, 0x00, 0x70, 0x00, 0x02],
-        kind: Kind::Write,
-        calls: &[Call::WriteCoil(0x70, true), Call::WriteCoil(0x71, false)],
-    },
-    Authorized {
-        request: &[0x10, 0x00, 0x80, 0x00, 0x01, 0x02, 0xAB, 0xCD],
-        function: FunctionCode::WriteMultipleRegisters,
-        target: range(0x80, 1),
-        reply: &[0x10, 0x00, 0x80, 0x00, 0x01],
-        kind: Kind::Write,
-        calls: &[Call::WriteRegister(0x80, 0xABCD)],
-    },
-];
+    const fn range(start: u16, count: u16) -> Target {
+        Target::Range(AddressRange { start, count })
+    }
 
-#[cfg(feature = "enable-tls")]
-#[test]
-fn each_request_is_checked_by_its_method_and_a_denied_one_gets_illegal_function() {
-    // each function is denied in one session and allowed in the other
-    for denied in [DENIED[1], DENIED[2]] {
-        let is_denied = |request: &&Authorized| denied.contains(&request.function);
-        let exchanges: Vec<Exchange> = AUTHORIZED
-            .iter()
-            .map(|request| {
-                let function = request.request.first().copied().unwrap();
-                let denial = [function | 0x80, 0x01];
-                let reply = if is_denied(&request) {
-                    &denial[..]
-                } else {
-                    request.reply
-                };
-                answered(1, request.request, reply)
-            })
-            .collect();
-        let (seen, kinds) = fixed(Link::Tcp, Auth::Denying(denied), &[1], &exchanges);
-        let checks: Vec<Check> = AUTHORIZED
-            .iter()
-            .map(|request| Check {
-                function: request.function,
-                unit: UnitId::new(1),
-                target: request.target,
-                role: ROLE.to_string(),
-            })
-            .collect();
-        assert_eq!(seen.checks, checks);
-        let calls: Vec<(u8, Call)> = AUTHORIZED
-            .iter()
-            .filter(|request| !is_denied(request))
-            .flat_map(|request| request.calls.iter().map(|call| (1, *call)))
-            .collect();
-        assert_eq!(seen.calls, calls);
-        let expected: Vec<Kind> = AUTHORIZED
-            .iter()
-            .map(|request| {
-                if is_denied(&request) {
-                    Kind::Denied
-                } else {
-                    request.kind
-                }
-            })
-            .collect();
-        assert_eq!(kinds, expected);
+    /// One request of each function to unit 1, each to its own addresses
+    const AUTHORIZED: [Authorized; 8] = [
+        // coils 0x10 off, 0x11 on
+        Authorized {
+            request: &[0x01, 0x00, 0x10, 0x00, 0x02],
+            function: FunctionCode::ReadCoils,
+            target: range(0x10, 2),
+            reply: &[0x01, 0x01, 0b10],
+            kind: Kind::Read,
+            calls: &[
+                Call::Read(Table::Coils, 0x10),
+                Call::Read(Table::Coils, 0x11),
+            ],
+        },
+        // discrete inputs 0x20 on, 0x21 off
+        Authorized {
+            request: &[0x02, 0x00, 0x20, 0x00, 0x02],
+            function: FunctionCode::ReadDiscreteInputs,
+            target: range(0x20, 2),
+            reply: &[0x02, 0x01, 0b01],
+            kind: Kind::Read,
+            calls: &[
+                Call::Read(Table::DiscreteInputs, 0x20),
+                Call::Read(Table::DiscreteInputs, 0x21),
+            ],
+        },
+        Authorized {
+            request: &[0x03, 0x00, 0x30, 0x00, 0x01],
+            function: FunctionCode::ReadHoldingRegisters,
+            target: range(0x30, 1),
+            reply: &[0x03, 0x02, 0x01, 0x30],
+            kind: Kind::Read,
+            calls: &[Call::Read(Table::HoldingRegisters, 0x30)],
+        },
+        Authorized {
+            request: &[0x04, 0x00, 0x40, 0x00, 0x01],
+            function: FunctionCode::ReadInputRegisters,
+            target: range(0x40, 1),
+            reply: &[0x04, 0x02, 0xFF, 0xBE],
+            kind: Kind::Read,
+            calls: &[Call::Read(Table::InputRegisters, 0x40)],
+        },
+        Authorized {
+            request: &[0x05, 0x00, 0x50, 0xFF, 0x00],
+            function: FunctionCode::WriteSingleCoil,
+            target: Target::Index(0x50),
+            reply: &[0x05, 0x00, 0x50, 0xFF, 0x00],
+            kind: Kind::Write,
+            calls: &[Call::WriteCoil(0x50, true)],
+        },
+        Authorized {
+            request: &[0x06, 0x00, 0x60, 0x12, 0x34],
+            function: FunctionCode::WriteSingleRegister,
+            target: Target::Index(0x60),
+            reply: &[0x06, 0x00, 0x60, 0x12, 0x34],
+            kind: Kind::Write,
+            calls: &[Call::WriteRegister(0x60, 0x1234)],
+        },
+        // coils 0x70 on, 0x71 off
+        Authorized {
+            request: &[0x0F, 0x00, 0x70, 0x00, 0x02, 0x01, 0b01],
+            function: FunctionCode::WriteMultipleCoils,
+            target: range(0x70, 2),
+            reply: &[0x0F, 0x00, 0x70, 0x00, 0x02],
+            kind: Kind::Write,
+            calls: &[Call::WriteCoil(0x70, true), Call::WriteCoil(0x71, false)],
+        },
+        Authorized {
+            request: &[0x10, 0x00, 0x80, 0x00, 0x01, 0x02, 0xAB, 0xCD],
+            function: FunctionCode::WriteMultipleRegisters,
+            target: range(0x80, 1),
+            reply: &[0x10, 0x00, 0x80, 0x00, 0x01],
+            kind: Kind::Write,
+            calls: &[Call::WriteRegister(0x80, 0xABCD)],
+        },
+    ];
+
+    #[test]
+    fn each_request_is_checked_by_its_method_and_a_denied_one_gets_illegal_function() {
+        // each function is denied in one session and allowed in the other
+        for denied in [DENIED[1], DENIED[2]] {
+            let is_denied = |request: &&Authorized| denied.contains(&request.function);
+            let exchanges: Vec<Exchange> = AUTHORIZED
+                .iter()
+                .map(|request| {
+                    let function = request.request.first().copied().unwrap();
+                    let denial = [function | 0x80, 0x01];
+                    let reply = if is_denied(&request) {
+                        &denial[..]
+                    } else {
+                        request.reply
+                    };
+                    answered(1, request.request, reply)
+                })
+                .collect();
+            let (seen, kinds) = fixed(Link::Tcp, Auth::Denying(denied), &[1], &exchanges);
+            let checks: Vec<Check> = AUTHORIZED
+                .iter()
+                .map(|request| Check {
+                    function: request.function,
+                    unit: UnitId::new(1),
+                    target: request.target,
+                    role: ROLE.to_string(),
+                })
+                .collect();
+            assert_eq!(seen.checks, checks);
+            let calls: Vec<(u8, Call)> = AUTHORIZED
+                .iter()
+                .filter(|request| !is_denied(request))
+                .flat_map(|request| request.calls.iter().map(|call| (1, *call)))
+                .collect();
+            assert_eq!(seen.calls, calls);
+            let expected: Vec<Kind> = AUTHORIZED
+                .iter()
+                .map(|request| {
+                    if is_denied(&request) {
+                        Kind::Denied
+                    } else {
+                        request.kind
+                    }
+                })
+                .collect();
+            assert_eq!(kinds, expected);
+        }
     }
 }
