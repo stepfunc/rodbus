@@ -103,7 +103,7 @@ pub(crate) enum TcpTaskConnectionHandler {
 
 impl TcpTaskConnectionHandler {
     async fn handle<S: Socket>(
-        &mut self,
+        &self,
         socket: S,
         _endpoint: &impl std::fmt::Display,
     ) -> std::io::Result<PhysLayer> {
@@ -185,7 +185,7 @@ impl<C: Connect> TcpChannelTask<C> {
     /// disables the channel, or every handle being dropped, abandons the attempt.
     async fn connect(&mut self) -> Result<std::io::Result<PhysLayer>, StateChange> {
         tokio::select! {
-            res = Self::establish(&self.host, &mut self.connection_handler) => {
+            res = Self::establish(&self.host, &self.connection_handler) => {
                 Ok(res)
             }
             res = self.client_loop.fail_requests() => {
@@ -197,7 +197,7 @@ impl<C: Connect> TcpChannelTask<C> {
     /// Connect to `host` and run the connection handler, e.g. a TLS handshake
     async fn establish(
         host: &C,
-        connection_handler: &mut TcpTaskConnectionHandler,
+        connection_handler: &TcpTaskConnectionHandler,
     ) -> std::io::Result<PhysLayer> {
         let stream = host.connect().await?;
         if let Ok(addr) = stream.peer_addr() {
