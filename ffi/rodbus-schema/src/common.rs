@@ -236,7 +236,7 @@ fn build_request_error(lib: &mut LibraryBuilder) -> BackTraced<ErrorTypeHandle> 
             "shutdown",
             "The channel was shutdown before the operation could complete",
         )?
-        .add_error("no_connection", "No connection could be made to the server")?
+        .add_error("no_connection", "The channel had no connection (or open serial port) for the request: it was disabled, connecting, or waiting to retry")?
         .add_error(
             "response_timeout",
             "No valid response was received before the timeout",
@@ -306,7 +306,7 @@ fn build_certificate_mode(lib: &mut LibraryBuilder) -> BackTraced<EnumHandle> {
         .push("authority_based",
         doc("Validates the peer certificate against one or more configured trust anchors")
             .details("This mode uses the default certificate verifier in `rustls` to ensure that the chain of certificates presented by the peer is valid against one of the configured trust anchors.")
-            .details("The name verification is relaxed to allow for certificates that do not contain the SAN extension. In these cases the name is verified using the Common Name instead.")
+            .details("A client checks {struct:tls_client_config.dns_name} against the SAN extension of the certificate or, if the certificate has no SAN extension, against its Common Name, unless {struct:tls_client_config.allow_server_name_wildcard} is set and the name is '*', which skips the name check. A server doesn't check the client's name.")
         )?
         .push("self_signed",
             doc("Validates that the peer presents a single certificate which is a byte-for-byte match against the configured peer certificate")
@@ -314,7 +314,7 @@ fn build_certificate_mode(lib: &mut LibraryBuilder) -> BackTraced<EnumHandle> {
         )?
         .doc(
             doc("Determines how the certificate(s) presented by the peer are validated")
-                .details("This validation always occurs **after** the handshake signature has been verified."))?
+                .details("The certificate is validated when the peer presents it during the handshake, before the peer's handshake signature is verified. The handshake fails if either check fails."))?
         .build()?;
 
     Ok(definition)
@@ -365,7 +365,7 @@ fn build_serial_params(lib: &mut LibraryBuilder) -> BackTraced<FunctionArgStruct
         .add(
             &baud_rate_field,
             Primitive::U32,
-            "Baud rate (in symbols-per-second)",
+            doc("Baud rate (in symbols-per-second)").details("The RTU timing comes from it: frames are sent at least 3.5 character times apart (1.75 ms above 19200 baud), and a partial frame is dropped after the longer of that gap and 50 ms of silence."),
         )?
         .add(
             &data_bits_field,
