@@ -15,6 +15,7 @@ use crate::common::phys::PhysLayer;
 use crate::client::message::{Command, Request, Setting};
 use crate::common::frame::{FrameHeader, FrameWriter, FramedReader, ReadError, TxId};
 use crate::error::*;
+use crate::types::UnitId;
 use crate::DecodeLevel;
 
 /// How a session ends: the channel stopped it, or it failed
@@ -165,10 +166,54 @@ fn answers(header: FrameHeader, request: FrameHeader) -> bool {
     header == request
 }
 
+/// The transport a client's requests are framed for
+enum RequestFormat {
+    Tcp,
+    #[cfg(feature = "serial")]
+    Rtu,
+}
+
+/// How a client frames its requests and reads their responses, chosen together for one transport
+pub(crate) struct ClientFraming {
+    format: RequestFormat,
+    reader: FramedReader,
+}
+
+impl ClientFraming {
+    /// MBAP framing, for TCP and TLS
+    pub(crate) fn tcp() -> Self {
+        Self {
+            format: RequestFormat::Tcp,
+            reader: FramedReader::tcp(),
+        }
+    }
+
+    /// RTU framing on a serial line at `baud_rate`, whose reader sizes each frame as a response
+    #[cfg(feature = "serial")]
+    pub(crate) fn rtu(baud_rate: u32) -> Self {
+        Self {
+            format: RequestFormat::Rtu,
+            reader: FramedReader::rtu_response(baud_rate),
+        }
+    }
+
+    /// The header of a request to `unit_id`
+    fn header(&self, unit_id: UnitId, tx_id: TxId) -> FrameHeader {
+        match self.format {
+            RequestFormat::Tcp => FrameHeader::new_tcp_header(unit_id, tx_id),
+            // a request to address 0 is a broadcast, which nothing answers
+            #[cfg(feature = "serial")]
+            RequestFormat::Rtu => {
+                FrameHeader::new_rtu_header(crate::common::frame::FrameDestination::UnitId(unit_id))
+            }
+        }
+    }
+}
+
 pub(crate) struct ClientLoop {
     rx: crate::channel::Receiver<Command>,
     writer: FrameWriter,
-    reader: FramedReader,
+    framing: ClientFraming,
     tx_id: TxId,
     timeout_counter: TimeoutCounter,
     decode: DecodeLevel,
@@ -178,15 +223,14 @@ pub(crate) struct ClientLoop {
 impl ClientLoop {
     pub(crate) fn new(
         rx: crate::channel::Receiver<Command>,
-        writer: FrameWriter,
-        reader: FramedReader,
+        framing: ClientFraming,
         decode: DecodeLevel,
         max_timeouts: Option<NonZeroUsize>,
     ) -> Self {
         Self {
             rx,
-            writer,
-            reader,
+            writer: FrameWriter::new(),
+            framing,
             tx_id: TxId::default(),
             timeout_counter: TimeoutCounter::new(max_timeouts),
             decode,
@@ -235,13 +279,13 @@ impl ClientLoop {
                 break err;
             }
         };
-        self.reader.reset();
+        self.framing.reader.reset();
         err
     }
 
     async fn poll(&mut self, io: &mut PhysLayer) -> Result<(), SessionEnd> {
         tokio::select! {
-            frame = self.reader.next_frame(io, self.decode) => {
+            frame = self.framing.reader.next_frame(io, self.decode) => {
                 match frame {
                     Ok(frame) => {
                         // a late answer to an earlier request, whose timeout was already reported
@@ -302,11 +346,11 @@ impl ClientLoop {
         request: &mut Request,
         tx_id: TxId,
     ) -> Result<(), ExchangeError> {
-        let (header, bytes) = self
+        let header = self.framing.header(request.id, tx_id);
+        let bytes = self
             .writer
             .format_request(
-                request.id,
-                tx_id,
+                header,
                 request.details.function(),
                 &request.details,
                 self.decode,
@@ -334,7 +378,7 @@ impl ClientLoop {
                 _ = deadline.as_mut() => {
                     return Err(ExchangeError::Timeout);
                 }
-                frame = self.reader.next_frame(io, self.decode) => {
+                frame = self.framing.reader.next_frame(io, self.decode) => {
                     frame?
                 }
             };
@@ -468,8 +512,7 @@ mod tests {
 
     /// How to build a client loop under test
     struct Setup {
-        writer: FrameWriter,
-        reader: FramedReader,
+        framing: ClientFraming,
         capacity: usize,
         decode: DecodeLevel,
         max_timeouts: Option<NonZeroUsize>,
@@ -477,13 +520,12 @@ mod tests {
 
     impl Setup {
         fn tcp() -> Self {
-            Self::new(FrameWriter::tcp(), FramedReader::tcp())
+            Self::new(ClientFraming::tcp())
         }
 
-        fn new(writer: FrameWriter, reader: FramedReader) -> Self {
+        fn new(framing: ClientFraming) -> Self {
             Self {
-                writer,
-                reader,
+                framing,
                 capacity: PIPE,
                 decode: DecodeLevel::nothing(),
                 max_timeouts: None,
@@ -510,8 +552,7 @@ mod tests {
         /// A client loop, and a channel to it, that isn't running
         fn build(self) -> (Channel, ClientLoop) {
             let (tx, rx) = crate::channel::bounded(16);
-            let client_loop =
-                ClientLoop::new(rx, self.writer, self.reader, self.decode, self.max_timeouts);
+            let client_loop = ClientLoop::new(rx, self.framing, self.decode, self.max_timeouts);
             let channel = Channel {
                 tx,
                 shutdown: crate::common::cancellation::pair().0,

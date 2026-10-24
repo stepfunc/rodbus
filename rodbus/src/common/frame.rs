@@ -316,24 +316,6 @@ impl FrameInfo {
     }
 }
 
-/// The transport a client's requests are framed for
-enum RequestFormat {
-    Tcp,
-    #[cfg(feature = "serial")]
-    Rtu,
-}
-
-impl RequestFormat {
-    fn header(&self, unit_id: UnitId, tx_id: TxId) -> FrameHeader {
-        match self {
-            Self::Tcp => FrameHeader::new_tcp_header(unit_id, tx_id),
-            // a request to address 0 is a broadcast, which nothing answers
-            #[cfg(feature = "serial")]
-            Self::Rtu => FrameHeader::new_rtu_header(FrameDestination::UnitId(unit_id)),
-        }
-    }
-}
-
 fn format(
     cursor: &mut WriteCursor,
     header: FrameHeader,
@@ -351,9 +333,9 @@ fn format(
     }
 }
 
+/// Formats frames for whichever transport each one's header names: a reply is framed by its
+/// request's header, and a request by the header its client chose
 pub(crate) struct FrameWriter {
-    /// Replies are framed by their request's header; this frames requests
-    request_format: RequestFormat,
     buffer: [u8; constants::MAX_FRAME_LENGTH],
 }
 
@@ -408,9 +390,8 @@ impl FunctionField {
 }
 
 impl FrameWriter {
-    fn new(request_format: RequestFormat) -> Self {
+    pub(crate) fn new() -> Self {
         Self {
-            request_format,
             buffer: [0; constants::MAX_FRAME_LENGTH],
         }
     }
@@ -434,22 +415,20 @@ impl FrameWriter {
         }
     }
 
-    /// Format a request to `unit_id`, returning its header and bytes
+    /// Format a request with `header`, returning its bytes
     pub(crate) fn format_request<T>(
         &mut self,
-        unit_id: UnitId,
-        tx_id: TxId,
+        header: FrameHeader,
         function: FunctionCode,
         body: &T,
         decode_level: DecodeLevel,
-    ) -> Result<(FrameHeader, &[u8]), RequestError>
+    ) -> Result<&[u8], RequestError>
     where
         T: Serialize + Loggable,
     {
-        let header = self.request_format.header(unit_id, tx_id);
         let len =
             self.format_generic(header, FunctionField::Valid(function), body, decode_level)?;
-        Ok((header, self.frame(len)))
+        Ok(self.frame(len))
     }
 
     pub(crate) fn format_ex(
@@ -500,15 +479,6 @@ impl FrameWriter {
         }
 
         Ok(len)
-    }
-
-    pub(crate) fn tcp() -> Self {
-        Self::new(RequestFormat::Tcp)
-    }
-
-    #[cfg(feature = "serial")]
-    pub(crate) fn rtu() -> Self {
-        Self::new(RequestFormat::Rtu)
     }
 }
 
@@ -659,7 +629,7 @@ mod tests {
         let error = RequestError::Internal(crate::error::InternalError::BadByteCount(256));
         let header = FrameHeader::new_tcp_header(UnitId::new(1), TxId::new(7));
         assert_eq!(
-            format_failing_reply(&mut FrameWriter::tcp(), header, error),
+            format_failing_reply(&mut FrameWriter::new(), header, error),
             Err(error)
         );
     }
@@ -669,7 +639,7 @@ mod tests {
         let header = FrameHeader::new_tcp_header(UnitId::new(1), TxId::new(7));
         let error = RequestError::Exception(ExceptionCode::IllegalDataAddress);
         assert_eq!(
-            format_failing_reply(&mut FrameWriter::tcp(), header, error),
+            format_failing_reply(&mut FrameWriter::new(), header, error),
             Ok(&[0x00, 0x07, 0x00, 0x00, 0x00, 0x03, 0x01, 0x83, 0x02][..])
         );
     }
@@ -681,7 +651,7 @@ mod tests {
         let error = RequestError::Exception(ExceptionCode::IllegalDataAddress);
         // the CRC of 01 83 02 is 0xF1C0, low byte first
         assert_eq!(
-            format_failing_reply(&mut FrameWriter::rtu(), header, error),
+            format_failing_reply(&mut FrameWriter::new(), header, error),
             Ok(&[0x01, 0x83, 0x02, 0xC0, 0xF1][..])
         );
     }

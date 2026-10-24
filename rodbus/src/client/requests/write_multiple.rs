@@ -164,23 +164,15 @@ where
 mod tests {
     use super::*;
     use crate::client::message::RequestDetails;
-    use crate::common::frame::{FrameWriter, TxId};
+    use crate::common::frame::{FrameHeader, FrameWriter, TxId};
     use crate::types::UnitId;
     use crate::DecodeLevel;
 
-    /// The length of the frame `writer` formats `request` into
-    fn frame_length(
-        writer: &mut FrameWriter,
-        request: &RequestDetails,
-    ) -> Result<usize, RequestError> {
-        let (_, frame) = writer.format_request(
-            UnitId::new(1),
-            TxId::new(0),
-            request.function(),
-            request,
-            DecodeLevel::nothing(),
-        )?;
-        Ok(frame.len())
+    /// The length of the frame `request` is formatted into with `header`
+    fn frame_length(header: FrameHeader, request: &RequestDetails) -> Result<usize, RequestError> {
+        FrameWriter::new()
+            .format_request(header, request.function(), request, DecodeLevel::nothing())
+            .map(<[u8]>::len)
     }
 
     /// The most values each write carries: 1968 coils in 246 bytes, and 123 registers in 246 bytes,
@@ -205,7 +197,8 @@ mod tests {
     fn the_largest_writes_fit_an_mbap_frame() {
         for request in largest_writes() {
             // the MBAP header is 7 bytes
-            assert_eq!(frame_length(&mut FrameWriter::tcp(), &request), Ok(259));
+            let header = FrameHeader::new_tcp_header(UnitId::new(1), TxId::new(0));
+            assert_eq!(frame_length(header, &request), Ok(259));
         }
     }
 
@@ -214,7 +207,10 @@ mod tests {
     fn the_largest_writes_fit_an_rtu_frame() {
         for request in largest_writes() {
             // the unit address before the PDU and the CRC after it
-            assert_eq!(frame_length(&mut FrameWriter::rtu(), &request), Ok(255));
+            let header = FrameHeader::new_rtu_header(
+                crate::common::frame::FrameDestination::UnitId(UnitId::new(1)),
+            );
+            assert_eq!(frame_length(header, &request), Ok(255));
         }
     }
 

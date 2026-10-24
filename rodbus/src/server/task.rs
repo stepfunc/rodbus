@@ -54,7 +54,7 @@ where
             handlers,
             auth,
             commands,
-            writer: FrameWriter::tcp(),
+            writer: FrameWriter::new(),
             reader: FramedReader::tcp(),
             decode,
         }
@@ -72,7 +72,7 @@ where
             handlers,
             auth: AuthorizationType::None,
             commands,
-            writer: FrameWriter::rtu(),
+            writer: FrameWriter::new(),
             reader: FramedReader::rtu_request(baud_rate),
             decode,
         }
