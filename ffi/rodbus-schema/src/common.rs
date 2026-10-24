@@ -306,7 +306,7 @@ fn build_certificate_mode(lib: &mut LibraryBuilder) -> BackTraced<EnumHandle> {
         .push("authority_based",
         doc("Validates the peer certificate against one or more configured trust anchors")
             .details("This mode uses the default certificate verifier in `rustls` to ensure that the chain of certificates presented by the peer is valid against one of the configured trust anchors.")
-            .details("A client checks {struct:tls_client_config.dns_name} against the SAN extension of the certificate or, if the certificate has no SAN extension, against its Common Name. A server doesn't check the client's name.")
+            .details("A client checks {struct:tls_client_config.dns_name} against the SAN extension of the certificate or, if the certificate has no SAN extension, against its Common Name, unless {struct:tls_client_config.allow_server_name_wildcard} is set and the name is '*', which skips the name check. A server doesn't check the client's name.")
         )?
         .push("self_signed",
             doc("Validates that the peer presents a single certificate which is a byte-for-byte match against the configured peer certificate")
