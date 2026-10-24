@@ -11,10 +11,9 @@ use crate::serial::OpenPort;
 use crate::serial::SerialSettings;
 
 use crate::client::message::Command;
-use crate::client::task::{ClientLoop, SessionEnd, StateChange};
+use crate::client::task::{ClientFraming, ClientLoop, SessionEnd, StateChange};
 use crate::client::{Channel, ClientTask, Listener, PortState, RetryStrategy};
 use crate::common::cancellation::ShutdownSignal;
-use crate::common::frame::{FrameWriter, FramedReader};
 use crate::error::Shutdown;
 
 /// Create a channel and the task that serves it, opening the serial port at `path`, and spawn the
@@ -80,8 +79,7 @@ impl SerialChannelTask {
             retry,
             client_loop: ClientLoop::new(
                 rx,
-                FrameWriter::rtu(),
-                FramedReader::rtu_response(serial_settings.baud_rate),
+                ClientFraming::rtu(serial_settings.baud_rate),
                 decode,
                 None,
             ),

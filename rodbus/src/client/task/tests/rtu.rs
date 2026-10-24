@@ -12,10 +12,9 @@ use crate::serial::test_util::rtu;
 
 impl Setup {
     pub(super) fn rtu() -> Self {
-        Self::new(
-            FrameWriter::rtu(),
-            FramedReader::rtu_response(crate::serial::SerialSettings::default().baud_rate),
-        )
+        Self::new(ClientFraming::rtu(
+            crate::serial::SerialSettings::default().baud_rate,
+        ))
     }
 }
 

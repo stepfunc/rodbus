@@ -11,8 +11,7 @@ use crate::common::cancellation::ShutdownSignal;
 use crate::common::phys::{PhysLayer, Socket};
 
 use crate::client::message::Command;
-use crate::client::task::{ClientLoop, SessionEnd, StateChange};
-use crate::common::frame::{FrameWriter, FramedReader};
+use crate::client::task::{ClientFraming, ClientLoop, SessionEnd, StateChange};
 use crate::error::Shutdown;
 use crate::retry::RetryStrategy;
 use crate::{ChannelLoggingMode, ClientOptions};
@@ -139,8 +138,7 @@ impl<C: Connect> TcpChannelTask<C> {
             connection_handler,
             client_loop: ClientLoop::new(
                 rx,
-                FrameWriter::tcp(),
-                FramedReader::tcp(),
+                ClientFraming::tcp(),
                 options.decode_level,
                 options.max_timeouts,
             ),
