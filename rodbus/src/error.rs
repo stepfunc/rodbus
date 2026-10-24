@@ -141,14 +141,14 @@ impl From<InvalidRange> for RequestError {
 }
 
 impl From<scursor::ReadError> for RequestError {
-    fn from(_: scursor::ReadError) -> Self {
-        RequestError::BadResponse(AduParseError::InsufficientBytes)
+    fn from(x: scursor::ReadError) -> Self {
+        RequestError::BadResponse(AduParseError::too_short(x))
     }
 }
 
 impl From<scursor::TrailingBytes> for RequestError {
     fn from(x: scursor::TrailingBytes) -> Self {
-        RequestError::BadResponse(AduParseError::TrailingBytes(x.count.get()))
+        RequestError::BadResponse(AduParseError::too_long(x))
     }
 }
 
@@ -267,6 +267,18 @@ pub enum AduParseError {
     UnknownResponseFunction(u8, u8, u8), // actual, expected, expected error
     /// Bad value for the coil state
     UnknownCoilState(u16),
+}
+
+impl AduParseError {
+    /// The parse error for a request or response that ends before the bytes it needs
+    pub(crate) fn too_short(_: scursor::ReadError) -> Self {
+        AduParseError::InsufficientBytes
+    }
+
+    /// The parse error for a request or response with bytes left after the ones it needs
+    pub(crate) fn too_long(err: scursor::TrailingBytes) -> Self {
+        AduParseError::TrailingBytes(err.count.get())
+    }
 }
 
 impl std::error::Error for AduParseError {}

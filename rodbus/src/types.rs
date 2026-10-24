@@ -165,7 +165,7 @@ impl std::fmt::Display for UnitId {
 /// [`AduParseError::InsufficientBytesForByteCount`] keeps its meaning: the count and the bytes
 /// actually present disagree.
 fn read_byte_count(cursor: &mut ReadCursor) -> Result<(), AduParseError> {
-    let advertised = usize::from(cursor.read_u8().map_err(too_short)?);
+    let advertised = usize::from(cursor.read_u8().map_err(AduParseError::too_short)?);
     let remaining = cursor.remaining();
     if advertised != remaining {
         return Err(AduParseError::InsufficientBytesForByteCount(
@@ -177,19 +177,9 @@ fn read_byte_count(cursor: &mut ReadCursor) -> Result<(), AduParseError> {
 
 /// The `len` bytes left in `cursor`, which must be all of them
 fn read_exactly<'a>(cursor: &mut ReadCursor<'a>, len: usize) -> Result<&'a [u8], AduParseError> {
-    let bytes = cursor.read_bytes(len).map_err(too_short)?;
-    cursor.expect_empty().map_err(too_long)?;
+    let bytes = cursor.read_bytes(len).map_err(AduParseError::too_short)?;
+    cursor.expect_empty().map_err(AduParseError::too_long)?;
     Ok(bytes)
-}
-
-/// The parse error for a request or response that ends before the bytes it needs
-pub(crate) fn too_short(_: scursor::ReadError) -> AduParseError {
-    AduParseError::InsufficientBytes
-}
-
-/// The parse error for a request or response with bytes left after the ones it needs
-pub(crate) fn too_long(err: scursor::TrailingBytes) -> AduParseError {
-    AduParseError::TrailingBytes(err.count.get())
 }
 
 impl<'a> BitIterator<'a> {

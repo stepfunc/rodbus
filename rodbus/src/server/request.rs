@@ -257,13 +257,13 @@ impl From<AduParseError> for Rejection {
 
 impl From<scursor::ReadError> for Rejection {
     fn from(err: scursor::ReadError) -> Self {
-        too_short(err).into()
+        AduParseError::too_short(err).into()
     }
 }
 
 impl From<scursor::TrailingBytes> for Rejection {
     fn from(err: scursor::TrailingBytes) -> Self {
-        too_long(err).into()
+        AduParseError::too_long(err).into()
     }
 }
 
