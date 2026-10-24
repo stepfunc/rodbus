@@ -301,17 +301,17 @@ impl std::fmt::Display for RequestDetailsDisplay<'_> {
                     write!(f, "{}", details.request)?;
                 }
                 RequestDetails::WriteMultipleCoils(details) => {
-                    write!(f, "{}", details.request.get().range)?;
+                    write!(f, "{}", details.request.range())?;
                     if self.level.data_values() {
-                        for x in details.request.get().iter() {
+                        for x in details.request.iter() {
                             write!(f, "\n{x}")?;
                         }
                     }
                 }
                 RequestDetails::WriteMultipleRegisters(details) => {
-                    write!(f, "{}", details.request.get().range)?;
+                    write!(f, "{}", details.request.range())?;
                     if self.level.data_values() {
-                        for x in details.request.get().iter() {
+                        for x in details.request.iter() {
                             write!(f, "\n{x}")?;
                         }
                     }
