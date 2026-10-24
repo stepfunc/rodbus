@@ -123,6 +123,33 @@ mod tests {
         .await;
     }
 
+    #[tokio::test(start_paused = true)]
+    async fn dropping_the_handle_while_waiting_to_reopen_the_port_ends_the_task_at_once() {
+        watchdog(async {
+            let (calls, mut retry) = tokio::sync::mpsc::unbounded_channel();
+            let (handle, task) = create_rtu_server_task(
+                UNOPENABLE,
+                SerialSettings::default(),
+                Box::new(RecordingRetry { calls }),
+                ServerHandlerMap::single(UnitId::new(1), DefaultHandler.wrap()),
+                DecodeLevel::nothing(),
+            );
+            let task = tokio::spawn(task.run());
+            assert_eq!(retry.recv().await, Some(RetryCall::AfterFailedConnect));
+            let waiting_since = Instant::now();
+
+            // dropping the handle doesn't cancel the task, it closes the command channel
+            drop(handle);
+
+            // the strategy goes with the task, without being asked for another delay
+            assert_eq!(retry.recv().await, None);
+            task.await.unwrap();
+            // the paused clock would advance through the delay if nothing interrupted it
+            assert_eq!(waiting_since.elapsed(), Duration::ZERO);
+        })
+        .await;
+    }
+
     /// A task whose port is one end of an in-memory pipe, run with [`RtuServerTask::run_port`]
     /// as it is once a serial port opens
     struct PipePort {

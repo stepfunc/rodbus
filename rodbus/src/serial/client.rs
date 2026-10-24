@@ -145,6 +145,7 @@ mod tests {
         channel: Channel,
         states: UnboundedReceiver<PortState>,
         retry: UnboundedReceiver<RetryCall>,
+        task: tokio::task::JoinHandle<()>,
     }
 
     /// Spawn a channel on [`UNOPENABLE`], enable it, and return once it has failed to open the port
@@ -160,11 +161,12 @@ mod tests {
             DecodeLevel::nothing(),
             Some(Box::new(StateRecorder { states: states_tx })),
         );
-        tokio::spawn(task.run());
+        let task = tokio::spawn(task.run());
         let mut port = UnopenablePort {
             channel,
             states,
             retry,
+            task,
         };
 
         assert_eq!(port.states.recv().await, Some(PortState::Disabled));
@@ -228,6 +230,55 @@ mod tests {
         .await;
     }
 
+    #[tokio::test(start_paused = true)]
+    async fn dropping_every_handle_while_waiting_to_reopen_the_port_ends_the_task_at_once() {
+        watchdog(async {
+            let UnopenablePort {
+                channel,
+                mut states,
+                mut retry,
+                task,
+            } = enabled_unopenable_port().await;
+            let waiting_since = Instant::now();
+
+            drop(channel);
+
+            // the task reports its end rather than trying the port again
+            assert_eq!(states.recv().await, Some(PortState::Shutdown));
+            task.await.unwrap();
+            assert_eq!(waiting_since.elapsed(), Duration::ZERO);
+            // the listener and the strategy went with the task, so nothing followed
+            assert_eq!(states.recv().await, None);
+            assert_eq!(retry.recv().await, None);
+        })
+        .await;
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn dropping_every_handle_while_disabled_ends_the_task_without_opening_the_port() {
+        watchdog(async {
+            let UnopenablePort {
+                channel,
+                mut states,
+                mut retry,
+                task,
+            } = enabled_unopenable_port().await;
+            channel.disable().await.unwrap();
+            assert_eq!(states.recv().await, Some(PortState::Disabled));
+            let disabled_at = Instant::now();
+
+            drop(channel);
+
+            assert_eq!(states.recv().await, Some(PortState::Shutdown));
+            task.await.unwrap();
+            assert_eq!(disabled_at.elapsed(), Duration::ZERO);
+            // the listener and the strategy went with the task, so nothing followed
+            assert_eq!(states.recv().await, None);
+            assert_eq!(retry.recv().await, None);
+        })
+        .await;
+    }
+
     struct BlockingDisabledListener {
         states: UnboundedSender<PortState>,
     }
@@ -266,6 +317,87 @@ mod tests {
 
             task.await.unwrap();
             assert_eq!(state_rx.recv().await, Some(PortState::Shutdown));
+        })
+        .await;
+    }
+
+    /// Holds the task in its first `Disabled` notification, and in its `Shutdown` notification
+    /// until released
+    struct HoldingListener {
+        states: UnboundedSender<PortState>,
+        release: Option<tokio::sync::oneshot::Receiver<()>>,
+    }
+
+    impl Listener<PortState> for HoldingListener {
+        fn update(&mut self, state: PortState) -> MaybeAsync<()> {
+            self.states.send(state).ok();
+            match state {
+                PortState::Disabled => MaybeAsync::asynchronous(std::future::pending()),
+                PortState::Shutdown => {
+                    let release = self.release.take();
+                    MaybeAsync::asynchronous(async move {
+                        if let Some(release) = release {
+                            release.await.ok();
+                        }
+                    })
+                }
+                _ => MaybeAsync::ready(()),
+            }
+        }
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn shutdown_fails_queued_requests_before_reporting_shutdown_completes() {
+        watchdog(async {
+            let (states_tx, mut states) = tokio::sync::mpsc::unbounded_channel();
+            let (release_tx, release_rx) = tokio::sync::oneshot::channel();
+            let (channel, task) = Channel::create_rtu_handle_and_task(
+                UNOPENABLE,
+                SerialSettings::default(),
+                16,
+                default_retry_strategy(),
+                DecodeLevel::nothing(),
+                Some(Box::new(HoldingListener {
+                    states: states_tx,
+                    release: Some(release_rx),
+                })),
+            );
+            let task = tokio::spawn(task.run());
+            // the task is held in its first notification, so requests stay queued
+            assert_eq!(states.recv().await, Some(PortState::Disabled));
+
+            let mut queued: Vec<_> = (0..4)
+                .map(|_| {
+                    tokio_test::task::spawn(channel.read_coils(
+                        RequestParam::new(UnitId::new(1), NEVER),
+                        AddressRange::try_from(0, 1).unwrap(),
+                    ))
+                })
+                .collect();
+            for request in &mut queued {
+                // the first poll puts the request in the queue, and it then waits for an answer
+                assert!(request.poll().is_pending());
+            }
+
+            let shutdown_at = Instant::now();
+            channel.shutdown();
+
+            assert_eq!(states.recv().await, Some(PortState::Shutdown));
+            // requests fail before the terminal notification is allowed to complete
+            for request in queued {
+                assert_eq!(request.await, Err(RequestError::Shutdown));
+            }
+            assert!(!task.is_finished());
+            release_tx.send(()).unwrap();
+
+            task.await.unwrap();
+            // no request timed out: shutdown failed them all
+            assert_eq!(shutdown_at.elapsed(), Duration::ZERO);
+            // the listener went with the task, so `Shutdown` was the last state
+            assert_eq!(states.recv().await, None);
+
+            // the handle outlives the task it ended
+            assert_eq!(channel.enable().await, Err(Shutdown));
         })
         .await;
     }
