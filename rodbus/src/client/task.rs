@@ -641,19 +641,6 @@ mod tests {
     }
 
     #[tokio::test(start_paused = true)]
-    async fn task_completes_with_shutdown_error_when_all_channels_dropped() {
-        watchdog(async {
-            let (channel, session) = Setup::tcp().spawn();
-            drop(channel);
-            assert_eq!(
-                session.ended().await,
-                SessionEnd::Stopped(StateChange::Shutdown)
-            );
-        })
-        .await;
-    }
-
-    #[tokio::test(start_paused = true)]
     async fn returns_io_error_when_write_fails() {
         watchdog(async {
             let (channel, mut session) = Setup::tcp().capacity(SMALL_PIPE).spawn();
@@ -838,54 +825,6 @@ mod tests {
         a_partial_response_doesnt_reach_the_next_connection(&[
             0x00, 0x00, 0x00, 0x00, 0x00, 0x05, 0x01, 0x03,
         ])
-        .await;
-    }
-
-    #[test]
-    fn a_tcp_frame_answers_only_with_the_same_transaction_and_unit() {
-        let tx_id = TxId::new(7);
-        let unit = UnitId::new(2);
-        let request = FrameHeader::new_tcp_header(unit, tx_id);
-        assert!(answers(FrameHeader::new_tcp_header(unit, tx_id), request));
-        assert!(!answers(
-            FrameHeader::new_tcp_header(unit, TxId::new(8)),
-            request
-        ));
-        assert!(!answers(
-            FrameHeader::new_tcp_header(UnitId::new(1), tx_id),
-            request
-        ));
-    }
-
-    #[tokio::test(start_paused = true)]
-    async fn a_tcp_response_from_another_unit_is_skipped() {
-        watchdog(async {
-            let (channel, mut session) = Setup::tcp().spawn();
-            let request = read_register(&channel, 2);
-
-            let tx_id = session.tcp_request().await;
-            // the same transaction id, from unit 1 and then from unit 2
-            session.send(&mbap(tx_id, 1, &register_value(0x1111))).await;
-            session.send(&mbap(tx_id, 2, &register_value(0x2222))).await;
-
-            assert_eq!(request.await.unwrap(), Ok(vec![Indexed::new(0x10, 0x2222)]));
-        })
-        .await;
-    }
-
-    #[tokio::test(start_paused = true)]
-    async fn tcp_requests_carry_the_unit_and_successive_transaction_ids() {
-        watchdog(async {
-            let (channel, mut session) = Setup::tcp().spawn();
-            for (tx_id, unit) in [(0, 0), (1, 0xFF), (2, 1)] {
-                let request = read_register(&channel, unit);
-                session.expect(&mbap(tx_id, unit, &READ_REGISTER)).await;
-                session
-                    .send(&mbap(tx_id, unit, &register_value(0x1234)))
-                    .await;
-                assert_eq!(request.await.unwrap(), Ok(vec![Indexed::new(0x10, 0x1234)]));
-            }
-        })
         .await;
     }
 

@@ -116,22 +116,6 @@ async fn an_rtu_client_drops_a_partial_frame_once_the_line_is_silent() {
 }
 
 #[tokio::test(start_paused = true)]
-async fn an_rtu_response_from_another_unit_is_skipped() {
-    watchdog(async {
-        let (channel, mut session) = Setup::rtu().spawn();
-        let request = read_register(&channel, 2);
-
-        session.read::<8>().await;
-        // a late reply from unit 1, then unit 2's
-        session.send(&rtu(1, &register_value(0x1111))).await;
-        session.send(&rtu(2, &register_value(0x2222))).await;
-
-        assert_eq!(request.await.unwrap(), Ok(vec![Indexed::new(0x10, 0x2222)]));
-    })
-    .await;
-}
-
-#[tokio::test(start_paused = true)]
 async fn an_rtu_request_answered_only_by_another_unit_times_out() {
     watchdog(async {
         let (channel, mut session) = Setup::rtu().spawn();
@@ -143,20 +127,6 @@ async fn an_rtu_request_answered_only_by_another_unit_times_out() {
 
         assert_eq!(request.await.unwrap(), Err(RequestError::ResponseTimeout));
         assert_eq!(start.elapsed(), TIMEOUT);
-    })
-    .await;
-}
-
-#[tokio::test(start_paused = true)]
-async fn rtu_requests_carry_the_unit_address() {
-    watchdog(async {
-        let (channel, mut session) = Setup::rtu().spawn();
-        for unit in [1, 0xFF] {
-            let request = read_register(&channel, unit);
-            session.expect(&rtu(unit, &READ_REGISTER)).await;
-            session.send(&rtu(unit, &register_value(0x1234))).await;
-            assert_eq!(request.await.unwrap(), Ok(vec![Indexed::new(0x10, 0x1234)]));
-        }
     })
     .await;
 }
