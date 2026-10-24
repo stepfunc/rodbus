@@ -80,8 +80,7 @@ impl From<ReadError> for SessionFailure {
     fn from(err: ReadError) -> Self {
         match err {
             ReadError::Io(kind) => SessionFailure::Io(kind),
-            // the reader's place in the stream is unknown after an internal error too
-            ReadError::BadFrame(_) | ReadError::Internal(_) => SessionFailure::BadFrame,
+            ReadError::BadFrame(_) => SessionFailure::BadFrame,
         }
     }
 }

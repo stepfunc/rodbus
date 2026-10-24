@@ -6,7 +6,7 @@
 
 use crate::common::buffer::ReadBuffer;
 use crate::common::frame::{
-    Frame, FrameHeader, FrameInfo, FrameType, FunctionField, PduLength, ReadError, TxId,
+    Frame, FrameHeader, FrameInfo, FrameType, FunctionField, PduLength, TxId,
 };
 use crate::common::traits::Serialize;
 use crate::decode::FrameDecodeLevel;
@@ -26,15 +26,23 @@ pub(crate) mod constants {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct MbapHeader {
     tx_id: TxId,
-    len_field: u16,
     unit_id: UnitId,
+    /// the length of the PDU that follows the header
+    pdu_length: PduLength,
+}
+
+impl MbapHeader {
+    /// The length field, which counts the unit id and the PDU
+    fn length_field(&self) -> u16 {
+        // a PDU length fits in a byte, so this never saturates
+        u16::from(self.pdu_length).saturating_add(1)
+    }
 }
 
 #[derive(Clone, Copy)]
 enum ParseState {
     Begin,
-    // header and the PDU length
-    Header(MbapHeader, PduLength),
+    Header(MbapHeader),
 }
 
 pub(crate) struct MbapParser {
@@ -48,16 +56,13 @@ impl MbapParser {
         }
     }
 
-    // returns some header fields and the length of the PDU
-    fn parse_header(cursor: &mut ReadBuffer) -> Result<(MbapHeader, PduLength), ReadError> {
-        let tx_id = TxId::new(cursor.read_u16_be()?);
-        let protocol_id = cursor.read_u16_be()?;
-        let len_field = cursor.read_u16_be()?;
-        let length = usize::from(len_field);
-        let unit_id = UnitId::new(cursor.read_u8()?);
+    fn parse_header(header: [u8; constants::HEADER_LENGTH]) -> Result<MbapHeader, FrameParseError> {
+        let [tx_id_0, tx_id_1, protocol_id_0, protocol_id_1, length_0, length_1, unit_id] = header;
+        let protocol_id = u16::from_be_bytes([protocol_id_0, protocol_id_1]);
+        let length = usize::from(u16::from_be_bytes([length_0, length_1]));
 
         if protocol_id != 0 {
-            return Err(FrameParseError::UnknownProtocolId(protocol_id).into());
+            return Err(FrameParseError::UnknownProtocolId(protocol_id));
         }
 
         // The PDU length is the function code + body
@@ -70,53 +75,43 @@ impl MbapParser {
             constants::MAX_LENGTH_FIELD,
         ))?;
 
-        Ok((
-            MbapHeader {
-                tx_id,
-                len_field,
-                unit_id,
-            },
+        Ok(MbapHeader {
+            tx_id: TxId::new(u16::from_be_bytes([tx_id_0, tx_id_1])),
+            unit_id: UnitId::new(unit_id),
             pdu_length,
-        ))
-    }
-
-    fn parse_body(
-        header: &MbapHeader,
-        pdu_length: PduLength,
-        cursor: &mut ReadBuffer,
-    ) -> Result<Frame, ReadError> {
-        Ok(Frame::new(
-            FrameHeader::new_tcp_header(header.unit_id, header.tx_id),
-            pdu_length.read(cursor)?,
-        ))
+        })
     }
 
     #[cfg_attr(all(test, rodbus_no_panic), no_panic::no_panic)]
     pub(crate) fn parse(
         &mut self,
         cursor: &mut ReadBuffer,
-    ) -> Result<Option<(Frame, FrameType)>, ReadError> {
-        loop {
-            match self.state {
-                ParseState::Header(header, pdu_length) => {
-                    if cursor.len() < pdu_length.get() {
-                        return Ok(None);
-                    }
-
-                    let frame = Self::parse_body(&header, pdu_length, cursor)?;
-                    self.state = ParseState::Begin;
-                    return Ok(Some((frame, FrameType::Mbap(header))));
-                }
-                ParseState::Begin => {
-                    if cursor.len() < constants::HEADER_LENGTH {
-                        return Ok(None);
-                    }
-
-                    let (header, pdu_length) = Self::parse_header(cursor)?;
-                    self.state = ParseState::Header(header, pdu_length);
-                }
+    ) -> Result<Option<(Frame, FrameType)>, FrameParseError> {
+        let header = match self.state {
+            ParseState::Header(header) => header,
+            ParseState::Begin => {
+                let Some(header) = cursor.peek().first_chunk().copied() else {
+                    return Ok(None);
+                };
+                // a refused header is consumed too
+                cursor.consume(constants::HEADER_LENGTH);
+                let header = Self::parse_header(header)?;
+                self.state = ParseState::Header(header);
+                header
             }
-        }
+        };
+
+        let Some(pdu) = header.pdu_length.pdu(cursor.peek()) else {
+            return Ok(None);
+        };
+        // copied before the bytes are consumed
+        let frame = Frame::new(
+            FrameHeader::new_tcp_header(header.unit_id, header.tx_id),
+            pdu,
+        );
+        cursor.consume(header.pdu_length.get());
+        self.state = ParseState::Begin;
+        Ok(Some((frame, FrameType::Mbap(header))))
     }
 
     pub(crate) fn reset(&mut self) {
@@ -136,32 +131,32 @@ pub(crate) fn format_mbap(
     cursor.write_u16_be(0)?; // protocol id
     let len_pos = cursor.position();
     cursor.skip(2)?; // write the length later
-    let start_unit_id = cursor.position();
     cursor.write_u8(unit_id.value)?; // unit id
 
+    let start_function = cursor.position();
     cursor.write_u8(function.get_value())?;
     let start_pdu_body = cursor.position();
     msg.serialize(cursor)?;
     let end_pdu = cursor.position();
 
-    // the length field counts the unit identifier and the PDU
-    let len = cursor
-        .get(start_unit_id..end_pdu)
+    // the PDU: the function code and the body
+    let pdu_length = cursor
+        .get(start_function..end_pdu)
         .ok_or(InternalError::BadSeekOperation)?
         .len();
-    let mbap_len_field =
-        u16::try_from(len).map_err(|_| InternalError::FrameTooBig(len, usize::from(u16::MAX)))?;
+    let header = MbapHeader {
+        tx_id,
+        unit_id,
+        pdu_length: PduLength::new(pdu_length).ok_or(InternalError::FrameTooBig(
+            pdu_length.saturating_add(1),
+            constants::MAX_LENGTH_FIELD,
+        ))?,
+    };
 
     // seek back and write the length, restore to the end of the pdu
     cursor.seek_to(len_pos)?;
-    cursor.write_u16_be(mbap_len_field)?;
+    cursor.write_u16_be(header.length_field())?;
     cursor.seek_to(end_pdu)?;
-
-    let header = MbapHeader {
-        tx_id,
-        len_field: mbap_len_field,
-        unit_id,
-    };
 
     Ok(FrameInfo::new(
         FrameType::Mbap(header),
@@ -190,7 +185,9 @@ impl<'a> std::fmt::Display for MbapDisplay<'a> {
         write!(
             f,
             "tx_id: {} unit: {} len: {}",
-            self.header.tx_id, self.header.unit_id, self.header.len_field
+            self.header.tx_id,
+            self.header.unit_id,
+            self.header.length_field()
         )?;
         if self.level.payload_enabled() {
             crate::common::phys::format_bytes(f, self.bytes)?;
