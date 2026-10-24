@@ -313,7 +313,7 @@ mod tests {
             if stream.is_empty() {
                 break;
             }
-            let (chunk, rest) = stream.split_at(stream.len().min(*size));
+            let (chunk, rest) = stream.split_at_checked(*size).unwrap_or((stream, &[]));
             chunks.push(chunk);
             stream = rest;
         }
@@ -515,7 +515,7 @@ mod tests {
                 None
             };
 
-            let (first, second) = header.split_at(split_at);
+            let (first, second) = header.split_at_checked(split_at).unwrap();
             let mut chunks = vec![first, second];
             let mut reader = FramedReader::tcp();
             match refused {

@@ -673,7 +673,11 @@ pub(crate) mod strategies {
 
     /// `bits` eight to a byte, the first in its lowest bit, and the last byte padded with zeros
     pub(crate) fn packed_bits(bits: &[bool]) -> Vec<u8> {
-        bits.chunks(8)
+        let (bytes, last) = bits.as_chunks::<8>();
+        bytes
+            .iter()
+            .map(<[bool; 8]>::as_slice)
+            .chain(Some(last).filter(|last| !last.is_empty()))
             .map(|chunk| {
                 chunk
                     .iter()
@@ -1055,8 +1059,10 @@ mod tests {
         /// The registers of `range` from `bytes`: each pair of bytes holds one, high byte first
         fn model_registers(range: AddressRange, bytes: &[u8]) -> Vec<Indexed<u16>> {
             bytes
-                .chunks(2)
-                .map(|pair| (u16::from(pair[0]) << 8) | u16::from(pair[1]))
+                .as_chunks::<2>()
+                .0
+                .iter()
+                .map(|&[high, low]| (u16::from(high) << 8) | u16::from(low))
                 .take(range.count.into())
                 .enumerate()
                 .map(|(offset, value)| Indexed::new(address(range.start, offset), value))

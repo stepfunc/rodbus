@@ -59,7 +59,9 @@ fn read_frames(parser: &mut FrameParser, buffer: &mut ReadBuffer) -> usize {
 fn frames(mut parser: FrameParser, mut data: &[u8]) {
     let mut buffer = ReadBuffer::new();
     while let [length, rest @ ..] = data {
-        let (chunk, next) = rest.split_at(usize::from(*length).min(rest.len()));
+        let (chunk, next) = rest
+            .split_at_checked(usize::from(*length))
+            .unwrap_or((rest, &[]));
         std::hint::black_box(fill(&mut buffer, chunk));
         std::hint::black_box(read_frames(&mut parser, &mut buffer));
         data = next;

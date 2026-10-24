@@ -1456,8 +1456,10 @@ mod test {
                     let len = usize::from(*count).checked_mul(2)?;
                     let block = read_block(function, len, payload)?;
                     let registers = block
-                        .chunks(2)
-                        .map(|pair| u16::from_be_bytes([pair[0], pair[1]]));
+                        .as_chunks::<2>()
+                        .0
+                        .iter()
+                        .map(|&pair| u16::from_be_bytes(pair));
                     Some(Outcome::Registers(indexed(*start, registers)))
                 }
                 Sent::WriteSingleCoil(_)
