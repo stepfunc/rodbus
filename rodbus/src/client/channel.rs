@@ -528,12 +528,11 @@ pub(crate) fn wrap(param: RequestParam, details: RequestDetails) -> Command {
 mod tests {
     use std::future::Future;
 
-    use scursor::WriteCursor;
     use tokio::sync::mpsc::error::TryRecvError;
 
     use super::*;
+    use crate::client::test_support::{self, pdu};
     use crate::common::test_support::watchdog;
-    use crate::common::traits::Serialize;
     use crate::decode::AppDecodeLevel;
 
     fn param() -> RequestParam {
@@ -546,9 +545,7 @@ mod tests {
 
     /// A [`Channel`] with no task: the test is the receiving end of its queue
     fn channel() -> (Channel, tokio::sync::mpsc::Receiver<Command>) {
-        let (tx, rx) = tokio::sync::mpsc::channel(1);
-        let (shutdown, _) = crate::common::cancellation::pair();
-        (Channel { tx, shutdown }, rx)
+        test_support::channel(1)
     }
 
     /// The next request in the queue
@@ -571,18 +568,6 @@ mod tests {
     /// Takes the next request in the queue and drops it unanswered
     async fn drop_next_request(rx: &mut tokio::sync::mpsc::Receiver<Command>) {
         drop(next_request(rx).await);
-    }
-
-    /// The PDU `request` is sent as: its function code, then its fields
-    fn pdu(request: &Request) -> Vec<u8> {
-        let mut buffer = [0u8; 253];
-        let mut cursor = WriteCursor::new(&mut buffer);
-        cursor
-            .write_u8(request.details.function().get_value())
-            .unwrap();
-        request.details.serialize(&mut cursor).unwrap();
-        let len = cursor.position();
-        buffer[..len].to_vec()
     }
 
     /// The PDU of the request `call` queues; the request is then dropped unanswered

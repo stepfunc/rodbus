@@ -14,6 +14,8 @@ pub(crate) mod listener;
 pub(crate) mod message;
 pub(crate) mod requests;
 pub(crate) mod task;
+#[cfg(test)]
+pub(crate) mod test_support;
 
 #[cfg(feature = "ffi")]
 /// Only enabled for FFI builds
