@@ -127,23 +127,14 @@ mod tests {
     ];
 
     #[test]
-    fn every_byte_round_trips_through_an_exception_code() {
-        for value in u8::MIN..=u8::MAX {
-            assert_eq!(u8::from(ExceptionCode::from(value)), value);
-        }
-    }
-
-    #[test]
-    fn named_exception_codes_have_their_assigned_values_and_other_bytes_are_unknown() {
+    fn every_byte_is_its_named_code_or_unknown_and_converts_back() {
         for value in u8::MIN..=u8::MAX {
             let expected = NAMED_CODES
                 .iter()
                 .find(|(code, _)| *code == value)
                 .map_or(ExceptionCode::Unknown(value), |(_, ex)| *ex);
             assert_eq!(ExceptionCode::from(value), expected);
-        }
-        for (value, ex) in NAMED_CODES {
-            assert_eq!(u8::from(ex), value);
+            assert_eq!(u8::from(expected), value);
         }
     }
 }

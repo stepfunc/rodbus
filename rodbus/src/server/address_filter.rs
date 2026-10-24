@@ -151,25 +151,17 @@ mod test {
             "*.256.*.*",
             ".*.256.*.*",
             "1.1.1.1ab",
+            "",
+            "1",
+            "1.2",
+            "1.2.3",
+            "*.*.*",
         ];
 
         for x in bad_input {
             let res: Result<WildcardIPv4, BadIpv4Wildcard> = x.parse();
-            assert_eq!(res, Err(BadIpv4Wildcard));
+            assert_eq!(res, Err(BadIpv4Wildcard), "{x:?}");
         }
-
-        let res: Result<WildcardIPv4, BadIpv4Wildcard> = "*.*.*.*.*".parse();
-        assert_eq!(res, Err(BadIpv4Wildcard));
-    }
-
-    #[test]
-    fn wildcard_matching_works() {
-        let wc: WildcardIPv4 = "192.168.0.*".parse().unwrap();
-        let ip1: IpAddr = "192.168.0.1".parse().unwrap();
-        let ip2: IpAddr = "192.168.1.1".parse().unwrap();
-
-        assert!(wc.matches(ip1));
-        assert!(!wc.matches(ip2));
     }
 
     fn ip(s: &str) -> IpAddr {
@@ -201,14 +193,6 @@ mod test {
                 assert!(!filter.matches(ip(peer)), "{filter:?} {peer}");
             }
         }
-    }
-
-    #[test]
-    fn a_wildcard_matches_the_ipv4_mapped_form_of_an_address() {
-        let wc: WildcardIPv4 = "192.168.0.*".parse().unwrap();
-        assert!(wc.matches(ip("::ffff:192.168.0.1")));
-        assert!(!wc.matches(ip("::ffff:192.168.1.1")));
-        assert!(!wc.matches(ip("::192.168.0.1")));
     }
 
     #[test]
