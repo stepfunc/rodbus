@@ -179,7 +179,7 @@ impl<'a> Request<'a> {
                 let values =
                     BitIterator::parse_counted(unchecked, cursor).map_err(Rejection::Value)?;
                 Ok(Request::Write(WriteRequest::MultipleCoils(
-                    WriteCoils::new(unchecked.of_write_coils()?, values),
+                    WriteCoils::new(unchecked.of_write_coils()?.get(), values),
                 )))
             }
             FunctionCode::WriteMultipleRegisters => {
@@ -189,7 +189,7 @@ impl<'a> Request<'a> {
                 let values =
                     RegisterIterator::parse_counted(unchecked, cursor).map_err(Rejection::Value)?;
                 Ok(Request::Write(WriteRequest::MultipleRegisters(
-                    WriteRegisters::new(unchecked.of_write_registers()?, values),
+                    WriteRegisters::new(unchecked.of_write_registers()?.get(), values),
                 )))
             }
         }

@@ -4,14 +4,11 @@
 // Text and data mining rights, including for AI training, are reserved under
 // Directive (EU) 2019/790 Art. 4(3), subject to LICENSE.txt Section 3.3.
 
-use std::convert::TryFrom;
-
-use crate::client::WriteMultiple;
-use crate::common::bits::calc_bytes_for_bits;
+use crate::client::requests::write_multiple::LimitedWrite;
 use crate::common::traits::Loggable;
 use crate::common::traits::Parse;
 use crate::common::traits::Serialize;
-use crate::error::{InternalError, RequestError};
+use crate::error::RequestError;
 use crate::exception::ExceptionCode;
 use crate::server::response::{BitWriter, RegisterWriter};
 use crate::types::{
@@ -20,11 +17,6 @@ use crate::types::{
 };
 
 use scursor::{ReadCursor, WriteCursor};
-
-pub(crate) fn calc_bytes_for_registers(num_registers: usize) -> Result<u8, InternalError> {
-    let count = num_registers.saturating_mul(2);
-    u8::try_from(count).map_err(|_| InternalError::BadByteCount(count))
-}
 
 impl Serialize for AddressRange {
     fn serialize(&self, cur: &mut WriteCursor) -> Result<(), RequestError> {
@@ -114,22 +106,27 @@ impl Loggable for Indexed<u16> {
     }
 }
 
-/// Writes the byte count of `count` bits, then the `bits` eight to a byte, the first in the lowest
-/// bit and the last byte padded with zeros; stops at the first bit that is an exception
+/// Writes `byte_count`, then that many bytes of the `bits` eight to a byte, the first in the
+/// lowest bit; stops at the first bit that is an exception. Every bit position of those bytes
+/// without a bit is zero, which pads the last byte, so the byte count is always the number of
+/// bytes that follow it. Callers take the byte count from the range the bits are of.
 #[inline]
 fn write_packed_bits(
     cursor: &mut WriteCursor,
-    count: usize,
-    bits: impl Iterator<Item = Result<bool, ExceptionCode>>,
+    byte_count: u8,
+    mut bits: impl Iterator<Item = Result<bool, ExceptionCode>>,
 ) -> Result<(), RequestError> {
-    cursor.write_u8(calc_bytes_for_bits(count)?)?;
+    cursor.write_u8(byte_count)?;
 
     let mut byte: u8 = 0;
     // the bit of `byte` that the next bit goes in
     let mut mask: u8 = 1;
-    for bit in bits {
-        if bit? {
-            byte |= mask;
+    // each bit position of the bytes counted
+    for _ in 0..u16::from(byte_count).saturating_mul(8) {
+        if let Some(bit) = bits.next() {
+            if bit? {
+                byte |= mask;
+            }
         }
         mask = mask.rotate_left(1);
         if mask == 1 {
@@ -138,18 +135,7 @@ fn write_packed_bits(
         }
     }
 
-    // a partial last byte
-    if mask != 1 {
-        cursor.write_u8(byte)?;
-    }
-
     Ok(())
-}
-
-impl Serialize for &[bool] {
-    fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
-        write_packed_bits(cursor, self.len(), self.iter().map(|bit| Ok(*bit)))
-    }
 }
 
 impl<T> Serialize for BitWriter<T>
@@ -157,8 +143,11 @@ where
     T: Fn(u16) -> Result<bool, ExceptionCode>,
 {
     fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
-        let range = self.range.get();
-        write_packed_bits(cursor, range.count.into(), range.iter().map(&self.getter))
+        write_packed_bits(
+            cursor,
+            self.range.byte_count(),
+            self.range.get().iter().map(&self.getter),
+        )
     }
 }
 
@@ -194,8 +183,7 @@ where
 {
     fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
         // write the number of bytes that follow
-        let num_bytes = calc_bytes_for_registers(self.range.get().count.into())?;
-        cursor.write_u8(num_bytes)?;
+        cursor.write_u8(self.range.byte_count())?;
 
         // iterate over all the addresses, accumulating the registers
         for address in self.range.get().iter() {
@@ -233,30 +221,27 @@ where
     }
 }
 
-impl Serialize for &[u16] {
+impl Serialize for LimitedWrite<bool> {
     fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
-        let num_bytes = calc_bytes_for_registers(self.len())?;
-        cursor.write_u8(num_bytes)?;
+        self.range().serialize(cursor)?;
+        write_packed_bits(
+            cursor,
+            self.byte_count(),
+            self.values().iter().map(|bit| Ok(*bit)),
+        )
+    }
+}
 
-        for value in *self {
+impl Serialize for LimitedWrite<u16> {
+    fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
+        self.range().serialize(cursor)?;
+        cursor.write_u8(self.byte_count())?;
+
+        for value in self.values() {
             cursor.write_u16_be(*value)?
         }
 
         Ok(())
-    }
-}
-
-impl Serialize for WriteMultiple<bool> {
-    fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
-        self.range.serialize(cursor)?;
-        self.values.as_slice().serialize(cursor)
-    }
-}
-
-impl Serialize for WriteMultiple<u16> {
-    fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
-        self.range.serialize(cursor)?;
-        self.values.as_slice().serialize(cursor)
     }
 }
 
@@ -266,9 +251,10 @@ mod tests {
     use crate::client::message::{Promise, RequestDetails};
     use crate::client::requests::write_multiple::{LimitedWrite, MultipleWriteRequest};
     use crate::client::requests::write_single::SingleWrite;
+    use crate::client::WriteMultiple;
     use crate::common::function::FunctionCode;
     use crate::common::test_support::{SINGLE_COIL_WRITES, SINGLE_REGISTER_WRITE};
-    use crate::error::{AduParseError, InvalidRange};
+    use crate::error::{AduParseError, InternalError, InvalidRange};
     use crate::server::request::{Rejection, Request, WriteRequest};
     use crate::types::strategies::{packed_bits, packed_registers};
 
@@ -545,33 +531,6 @@ mod tests {
         );
     }
 
-    #[test]
-    fn byte_counts_for_bits_and_registers() {
-        assert_eq!(calc_bytes_for_bits(0), Ok(0));
-        assert_eq!(calc_bytes_for_bits(1), Ok(1));
-        assert_eq!(calc_bytes_for_bits(8), Ok(1));
-        assert_eq!(calc_bytes_for_bits(9), Ok(2));
-        assert_eq!(calc_bytes_for_bits(2040), Ok(255));
-        assert_eq!(
-            calc_bytes_for_bits(2041),
-            Err(InternalError::BadByteCount(256))
-        );
-        assert_eq!(calc_bytes_for_registers(0), Ok(0));
-        assert_eq!(calc_bytes_for_registers(127), Ok(254));
-        assert_eq!(
-            calc_bytes_for_registers(128),
-            Err(InternalError::BadByteCount(256))
-        );
-        assert_eq!(
-            calc_bytes_for_bits(usize::MAX),
-            Err(InternalError::BadByteCount(usize::MAX / 8 + 1))
-        );
-        assert_eq!(
-            calc_bytes_for_registers(usize::MAX / 2),
-            Err(InternalError::BadByteCount(usize::MAX - 1))
-        );
-    }
-
     /// The bits of `count` addresses from `start`, odd addresses on
     fn odd_addresses_on(start: u16, count: u16) -> Vec<bool> {
         AddressRange::try_from(start, count)
@@ -596,10 +555,7 @@ mod tests {
     }
 
     #[test]
-    fn packs_a_slice_of_bits() {
-        // a slice may be empty; a read can't be
-        let empty: &[bool] = &[];
-        assert_eq!(bytes_of(&empty), [0]);
+    fn packs_bits_from_the_lowest_bit_of_each_byte() {
         check_packed_bits(
             0,
             &[true, false, true, true, false, false, false, false, true],
@@ -612,9 +568,8 @@ mod tests {
         check_packed_bits(0, &bits, &[2, 0x80, 0x40]);
     }
 
-    /// A slice of `bits`, and a read of them from `start`, both serialize to `expected`
+    /// A read of `bits` from `start` serializes to `expected`
     fn check_packed_bits(start: u16, bits: &[bool], expected: &[u8]) {
-        assert_eq!(bytes_of(&bits), expected);
         let range = AddressRange::try_from(start, u16::try_from(bits.len()).unwrap())
             .unwrap()
             .of_read_bits()
@@ -625,9 +580,8 @@ mod tests {
         assert_eq!(bytes_of(&writer), expected);
     }
 
-    /// A slice of `values`, and a read of them from `start`, both serialize to `expected`
+    /// A read of `values` from `start` serializes to `expected`
     fn check_packed_registers(start: u16, values: &[u16], expected: &[u8]) {
-        assert_eq!(bytes_of(&values), expected);
         let range = AddressRange::try_from(start, u16::try_from(values.len()).unwrap())
             .unwrap()
             .of_read_registers()

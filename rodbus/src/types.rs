@@ -40,17 +40,42 @@ pub struct AddressRange {
     pub count: u16,
 }
 
+/// A range within the limit of a function that carries its values in a counted block, and the
+/// count of the bytes those values take, which the limit keeps within the byte that carries it
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct LimitedRange {
+    range: AddressRange,
+    byte_count: u8,
+}
+
+impl LimitedRange {
+    /// The range
+    pub(crate) fn get(self) -> AddressRange {
+        self.range
+    }
+
+    /// The count of the bytes the values of the range take
+    pub(crate) fn byte_count(self) -> u8 {
+        self.byte_count
+    }
+}
+
 /// Specialized wrapper around an address
 /// range only valid for ReadCoils / ReadDiscreteInputs
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct ReadBitsRange {
-    inner: AddressRange,
+    inner: LimitedRange,
 }
 
 impl ReadBitsRange {
     /// retrieve the underlying [AddressRange]
     pub(crate) fn get(self) -> AddressRange {
-        self.inner
+        self.inner.get()
+    }
+
+    /// The count of the bytes the bits read pack into
+    pub(crate) fn byte_count(self) -> u8 {
+        self.inner.byte_count()
     }
 }
 
@@ -58,14 +83,24 @@ impl ReadBitsRange {
 /// only valid for ReadHoldingRegisters / ReadInputRegisters
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct ReadRegistersRange {
-    inner: AddressRange,
+    inner: LimitedRange,
 }
 
 impl ReadRegistersRange {
     /// Retrieve the underlying [AddressRange]
     pub(crate) fn get(self) -> AddressRange {
-        self.inner
+        self.inner.get()
     }
+
+    /// The count of the bytes the registers read take
+    pub(crate) fn byte_count(self) -> u8 {
+        self.inner.byte_count()
+    }
+}
+
+/// The number of bytes `count` registers take, two each
+fn num_bytes_for_registers(count: u16) -> usize {
+    usize::from(count).saturating_mul(2)
 }
 
 /// Value and its address
@@ -205,7 +240,7 @@ impl<'a> RegisterIterator<'a> {
         range: AddressRange,
         cursor: &'a mut ReadCursor,
     ) -> Result<Self, RequestError> {
-        let bytes = cursor.read_bytes(usize::from(range.count).saturating_mul(2))?;
+        let bytes = cursor.read_bytes(num_bytes_for_registers(range.count))?;
         cursor.expect_empty()?;
         Ok(Self {
             bytes,
@@ -351,7 +386,10 @@ impl AddressRange {
     /// before its addresses, so [`InvalidRange::AddressOverflow`] means the count was valid
     pub(crate) fn of_read_bits(self) -> Result<ReadBitsRange, InvalidRange> {
         Ok(ReadBitsRange {
-            inner: self.limited(crate::constants::limits::MAX_READ_COILS_COUNT)?,
+            inner: self.limited(
+                crate::constants::limits::MAX_READ_COILS_COUNT,
+                crate::common::bits::num_bytes_for_bits,
+            )?,
         })
     }
 
@@ -359,29 +397,47 @@ impl AddressRange {
     /// addresses, so [`InvalidRange::AddressOverflow`] means the count was valid
     pub(crate) fn of_read_registers(self) -> Result<ReadRegistersRange, InvalidRange> {
         Ok(ReadRegistersRange {
-            inner: self.limited(crate::constants::limits::MAX_READ_REGISTERS_COUNT)?,
+            inner: self.limited(
+                crate::constants::limits::MAX_READ_REGISTERS_COUNT,
+                num_bytes_for_registers,
+            )?,
         })
     }
 
     /// The range of a write of multiple coils: its count is checked against the limit before its
     /// addresses, so [`InvalidRange::AddressOverflow`] means the count was valid
-    pub(crate) fn of_write_coils(self) -> Result<Self, InvalidRange> {
-        self.limited(crate::constants::limits::MAX_WRITE_COILS_COUNT)
+    pub(crate) fn of_write_coils(self) -> Result<LimitedRange, InvalidRange> {
+        self.limited(
+            crate::constants::limits::MAX_WRITE_COILS_COUNT,
+            crate::common::bits::num_bytes_for_bits,
+        )
     }
 
     /// The range of a write of multiple registers: its count is checked against the limit before
     /// its addresses, so [`InvalidRange::AddressOverflow`] means the count was valid
-    pub(crate) fn of_write_registers(self) -> Result<Self, InvalidRange> {
-        self.limited(crate::constants::limits::MAX_WRITE_REGISTERS_COUNT)
+    pub(crate) fn of_write_registers(self) -> Result<LimitedRange, InvalidRange> {
+        self.limited(
+            crate::constants::limits::MAX_WRITE_REGISTERS_COUNT,
+            num_bytes_for_registers,
+        )
     }
 
     /// The range of a function that carries at most `limit` values: the count against the
-    /// limit, then as [`AddressRange::validated`] checks it
-    fn limited(self, limit: u16) -> Result<Self, InvalidRange> {
+    /// limit, then as [`AddressRange::validated`] checks it, with the count of the bytes
+    /// `num_bytes` says its values take. Every limit keeps that within a byte, so a byte count
+    /// that isn't is refused for the quantity, as one past the limit is
+    fn limited(
+        self,
+        limit: u16,
+        num_bytes: impl FnOnce(u16) -> usize,
+    ) -> Result<LimitedRange, InvalidRange> {
         if self.count > limit {
             return Err(InvalidRange::CountTooLargeForType(self.count, limit));
         }
-        self.validated()
+        let range = self.validated()?;
+        let byte_count = u8::try_from(num_bytes(range.count))
+            .map_err(|_| InvalidRange::CountTooLargeForType(range.count, limit))?;
+        Ok(LimitedRange { range, byte_count })
     }
 }
 
@@ -644,15 +700,15 @@ mod tests {
     use super::*;
 
     /// What a range built from its fields gives: checked, checked for each function that limits
-    /// its count, parsed from its four bytes, as a `std` range, and its addresses with the next
-    /// two calls after the last
+    /// its count with the byte count of its values, parsed from its four bytes, as a `std` range,
+    /// and its addresses with the next two calls after the last
     #[derive(Debug, PartialEq)]
     struct Outcome {
         checked: Result<AddressRange, InvalidRange>,
-        read_bits: Result<AddressRange, InvalidRange>,
-        read_registers: Result<AddressRange, InvalidRange>,
-        write_coils: Result<AddressRange, InvalidRange>,
-        write_registers: Result<AddressRange, InvalidRange>,
+        read_bits: Result<(AddressRange, u8), InvalidRange>,
+        read_registers: Result<(AddressRange, u8), InvalidRange>,
+        write_coils: Result<(AddressRange, u8), InvalidRange>,
+        write_registers: Result<(AddressRange, u8), InvalidRange>,
         parsed: Result<AddressRange, RequestError>,
         unparsed_bytes: usize,
         std_range: std::ops::Range<usize>,
@@ -683,17 +739,36 @@ mod tests {
         model_checked(start, count)
     }
 
-    // MODBUS Application Protocol Specification V1.1b3 6.1, 6.3, 6.11, 6.12 for the limits
+    /// The model of a range checked for a function that carries at most `limit` bits, with the
+    /// count of the bytes they take, eight to a byte and the last one partial
+    fn model_bits(start: u16, count: u16, limit: u16) -> Result<(AddressRange, u8), InvalidRange> {
+        let bytes = u32::from(count).div_ceil(8);
+        model_limited(start, count, limit).map(|range| (range, u8::try_from(bytes).unwrap()))
+    }
+
+    /// The model of a range checked for a function that carries at most `limit` registers, with
+    /// the count of the bytes they take, two each
+    fn model_registers(
+        start: u16,
+        count: u16,
+        limit: u16,
+    ) -> Result<(AddressRange, u8), InvalidRange> {
+        let bytes = u32::from(count) * 2;
+        model_limited(start, count, limit).map(|range| (range, u8::try_from(bytes).unwrap()))
+    }
+
+    // MODBUS Application Protocol Specification V1.1b3 6.1, 6.3, 6.11, 6.12 for the limits and
+    // byte counts
     fn model(start: u16, count: u16) -> Outcome {
         let first = u32::from(start);
         let end = first.checked_add(u32::from(count)).unwrap();
         let std_end = usize::from(start).checked_add(usize::from(count)).unwrap();
         Outcome {
             checked: model_checked(start, count),
-            read_bits: model_limited(start, count, 2000),
-            read_registers: model_limited(start, count, 125),
-            write_coils: model_limited(start, count, 1968),
-            write_registers: model_limited(start, count, 123),
+            read_bits: model_bits(start, count, 2000),
+            read_registers: model_registers(start, count, 125),
+            write_coils: model_bits(start, count, 1968),
+            write_registers: model_registers(start, count, 123),
             // decoded big-endian, not validated: a response's range is compared with the request's
             parsed: Ok(AddressRange { start, count }),
             unparsed_bytes: 0,
@@ -716,10 +791,18 @@ mod tests {
         let addresses = iterator.by_ref().collect();
         Outcome {
             checked: AddressRange::try_from(start, count),
-            read_bits: range.of_read_bits().map(ReadBitsRange::get),
-            read_registers: range.of_read_registers().map(ReadRegistersRange::get),
-            write_coils: range.of_write_coils(),
-            write_registers: range.of_write_registers(),
+            read_bits: range
+                .of_read_bits()
+                .map(|read| (read.get(), read.byte_count())),
+            read_registers: range
+                .of_read_registers()
+                .map(|read| (read.get(), read.byte_count())),
+            write_coils: range
+                .of_write_coils()
+                .map(|write| (write.get(), write.byte_count())),
+            write_registers: range
+                .of_write_registers()
+                .map(|write| (write.get(), write.byte_count())),
             parsed,
             unparsed_bytes: cursor.remaining(),
             std_range: range.to_std_range(),
@@ -875,10 +958,13 @@ mod tests {
     fn a_read_of_bits_is_limited_to_2000() {
         assert_eq!(
             check(0, 2000).read_bits,
-            Ok(AddressRange {
-                start: 0,
-                count: 2000
-            })
+            Ok((
+                AddressRange {
+                    start: 0,
+                    count: 2000
+                },
+                250
+            ))
         );
         assert_eq!(
             check(0, 2001).read_bits,
@@ -891,10 +977,13 @@ mod tests {
     fn a_read_of_registers_is_limited_to_125() {
         assert_eq!(
             check(0, 125).read_registers,
-            Ok(AddressRange {
-                start: 0,
-                count: 125
-            })
+            Ok((
+                AddressRange {
+                    start: 0,
+                    count: 125
+                },
+                250
+            ))
         );
         assert_eq!(
             check(0, 126).read_registers,
@@ -907,10 +996,13 @@ mod tests {
     fn a_write_of_coils_is_limited_to_1968() {
         assert_eq!(
             check(0, 1968).write_coils,
-            Ok(AddressRange {
-                start: 0,
-                count: 1968
-            })
+            Ok((
+                AddressRange {
+                    start: 0,
+                    count: 1968
+                },
+                246
+            ))
         );
         assert_eq!(
             check(0, 1969).write_coils,
@@ -923,10 +1015,13 @@ mod tests {
     fn a_write_of_registers_is_limited_to_123() {
         assert_eq!(
             check(0, 123).write_registers,
-            Ok(AddressRange {
-                start: 0,
-                count: 123
-            })
+            Ok((
+                AddressRange {
+                    start: 0,
+                    count: 123
+                },
+                246
+            ))
         );
         assert_eq!(
             check(0, 124).write_registers,

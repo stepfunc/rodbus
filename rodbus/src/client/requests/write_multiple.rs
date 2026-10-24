@@ -10,7 +10,7 @@ use crate::common::traits::Serialize;
 use crate::decode::AppDecodeLevel;
 use crate::error::RequestError;
 use crate::error::{InvalidRange, InvalidRequest};
-use crate::types::{AddressIterator, AddressRange, Indexed};
+use crate::types::{AddressIterator, AddressRange, Indexed, LimitedRange};
 
 use scursor::{ReadCursor, WriteCursor};
 use std::convert::TryFrom;
@@ -20,10 +20,10 @@ use std::convert::TryFrom;
 /// Used when making write multiple coil/register requests
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WriteMultiple<T> {
-    /// starting address
-    pub(crate) range: AddressRange,
+    /// starting address, with a count of the values' length
+    range: AddressRange,
     /// vector of values
-    pub(crate) values: Vec<T>,
+    values: Vec<T>,
 }
 
 pub(crate) struct WriteMultipleIterator<'a, T> {
@@ -40,13 +40,6 @@ impl<T> WriteMultiple<T> {
         };
         let range = AddressRange::try_from(start, count)?;
         Ok(Self { range, values })
-    }
-
-    pub(crate) fn iter(&self) -> WriteMultipleIterator<'_, T> {
-        WriteMultipleIterator {
-            addresses: self.range.iter(),
-            values: self.values.iter(),
-        }
     }
 }
 
@@ -68,16 +61,37 @@ where
 
 impl<T: Copy> ExactSizeIterator for WriteMultipleIterator<'_, T> {}
 
-/// A [`WriteMultiple`] whose quantity is within the limit of its function, the only form a
-/// request is made from
+/// The values of a [`WriteMultiple`] with its range checked against the limit of its function,
+/// the only form a request is made from
 #[derive(Debug)]
 pub(crate) struct LimitedWrite<T> {
-    inner: WriteMultiple<T>,
+    /// the range of the [`WriteMultiple`], whose count is the number of values
+    range: LimitedRange,
+    values: Vec<T>,
 }
 
 impl<T> LimitedWrite<T> {
-    pub(crate) fn get(&self) -> &WriteMultiple<T> {
-        &self.inner
+    /// The range written
+    pub(crate) fn range(&self) -> AddressRange {
+        self.range.get()
+    }
+
+    /// The count of the bytes the values take
+    pub(crate) fn byte_count(&self) -> u8 {
+        self.range.byte_count()
+    }
+
+    /// The values written, one for each address of the range
+    pub(crate) fn values(&self) -> &[T] {
+        &self.values
+    }
+
+    /// The values written, each with its address
+    pub(crate) fn iter(&self) -> WriteMultipleIterator<'_, T> {
+        WriteMultipleIterator {
+            addresses: self.range.get().iter(),
+            values: self.values.iter(),
+        }
     }
 }
 
@@ -85,12 +99,9 @@ impl LimitedWrite<bool> {
     /// A write of multiple coils, of at most 1968 (MODBUS Application Protocol Specification
     /// V1.1b3 6.11)
     pub(crate) fn coils(write: WriteMultiple<bool>) -> Result<Self, InvalidRange> {
-        let range = write.range.of_write_coils()?;
         Ok(Self {
-            inner: WriteMultiple {
-                range,
-                values: write.values,
-            },
+            range: write.range.of_write_coils()?,
+            values: write.values,
         })
     }
 }
@@ -99,19 +110,16 @@ impl LimitedWrite<u16> {
     /// A write of multiple registers, of at most 123 (MODBUS Application Protocol Specification
     /// V1.1b3 6.12)
     pub(crate) fn registers(write: WriteMultiple<u16>) -> Result<Self, InvalidRange> {
-        let range = write.range.of_write_registers()?;
         Ok(Self {
-            inner: WriteMultiple {
-                range,
-                values: write.values,
-            },
+            range: write.range.of_write_registers()?,
+            values: write.values,
         })
     }
 }
 
 pub(crate) struct MultipleWriteRequest<T>
 where
-    WriteMultiple<T>: Serialize,
+    LimitedWrite<T>: Serialize,
 {
     pub(crate) request: LimitedWrite<T>,
     promise: Promise<AddressRange>,
@@ -119,14 +127,14 @@ where
 
 impl<T> MultipleWriteRequest<T>
 where
-    WriteMultiple<T>: Serialize,
+    LimitedWrite<T>: Serialize,
 {
     pub(crate) fn new(request: LimitedWrite<T>, promise: Promise<AddressRange>) -> Self {
         Self { request, promise }
     }
 
     pub(crate) fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
-        self.request.get().serialize(cursor)
+        self.request.serialize(cursor)
     }
 
     pub(crate) fn failure(&mut self, err: RequestError) {
@@ -139,7 +147,7 @@ where
         function: FunctionCode,
         decode: AppDecodeLevel,
     ) -> Result<(), RequestError> {
-        let response = super::parse_echo(cursor, &self.request.get().range)?;
+        let response = super::parse_echo(cursor, &self.request.range())?;
 
         if decode.data_headers() {
             tracing::info!("PDU RX - {} {}", function, response);
@@ -213,6 +221,7 @@ mod tests {
     #[test]
     fn values_at_the_top_of_the_address_space() {
         let request = WriteMultiple::from(0xFFFE, vec![0x1234u16, 0x5678]).unwrap();
+        let request = LimitedWrite::registers(request).unwrap();
         let mut values = request.iter();
         assert_eq!(values.len(), 2);
         assert_eq!(values.size_hint(), (2, Some(2)));
