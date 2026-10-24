@@ -567,16 +567,6 @@ proptest! {
     }
 }
 
-#[cfg(feature = "serial")]
-proptest! {
-    #![proptest_config(ProptestConfig::with_cases(128))]
-
-    #[test]
-    fn rtu_sessions_match_the_model(max_timeouts in max_timeouts(), steps in steps(Link::Rtu)) {
-        check(Link::Rtu, max_timeouts, &steps);
-    }
-}
-
 /// Check that cases drawn as the property tests draw them run every kind of step, and end in
 /// every way, by the model
 fn assert_generator_reaches_everything(link: Link, kinds: &[Kind], endings_reached: &[Ending]) {
@@ -632,28 +622,6 @@ fn the_tcp_generator_reaches_every_step_and_ending() {
             Kind::Disable,
         ],
         &endings(true),
-    );
-}
-
-/// RTU sessions drop the bytes of a bad frame rather than end
-#[cfg(feature = "serial")]
-#[test]
-fn the_rtu_generator_reaches_every_step_but_another_transaction_and_every_ending_but_a_bad_frame() {
-    assert_generator_reaches_everything(
-        Link::Rtu,
-        &[
-            Kind::Answer,
-            Kind::Exception,
-            Kind::WrongFunction,
-            Kind::OtherUnitThenAnswer,
-            Kind::Silence,
-            Kind::LateAfterTimeout,
-            Kind::Garbage,
-            Kind::DecodeLevel,
-            Kind::Enable,
-            Kind::Disable,
-        ],
-        &endings(false),
     );
 }
 
@@ -762,24 +730,6 @@ fn tcp_requests_carry_the_unit_and_successive_transaction_ids() {
     );
 }
 
-#[cfg(feature = "serial")]
-#[test]
-fn rtu_requests_carry_the_unit_address() {
-    use crate::serial::test_util::rtu;
-
-    let steps = [1, 0xFF].map(|unit| Step::Request {
-        unit,
-        reply: Reply::Answer(0x1234),
-    });
-    // the model checks that each request reports 0x1234 from 0x10
-    let (ending, exchanges) = check_exchanges(Link::Rtu, None, &steps);
-    assert_eq!(ending, Ending::Running);
-    assert_eq!(
-        requests(exchanges),
-        [rtu(1, &READ_REGISTER), rtu(0xFF, &READ_REGISTER)]
-    );
-}
-
 /// A request to unit 2 that unit 1 replies to first, then unit 2 with 0x2222
 const FROM_UNIT_1_THEN_2: Step = Step::Request {
     unit: 2,
@@ -802,28 +752,6 @@ fn a_tcp_response_from_another_unit_is_skipped() {
             reply: [
                 mbap(0, 1, &register_value(0xDDDD)),
                 mbap(0, 2, &register_value(0x2222)),
-            ]
-            .concat(),
-        }]
-    );
-}
-
-#[cfg(feature = "serial")]
-#[test]
-fn an_rtu_response_from_another_unit_is_skipped() {
-    use crate::serial::test_util::rtu;
-
-    // the model checks that the request reports 0x2222 at once
-    let (ending, exchanges) = check_exchanges(Link::Rtu, None, &[FROM_UNIT_1_THEN_2]);
-    assert_eq!(ending, Ending::Running);
-    // a reply from unit 1, then unit 2's
-    assert_eq!(
-        exchanges,
-        [Exchange {
-            request: rtu(2, &READ_REGISTER),
-            reply: [
-                rtu(1, &register_value(0xDDDD)),
-                rtu(2, &register_value(0x2222)),
             ]
             .concat(),
         }]
@@ -865,6 +793,81 @@ fn a_tcp_frame_answers_only_with_the_same_transaction_and_unit() {
                 request: mbap(7, 2, &READ_REGISTER),
                 reply: [skipped, mbap(7, 2, &register_value(0x2222))].concat(),
             })
+        );
+    }
+}
+
+/// The cases only RTU framing runs
+#[cfg(feature = "serial")]
+mod rtu_cases {
+    use super::*;
+
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(128))]
+
+        #[test]
+        fn rtu_sessions_match_the_model(max_timeouts in max_timeouts(), steps in steps(Link::Rtu)) {
+            check(Link::Rtu, max_timeouts, &steps);
+        }
+    }
+
+    /// RTU sessions drop the bytes of a bad frame rather than end
+    #[test]
+    fn the_rtu_generator_reaches_every_step_but_another_transaction_and_every_ending_but_a_bad_frame(
+    ) {
+        assert_generator_reaches_everything(
+            Link::Rtu,
+            &[
+                Kind::Answer,
+                Kind::Exception,
+                Kind::WrongFunction,
+                Kind::OtherUnitThenAnswer,
+                Kind::Silence,
+                Kind::LateAfterTimeout,
+                Kind::Garbage,
+                Kind::DecodeLevel,
+                Kind::Enable,
+                Kind::Disable,
+            ],
+            &endings(false),
+        );
+    }
+
+    #[test]
+    fn rtu_requests_carry_the_unit_address() {
+        use crate::serial::test_util::rtu;
+
+        let steps = [1, 0xFF].map(|unit| Step::Request {
+            unit,
+            reply: Reply::Answer(0x1234),
+        });
+        // the model checks that each request reports 0x1234 from 0x10
+        let (ending, exchanges) = check_exchanges(Link::Rtu, None, &steps);
+        assert_eq!(ending, Ending::Running);
+        assert_eq!(
+            requests(exchanges),
+            [rtu(1, &READ_REGISTER), rtu(0xFF, &READ_REGISTER)]
+        );
+    }
+
+    #[test]
+    fn an_rtu_response_from_another_unit_is_skipped() {
+        use crate::serial::test_util::rtu;
+
+        // the model checks that the request reports 0x2222 at once
+        let (ending, exchanges) = check_exchanges(Link::Rtu, None, &[FROM_UNIT_1_THEN_2]);
+        assert_eq!(ending, Ending::Running);
+        // a reply from unit 1, then unit 2's
+        assert_eq!(
+            exchanges,
+            [Exchange {
+                request: rtu(2, &READ_REGISTER),
+                reply: [
+                    rtu(1, &register_value(0xDDDD)),
+                    rtu(2, &register_value(0x2222)),
+                ]
+                .concat(),
+            }]
         );
     }
 }
