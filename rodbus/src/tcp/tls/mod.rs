@@ -143,13 +143,12 @@ pub(crate) async fn handshake<S>(
 
 #[cfg(test)]
 pub(crate) mod test_util {
-    use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+    use std::net::{IpAddr, Ipv4Addr};
     use std::path::{Path, PathBuf};
     use std::sync::Arc;
 
     use sfio_rustls_config::{ProtocolVersions, ServerNameVerification};
     use tokio::io::{AsyncRead, AsyncWrite};
-    use tokio::net::TcpStream;
     use tokio_rustls::rustls;
     use tokio_rustls::rustls::pki_types::ServerName;
 
@@ -205,14 +204,6 @@ pub(crate) mod test_util {
             None,
         )
         .unwrap()
-    }
-
-    /// Connect to `addr` and run a handshake as a client offering `versions`
-    pub(crate) async fn connect(
-        addr: SocketAddr,
-        versions: ProtocolVersions,
-    ) -> std::io::Result<tokio_rustls::client::TlsStream<TcpStream>> {
-        handshake_as_client(TcpStream::connect(addr).await?, versions).await
     }
 
     /// Run a handshake over `socket` as a client offering `versions`

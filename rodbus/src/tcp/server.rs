@@ -398,6 +398,29 @@ mod tests {
         received
     }
 
+    /// How a test stops a server
+    #[derive(Clone, Copy, Debug)]
+    enum Stop {
+        Shutdown,
+        DropHandle,
+    }
+
+    impl Stop {
+        const ALL: [Self; 2] = [Self::Shutdown, Self::DropHandle];
+
+        /// Stop the server through `handle`; a shutdown returns the handle, so that keeping it
+        /// shows the shutdown alone stopped the server
+        fn apply(self, handle: ServerHandle) -> Option<ServerHandle> {
+            match self {
+                Self::Shutdown => {
+                    handle.shutdown();
+                    Some(handle)
+                }
+                Self::DropHandle => None,
+            }
+        }
+    }
+
     /// A descriptor-limit error, retried after the delay
     #[cfg(unix)]
     const EMFILE: Fault = Fault::Os(24);
@@ -465,31 +488,18 @@ mod tests {
     }
 
     #[tokio::test(start_paused = true)]
-    async fn shutdown_ends_an_established_session() {
+    async fn shutdown_or_dropping_the_handle_ends_an_established_session() {
         watchdog(async {
-            let (listener, mut peers) = FaultyListener::new(&[]);
-            let (handle, task) = spawn_server_on(listener);
-            let (mut client, _) = peers.connect();
-            assert_eq!(read_coils(&mut client).await, ILLEGAL_FUNCTION);
+            for stop in Stop::ALL {
+                let (listener, mut peers) = FaultyListener::new(&[]);
+                let (handle, task) = spawn_server_on(listener);
+                let (mut client, _) = peers.connect();
+                assert_eq!(read_coils(&mut client).await, ILLEGAL_FUNCTION);
 
-            handle.shutdown();
-            task.await.unwrap();
-            assert_eq!(read_to_close(&mut client).await, []);
-        })
-        .await;
-    }
-
-    #[tokio::test(start_paused = true)]
-    async fn dropping_the_handle_ends_an_established_session() {
-        watchdog(async {
-            let (listener, mut peers) = FaultyListener::new(&[]);
-            let (handle, task) = spawn_server_on(listener);
-            let (mut client, _) = peers.connect();
-            assert_eq!(read_coils(&mut client).await, ILLEGAL_FUNCTION);
-
-            drop(handle);
-            task.await.unwrap();
-            assert_eq!(read_to_close(&mut client).await, []);
+                let _handle = stop.apply(handle);
+                task.await.unwrap();
+                assert_eq!(read_to_close(&mut client).await, [], "{stop:?}");
+            }
         })
         .await;
     }
@@ -576,37 +586,21 @@ mod tests {
     }
 
     #[tokio::test(start_paused = true)]
-    async fn shutdown_during_the_accept_error_delay_stops_the_server() {
+    async fn shutdown_or_dropping_the_handle_during_the_accept_error_delay_stops_the_server() {
         watchdog(async {
-            let (listener, mut peers) = FaultyListener::new(&[UNKNOWN]);
-            let (handle, task) = spawn_server_on(listener);
+            for stop in Stop::ALL {
+                let (listener, mut peers) = FaultyListener::new(&[UNKNOWN]);
+                let (handle, task) = spawn_server_on(listener);
 
-            let failed_at = peers.attempts.recv().await.unwrap();
-            tokio::time::advance(Duration::from_millis(500)).await;
-            assert!(!task.is_finished());
+                let failed_at = peers.attempts.recv().await.unwrap();
+                tokio::time::advance(Duration::from_millis(500)).await;
+                assert!(!task.is_finished(), "{stop:?}");
 
-            handle.shutdown();
-            task.await.unwrap();
-            assert!(failed_at.elapsed() < ACCEPT_ERROR_DELAY);
-            assert_eq!(peers.attempts.recv().await, None);
-        })
-        .await;
-    }
-
-    #[tokio::test(start_paused = true)]
-    async fn dropping_the_handle_during_the_accept_error_delay_stops_the_server() {
-        watchdog(async {
-            let (listener, mut peers) = FaultyListener::new(&[UNKNOWN]);
-            let (handle, task) = spawn_server_on(listener);
-
-            let failed_at = peers.attempts.recv().await.unwrap();
-            tokio::time::advance(Duration::from_millis(500)).await;
-            assert!(!task.is_finished());
-
-            drop(handle);
-            task.await.unwrap();
-            assert!(failed_at.elapsed() < ACCEPT_ERROR_DELAY);
-            assert_eq!(peers.attempts.recv().await, None);
+                let _handle = stop.apply(handle);
+                task.await.unwrap();
+                assert!(failed_at.elapsed() < ACCEPT_ERROR_DELAY, "{stop:?}");
+                assert_eq!(peers.attempts.recv().await, None, "{stop:?}");
+            }
         })
         .await;
     }
@@ -740,48 +734,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn a_session_beyond_the_maximum_evicts_the_oldest() {
-        watchdog(async {
-            for max_sessions in [2, 3] {
-                let mut sessions = sessions(max_sessions);
-                let mut oldest = duplex_session(&mut sessions);
-                let mut others: Vec<_> = (0..max_sessions)
-                    .map(|_| duplex_session(&mut sessions))
-                    .collect();
-
-                for peer in &mut others {
-                    assert_eq!(read_coils(peer).await, ILLEGAL_FUNCTION);
-                }
-                assert_eq!(read_to_close(&mut oldest).await, []);
-            }
-        })
-        .await;
-    }
-
-    #[tokio::test(start_paused = true)]
-    async fn a_closed_session_frees_its_slot() {
-        watchdog(async {
-            let mut sessions = sessions(2);
-            let mut first = duplex_session(&mut sessions);
-            let mut closed = duplex_session(&mut sessions);
-
-            // a session sends its close event before it drops its socket
-            closed.shutdown().await.unwrap();
-            assert_eq!(read_to_close(&mut closed).await, []);
-            let (_tx, mut commands) = tokio::sync::mpsc::channel(1);
-            sessions
-                .serve(&mut commands, tokio::time::sleep(Duration::from_millis(1)))
-                .await
-                .unwrap();
-
-            let mut next = duplex_session(&mut sessions);
-            assert_eq!(read_coils(&mut next).await, ILLEGAL_FUNCTION);
-            assert_eq!(read_coils(&mut first).await, ILLEGAL_FUNCTION);
-        })
-        .await;
-    }
-
-    #[tokio::test]
     async fn an_evicted_session_ends_while_its_write_is_pending() {
         watchdog(async {
             let mut sessions = sessions(1);
@@ -867,27 +819,37 @@ mod tests {
 
         use super::*;
 
-        /// Something that happens to a server's sessions
+        /// Something that happens to a server's sessions, where `E` is what only one property
+        /// does
         #[derive(Clone, Debug)]
-        pub(super) enum Op {
+        pub(super) enum Op<E> {
             /// A new session starts
             Open,
             /// The live session at this position, oldest first, closes
             Close(Index),
-            /// A close arrives for a session that already ended
-            StaleClose(Index),
+            /// What only this property does
+            Also(E),
         }
 
-        fn op() -> impl Strategy<Value = Op> {
-            prop_oneof![
+        /// In [`check_tracker`]: a close arrives for the ended session at this position
+        #[derive(Clone, Debug)]
+        struct StaleClose(Index);
+
+        /// In [`check_sessions`]: the oldest session closes and a new one starts before the
+        /// server takes the close, so a full server evicts the closed session and its close
+        /// arrives afterwards
+        #[derive(Clone, Copy, Debug)]
+        pub(super) struct OpenBeforeClose;
+
+        fn ops<E: Clone + std::fmt::Debug>(
+            also: impl Strategy<Value = E>,
+        ) -> impl Strategy<Value = Vec<Op<E>>> {
+            let op = prop_oneof![
                 2 => Just(Op::Open),
                 1 => any::<Index>().prop_map(Op::Close),
-                1 => any::<Index>().prop_map(Op::StaleClose),
-            ]
-        }
-
-        fn ops() -> impl Strategy<Value = Vec<Op>> {
-            prop::collection::vec(op(), 0..=32)
+                1 => also.prop_map(Op::Also),
+            ];
+            prop::collection::vec(op, 0..=32)
         }
 
         /// The sessions a server should have, each represented by what observes it
@@ -1007,7 +969,7 @@ mod tests {
         }
 
         /// Apply `ops` to a [`SessionTracker`] and to the model, and compare them after each
-        async fn check_tracker(max_sessions: usize, ops: &[Op]) {
+        async fn check_tracker(max_sessions: usize, ops: &[Op<StaleClose>]) {
             let mut tracker = SessionTracker::new(max_sessions);
             let mut model = Model::new(max_sessions);
             for op in ops {
@@ -1018,7 +980,7 @@ mod tests {
                             tracker.remove(session.id);
                         }
                     }
-                    Op::StaleClose(index) => {
+                    Op::Also(StaleClose(index)) => {
                         if let Some(session) = model.ended(index) {
                             tracker.remove(session.id);
                         }
@@ -1029,7 +991,7 @@ mod tests {
 
             // dropping the tracker ends every session
             drop(tracker);
-            model.ended.extend(model.live.drain(..));
+            model.ended.extend(std::mem::take(&mut model.live));
             expect_tracked(&mut model).await;
         }
 
@@ -1064,7 +1026,7 @@ mod tests {
         }
 
         /// Apply `ops` to [`Sessions`] over pipes and to the model, and compare them after each
-        pub(super) async fn check_sessions(max_sessions: usize, ops: &[Op]) {
+        pub(super) async fn check_sessions(max_sessions: usize, ops: &[Op<OpenBeforeClose>]) {
             let mut sessions = sessions(max_sessions);
             let mut model = Model::new(max_sessions);
             let (_tx, mut commands) = tokio::sync::mpsc::channel(1);
@@ -1077,10 +1039,7 @@ mod tests {
                             drain(&mut sessions, &mut commands).await;
                         }
                     }
-                    Op::StaleClose(_) => {
-                        // the oldest session closes and a new one starts before the server takes
-                        // the close, so a full server evicts the closed session and its close
-                        // arrives afterwards
+                    Op::Also(OpenBeforeClose) => {
                         if let Some(oldest) = model.end(0) {
                             close(oldest).await;
                         }
@@ -1093,7 +1052,7 @@ mod tests {
 
             // dropping the sessions ends every session
             drop(sessions);
-            model.ended.extend(model.live.drain(..));
+            model.ended.extend(std::mem::take(&mut model.live));
             expect_served(&mut model).await;
         }
 
@@ -1103,7 +1062,7 @@ mod tests {
             #[test]
             fn the_tracker_holds_the_newest_sessions_until_they_close(
                 max_sessions in 0usize..=4,
-                ops in ops(),
+                ops in ops(any::<Index>().prop_map(StaleClose)),
             ) {
                 run(check_tracker(max_sessions, &ops));
             }
@@ -1115,7 +1074,7 @@ mod tests {
             #[test]
             fn the_newest_sessions_are_served_until_they_close(
                 max_sessions in 0usize..=4,
-                ops in ops(),
+                ops in ops(Just(OpenBeforeClose)),
             ) {
                 run(check_sessions(max_sessions, &ops));
             }
@@ -1198,8 +1157,8 @@ mod tests {
         use crate::server::handler::test_util::{Check, Recorder, Target};
         use crate::server::AuthorizationHandler;
         use crate::tcp::tls::test_util::{
-            authority_server, both_versions, connect, handshake_as_client, handshake_with,
-            operator, server_config, without_a_role, ROLE,
+            authority_server, both_versions, handshake_as_client, handshake_with, operator,
+            server_config, without_a_role, ROLE,
         };
         use crate::tcp::tls::{MinTlsVersion, TLS_HANDSHAKE_TIMEOUT};
         use crate::AddressRange;
@@ -1478,68 +1437,26 @@ mod tests {
             .await;
         }
 
-        /// The production server over real sockets: a newer TLS session displaces the older
-        #[tokio::test]
-        async fn a_completed_handshake_displaces_the_oldest_session_over_tcp() {
-            watchdog(async {
-                let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
-                let addr = listener.local_addr().unwrap();
-                let (_handle, task) = crate::server::create_tls_server_task(
-                    1,
-                    listener,
-                    handlers(),
-                    server_config(MinTlsVersion::V1_2),
-                    AddressFilter::Any,
-                    DecodeLevel::nothing(),
-                );
-                tokio::spawn(task.run());
-
-                let mut older = connect(addr, both_versions()).await.unwrap();
-                assert_eq!(read_coils(&mut older).await, ILLEGAL_FUNCTION);
-                let mut newer = connect(addr, both_versions()).await.unwrap();
-                assert_eq!(read_coils(&mut newer).await, ILLEGAL_FUNCTION);
-
-                let mut buffer = [0u8; 1];
-                assert_eq!(
-                    older.read(&mut buffer).await.map_err(|err| err.kind()),
-                    Err(std::io::ErrorKind::UnexpectedEof)
-                );
-            })
-            .await;
-        }
-
         #[tokio::test(start_paused = true)]
-        async fn dropping_the_handle_during_a_stalled_handshake_stops_the_server() {
+        async fn shutdown_or_dropping_the_handle_during_a_stalled_handshake_stops_the_server() {
             watchdog(async {
-                let mut server = spawn_tls_server();
-                let (mut stalled, accepted_at) = server.connect().await;
+                for stop in Stop::ALL {
+                    let mut server = spawn_tls_server();
+                    let (mut stalled, accepted_at) = server.connect().await;
 
-                // a command during the handshake is applied without ending it
-                server
-                    .handle
-                    .set_decode_level(DecodeLevel::nothing())
-                    .await
-                    .unwrap();
-                assert!(!server.task.is_finished());
+                    // a command during the handshake is applied without ending it
+                    server
+                        .handle
+                        .set_decode_level(DecodeLevel::nothing())
+                        .await
+                        .unwrap();
+                    assert!(!server.task.is_finished(), "{stop:?}");
 
-                drop(server.handle);
-                server.task.await.unwrap();
-                assert_eq!(accepted_at.elapsed(), Duration::ZERO);
-                assert_eq!(read_to_close(&mut stalled).await, []);
-            })
-            .await;
-        }
-
-        #[tokio::test(start_paused = true)]
-        async fn shutdown_during_a_stalled_handshake_stops_the_server() {
-            watchdog(async {
-                let mut server = spawn_tls_server();
-                let (mut stalled, accepted_at) = server.connect().await;
-
-                server.handle.shutdown();
-                server.task.await.unwrap();
-                assert_eq!(accepted_at.elapsed(), Duration::ZERO);
-                assert_eq!(read_to_close(&mut stalled).await, []);
+                    let _handle = stop.apply(server.handle);
+                    server.task.await.unwrap();
+                    assert_eq!(accepted_at.elapsed(), Duration::ZERO, "{stop:?}");
+                    assert_eq!(read_to_close(&mut stalled).await, [], "{stop:?}");
+                }
             })
             .await;
         }
