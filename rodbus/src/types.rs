@@ -617,7 +617,8 @@ impl ClientOptions {
     ///
     /// Useful for detecting dead TCP connections where the remote device stops responding
     /// but doesn't send a proper FIN/RST (e.g., due to network issues or third-party interference).
-    /// The counter resets on any successful request.
+    /// The count starts at zero on each new connection, and resets whenever a request ends other
+    /// than by a response timeout, including with an exception or a malformed response.
     ///
     /// Defaults to `None` (no limit)
     pub fn max_response_timeouts(self, max_timeouts: Option<NonZeroUsize>) -> Self {

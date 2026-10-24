@@ -24,7 +24,7 @@ pub struct FfiChannel {
     shutdown: ShutdownHandle,
 }
 
-/// Errors returned on methods of the FfiSession
+/// Errors returned on methods of the [`FfiChannel`]
 #[derive(Copy, Clone, Debug)]
 pub enum FfiChannelError {
     /// Channel is full
@@ -36,7 +36,7 @@ pub enum FfiChannelError {
 }
 
 impl FfiChannel {
-    /// Create a [FfiChannel] from a [Channel] and the specified [RequestParam]
+    /// Create a [FfiChannel] from a [Channel]
     pub fn new(channel: Channel) -> Self {
         Self {
             tx: channel.tx,
@@ -152,7 +152,7 @@ impl FfiChannel {
         ))
     }
 
-    /// Write a single registers to the server
+    /// Write a single register to the server
     pub fn write_single_register<C>(
         &mut self,
         param: RequestParam,

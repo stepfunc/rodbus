@@ -37,7 +37,8 @@ pub enum RequestError {
     Internal(InternalError),
     /// Timeout occurred before receiving a response from the server
     ResponseTimeout,
-    /// No connection could be made to the Modbus server
+    /// The channel had no connection (or open serial port) for the request: it was disabled,
+    /// connecting, or waiting to retry
     NoConnection,
     /// Task processing requests has been shutdown
     Shutdown,
@@ -210,7 +211,9 @@ impl std::fmt::Display for InternalError {
 pub enum FrameParseError {
     /// Received TCP frame with the length field set to zero
     MbapLengthZero,
-    /// Received TCP or RTU frame with length that exceeds max allowed size
+    /// Received a frame whose length exceeds the max allowed size
+    ///
+    /// Not returned by requests over RTU: an RTU reader drops bytes that can't start a frame
     FrameLengthTooBig(usize, usize), // actual size and the maximum size
     /// Received TCP frame within non-Modbus protocol id
     UnknownProtocolId(u16),

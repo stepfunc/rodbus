@@ -120,7 +120,7 @@ pub struct RequestParam {
 }
 
 impl RequestParam {
-    /// Create a new `RequestParam` from a `UnitId` and timeout `Duration`
+    /// Create a new `RequestParam` from a `UnitId` and a [`response_timeout`](Self::response_timeout)
     pub fn new(id: UnitId, response_timeout: Duration) -> Self {
         Self {
             id,
@@ -131,6 +131,9 @@ impl RequestParam {
 
 impl Channel {
     /// Enable communications
+    ///
+    /// A channel is created disabled: it doesn't connect (or open its serial port) until this is
+    /// called, and until then its requests fail with [`RequestError::NoConnection`].
     pub async fn enable(&self) -> Result<(), Shutdown> {
         self.send_setting(Setting::Enable).await
     }
@@ -382,7 +385,7 @@ impl CallbackSession {
         .await;
     }
 
-    /// Write a single registers to the server
+    /// Write a single register to the server
     pub async fn write_single_register<C>(&mut self, value: Indexed<u16>, callback: C)
     where
         C: FnOnce(Result<Indexed<u16>, RequestError>) + Send + Sync + 'static,

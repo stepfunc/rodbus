@@ -14,8 +14,8 @@ pub(crate) use server::*;
 
 /// Determines how the certificate(s) presented by the peer are validated
 ///
-/// This validation always occurs **after** the handshake signature has been
-/// verified.
+/// The certificate is validated when the peer presents it during the handshake, before the peer's
+/// handshake signature is verified. The handshake fails if either check fails.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(
     feature = "serialization",
@@ -28,8 +28,9 @@ pub enum CertificateMode {
     /// the chain of certificates presented by the peer is valid against one of
     /// the configured trust anchors.
     ///
-    /// The name verification is relaxed to allow for certificates that do not contain
-    /// the SAN extension. In these cases the name is verified using the Common Name instead.
+    /// A client configured with a server name checks it against the SAN extension of the server's
+    /// certificate or, if the certificate has no SAN extension, against its Common Name. A client
+    /// configured without one skips the name check. A server doesn't check the client's name.
     AuthorityBased,
     /// Validates that the peer presents a single certificate which is a byte-for-byte match
     /// against the configured peer certificate.
