@@ -93,9 +93,14 @@ enum ExchangeError {
     Write(std::io::ErrorKind),
     /// Reading the response failed; the session ends
     Read(ReadError),
-    /// The request failed on its own (no response in time, an exception, a bad response, ...);
-    /// the session goes on
-    Request(RequestError),
+    /// No response arrived in time; the session goes on, unless it reached its limit of
+    /// consecutive timeouts
+    Timeout,
+    /// The request failed on its own (an exception, a bad response, ...); the session goes on.
+    /// The frame writer and the request handlers report a [`RequestError`], so the type doesn't
+    /// rule out [`RequestError::ResponseTimeout`] here, but none of them reports one: only the
+    /// deadline does, as [`ExchangeError::Timeout`]
+    Rejected(RequestError),
 }
 
 impl From<ReadError> for ExchangeError {
@@ -110,49 +115,40 @@ impl From<ExchangeError> for RequestError {
         match err {
             ExchangeError::Write(kind) => Self::Io(kind),
             ExchangeError::Read(err) => err.into(),
-            ExchangeError::Request(err) => err,
+            ExchangeError::Timeout => Self::ResponseTimeout,
+            ExchangeError::Rejected(err) => err,
         }
     }
 }
 
-enum TimeoutCounterState {
-    Disabled,
-    Enabled { current: usize, max: usize },
-}
-
-struct TimeoutCounter {
-    state: TimeoutCounterState,
+/// The consecutive response timeouts of a session, against the limit that ends it
+enum TimeoutCounter {
+    Unlimited,
+    Limited { current: usize, max: NonZeroUsize },
 }
 
 impl TimeoutCounter {
     fn new(max_timeouts: Option<NonZeroUsize>) -> Self {
-        Self {
-            state: match max_timeouts {
-                None => TimeoutCounterState::Disabled,
-                Some(max) => TimeoutCounterState::Enabled {
-                    current: 0,
-                    max: max.get(),
-                },
-            },
+        match max_timeouts {
+            None => Self::Unlimited,
+            Some(max) => Self::Limited { current: 0, max },
         }
     }
 
     fn reset(&mut self) {
-        match &mut self.state {
-            TimeoutCounterState::Disabled => {}
-            TimeoutCounterState::Enabled { current, .. } => {
-                *current = 0;
-            }
+        if let Self::Limited { current, .. } = self {
+            *current = 0;
         }
     }
 
+    /// Count a response timeout, failing the session once it reaches the limit
     fn increment(&mut self) -> Result<(), SessionFailure> {
-        match &mut self.state {
-            TimeoutCounterState::Disabled => Ok(()),
-            TimeoutCounterState::Enabled { current, max } => {
+        match self {
+            Self::Unlimited => Ok(()),
+            Self::Limited { current, max } => {
                 *current = current.saturating_add(1);
-                if current >= max {
-                    Err(SessionFailure::MaxTimeouts(*max))
+                if *current >= max.get() {
+                    Err(SessionFailure::MaxTimeouts(max.get()))
                 } else {
                     Ok(())
                 }
@@ -290,14 +286,10 @@ impl ClientLoop {
                     // the stream failed, so the session ends
                     ExchangeError::Write(kind) => return Err(SessionFailure::Io(kind)),
                     ExchangeError::Read(err) => return Err(err.into()),
-                    // if we reach the maximum number of consecutive timeouts,
-                    // this can also terminate the session
-                    ExchangeError::Request(RequestError::ResponseTimeout) => {
-                        self.timeout_counter.increment()?;
-                    }
-                    // all other errors reset the response timeout counter,
-                    // e.g. a Modbus exception
-                    ExchangeError::Request(_) => self.timeout_counter.reset(),
+                    // reaching the maximum number of consecutive timeouts ends the session
+                    ExchangeError::Timeout => self.timeout_counter.increment()?,
+                    // any other failure ends the run of timeouts, e.g. a Modbus exception
+                    ExchangeError::Rejected(_) => self.timeout_counter.reset(),
                 }
             }
         }
@@ -320,7 +312,7 @@ impl ClientLoop {
                 &request.details,
                 self.decode,
             )
-            .map_err(ExchangeError::Request)?;
+            .map_err(ExchangeError::Rejected)?;
 
         // the timeout covers sending the request as well as receiving the response. Both phases
         // share one wait, so the request registers at most one timer, and it is never polled once
@@ -341,7 +333,7 @@ impl ClientLoop {
         let response = loop {
             let frame = tokio::select! {
                 _ = deadline.as_mut() => {
-                    return Err(ExchangeError::Request(RequestError::ResponseTimeout));
+                    return Err(ExchangeError::Timeout);
                 }
                 frame = self.reader.next_frame(io, self.decode) => {
                     frame?
@@ -366,7 +358,7 @@ impl ClientLoop {
         // successfully or bubble up an error
         request
             .handle_response(response.payload(), self.decode.app)
-            .map_err(ExchangeError::Request)
+            .map_err(ExchangeError::Rejected)
     }
 
     pub(crate) fn change_setting(&mut self, setting: Setting) {
@@ -508,10 +500,10 @@ mod tests {
             Self { decode, ..self }
         }
 
-        /// End the session after `max` consecutive response timeouts
-        fn max_timeouts(self, max: usize) -> Self {
+        /// End the session after `max_timeouts` consecutive response timeouts, if there is a limit
+        fn max_timeouts(self, max_timeouts: Option<NonZeroUsize>) -> Self {
             Self {
-                max_timeouts: NonZeroUsize::new(max),
+                max_timeouts,
                 ..self
             }
         }
@@ -731,7 +723,7 @@ mod tests {
     #[tokio::test(start_paused = true)]
     async fn counter_resets_when_a_session_starts() {
         watchdog(async {
-            let (channel, mut first) = Setup::tcp().max_timeouts(2).spawn();
+            let (channel, mut first) = Setup::tcp().max_timeouts(NonZeroUsize::new(2)).spawn();
             for _ in 0..2 {
                 a_read_of_coils_times_out(&channel, &mut first).await;
             }

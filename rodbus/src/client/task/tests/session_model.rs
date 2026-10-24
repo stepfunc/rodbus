@@ -127,7 +127,7 @@ struct Outcome {
 /// The session as the model sees it
 struct Model {
     link: Link,
-    max_timeouts: Option<usize>,
+    max_timeouts: Option<NonZeroUsize>,
     /// the transaction id of the next request, whatever became of the earlier ones
     next_tx_id: u16,
     /// response timeouts since the session started or since a request ended otherwise
@@ -135,7 +135,7 @@ struct Model {
 }
 
 impl Model {
-    fn new(link: Link, max_timeouts: Option<usize>) -> Self {
+    fn new(link: Link, max_timeouts: Option<NonZeroUsize>) -> Self {
         Self {
             link,
             max_timeouts,
@@ -182,8 +182,8 @@ impl Model {
             self.timeouts = self.timeouts.saturating_add(1);
             let ends = self
                 .max_timeouts
-                .filter(|max| self.timeouts >= *max)
-                .map(|max| SessionEnd::Failed(SessionFailure::MaxTimeouts(max)));
+                .filter(|max| self.timeouts >= max.get())
+                .map(|max| SessionEnd::Failed(SessionFailure::MaxTimeouts(max.get())));
             let outcome = Outcome {
                 result,
                 elapsed: TIMEOUT,
@@ -218,7 +218,7 @@ impl Model {
 
 /// The steps a session of `steps` runs, through the one that ends it, and how the model expects
 /// the session to end
-fn predict(link: Link, max_timeouts: Option<usize>, steps: &[Step]) -> (&[Step], Ending) {
+fn predict(link: Link, max_timeouts: Option<NonZeroUsize>, steps: &[Step]) -> (&[Step], Ending) {
     let mut model = Model::new(link, max_timeouts);
     for (index, step) in steps.iter().enumerate() {
         if let Some(ended) = model.step(*step) {
@@ -349,13 +349,13 @@ async fn finish(mut session: Session) -> SessionEnd {
 }
 
 /// Run a session of `steps`, checking each against the model, and return how it ended
-async fn execute(link: Link, max_timeouts: Option<usize>, steps: &[Step]) -> Ending {
+async fn execute(link: Link, max_timeouts: Option<NonZeroUsize>, steps: &[Step]) -> Ending {
     let setup = match link {
         Link::Tcp => Setup::tcp(),
         #[cfg(feature = "serial")]
         Link::Rtu => Setup::rtu(),
     };
-    let (channel, mut client_loop) = setup.max_timeouts(max_timeouts.unwrap_or(0)).build();
+    let (channel, mut client_loop) = setup.max_timeouts(max_timeouts).build();
     // a session runs once the channel is enabled; a setting received while disabled ends it
     client_loop.change_setting(Setting::Enable);
     let mut session = Session::run(client_loop, PIPE);
@@ -403,7 +403,7 @@ async fn execute(link: Link, max_timeouts: Option<usize>, steps: &[Step]) -> End
 
 /// Run a session of `steps` on its own paused runtime, checking each against the model, and
 /// return how it ended
-fn check(link: Link, max_timeouts: Option<usize>, steps: &[Step]) -> Ending {
+fn check(link: Link, max_timeouts: Option<NonZeroUsize>, steps: &[Step]) -> Ending {
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .start_paused(true)
@@ -494,8 +494,14 @@ fn steps(link: Link) -> impl Strategy<Value = Vec<Step>> {
     })
 }
 
-fn max_timeouts() -> impl Strategy<Value = Option<usize>> {
-    prop::sample::select(vec![None, Some(1), Some(2), Some(3), Some(4)])
+fn max_timeouts() -> impl Strategy<Value = Option<NonZeroUsize>> {
+    prop::sample::select(vec![
+        None,
+        NonZeroUsize::new(1),
+        NonZeroUsize::new(2),
+        NonZeroUsize::new(3),
+        NonZeroUsize::new(4),
+    ])
 }
 
 proptest! {
@@ -611,7 +617,7 @@ const ANSWERED: Step = Step::Request {
 #[test]
 fn terminates_after_max_consecutive_timeouts() {
     assert_eq!(
-        check(Link::Tcp, Some(3), &[SILENCE; 3]),
+        check(Link::Tcp, NonZeroUsize::new(3), &[SILENCE; 3]),
         Ending::Ended(SessionEnd::Failed(SessionFailure::MaxTimeouts(3)))
     );
 }
@@ -625,7 +631,10 @@ fn disabled_when_none_allows_unlimited_timeouts() {
 fn counter_resets_on_successful_request() {
     let steps = [SILENCE, SILENCE, ANSWERED, SILENCE, SILENCE];
     // only two consecutive timeouts, so the session is still running
-    assert_eq!(check(Link::Tcp, Some(3), &steps), Ending::Running);
+    assert_eq!(
+        check(Link::Tcp, NonZeroUsize::new(3), &steps),
+        Ending::Running
+    );
 }
 
 #[test]
@@ -636,7 +645,11 @@ fn counter_resets_on_an_exception() {
     };
     // the exception breaks the run of timeouts, so the session is still running
     assert_eq!(
-        check(Link::Tcp, Some(2), &[SILENCE, exception, SILENCE]),
+        check(
+            Link::Tcp,
+            NonZeroUsize::new(2),
+            &[SILENCE, exception, SILENCE]
+        ),
         Ending::Running
     );
 }
