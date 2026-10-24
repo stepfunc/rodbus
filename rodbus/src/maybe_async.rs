@@ -11,13 +11,11 @@ enum Value<T> {
 
 /// Represents a result that may be computed synchronously or asynchronously by user code.
 ///
-/// Rust does not currently allow `async fn` in trait methods, so we need
-/// a workaround. There are crates such as `async_trait` which provide proc_macros
-/// that do this, but they don't provide an optimization to *avoid* the heap allocation
-/// if the underlying implementation is synchronous.
-///
-/// This allows us to use `async` operations in Rust if desired, but just have synchronous callbacks
-/// in the FFI without paying always allocating.
+/// It is returned by trait methods that may complete later, such as
+/// [`Listener::update`](crate::client::Listener::update). Those traits are used as trait objects,
+/// where a method can't be an `async fn`, and returning a boxed future would allocate on every
+/// call. A synchronous implementation, such as the bindings', returns a ready value without
+/// allocating, while a Rust implementation can still do `async` work.
 #[must_use]
 pub struct MaybeAsync<T> {
     inner: Value<T>,

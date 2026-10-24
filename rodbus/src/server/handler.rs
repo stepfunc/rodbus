@@ -14,17 +14,20 @@ use crate::types::*;
 /// Trait implemented by the user to process requests received from the client
 ///
 /// Implementations do **NOT** need to validate these requests before they're called: the server
-/// answers a request whose length doesn't match its function, whose quantity is zero or above
-/// its function's limit (2000 bits or 125 registers for a read, 1968 coils or 123 registers for
-/// a write), or whose single coil value isn't ON or OFF with
-/// [`ExceptionCode::IllegalDataValue`], and one whose values are valid but whose range runs past
+/// answers a request whose length doesn't match its function, whose byte count disagrees with the
+/// values it carries, whose quantity is zero or above its function's limit (2000 bits or 125
+/// registers for a read, 1968 coils or 123 registers for a write), or whose single coil value
+/// isn't ON or OFF with [`ExceptionCode::IllegalDataValue`], and one whose values are valid but whose range runs past
 /// address 0xFFFF with [`ExceptionCode::IllegalDataAddress`], without calling the handler.
 ///
 /// A read calls its method for each address in the requested range, in order, and stops at the
 /// first call that returns an [`ExceptionCode`]. The server then answers the whole request with
 /// that exception.
+///
+/// A method that an implementation doesn't override answers with
+/// [`ExceptionCode::IllegalFunction`].
 pub trait RequestHandler: Send + 'static {
-    /// Moves a server handler implementation into a `Arc<Mutex<Box<ServerHandler>>>`
+    /// Moves a server handler implementation into an `Arc<Mutex<Box<Self>>>`
     /// suitable for passing to the server
     fn wrap(self) -> Arc<Mutex<Box<Self>>>
     where
@@ -109,6 +112,11 @@ pub(crate) fn lock_handler<T: ?Sized>(handler: &Mutex<Box<T>>) -> MutexGuard<'_,
 
 /// Type that hides the underlying map implementation
 /// and allows lookups of a [`RequestHandler`] from a [`UnitId`]
+///
+/// The server doesn't reply to a request for a unit id that isn't in the map, whatever the request
+/// holds. Over RTU, unit id 0 is the broadcast address: each handler in the map applies a
+/// broadcast write, and nothing replies, so a handler's exception goes nowhere; a broadcast read
+/// or a malformed broadcast is ignored.
 #[derive(Debug, Default)]
 pub struct ServerHandlerMap<T: RequestHandler> {
     handlers: BTreeMap<UnitId, ServerHandlerType<T>>,
@@ -174,7 +182,7 @@ where
 pub enum Authorization {
     /// Client is authorized to perform the operation
     Allow,
-    /// Client is non authorized to perform the operation
+    /// Client is not authorized to perform the operation
     Deny,
 }
 
@@ -182,6 +190,10 @@ pub enum Authorization {
 ///
 /// `role` is the client certificate's Modbus role, which must be a single role extension. The
 /// server refuses a connection whose role contains a NUL character.
+///
+/// The server asks only about well-formed requests to units it serves: it refuses a malformed
+/// request before asking, and ignores one for another unit. A denied request is answered
+/// with [`ExceptionCode::IllegalFunction`] and never reaches the [`RequestHandler`].
 pub trait AuthorizationHandler: Send + Sync + 'static {
     /// Moves an authorization handler implementation into an `Arc<dyn AuthorizationHandler>`
     /// suitable for passing to the server

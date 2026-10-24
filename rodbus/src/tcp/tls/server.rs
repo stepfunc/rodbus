@@ -31,6 +31,18 @@ impl std::fmt::Debug for TlsServerConfig {
 
 impl TlsServerConfig {
     /// Create a TLS server config
+    ///
+    /// The server requires every client to present a certificate, validated as `certificate_mode`
+    /// says. It doesn't check the client's name.
+    ///
+    /// * `peer_cert_path` - Path to the certificate(s) clients are validated against: the trusted
+    ///   authority certificate(s) with [`CertificateMode::AuthorityBased`], or the client's own
+    ///   certificate with [`CertificateMode::SelfSigned`]
+    /// * `local_cert_path` - Path to the server's certificate
+    /// * `private_key_path` - Path to the server's private key
+    /// * `password` - Password of the private key, if it is encrypted
+    /// * `min_tls_version` - Minimum TLS version the server accepts
+    /// * `certificate_mode` - How the client's certificate is validated
     pub fn new(
         peer_cert_path: &Path,
         local_cert_path: &Path,

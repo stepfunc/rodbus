@@ -102,13 +102,16 @@ impl HostAddr {
 ///
 /// The channel uses the provided [`RetryStrategy`] to pause between failed connection attempts
 ///
-/// * `host` - Address/port of the remote server. Can be a IP address or name on which to perform DNS resolution.
+/// The channel is created disabled: it doesn't connect until [`Channel::enable`] is called, and
+/// requests made before that fail with [`RequestError::NoConnection`](crate::RequestError::NoConnection).
+///
+/// * `host` - Address/port of the remote server. Can be an IP address or name on which to perform DNS resolution.
 /// * `max_queued_requests` - The maximum size of the request queue (clamped to at least 1 and at most what the runtime supports)
 /// * `retry` - A boxed trait object that controls when the connection is retried on failure
-/// * `decode` - Decode log level
+/// * `decode_level` - Decode log level
 /// * `listener` - Optional callback to monitor the TCP connection state
 ///
-/// `WARNING`: This function must be called from with the context of the Tokio runtime or it will panic.
+/// `WARNING`: This function must be called from within the context of the Tokio runtime or it will panic.
 pub fn spawn_tcp_client_task(
     host: HostAddr,
     max_queued_requests: usize,
@@ -133,12 +136,15 @@ pub fn spawn_tcp_client_task(
 ///
 /// The channel uses the provided [`RetryStrategy`] to pause between failed connection attempts
 ///
-/// * `host` - Address/port of the remote server. Can be a IP address or name on which to perform DNS resolution.
+/// The channel is created disabled: it doesn't connect until [`Channel::enable`] is called, and
+/// requests made before that fail with [`RequestError::NoConnection`](crate::RequestError::NoConnection).
+///
+/// * `host` - Address/port of the remote server. Can be an IP address or name on which to perform DNS resolution.
 /// * `retry` - A boxed trait object that controls when the connection is retried on failure
 /// * `listener` - Optional callback to monitor the TCP connection state
 /// * `client_options` - A builder that contains various client options.
 ///
-/// `WARNING`: This function must be called from with the context of the Tokio runtime or it will panic.
+/// `WARNING`: This function must be called from within the context of the Tokio runtime or it will panic.
 pub fn spawn_tcp_client_task_with_options(
     host: HostAddr,
     retry: Box<dyn RetryStrategy>,
@@ -162,6 +168,9 @@ pub fn spawn_tcp_client_task_with_options(
 /// caller may wrap [`ClientTask::run`] with their own instrumentation before spawning it.
 ///
 /// The channel uses the provided [`RetryStrategy`] to pause between failed connection attempts
+///
+/// The channel is created disabled: it doesn't connect until [`Channel::enable`] is called, and
+/// requests made before that fail with [`RequestError::NoConnection`](crate::RequestError::NoConnection).
 ///
 /// * `host` - Address/port of the remote server. Can be an IP address or name on which to perform DNS resolution.
 /// * `retry` - A boxed trait object that controls when the connection is retried on failure
@@ -189,14 +198,18 @@ pub fn create_tcp_client_task_with_options(
 /// The channel uses the provided [`RetryStrategy`] to pause between failed attempts to open the
 /// serial port or after the serial port fails.
 ///
+/// The channel is created disabled: it doesn't open the serial port until [`Channel::enable`] is
+/// called, and requests made before that fail with
+/// [`RequestError::NoConnection`](crate::RequestError::NoConnection).
+///
 /// * `path` - Path to the serial device. Generally `/dev/tty0` on Linux and `COM1` on Windows.
-/// * `serial_settings` = Serial port settings
+/// * `serial_settings` - Serial port settings
 /// * `max_queued_requests` - The maximum size of the request queue (clamped to at least 1 and at most what the runtime supports)
 /// * `retry` - A boxed trait object that controls when opening the serial port is retried on failure
 /// * `decode` - Decode log level
 /// * `listener` - Optional callback to monitor the state of the serial port
 ///
-/// `WARNING`: This function must be called from with the context of the Tokio runtime or it will panic.
+/// `WARNING`: This function must be called from within the context of the Tokio runtime or it will panic.
 #[cfg(feature = "serial")]
 pub fn spawn_rtu_client_task(
     path: &str,
@@ -227,8 +240,12 @@ pub fn spawn_rtu_client_task(
 /// The channel uses the provided [`RetryStrategy`] to pause between failed attempts to open the
 /// serial port or after the serial port fails.
 ///
+/// The channel is created disabled: it doesn't open the serial port until [`Channel::enable`] is
+/// called, and requests made before that fail with
+/// [`RequestError::NoConnection`](crate::RequestError::NoConnection).
+///
 /// * `path` - Path to the serial device. Generally `/dev/tty0` on Linux and `COM1` on Windows.
-/// * `serial_settings` = Serial port settings
+/// * `serial_settings` - Serial port settings
 /// * `max_queued_requests` - The maximum size of the request queue (clamped to at least 1 and at most what the runtime supports)
 /// * `retry` - A boxed trait object that controls when opening the serial port is retried on failure
 /// * `decode` - Decode log level
@@ -258,14 +275,17 @@ pub fn create_rtu_client_task(
 ///
 /// The channel uses the provided [`RetryStrategy`] to pause between failed connection attempts
 ///
-/// * `host` - Address/port of the remote server. Can be a IP address or name on which to perform DNS resolution.
+/// The channel is created disabled: it doesn't connect until [`Channel::enable`] is called, and
+/// requests made before that fail with [`RequestError::NoConnection`](crate::RequestError::NoConnection).
+///
+/// * `host` - Address/port of the remote server. Can be an IP address or name on which to perform DNS resolution.
 /// * `max_queued_requests` - The maximum size of the request queue (clamped to at least 1 and at most what the runtime supports)
 /// * `retry` - A boxed trait object that controls when the connection is retried on failure
 /// * `tls_config` - TLS configuration
-/// * `decode` - Decode log level
+/// * `decode_level` - Decode log level
 /// * `listener` - Optional callback to monitor the TLS connection state
 ///
-/// `WARNING`: This function must be called from with the context of the Tokio runtime or it will panic.
+/// `WARNING`: This function must be called from within the context of the Tokio runtime or it will panic.
 #[cfg(feature = "enable-tls")]
 pub fn spawn_tls_client_task(
     host: HostAddr,
@@ -298,7 +318,10 @@ pub fn spawn_tls_client_task(
 ///
 /// The channel uses the provided [`RetryStrategy`] to pause between failed connection attempts
 ///
-/// * `host` - Address/port of the remote server. Can be a IP address or name on which to perform DNS resolution.
+/// The channel is created disabled: it doesn't connect until [`Channel::enable`] is called, and
+/// requests made before that fail with [`RequestError::NoConnection`](crate::RequestError::NoConnection).
+///
+/// * `host` - Address/port of the remote server. Can be an IP address or name on which to perform DNS resolution.
 /// * `retry` - A boxed trait object that controls when the connection is retried on failure
 /// * `tls_config` - TLS configuration
 /// * `listener` - Optional callback to monitor the TLS connection state

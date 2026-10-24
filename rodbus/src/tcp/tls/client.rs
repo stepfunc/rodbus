@@ -94,8 +94,9 @@ impl TlsClientConfig {
     /// Create a TLS client configuration that expects a full PKI with an authority, and possibly
     /// intermediate CA certificates.
     ///
-    /// If `server_subject_name` is specified, than the client will verify that the name is present in the
-    /// SAN extension or in the Common Name of the client certificate.
+    /// If `server_subject_name` is specified, then the client verifies that the name is present in
+    /// the SAN extension of the server certificate or, if the certificate has no SAN extension, in
+    /// its Common Name.
     ///
     /// If `server_subject_name` is set to None, then no server name validation is performed, and
     /// any authenticated server is allowed.
@@ -135,7 +136,7 @@ impl TlsClientConfig {
         })
     }
 
-    /// Create a TLS client configuration that expects the client to present a single certificate.
+    /// Create a TLS client configuration that expects the server to present a single certificate.
     ///
     /// In lieu of performing server subject name validation, the client validates:
     ///

@@ -72,10 +72,14 @@ included with each release governs that release; the latest versions are
 
 # Cargo Features
 
-Default features can be disabled at compile time:
-* `tls` - Build the library with support for TLS (secure Modbus)
+Default features, which can be disabled at compile time:
+* `tls` - Build the library with support for TLS (secure Modbus), using rustls with the *ring* crypto provider
 * `serial` - Build the library with support for Modbus RTU and serial ports
-* `serialize` - Add [serde](https://docs.rs/crate/serde/latest) de(serialization) support for public configuration types.
+
+Optional features:
+* `tls-aws-lc` - TLS support with the AWS-LC crypto provider instead of *ring*. It can't be combined with `tls`, so disable
+  the default features to use it
+* `serialization` - Add [serde](https://docs.rs/crate/serde/latest) (de)serialization support for public configuration types
 
 Bindings in C, C++, java, and .NET Core are available for this library. See the
 [documentation](https://stepfunc.io/products/libraries/modbus/) for more details.

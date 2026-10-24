@@ -24,7 +24,7 @@ pub trait Listener<T>: Send {
 pub(crate) struct NullListener;
 
 impl NullListener {
-    /// Create a Box<dyn Listener<T>> that does nothing
+    /// Create a `Box<dyn Listener<T>>` that does nothing
     pub(crate) fn create<T>() -> Box<dyn Listener<T>> {
         Box::new(NullListener)
     }

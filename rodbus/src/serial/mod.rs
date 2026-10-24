@@ -17,7 +17,11 @@ pub(crate) mod timing;
 /// Serial port settings
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct SerialSettings {
-    /// Baud rate of the port
+    /// Baud rate of the port, in bits per second
+    ///
+    /// The RTU timing comes from it: frames are sent at least 3.5 character times apart (1.75 ms
+    /// above 19200 baud), and a partial frame is dropped after the longer of that gap and 50 ms of
+    /// silence.
     pub baud_rate: u32,
     /// Number of data bits
     pub data_bits: DataBits,

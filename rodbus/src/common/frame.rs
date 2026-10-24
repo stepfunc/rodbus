@@ -214,11 +214,12 @@ pub(crate) enum FrameParser {
 
 impl FrameParser {
     /// Parse bytes using the provided cursor. Advancing the cursor always implies that the bytes
-    /// are consumed and can be discarded,
+    /// are consumed and can be discarded.
     ///
-    /// `Err` implies the bytes can't start a valid TCP frame; an RTU parser drops such bytes
-    /// `Ok(None)` implies that more data is required to complete parsing
-    /// `Ok(Some(..))` will contain a fully parsed frame and will advance the cursor appropriately
+    /// - `Err` implies the bytes can't start a valid TCP frame; an RTU parser drops such bytes
+    ///   and returns no error
+    /// - `Ok(None)` implies that more data is required to complete parsing
+    /// - `Ok(Some(..))` will contain a fully parsed frame and will advance the cursor appropriately
     ///
     /// Parsers don't log: the frame comes back with its type, which the reader logs
     pub(crate) fn parse(

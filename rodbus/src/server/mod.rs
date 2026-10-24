@@ -13,7 +13,6 @@ use crate::decode::DecodeLevel;
 use crate::server::task::ServerCommand;
 use crate::tcp::server::{new_server, ServerTask as TcpServerTask, TcpServerConnectionHandler};
 
-/// server handling
 mod address_filter;
 pub(crate) mod handler;
 pub(crate) mod request;
@@ -110,7 +109,10 @@ impl ServerHandle {
         ServerHandle { tx, shutdown }
     }
 
-    /// Change the decoding level for future sessions and all active sessions
+    /// Change the decoding level for future sessions and the active ones
+    ///
+    /// Active TCP sessions get the change on a best-effort basis: one whose queue of commands is
+    /// full, e.g. because it is blocked writing to a client, keeps its current level.
     pub async fn set_decode_level(&mut self, level: DecodeLevel) -> Result<(), Shutdown> {
         self.tx.send(ServerCommand::ChangeDecoding(level)).await?;
         Ok(())
@@ -135,11 +137,12 @@ impl ServerHandle {
 ///
 /// * `max_sessions` - Maximum number of concurrent sessions. When a new connection would exceed it,
 ///   the oldest session is closed. Zero is treated as one.
-/// * `addr` - A socket address to bound to
+/// * `addr` - A socket address to bind to
 /// * `handlers` - A map of handlers keyed by a unit id
+/// * `filter` - Address filter which may be used to restrict the connecting IP address
 /// * `decode` - Decode log level
 ///
-/// `WARNING`: This function must be called from with the context of the Tokio runtime or it will panic.
+/// `WARNING`: This function must be called from within the context of the Tokio runtime or it will panic.
 pub async fn spawn_tcp_server_task<T: RequestHandler>(
     max_sessions: usize,
     addr: SocketAddr,
@@ -195,7 +198,7 @@ pub fn create_tcp_server_task<T: RequestHandler>(
 /// * `handlers` - A map of handlers keyed by a unit id
 /// * `decode` - Decode log level
 ///
-/// `WARNING`: This function must be called from with the context of the Tokio runtime or it will panic.
+/// `WARNING`: This function must be called from within the context of the Tokio runtime or it will panic.
 #[cfg(feature = "serial")]
 pub fn spawn_rtu_server_task<T: RequestHandler>(
     path: &str,
@@ -250,13 +253,13 @@ pub fn create_rtu_server_task<T: RequestHandler>(
 /// * `max_sessions` - Maximum number of concurrent sessions. A connection becomes a session once its
 ///   TLS handshake completes; if that exceeds the maximum, the oldest session is closed. Handshakes
 ///   run one at a time, each limited to 5 seconds. Zero is treated as one.
-/// * `addr` - A socket address to bound to
+/// * `addr` - A socket address to bind to
 /// * `handlers` - A map of handlers keyed by a unit id
 /// * `filter` - Address filter which may be used to restrict the connecting IP address
 /// * `tls_config` - TLS configuration
 /// * `decode` - Decode log level
 ///
-/// `WARNING`: This function must be called from with the context of the Tokio runtime or it will panic.
+/// `WARNING`: This function must be called from within the context of the Tokio runtime or it will panic.
 #[cfg(feature = "enable-tls")]
 pub async fn spawn_tls_server_task<T: RequestHandler>(
     max_sessions: usize,
@@ -322,14 +325,14 @@ pub fn create_tls_server_task<T: RequestHandler>(
 /// * `max_sessions` - Maximum number of concurrent sessions. A connection becomes a session once its
 ///   TLS handshake completes; if that exceeds the maximum, the oldest session is closed. Handshakes
 ///   run one at a time, each limited to 5 seconds. Zero is treated as one.
-/// * `addr` - A socket address to bound to
+/// * `addr` - A socket address to bind to
 /// * `handlers` - A map of handlers keyed by a unit id
 /// * `auth_handler` - Handler used to authorize requests
 /// * `tls_config` - TLS configuration
 /// * `filter` - Address filter which may be used to restrict the connecting IP address
 /// * `decode` - Decode log level
 ///
-/// `WARNING`: This function must be called from with the context of the Tokio runtime or it will panic.
+/// `WARNING`: This function must be called from within the context of the Tokio runtime or it will panic.
 #[cfg(feature = "enable-tls")]
 pub async fn spawn_tls_server_task_with_authz<T: RequestHandler>(
     max_sessions: usize,
