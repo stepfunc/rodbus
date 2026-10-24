@@ -8,7 +8,7 @@
 //! and the calls its handlers get
 //!
 //! Each case serves some of the units 0, 1, 2 and 255 with handlers that hold coils and registers
-//! and fail at chosen addresses, and sends 1 to 20 requests to any of those units, then a read the
+//! and fail at chosen addresses, and sends 1 to 30 requests to any of those units, then a read the
 //! session must still answer. The model decodes each request itself, from the function codes'
 //! definitions (MODBUS Application Protocol Specification V1.1b3 6.1-6.6, 6.11, 6.12), and
 //! expects:
@@ -180,7 +180,8 @@ impl Memory {
     }
 }
 
-type Calls = Arc<Mutex<Vec<Call>>>;
+/// The calls every handler of a session got, in the order they got them, each after its unit
+type Calls = Arc<Mutex<Vec<(u8, Call)>>>;
 
 /// A handler that holds a [`Memory`], fails every call at the addresses in `failures`, and
 /// records its calls; a write of multiple values writes them in order, until one fails
@@ -201,7 +202,7 @@ impl Handler {
     }
 
     fn record(&self, call: Call) {
-        self.calls.lock().unwrap().push(call);
+        self.calls.lock().unwrap().push((self.memory.unit, call));
     }
 }
 
@@ -549,11 +550,12 @@ fn range_reply(function: u8, start: u16, count: u16) -> Vec<u8> {
 fn execute(
     memory: &mut Memory,
     failures: &BTreeMap<u16, Failure>,
-    calls: &mut Vec<Call>,
+    calls: &mut Vec<(u8, Call)>,
     op: &Op,
 ) -> Result<Vec<u8>, (Failure, u16)> {
+    let unit = memory.unit;
     let mut call = |call, address| {
-        calls.push(call);
+        calls.push((unit, call));
         match failures.get(&address) {
             Some(failure) => Err((*failure, address)),
             None => Ok(()),
@@ -619,12 +621,13 @@ fn execute(
     }
 }
 
-/// What a session does: the bytes it writes, the calls each handler gets, and the checks of the
+/// What a session does: the bytes it writes, the calls its handlers get, and the checks of the
 /// authorization handler
 #[derive(Debug, PartialEq)]
 struct Seen {
     replies: Vec<u8>,
-    calls: BTreeMap<u8, Vec<Call>>,
+    /// every handler call, in call order, each after the unit of its handler
+    calls: Vec<(u8, Call)>,
     #[cfg(feature = "enable-tls")]
     checks: Vec<Check>,
 }
@@ -646,7 +649,6 @@ impl Model {
             .iter()
             .map(|unit| (*unit, Memory::new(*unit)))
             .collect();
-        let calls = case.served.iter().map(|unit| (*unit, vec![])).collect();
         Self {
             link,
             auth,
@@ -654,7 +656,7 @@ impl Model {
             failures: case.failures.clone(),
             seen: Seen {
                 replies: vec![],
-                calls,
+                calls: vec![],
                 #[cfg(feature = "enable-tls")]
                 checks: vec![],
             },
@@ -710,8 +712,7 @@ impl Model {
                 }
             }
         }
-        let calls = self.seen.calls.entry(unit).or_default();
-        match execute(memory, &self.failures, calls, &op) {
+        match execute(memory, &self.failures, &mut self.seen.calls, &op) {
             Ok(reply) => {
                 let kind = match op {
                     Op::Read { .. } => Kind::Read,
@@ -738,10 +739,10 @@ impl Model {
             }
             Decoded::Refused { .. } => Kind::BroadcastIgnored,
             Decoded::Valid(op) => {
-                for (unit, memory) in &mut self.units {
-                    let calls = self.seen.calls.entry(*unit).or_default();
+                // every handler in the order of its unit
+                for memory in self.units.values_mut() {
                     // nothing replies, so a failure goes nowhere
-                    drop(execute(memory, &self.failures, calls, &op));
+                    drop(execute(memory, &self.failures, &mut self.seen.calls, &op));
                 }
                 Kind::BroadcastWrite
             }
@@ -782,16 +783,14 @@ fn predict(link: Link, auth: Auth, case: &Case) -> (Seen, Vec<Kind>) {
 /// Runs a session of `case`, and returns what it did
 async fn execute_case(link: Link, auth: Auth, case: &Case) -> Seen {
     let mut handlers = ServerHandlerMap::new();
-    let mut logs = BTreeMap::new();
+    let calls = Calls::default();
     for unit in &case.served {
-        let calls = Calls::default();
         let handler = Handler {
             memory: Memory::new(*unit),
             failures: case.failures.clone(),
             calls: calls.clone(),
         };
         assert!(handlers.add(UnitId::new(*unit), handler.wrap()).is_none());
-        logs.insert(*unit, calls);
     }
     #[cfg(feature = "enable-tls")]
     let mut recorded = None;
@@ -830,13 +829,10 @@ async fn execute_case(link: Link, auth: Auth, case: &Case) -> Seen {
     read.unwrap();
 
     // the session ended, so its handlers are done
-    let take = |calls: &Mutex<Vec<Call>>| std::mem::take(&mut *calls.lock().unwrap());
+    let calls = std::mem::take(&mut *calls.lock().unwrap());
     Seen {
         replies,
-        calls: logs
-            .into_iter()
-            .map(|(unit, calls)| (unit, take(&calls)))
-            .collect(),
+        calls,
         #[cfg(feature = "enable-tls")]
         checks: recorded
             .map(|checks| std::mem::take(&mut *checks.lock().unwrap()))
@@ -869,15 +865,15 @@ fn unit() -> impl Strategy<Value = u8> {
 /// Mostly addresses where handlers may fail, sometimes addresses near the end
 fn address() -> impl Strategy<Value = u16> {
     prop_oneof![
-        4 => 0u16..0x20,
-        1 => 0xFFF0u16..=0xFFFF,
+        3 => 0u16..0x10,
+        1 => 0xFFF8u16..=0xFFFF,
     ]
 }
 
 /// A quantity of a function that allows at most `limit`
 fn quantity(limit: u16) -> impl Strategy<Value = u16> {
     prop_oneof![
-        8 => 1u16..=8,
+        6 => 1u16..=8,
         1 => Just(limit),
         1 => Just(limit.saturating_add(1)),
         1 => Just(0),
@@ -1005,13 +1001,13 @@ fn case(link: Link) -> impl Strategy<Value = Case> {
             served.iter().any(|unit| *unit != 0 || link == Link::Tcp)
         });
     let failure = prop::sample::select(vec![Failure::Address, Failure::Device, Failure::Busy]);
-    let failures = prop::collection::btree_map(0u16..0x20, failure, 0..=3);
+    let failures = prop::collection::btree_map(0u16..0x10, failure, 0..=4);
     let request = (unit(), any::<u16>(), pdu(link)).prop_map(|(unit, tx_id, pdu)| Request {
         unit,
         tx_id,
         pdu,
     });
-    let requests = prop::collection::vec(request, 1..=20);
+    let requests = prop::collection::vec(request, 1..=30);
     (served, failures, requests).prop_map(move |(served, failures, mut requests)| {
         requests.push(probe(link, &served));
         Case {
@@ -1022,8 +1018,11 @@ fn case(link: Link) -> impl Strategy<Value = Case> {
     })
 }
 
+/// The cases each property runs, enough that every kind of request of each function is drawn
+const CASES: u32 = 256;
+
 proptest! {
-    #![proptest_config(ProptestConfig::with_cases(128))]
+    #![proptest_config(ProptestConfig::with_cases(CASES))]
 
     #[test]
     fn tcp_sessions_match_the_model(case in case(Link::Tcp)) {
@@ -1033,7 +1032,7 @@ proptest! {
 
 #[cfg(feature = "serial")]
 proptest! {
-    #![proptest_config(ProptestConfig::with_cases(128))]
+    #![proptest_config(ProptestConfig::with_cases(CASES))]
 
     #[test]
     fn rtu_sessions_match_the_model(case in case(Link::Rtu)) {
@@ -1066,7 +1065,7 @@ fn authorized_case() -> impl Strategy<Value = (&'static [FunctionCode], Case)> {
 
 #[cfg(feature = "enable-tls")]
 proptest! {
-    #![proptest_config(ProptestConfig::with_cases(64))]
+    #![proptest_config(ProptestConfig::with_cases(CASES))]
 
     #[test]
     fn authorized_tcp_sessions_match_the_model((denied, case) in authorized_case()) {
@@ -1074,68 +1073,105 @@ proptest! {
     }
 }
 
-/// The kinds of the requests of the cases drawn as the property tests draw them
-fn kinds_drawn(link: Link, cases: impl Strategy<Value = (Auth, Case)>) -> Vec<Kind> {
+/// A request's function, if the server implements it, and the request's kind
+type Reached = (Option<u8>, Kind);
+
+/// The functions and kinds of the requests of the cases drawn as the property tests draw them
+fn reached(link: Link, cases: impl Strategy<Value = (Auth, Case)>) -> Vec<Reached> {
     let mut runner = TestRunner::deterministic();
-    let mut kinds = BTreeSet::new();
-    for _ in 0..128 {
+    let mut reached = BTreeSet::new();
+    for _ in 0..CASES {
         let (auth, case) = cases.new_tree(&mut runner).unwrap().current();
-        kinds.extend(predict(link, auth, &case).1);
+        let functions = case.requests.iter().map(|request| {
+            let function = request.pdu.first().copied();
+            function.filter(|function| IMPLEMENTED.contains(function))
+        });
+        reached.extend(functions.zip(predict(link, auth, &case).1));
     }
-    kinds.into_iter().collect()
+    reached.into_iter().collect()
 }
 
-/// The kinds every link has
-const EVERY_LINK: [Kind; 10] = [
-    Kind::Unserved,
-    Kind::BadQuantity,
-    Kind::BadByteCount,
-    Kind::BadCoilValue,
-    Kind::BadValuePastTheEnd,
-    Kind::PastTheEnd,
-    Kind::HandlerFailure,
-    Kind::ReadStoppedPartWay,
-    Kind::Read,
-    Kind::Write,
-];
+/// The kinds of the requests of `function` that every link carries
+fn on_every_link(function: u8) -> &'static [Kind] {
+    match function {
+        0x01..=0x04 => &[
+            Kind::Unserved,
+            Kind::BadQuantity,
+            Kind::BadValuePastTheEnd,
+            Kind::PastTheEnd,
+            Kind::HandlerFailure,
+            Kind::ReadStoppedPartWay,
+            Kind::Read,
+        ],
+        0x05 => &[
+            Kind::Unserved,
+            Kind::BadCoilValue,
+            Kind::HandlerFailure,
+            Kind::Write,
+        ],
+        0x06 => &[Kind::Unserved, Kind::HandlerFailure, Kind::Write],
+        _ => &[
+            Kind::Unserved,
+            Kind::BadQuantity,
+            Kind::BadByteCount,
+            Kind::BadValuePastTheEnd,
+            Kind::PastTheEnd,
+            Kind::HandlerFailure,
+            Kind::Write,
+        ],
+    }
+}
 
-/// `kinds` and [`EVERY_LINK`], in order
-fn with_every_link(kinds: &[Kind]) -> Vec<Kind> {
-    let mut all: Vec<Kind> = EVERY_LINK.iter().chain(kinds).copied().collect();
+/// Each function the server implements with [`on_every_link`]'s kinds and those of `on_this_link`,
+/// and the kinds of requests without such a function, in order
+fn expected(on_this_link: fn(u8) -> &'static [Kind], without_a_function: &[Kind]) -> Vec<Reached> {
+    let mut all: Vec<Reached> = IMPLEMENTED
+        .iter()
+        .flat_map(|function| {
+            let kinds = on_every_link(*function)
+                .iter()
+                .chain(on_this_link(*function));
+            kinds.map(|kind| (Some(*function), *kind))
+        })
+        .chain(without_a_function.iter().map(|kind| (None, *kind)))
+        .collect();
     all.sort();
     all
 }
 
+/// The kinds of TCP requests that have no function the server implements
+const WITHOUT_A_FUNCTION: [Kind; 3] = [Kind::Unserved, Kind::Empty, Kind::UnknownFunction];
+
 #[test]
-fn the_tcp_generator_reaches_every_kind_of_request_but_broadcasts() {
+fn the_tcp_generator_reaches_every_kind_of_request_of_each_function_but_broadcasts() {
     let cases = case(Link::Tcp).prop_map(|case| (Auth::None, case));
     assert_eq!(
-        kinds_drawn(Link::Tcp, cases),
-        with_every_link(&[Kind::Empty, Kind::UnknownFunction, Kind::BadLength])
+        reached(Link::Tcp, cases),
+        expected(|_| &[Kind::BadLength], &WITHOUT_A_FUNCTION)
     );
 }
 
 #[cfg(feature = "serial")]
 #[test]
-fn the_rtu_generator_reaches_every_kind_of_request_the_framing_carries() {
+fn the_rtu_generator_reaches_every_kind_of_request_of_each_function_the_framing_carries() {
+    // a single register write the generator draws is always valid
+    let broadcasts = |function| -> &'static [Kind] {
+        match function {
+            0x01..=0x04 => &[Kind::BroadcastIgnored],
+            0x06 => &[Kind::BroadcastWrite],
+            _ => &[Kind::BroadcastWrite, Kind::BroadcastIgnored],
+        }
+    };
     let cases = case(Link::Rtu).prop_map(|case| (Auth::None, case));
-    assert_eq!(
-        kinds_drawn(Link::Rtu, cases),
-        with_every_link(&[Kind::BroadcastWrite, Kind::BroadcastIgnored])
-    );
+    assert_eq!(reached(Link::Rtu, cases), expected(broadcasts, &[]));
 }
 
 #[cfg(feature = "enable-tls")]
 #[test]
-fn the_authorized_generator_reaches_every_kind_of_tcp_request_and_a_denial() {
+fn the_authorized_generator_reaches_every_kind_of_tcp_request_of_each_function_and_a_denial() {
     let cases = authorized_case().prop_map(|(denied, case)| (Auth::Denying(denied), case));
     assert_eq!(
-        kinds_drawn(Link::Tcp, cases),
-        with_every_link(&[
-            Kind::Empty,
-            Kind::UnknownFunction,
-            Kind::BadLength,
-            Kind::Denied
-        ])
+        reached(Link::Tcp, cases),
+        expected(|_| &[Kind::BadLength, Kind::Denied], &WITHOUT_A_FUNCTION)
     );
 }
