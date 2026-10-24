@@ -381,12 +381,6 @@ impl AddressRange {
         AddressIterator::new(self.start, self.count)
     }
 
-    /// The range checked as if it had been made with [`AddressRange::try_from`], since its fields
-    /// are public: a count of zero, then a range past address 0xFFFF
-    pub(crate) fn validated(self) -> Result<Self, InvalidRange> {
-        Self::try_from(self.start, self.count)
-    }
-
     /// The range of a read of coils or discrete inputs: its count is checked against the limit
     /// before its addresses, so [`InvalidRange::AddressOverflow`] means the count was valid
     pub(crate) fn of_read_bits(self) -> Result<ReadBitsRange, InvalidRange> {
@@ -428,7 +422,7 @@ impl AddressRange {
     }
 
     /// The range of a function that carries at most `limit` values: the count against the
-    /// limit, then as [`AddressRange::validated`] checks it, with the count of the bytes
+    /// limit, then as [`AddressRange::try_from`] checks it, with the count of the bytes
     /// `num_bytes` says its values take. Every limit keeps that within a byte, so a byte count
     /// that isn't is refused for the quantity, as one past the limit is
     fn limited(
@@ -439,7 +433,9 @@ impl AddressRange {
         if self.count > limit {
             return Err(InvalidRange::CountTooLargeForType(self.count, limit));
         }
-        let range = self.validated()?;
+        // checked as if it had been made with `try_from`, since its fields are public: a count of
+        // zero, then a range past address 0xFFFF
+        let range = Self::try_from(self.start, self.count)?;
         let byte_count = u8::try_from(num_bytes(range.count))
             .map_err(|_| InvalidRange::CountTooLargeForType(range.count, limit))?;
         Ok(LimitedRange { range, byte_count })

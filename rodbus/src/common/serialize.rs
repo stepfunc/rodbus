@@ -18,6 +18,22 @@ use crate::types::{
 
 use scursor::{ReadCursor, WriteCursor};
 
+/// Writes the value of type `T` that `payload` holds when `level` shows data headers, and nothing
+/// if the payload doesn't parse as one
+fn log_parsed<T: Parse + std::fmt::Display>(
+    payload: &[u8],
+    level: crate::decode::AppDecodeLevel,
+    f: &mut std::fmt::Formatter,
+) -> std::fmt::Result {
+    if level.data_headers() {
+        if let Ok(value) = T::parse(&mut ReadCursor::new(payload)) {
+            write!(f, "{value}")?;
+        }
+    }
+
+    Ok(())
+}
+
 impl Serialize for AddressRange {
     fn serialize(&self, cur: &mut WriteCursor) -> Result<(), RequestError> {
         cur.write_u16_be(self.start)?;
@@ -33,15 +49,7 @@ impl Loggable for AddressRange {
         level: crate::decode::AppDecodeLevel,
         f: &mut std::fmt::Formatter,
     ) -> std::fmt::Result {
-        if level.data_headers() {
-            let mut cursor = ReadCursor::new(payload);
-
-            if let Ok(value) = AddressRange::parse(&mut cursor) {
-                write!(f, "{value}")?;
-            }
-        }
-
-        Ok(())
+        log_parsed::<Self>(payload, level, f)
     }
 }
 
@@ -67,15 +75,7 @@ impl Loggable for Indexed<bool> {
         level: crate::decode::AppDecodeLevel,
         f: &mut std::fmt::Formatter,
     ) -> std::fmt::Result {
-        if level.data_headers() {
-            let mut cursor = ReadCursor::new(payload);
-
-            if let Ok(value) = Indexed::<bool>::parse(&mut cursor) {
-                write!(f, "{value}")?;
-            }
-        }
-
-        Ok(())
+        log_parsed::<Self>(payload, level, f)
     }
 }
 
@@ -94,15 +94,7 @@ impl Loggable for Indexed<u16> {
         level: crate::decode::AppDecodeLevel,
         f: &mut std::fmt::Formatter,
     ) -> std::fmt::Result {
-        if level.data_headers() {
-            let mut cursor = ReadCursor::new(payload);
-
-            if let Ok(value) = Indexed::<u16>::parse(&mut cursor) {
-                write!(f, "{value}")?;
-            }
-        }
-
-        Ok(())
+        log_parsed::<Self>(payload, level, f)
     }
 }
 
@@ -163,9 +155,8 @@ where
     ) -> std::fmt::Result {
         if level.data_headers() {
             let mut cursor = ReadCursor::new(payload);
-            cursor.read_u8().ok(); // ignore the byte count
 
-            let iterator = match BitIterator::parse_all(self.range.get(), &mut cursor) {
+            let iterator = match BitIterator::parse_counted(self.range.get(), &mut cursor) {
                 Ok(it) => it,
                 Err(_) => return Ok(()),
             };
@@ -207,9 +198,8 @@ where
     ) -> std::fmt::Result {
         if level.data_headers() {
             let mut cursor = ReadCursor::new(payload);
-            cursor.read_u8().ok(); // ignore the byte count
 
-            let iterator = match RegisterIterator::parse_all(self.range.get(), &mut cursor) {
+            let iterator = match RegisterIterator::parse_counted(self.range.get(), &mut cursor) {
                 Ok(it) => it,
                 Err(_) => return Ok(()),
             };

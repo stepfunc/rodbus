@@ -52,7 +52,8 @@ impl FromStr for WildcardIPv4 {
 }
 
 impl WildcardIPv4 {
-    pub(crate) fn matches(&self, addr: std::net::IpAddr) -> bool {
+    /// Whether each octet of `addr` is the one this names or a wildcard
+    fn matches(&self, addr: std::net::Ipv4Addr) -> bool {
         fn bm(b: u8, other: Option<u8>) -> bool {
             match other {
                 Some(x) => b == x,
@@ -60,13 +61,8 @@ impl WildcardIPv4 {
             }
         }
 
-        match addr.to_canonical() {
-            std::net::IpAddr::V4(x) => {
-                let [b3, b2, b1, b0] = x.octets();
-                bm(b3, self.b3) && bm(b2, self.b2) && bm(b1, self.b1) && bm(b0, self.b0)
-            }
-            std::net::IpAddr::V6(_) => false,
-        }
+        let [b3, b2, b1, b0] = addr.octets();
+        bm(b3, self.b3) && bm(b2, self.b2) && bm(b1, self.b1) && bm(b0, self.b0)
     }
 }
 
@@ -105,7 +101,11 @@ impl AddressFilter {
                 }
                 std::net::IpAddr::V6(_) => set.contains(&addr),
             },
-            AddressFilter::WildcardIpv4(wc) => wc.matches(addr),
+            AddressFilter::WildcardIpv4(wc) => match addr {
+                std::net::IpAddr::V4(v4) => wc.matches(v4),
+                // a canonical IPv6 address isn't IPv4-mapped, so no wildcard names it
+                std::net::IpAddr::V6(_) => false,
+            },
         }
     }
 }
@@ -195,15 +195,6 @@ mod test {
         }
     }
 
-    #[test]
-    fn native_ipv6_matching_is_unchanged() {
-        let filter = any_of(&["2001:db8::1", "192.168.0.1"]);
-        assert!(filter.matches(ip("2001:db8::1")));
-        assert!(!filter.matches(ip("2001:db8::2")));
-        assert!(AddressFilter::Exact(ip("2001:db8::1")).matches(ip("2001:db8::1")));
-        assert!(!AddressFilter::Exact(ip("2001:db8::1")).matches(ip("2001:db8::2")));
-    }
-
     mod properties {
         use super::*;
         use proptest::prelude::*;
@@ -211,16 +202,21 @@ mod test {
 
         const OCTETS: [u8; 4] = [0, 1, 2, 3];
 
-        /// Every IPv4 address with octets from 0 to 3 in its native and IPv4-mapped forms, and
         /// IPv6 addresses that aren't IPv4-mapped
-        fn universe() -> Vec<IpAddr> {
-            let mut addresses = vec![
+        fn native_ipv6() -> Vec<IpAddr> {
+            vec![
                 IpAddr::V6(Ipv6Addr::LOCALHOST),
                 ip("2001:db8::1"),
                 // IPv4-compatible and IPv4-translated forms are not IPv4-mapped
                 IpAddr::V6(Ipv4Addr::new(0, 1, 2, 3).to_ipv6_compatible()),
                 ip("::ffff:0:0.1.2.3"),
-            ];
+            ]
+        }
+
+        /// Every IPv4 address with octets from 0 to 3 in its native and IPv4-mapped forms, and
+        /// the native IPv6 addresses
+        fn universe() -> Vec<IpAddr> {
+            let mut addresses = native_ipv6();
             for a in OCTETS {
                 for b in OCTETS {
                     for c in OCTETS {
@@ -268,8 +264,13 @@ mod test {
             }
         }
 
+        /// An address of the universe, drawn from the native IPv6 ones a quarter of the time so
+        /// that nearly every run has filters that name them, which the IPv4 addresses outnumber
         fn address() -> impl Strategy<Value = IpAddr> {
-            prop::sample::select(universe())
+            prop_oneof![
+                3 => prop::sample::select(universe()),
+                1 => prop::sample::select(native_ipv6()),
+            ]
         }
 
         fn wildcard_octet() -> impl Strategy<Value = Option<u8>> {
