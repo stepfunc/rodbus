@@ -760,7 +760,7 @@ mod tests {
 
     /// Generates a transport and a sequence of attempts it can have
     fn reconnects() -> impl Strategy<Value = (Transport, Vec<Outcome>)> {
-        proptest::sample::select(&TRANSPORTS[..]).prop_flat_map(|transport| {
+        proptest::sample::select(TRANSPORTS).prop_flat_map(|transport| {
             (
                 Just(transport),
                 proptest::collection::vec(proptest::sample::select(transport.outcomes()), 1..8),
@@ -768,10 +768,11 @@ mod tests {
         })
     }
 
-    #[cfg(not(feature = "enable-tls"))]
-    const TRANSPORTS: [Transport; 1] = [Transport::Tcp];
-    #[cfg(feature = "enable-tls")]
-    const TRANSPORTS: [Transport; 2] = [Transport::Tcp, Transport::Tls];
+    const TRANSPORTS: &[Transport] = &[
+        Transport::Tcp,
+        #[cfg(feature = "enable-tls")]
+        Transport::Tls,
+    ];
 
     proptest! {
         #![proptest_config(ProptestConfig::with_cases(64))]

@@ -11,9 +11,11 @@ use std::sync::Arc;
 use tokio_rustls::rustls;
 
 use crate::common::phys::{PhysLayer, Socket};
+use crate::server::request::{Request, WriteRequest};
 use crate::server::task::AuthorizationType;
-use crate::server::AuthorizationHandler;
+use crate::server::{Authorization, AuthorizationHandler};
 use crate::tcp::tls::{handshake, CertificateMode, HandshakeError, MinTlsVersion, TlsError};
+use crate::UnitId;
 
 /// TLS configuration
 #[derive(Clone)]
@@ -89,13 +91,63 @@ impl TlsServerConfig {
                 let role = extract_modbus_role(&parsed)?;
 
                 tracing::info!("client role: {}", role);
-                AuthorizationType::Handler(handler, role)
+                AuthorizationType::Handler(RoleAuthorizer::new(handler, role))
             }
         };
 
         let layer = S::into_tls_phys(tokio_rustls::TlsStream::from(stream));
 
         Ok((layer, auth_type))
+    }
+}
+
+/// Authorizes a session's requests for the role in its client's certificate
+pub(crate) struct RoleAuthorizer {
+    handler: Arc<dyn AuthorizationHandler>,
+    role: String,
+}
+
+impl RoleAuthorizer {
+    pub(crate) fn new(handler: Arc<dyn AuthorizationHandler>, role: String) -> Self {
+        Self { handler, role }
+    }
+
+    /// Asks the handler whether the role may make `request` to `unit_id`, logging a denial
+    pub(crate) fn is_authorized(&self, unit_id: UnitId, request: &Request) -> Authorization {
+        let result = self.check(unit_id, request);
+        if let Authorization::Deny = result {
+            tracing::warn!(
+                "Role \"{}\" not authorized for request: {:?}",
+                self.role,
+                request.get_function()
+            );
+        }
+        result
+    }
+
+    fn check(&self, unit_id: UnitId, request: &Request) -> Authorization {
+        let handler = self.handler.as_ref();
+        let role = self.role.as_str();
+        match request {
+            Request::ReadCoils(x) => handler.read_coils(unit_id, x.get(), role),
+            Request::ReadDiscreteInputs(x) => handler.read_discrete_inputs(unit_id, x.get(), role),
+            Request::ReadHoldingRegisters(x) => {
+                handler.read_holding_registers(unit_id, x.get(), role)
+            }
+            Request::ReadInputRegisters(x) => handler.read_input_registers(unit_id, x.get(), role),
+            Request::Write(write) => match write {
+                WriteRequest::SingleCoil(x) => handler.write_single_coil(unit_id, x.index, role),
+                WriteRequest::SingleRegister(x) => {
+                    handler.write_single_register(unit_id, x.index, role)
+                }
+                WriteRequest::MultipleCoils(x) => {
+                    handler.write_multiple_coils(unit_id, x.range, role)
+                }
+                WriteRequest::MultipleRegisters(x) => {
+                    handler.write_multiple_registers(unit_id, x.range, role)
+                }
+            },
+        }
     }
 }
 
@@ -180,6 +232,11 @@ fn single_role<'a>(mut roles: impl Iterator<Item = &'a str>) -> Result<&'a str, 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::common::test_support::watchdog;
+    use crate::server::handler::test_util::Recorder;
+    use crate::tcp::tls::test_util::{
+        authority_server, handshake_with, operator, without_a_role, ROLE,
+    };
 
     #[test]
     fn a_single_role_is_used_whole() {
@@ -202,5 +259,65 @@ mod tests {
             single_role(["operator", "admin"].into_iter()),
             Err(RoleError::Multiple)
         );
+    }
+
+    /// What the server made of a connection
+    #[derive(Debug, PartialEq)]
+    enum Admitted {
+        /// A session whose requests aren't checked
+        Unchecked,
+        /// A session whose requests are checked for the role
+        Checked(String),
+        /// Refused for the certificate's role
+        RefusedRole(RoleError),
+    }
+
+    /// Run the handshake of `client` with `server` and `authorizer`, and return what the server
+    /// made of it
+    async fn admit(
+        server: TlsServerConfig,
+        authorizer: Option<Arc<dyn AuthorizationHandler>>,
+        client: rustls::ClientConfig,
+    ) -> Admitted {
+        let (client_io, server_io) = tokio::io::duplex(crate::tcp::accept::test_util::PIPE);
+        let (connected, admitted) = tokio::join!(
+            handshake_with(client, client_io),
+            server.handle_connection(server_io, authorizer)
+        );
+        connected.unwrap();
+        match admitted {
+            Ok((_, AuthorizationType::None)) => Admitted::Unchecked,
+            Ok((_, AuthorizationType::Handler(authorizer))) => Admitted::Checked(authorizer.role),
+            Err(Refused::Role(err)) => Admitted::RefusedRole(err),
+            Err(err) => panic!("refused: {err}"),
+        }
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn only_an_authorizing_server_takes_the_client_role_and_requires_one() {
+        watchdog(async {
+            let (authorizer, _) = Recorder::denying(&[]);
+            let cases = [
+                (
+                    Some(authorizer.clone()),
+                    operator(),
+                    Admitted::Checked(ROLE.to_string()),
+                ),
+                (
+                    Some(authorizer),
+                    without_a_role(),
+                    Admitted::RefusedRole(RoleError::Missing),
+                ),
+                (None, operator(), Admitted::Unchecked),
+                (None, without_a_role(), Admitted::Unchecked),
+            ];
+            for (authorizer, client, expected) in cases {
+                assert_eq!(
+                    admit(authority_server(), authorizer, client).await,
+                    expected
+                );
+            }
+        })
+        .await;
     }
 }

@@ -21,9 +21,6 @@ use std::net::SocketAddr;
 use std::num::NonZeroUsize;
 use tokio::net::TcpListener;
 
-#[cfg(feature = "enable-tls")]
-use crate::server::AuthorizationHandler;
-
 /// event sent back to the server task when a session ends
 struct SessionClose(u128);
 
@@ -90,31 +87,31 @@ pub(crate) enum TcpServerConnectionHandler {
     #[cfg(feature = "enable-tls")]
     Tls(
         crate::tcp::tls::TlsServerConfig,
-        Option<std::sync::Arc<dyn AuthorizationHandler>>,
+        Option<std::sync::Arc<dyn crate::server::AuthorizationHandler>>,
     ),
 }
 
-/// Why the connection handler refused a connection
-#[cfg(feature = "enable-tls")]
-type Refused = crate::tcp::tls::Refused;
-/// Plain TCP refuses no connection
-#[cfg(not(feature = "enable-tls"))]
-type Refused = std::convert::Infallible;
-
 impl TcpServerConnectionHandler {
+    /// The session layer for the connection from `addr`, or `None` if it's refused
     async fn handle<S: Socket>(
         &self,
         socket: S,
-    ) -> Result<(PhysLayer, AuthorizationType), Refused> {
-        match self {
-            Self::Tcp => Ok((socket.into_phys(), AuthorizationType::None)),
+        addr: SocketAddr,
+    ) -> Option<(PhysLayer, AuthorizationType)> {
+        match (self, addr) {
+            (Self::Tcp, _) => Some((socket.into_phys(), AuthorizationType::None)),
             #[cfg(feature = "enable-tls")]
-            Self::Tls(config, auth_handler) => {
-                let res = config.handle_connection(socket, auth_handler.clone()).await;
-                if res.is_ok() {
-                    tracing::info!("completed TLS handshake");
+            (Self::Tls(config, auth_handler), addr) => {
+                match config.handle_connection(socket, auth_handler.clone()).await {
+                    Ok(session) => {
+                        tracing::info!("completed TLS handshake");
+                        Some(session)
+                    }
+                    Err(err) => {
+                        tracing::warn!("error from {}: {}", addr, err);
+                        None
+                    }
                 }
-                res
             }
         }
     }
@@ -186,17 +183,19 @@ where
 
             // A TLS handshake runs here, one at a time and within its timeout, so that only a
             // connection that completes it becomes a session and can displace another
-            let Some(result) = self
+            let Some(admitted) = self
                 .sessions
-                .serve(&mut self.commands, self.connection_handler.handle(socket))
+                .serve(
+                    &mut self.commands,
+                    self.connection_handler.handle(socket, addr),
+                )
                 .await
             else {
                 return;
             };
 
-            match result {
-                Ok((phys, auth)) => self.sessions.start(phys, auth, addr),
-                Err(err) => tracing::warn!("error from {}: {}", addr, err),
+            if let Some((phys, auth)) = admitted {
+                self.sessions.start(phys, auth, addr);
             }
         }
     }
@@ -1187,18 +1186,15 @@ mod tests {
         use crate::server::handler::test_util::{Check, Recorder, Target};
         use crate::server::AuthorizationHandler;
         use crate::tcp::tls::test_util::{
-            both_versions, ca_chain, connect, handshake_as_client, server_config,
+            authority_server, both_versions, connect, handshake_as_client, handshake_with,
+            operator, server_config, without_a_role, ROLE,
         };
-        use crate::tcp::tls::{
-            CertificateMode, MinTlsVersion, RoleError, TlsServerConfig, TLS_HANDSHAKE_TIMEOUT,
-        };
+        use crate::tcp::tls::{MinTlsVersion, TLS_HANDSHAKE_TIMEOUT};
         use crate::AddressRange;
-        use sfio_rustls_config::ServerNameVerification;
         use std::sync::Arc;
         use tokio::io::DuplexStream;
         use tokio::time::Instant;
         use tokio_rustls::rustls;
-        use tokio_rustls::rustls::pki_types::ServerName;
 
         struct Server {
             handle: crate::server::ServerHandle,
@@ -1259,60 +1255,6 @@ mod tests {
             }
         }
 
-        /// The name in the certificate of [`authority_server`]
-        const SERVER_NAME: &str = "test.com";
-
-        /// The role in the certificate of [`operator`]
-        const ROLE: &str = "operator";
-
-        /// A server presenting the test authority's server certificate and accepting the clients
-        /// it issued certificates to
-        fn authority_server() -> TlsServerConfig {
-            TlsServerConfig::new(
-                &ca_chain("ca_cert.pem"),
-                &ca_chain("server_cert.pem"),
-                &ca_chain("server_key.pem"),
-                None,
-                MinTlsVersion::V1_2,
-                CertificateMode::AuthorityBased,
-            )
-            .unwrap()
-        }
-
-        /// A client of [`authority_server`] presenting the certificate `cert` with key `key`
-        fn authority_client(cert: &str, key: &str) -> rustls::ClientConfig {
-            sfio_rustls_config::client::authority(
-                both_versions(),
-                ServerNameVerification::SanOrCommonName,
-                &ca_chain("ca_cert.pem"),
-                &ca_chain(cert),
-                &ca_chain(key),
-                None,
-            )
-            .unwrap()
-        }
-
-        /// A client whose certificate, issued by the test authority, has the role [`ROLE`]
-        fn operator() -> rustls::ClientConfig {
-            authority_client("client_cert.pem", "client_key.pem")
-        }
-
-        /// A client whose certificate, issued by the test authority, has no role
-        fn without_a_role() -> rustls::ClientConfig {
-            authority_client("server_cert.pem", "server_key.pem")
-        }
-
-        /// Run a handshake over `socket` as a client configured by `client`
-        async fn handshake_with<S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin>(
-            client: rustls::ClientConfig,
-            socket: S,
-        ) -> std::io::Result<tokio_rustls::client::TlsStream<S>> {
-            let name = ServerName::try_from(SERVER_NAME).unwrap();
-            tokio_rustls::TlsConnector::from(Arc::new(client))
-                .connect(name, socket)
-                .await
-        }
-
         /// A TLS server with one session that checks requests with `authorizer` and answers
         /// them from [`Values`]
         fn spawn_authorizing_server(authorizer: Arc<dyn AuthorizationHandler>) -> Server {
@@ -1362,65 +1304,6 @@ mod tests {
                 target: Target::Range(AddressRange::try_from(7, 2).unwrap()),
                 role: ROLE.to_string(),
             }
-        }
-
-        /// What the connection handler made of a connection
-        #[derive(Debug, PartialEq)]
-        enum Admitted {
-            /// A session whose requests aren't checked
-            Unchecked,
-            /// A session whose requests are checked for the role
-            Checked(String),
-            /// Refused for the certificate's role
-            RefusedRole(RoleError),
-        }
-
-        /// Run the handshake of `client` with the connection handler for `server` and
-        /// `authorizer`, and return what the handler made of it
-        async fn admit(
-            server: TlsServerConfig,
-            authorizer: Option<Arc<dyn AuthorizationHandler>>,
-            client: rustls::ClientConfig,
-        ) -> Admitted {
-            let handler = TcpServerConnectionHandler::Tls(server, authorizer);
-            let (client_io, server_io) = tokio::io::duplex(crate::tcp::accept::test_util::PIPE);
-            let (connected, admitted) =
-                tokio::join!(handshake_with(client, client_io), handler.handle(server_io));
-            connected.unwrap();
-            match admitted {
-                Ok((_, AuthorizationType::None)) => Admitted::Unchecked,
-                Ok((_, AuthorizationType::Handler(_, role))) => Admitted::Checked(role),
-                Err(Refused::Role(err)) => Admitted::RefusedRole(err),
-                Err(err) => panic!("refused: {err}"),
-            }
-        }
-
-        #[tokio::test(start_paused = true)]
-        async fn only_an_authorizing_server_takes_the_client_role_and_requires_one() {
-            watchdog(async {
-                let (authorizer, _) = Recorder::denying(&[]);
-                let cases = [
-                    (
-                        Some(authorizer.clone()),
-                        operator(),
-                        Admitted::Checked(ROLE.to_string()),
-                    ),
-                    (
-                        Some(authorizer),
-                        without_a_role(),
-                        Admitted::RefusedRole(RoleError::Missing),
-                    ),
-                    (None, operator(), Admitted::Unchecked),
-                    (None, without_a_role(), Admitted::Unchecked),
-                ];
-                for (authorizer, client, expected) in cases {
-                    assert_eq!(
-                        admit(authority_server(), authorizer, client).await,
-                        expected
-                    );
-                }
-            })
-            .await;
         }
 
         #[tokio::test(start_paused = true)]

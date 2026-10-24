@@ -6,8 +6,6 @@
 
 use crate::common::phys::PhysLayer;
 use crate::server::Authorization;
-#[cfg(feature = "enable-tls")]
-use crate::server::AuthorizationHandler;
 use crate::{DecodeLevel, UnitId};
 
 use crate::common::frame::{
@@ -17,13 +15,9 @@ use crate::common::function::FunctionCode;
 use crate::error::*;
 use crate::exception::ExceptionCode;
 use crate::server::handler::{lock_handler, RequestHandler, ServerHandlerMap};
-#[cfg(feature = "enable-tls")]
-use crate::server::request::WriteRequest;
 use crate::server::request::{Request, RequestDisplay};
 
 use scursor::ReadCursor;
-#[cfg(feature = "enable-tls")]
-use std::sync::Arc;
 
 /// Commands that can be sent to a running server task
 #[derive(Copy, Clone)]
@@ -292,55 +286,18 @@ fn parse<'a>(pdu: &'a mut ReadCursor, decode: DecodeLevel) -> Result<Request<'a>
 pub(crate) enum AuthorizationType {
     /// Requests do not require authorization checks (TCP / RTU)
     None,
-    /// Requests are authorized using a user-supplied handler (TLS)
+    /// Requests are authorized for the client's role (TLS)
     #[cfg(feature = "enable-tls")]
-    Handler(Arc<dyn AuthorizationHandler>, String),
+    Handler(crate::tcp::tls::RoleAuthorizer),
 }
 
 impl AuthorizationType {
-    #[cfg(feature = "enable-tls")]
-    fn check_authorization(
-        handler: &dyn AuthorizationHandler,
-        unit_id: UnitId,
-        request: &Request,
-        role: &str,
-    ) -> Authorization {
-        match request {
-            Request::ReadCoils(x) => handler.read_coils(unit_id, x.get(), role),
-            Request::ReadDiscreteInputs(x) => handler.read_discrete_inputs(unit_id, x.get(), role),
-            Request::ReadHoldingRegisters(x) => {
-                handler.read_holding_registers(unit_id, x.get(), role)
-            }
-            Request::ReadInputRegisters(x) => handler.read_input_registers(unit_id, x.get(), role),
-            Request::Write(write) => match write {
-                WriteRequest::SingleCoil(x) => handler.write_single_coil(unit_id, x.index, role),
-                WriteRequest::SingleRegister(x) => {
-                    handler.write_single_register(unit_id, x.index, role)
-                }
-                WriteRequest::MultipleCoils(x) => {
-                    handler.write_multiple_coils(unit_id, x.range, role)
-                }
-                WriteRequest::MultipleRegisters(x) => {
-                    handler.write_multiple_registers(unit_id, x.range, role)
-                }
-            },
-        }
-    }
-
     pub(crate) fn is_authorized(&self, unit_id: UnitId, request: &Request) -> Authorization {
         match (self, unit_id, request) {
             (AuthorizationType::None, _, _) => Authorization::Allow,
             #[cfg(feature = "enable-tls")]
-            (AuthorizationType::Handler(handler, role), unit_id, request) => {
-                let result = Self::check_authorization(handler.as_ref(), unit_id, request, role);
-                if let Authorization::Deny = result {
-                    tracing::warn!(
-                        "Role \"{}\" not authorized for request: {:?}",
-                        role,
-                        request.get_function()
-                    );
-                }
-                result
+            (AuthorizationType::Handler(authorizer), unit_id, request) => {
+                authorizer.is_authorized(unit_id, request)
             }
         }
     }
@@ -894,6 +851,8 @@ mod tests {
     mod authorization {
         use super::*;
         use crate::server::handler::test_util::{Check, Recorder, Target};
+        use crate::server::AuthorizationHandler;
+        use crate::tcp::tls::RoleAuthorizer;
         use crate::AddressRange;
 
         /// The unit the requests below address
@@ -1008,7 +967,8 @@ mod tests {
             authorizer: Arc<dyn AuthorizationHandler>,
         ) -> (tokio::io::DuplexStream, Calls) {
             let (handlers, calls) = unit_handlers(&[UNIT]);
-            let auth = AuthorizationType::Handler(authorizer, ROLE.to_string());
+            let auth =
+                AuthorizationType::Handler(RoleAuthorizer::new(authorizer, ROLE.to_string()));
             let peer = serve(|commands| {
                 SessionTask::tcp(handlers, auth, commands, DecodeLevel::nothing())
             });
