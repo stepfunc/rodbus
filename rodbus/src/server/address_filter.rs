@@ -211,16 +211,21 @@ mod test {
 
         const OCTETS: [u8; 4] = [0, 1, 2, 3];
 
-        /// Every IPv4 address with octets from 0 to 3 in its native and IPv4-mapped forms, and
         /// IPv6 addresses that aren't IPv4-mapped
-        fn universe() -> Vec<IpAddr> {
-            let mut addresses = vec![
+        fn native_ipv6() -> Vec<IpAddr> {
+            vec![
                 IpAddr::V6(Ipv6Addr::LOCALHOST),
                 ip("2001:db8::1"),
                 // IPv4-compatible and IPv4-translated forms are not IPv4-mapped
                 IpAddr::V6(Ipv4Addr::new(0, 1, 2, 3).to_ipv6_compatible()),
                 ip("::ffff:0:0.1.2.3"),
-            ];
+            ]
+        }
+
+        /// Every IPv4 address with octets from 0 to 3 in its native and IPv4-mapped forms, and
+        /// the native IPv6 addresses
+        fn universe() -> Vec<IpAddr> {
+            let mut addresses = native_ipv6();
             for a in OCTETS {
                 for b in OCTETS {
                     for c in OCTETS {
@@ -268,8 +273,13 @@ mod test {
             }
         }
 
+        /// An address of the universe, drawn from the native IPv6 ones a quarter of the time so
+        /// that nearly every run has filters that name them, which the IPv4 addresses outnumber
         fn address() -> impl Strategy<Value = IpAddr> {
-            prop::sample::select(universe())
+            prop_oneof![
+                3 => prop::sample::select(universe()),
+                1 => prop::sample::select(native_ipv6()),
+            ]
         }
 
         fn wildcard_octet() -> impl Strategy<Value = Option<u8>> {
