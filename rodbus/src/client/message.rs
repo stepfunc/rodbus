@@ -794,7 +794,8 @@ mod test {
                 &[0x10, 0x00, 0x01, 0x00, 0x02],
                 range(0x0001, 2),
             ),
-            // Reads deliver one value per address, bits LSB first
+            // Reads deliver one value per address, bits LSB first, up to the top of the address
+            // space
             (
                 Sent::ReadCoils {
                     start: 1,
@@ -815,9 +816,28 @@ mod test {
                 ]),
             ),
             (
+                Sent::ReadDiscreteInputs {
+                    start: 0xFFFE,
+                    count: 2,
+                },
+                &[0x02, 0x01, 0b0000_0010],
+                Outcome::Bits(vec![
+                    Indexed::new(0xFFFE, false),
+                    Indexed::new(0xFFFF, true),
+                ]),
+            ),
+            (
                 Sent::ReadHoldingRegisters { start: 7, count: 2 },
                 &[0x03, 0x04, 0x12, 0x34, 0xAB, 0xCD],
                 Outcome::Registers(vec![Indexed::new(7, 0x1234), Indexed::new(8, 0xABCD)]),
+            ),
+            (
+                Sent::ReadInputRegisters {
+                    start: 0xFFFF,
+                    count: 1,
+                },
+                &[0x04, 0x02, 0xFF, 0xFE],
+                Outcome::Registers(vec![Indexed::new(0xFFFF, 0xFFFE)]),
             ),
         ]
     }
