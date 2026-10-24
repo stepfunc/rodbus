@@ -8,7 +8,7 @@ use std::net::SocketAddr;
 
 use tracing::Instrument;
 
-use crate::common::cancellation::{ShutdownHandle, ShutdownSignal};
+use crate::common::cancellation::ShutdownHandle;
 use crate::decode::DecodeLevel;
 use crate::server::task::ServerCommand;
 use crate::tcp::server::{new_server, ServerTask as TcpServerTask, TcpServerConnectionHandler};
@@ -55,7 +55,6 @@ pub struct ServerHandle {
 /// caller is free to wrap [`run`](ServerTask::run) with their own instrumentation.
 pub struct ServerTask<T: RequestHandler> {
     inner: ServerTaskInner<T>,
-    shutdown: ShutdownSignal,
 }
 
 impl<T: RequestHandler> std::fmt::Debug for ServerTask<T> {
@@ -64,68 +63,47 @@ impl<T: RequestHandler> std::fmt::Debug for ServerTask<T> {
     }
 }
 
+/// Each task owns the command receiver and shutdown signal of its [`ServerHandle`]
 enum ServerTaskInner<T: RequestHandler> {
-    Tcp(
-        Box<TcpServerTask<T>>,
-        tokio::sync::mpsc::Receiver<ServerCommand>,
-    ),
+    Tcp(Box<TcpServerTask<T>>),
     #[cfg(feature = "serial")]
     Rtu(Box<crate::serial::server::RtuServerTask<T>>),
     #[cfg(test)]
-    Memory(
-        Box<TcpServerTask<T, crate::tcp::accept::test_util::FaultyListener>>,
-        tokio::sync::mpsc::Receiver<ServerCommand>,
-    ),
+    Memory(Box<TcpServerTask<T, crate::tcp::accept::test_util::FaultyListener>>),
 }
 
 impl<T: RequestHandler> ServerTask<T> {
-    fn tcp(
-        task: TcpServerTask<T>,
-        commands: tokio::sync::mpsc::Receiver<ServerCommand>,
-        shutdown: ShutdownSignal,
-    ) -> Self {
+    fn tcp(task: TcpServerTask<T>) -> Self {
         Self {
-            inner: ServerTaskInner::Tcp(Box::new(task), commands),
-            shutdown,
+            inner: ServerTaskInner::Tcp(Box::new(task)),
         }
     }
 
     #[cfg(test)]
     pub(crate) fn memory(
         task: TcpServerTask<T, crate::tcp::accept::test_util::FaultyListener>,
-        commands: tokio::sync::mpsc::Receiver<ServerCommand>,
-        shutdown: ShutdownSignal,
     ) -> Self {
         Self {
-            inner: ServerTaskInner::Memory(Box::new(task), commands),
-            shutdown,
+            inner: ServerTaskInner::Memory(Box::new(task)),
         }
     }
 
     #[cfg(feature = "serial")]
-    fn rtu(task: crate::serial::server::RtuServerTask<T>, shutdown: ShutdownSignal) -> Self {
+    fn rtu(task: crate::serial::server::RtuServerTask<T>) -> Self {
         Self {
             inner: ServerTaskInner::Rtu(Box::new(task)),
-            shutdown,
         }
     }
 
     /// Run the server task until the associated [`ServerHandle`] is dropped or
     /// [`ServerHandle::shutdown`] is called.
     pub async fn run(self) {
-        let ServerTask { inner, shutdown } = self;
-        match inner {
-            ServerTaskInner::Tcp(mut task, commands) => {
-                task.run_until_shutdown(commands, &shutdown).await;
-            }
+        match self.inner {
+            ServerTaskInner::Tcp(mut task) => task.run_until_shutdown().await,
             #[cfg(test)]
-            ServerTaskInner::Memory(mut task, commands) => {
-                task.run_until_shutdown(commands, &shutdown).await;
-            }
+            ServerTaskInner::Memory(mut task) => task.run_until_shutdown().await,
             #[cfg(feature = "serial")]
-            ServerTaskInner::Rtu(mut task) => {
-                shutdown.run_until_cancelled(task.run()).await;
-            }
+            ServerTaskInner::Rtu(mut task) => task.run_until_shutdown().await,
         }
         tracing::info!("server shutdown");
     }
@@ -205,7 +183,7 @@ pub fn create_tcp_server_task<T: RequestHandler>(
     filter: AddressFilter,
     decode: DecodeLevel,
 ) -> (ServerHandle, ServerTask<T>) {
-    let (handle, task, commands, signal) = new_server(
+    let (handle, task) = new_server(
         max_sessions,
         listener,
         handlers,
@@ -213,7 +191,7 @@ pub fn create_tcp_server_task<T: RequestHandler>(
         filter,
         decode,
     );
-    (handle, ServerTask::tcp(task, commands, signal))
+    (handle, ServerTask::tcp(task))
 }
 
 /// Spawns a RTU server task onto the runtime.
@@ -278,12 +256,10 @@ pub fn create_rtu_server_task<T: RequestHandler>(
         retry,
         settings,
         session,
+        shutdown: signal,
     };
 
-    (
-        ServerHandle::new(tx, shutdown),
-        ServerTask::rtu(rtu, signal),
-    )
+    (ServerHandle::new(tx, shutdown), ServerTask::rtu(rtu))
 }
 
 /// Spawns a "raw" TLS server task onto the runtime. This TLS server does NOT require that
@@ -472,7 +448,7 @@ fn create_tls_server_task_impl<T: RequestHandler>(
     filter: AddressFilter,
     decode: DecodeLevel,
 ) -> (ServerHandle, ServerTask<T>) {
-    let (handle, task, commands, signal) = new_server(
+    let (handle, task) = new_server(
         max_sessions,
         listener,
         handlers,
@@ -480,5 +456,5 @@ fn create_tls_server_task_impl<T: RequestHandler>(
         filter,
         decode,
     );
-    (handle, ServerTask::tcp(task, commands, signal))
+    (handle, ServerTask::tcp(task))
 }

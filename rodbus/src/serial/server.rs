@@ -4,6 +4,7 @@
 // Text and data mining rights, including for AI training, are reserved under
 // Directive (EU) 2019/790 Art. 4(3), subject to LICENSE.txt Section 3.3.
 
+use crate::common::cancellation::ShutdownSignal;
 use crate::serial::OpenPort;
 use crate::server::task::SessionTask;
 use crate::server::RequestHandler;
@@ -17,13 +18,21 @@ where
     pub(crate) retry: Box<dyn RetryStrategy>,
     pub(crate) settings: SerialSettings,
     pub(crate) session: SessionTask<T>,
+    pub(crate) shutdown: ShutdownSignal,
 }
 
 impl<T> RtuServerTask<T>
 where
     T: RequestHandler,
 {
-    pub(crate) async fn run(&mut self) -> Shutdown {
+    /// Run until the handle is dropped or shutdown is requested
+    pub(crate) async fn run_until_shutdown(&mut self) {
+        // cloned because `run` borrows the whole task
+        let shutdown = self.shutdown.clone();
+        shutdown.run_until_cancelled(self.run()).await;
+    }
+
+    async fn run(&mut self) -> Shutdown {
         loop {
             match crate::serial::open(&self.port, self.settings) {
                 Ok(port) => {
@@ -143,6 +152,7 @@ mod tests {
                     rx,
                     DecodeLevel::nothing(),
                 ),
+                shutdown: crate::common::cancellation::pair().1,
             };
             Self {
                 task,
