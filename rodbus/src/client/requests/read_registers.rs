@@ -4,135 +4,44 @@
 // Text and data mining rights, including for AI training, are reserved under
 // Directive (EU) 2019/790 Art. 4(3), subject to LICENSE.txt Section 3.3.
 
-use crate::common::function::FunctionCode;
-use crate::common::traits::Serialize;
+use std::fmt::Display;
+
+use super::read::{self, ReadKind, ReadRequest};
 use crate::decode::AppDecodeLevel;
-use crate::error::RequestError;
+use crate::error::AduParseError;
 use crate::types::{
     AddressRange, Indexed, ReadRegistersRange, RegisterIterator, RegisterIteratorDisplay,
 };
 
-use scursor::{ReadCursor, WriteCursor};
+use scursor::ReadCursor;
 
-pub(crate) trait RegistersCallback:
-    FnOnce(Result<RegisterIterator, RequestError>) + Send + Sync + 'static
-{
-}
-impl<T> RegistersCallback for T where
-    T: FnOnce(Result<RegisterIterator, RequestError>) + Send + Sync + 'static
-{
-}
+/// Reads of holding and input registers
+pub(crate) enum Registers {}
 
-enum PromiseInner {
-    Oneshot(tokio::sync::oneshot::Sender<Result<Vec<Indexed<u16>>, RequestError>>),
-    Boxed(Box<dyn RegistersCallback>),
-}
+impl ReadKind for Registers {
+    type Range = ReadRegistersRange;
+    type Value = u16;
+    type Iter<'a> = RegisterIterator<'a>;
 
-pub(crate) struct Promise {
-    inner: Option<PromiseInner>,
-}
-
-impl Drop for Promise {
-    fn drop(&mut self) {
-        self.failure(RequestError::Shutdown);
-    }
-}
-
-impl Promise {
-    pub(crate) fn new<T>(callback: T) -> Self
-    where
-        T: RegistersCallback,
-    {
-        Self {
-            inner: Some(PromiseInner::Boxed(Box::new(callback))),
-        }
+    fn addresses(range: ReadRegistersRange) -> AddressRange {
+        range.get()
     }
 
-    fn oneshot(tx: tokio::sync::oneshot::Sender<Result<Vec<Indexed<u16>>, RequestError>>) -> Self {
-        Self {
-            inner: Some(PromiseInner::Oneshot(tx)),
-        }
-    }
-
-    pub(crate) fn failure(&mut self, err: RequestError) {
-        if let Some(inner) = self.inner.take() {
-            match inner {
-                PromiseInner::Oneshot(tx) => {
-                    tx.send(Err(err)).ok();
-                }
-                PromiseInner::Boxed(callback) => callback(Err(err)),
-            }
-        }
-    }
-
-    pub(crate) fn success(&mut self, iter: RegisterIterator) {
-        if let Some(inner) = self.inner.take() {
-            match inner {
-                PromiseInner::Oneshot(tx) => {
-                    tx.send(Ok(iter.collect_vec())).ok();
-                }
-                PromiseInner::Boxed(callback) => callback(Ok(iter)),
-            }
-        }
-    }
-}
-
-impl From<tokio::sync::oneshot::Sender<Result<Vec<Indexed<u16>>, RequestError>>> for Promise {
-    fn from(tx: tokio::sync::oneshot::Sender<Result<Vec<Indexed<u16>>, RequestError>>) -> Self {
-        Self::oneshot(tx)
-    }
-}
-
-pub(crate) struct ReadRegisters {
-    pub(crate) request: ReadRegistersRange,
-    promise: Promise,
-}
-
-impl ReadRegisters {
-    pub(crate) fn new(request: ReadRegistersRange, promise: Promise) -> Self {
-        Self { request, promise }
-    }
-
-    #[cfg(test)]
-    pub(crate) fn channel(
-        request: ReadRegistersRange,
-        tx: tokio::sync::oneshot::Sender<Result<Vec<Indexed<u16>>, RequestError>>,
-    ) -> Self {
-        Self::new(request, Promise::oneshot(tx))
-    }
-
-    pub(crate) fn serialize(&self, cursor: &mut WriteCursor) -> Result<(), RequestError> {
-        self.request.get().serialize(cursor)
-    }
-
-    pub(crate) fn failure(&mut self, err: RequestError) {
-        self.promise.failure(err)
-    }
-
-    pub(crate) fn handle_response(
-        &mut self,
-        mut cursor: ReadCursor,
-        function: FunctionCode,
-        decode: AppDecodeLevel,
-    ) -> Result<(), RequestError> {
-        let response = Self::parse_registers_response(self.request.get(), &mut cursor)?;
-
-        if decode.enabled() {
-            tracing::info!(
-                "PDU RX - {} {}",
-                function,
-                RegisterIteratorDisplay::new(decode, response)
-            );
-        }
-
-        self.promise.success(response);
-        Ok(())
-    }
-
-    fn parse_registers_response<'a>(
+    fn parse<'a>(
         range: AddressRange,
         cursor: &'a mut ReadCursor,
-    ) -> Result<RegisterIterator<'a>, RequestError> {
-        Ok(RegisterIterator::parse_counted(range, cursor)?)
+    ) -> Result<RegisterIterator<'a>, AduParseError> {
+        RegisterIterator::parse_counted(range, cursor)
+    }
+
+    fn collect(iter: RegisterIterator) -> Vec<Indexed<u16>> {
+        iter.collect_vec()
+    }
+
+    fn display(level: AppDecodeLevel, iter: Self::Iter<'_>) -> impl Display {
+        RegisterIteratorDisplay::new(level, iter)
     }
 }
+
+pub(crate) type Promise = read::Promise<Registers>;
+pub(crate) type ReadRegisters = ReadRequest<Registers>;
