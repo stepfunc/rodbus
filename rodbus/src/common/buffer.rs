@@ -212,7 +212,7 @@ mod tests {
                     }
                     Op::Consume(count) => {
                         // more than is buffered consumes what is
-                        model.drain(..count.min(model.len()));
+                        model = std::mem::take(&mut model).into_iter().skip(count).collect();
                         buffer.consume(count);
                     }
                     Op::Peek => {

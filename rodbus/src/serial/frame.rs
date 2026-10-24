@@ -862,7 +862,7 @@ mod tests {
     }
 
     fn bytes_of(stream: &[u8]) -> Vec<&[u8]> {
-        stream.chunks(1).collect()
+        stream.iter().map(std::slice::from_ref).collect()
     }
 
     /// Feeds the reader one chunk per read and collects the frames it reads.
@@ -919,7 +919,7 @@ mod tests {
     fn assert_reads_whole_split_and_byte_by_byte(new_reader: fn() -> FramedReader, frame: &[u8]) {
         assert_eq!(read_chunks(new_reader(), &[frame]), [frame_on(0, frame)]);
         for split in 1..frame.len() {
-            let (first, second) = frame.split_at(split);
+            let (first, second) = frame.split_at_checked(split).unwrap();
             assert_eq!(
                 read_chunks(new_reader(), &[first, second]),
                 [frame_on(1, frame)],
@@ -987,7 +987,7 @@ mod tests {
     #[tokio::test(start_paused = true)]
     async fn reads_a_largest_frame_that_straddles_the_end_of_the_read_buffer() {
         let largest = largest_read_response(0x03);
-        let (head, tail) = largest.split_at(128);
+        let (head, tail) = largest.split_at_checked(128).unwrap();
         // the first read leaves the small frame consumed and the largest one started, so the
         // buffer fills up before the largest frame is complete and has to move it to the front
         let first: Vec<u8> = READ_COILS_RESPONSE.iter().chain(head).copied().collect();
@@ -1109,7 +1109,7 @@ mod tests {
     #[tokio::test(start_paused = true)]
     async fn drops_a_byte_for_a_bad_crc_once_both_crc_bytes_arrive() {
         let mut frame = READ_COILS_REQUEST.to_vec();
-        frame[6..].copy_from_slice(&[0xFF, 0xFF]);
+        frame[6..].fill(0xFF);
         let crc = started(bad_frame(FrameParseError::CrcValidationFailure(
             0xFFFF, 0x197A,
         )));
@@ -1121,7 +1121,7 @@ mod tests {
     #[tokio::test(start_paused = true)]
     async fn drops_bytes_after_a_good_frame() {
         let mut bad = READ_COILS_REQUEST.to_vec();
-        bad[6..].copy_from_slice(&[0xFF, 0xFF]);
+        bad[6..].fill(0xFF);
         let stream: Vec<u8> = WRITE_SINGLE_COIL_REQUEST
             .iter()
             .chain(&bad)
@@ -1290,7 +1290,7 @@ mod tests {
 
     #[tokio::test(start_paused = true)]
     async fn bytes_that_arrive_after_the_silence_dont_complete_the_frame_it_ended() {
-        let (start, rest) = READ_COILS_RESPONSE.split_at(3);
+        let (start, rest) = READ_COILS_RESPONSE.split_at_checked(3).unwrap();
         // the silence is checked before the bytes, so this never depends on which is polled first
         for _ in 0..16 {
             let mut polled = Polled::new(response_reader());
@@ -1806,7 +1806,9 @@ mod tests {
                                     bytes.resize(length, 0xA5);
                                 }
                                 let framed = with_crc(&bytes[..length.checked_sub(2).unwrap()]);
-                                bytes[..length].copy_from_slice(&framed);
+                                for (byte, framed) in bytes[..length].iter_mut().zip(framed) {
+                                    *byte = framed;
+                                }
                             }
                         }
                         bytes.truncate(cut);
@@ -1983,7 +1985,8 @@ mod tests {
                             if rest.is_empty() {
                                 break;
                             }
-                            let (chunk, tail) = rest.split_at((*length).min(rest.len()));
+                            let (chunk, tail) =
+                                rest.split_at_checked(*length).unwrap_or((rest, &[]));
                             chunks.push(chunk);
                             rest = tail;
                         }
