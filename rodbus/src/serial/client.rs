@@ -4,15 +4,58 @@
 // Text and data mining rights, including for AI training, are reserved under
 // Directive (EU) 2019/790 Art. 4(3), subject to LICENSE.txt Section 3.3.
 
+use tracing::Instrument;
+
 use crate::decode::DecodeLevel;
 use crate::serial::OpenPort;
 use crate::serial::SerialSettings;
 
 use crate::client::message::Command;
 use crate::client::task::{ClientLoop, SessionEnd, StateChange};
-use crate::client::{Listener, PortState, RetryStrategy};
+use crate::client::{Channel, ClientTask, Listener, PortState, RetryStrategy};
+use crate::common::cancellation::ShutdownSignal;
 use crate::common::frame::{FrameWriter, FramedReader};
 use crate::error::Shutdown;
+
+/// Create a channel and the task that serves it, opening the serial port at `path`, and spawn the
+/// task in a span naming the port
+pub(crate) fn spawn_rtu_channel(
+    path: &str,
+    serial_settings: SerialSettings,
+    max_queued_requests: usize,
+    retry: Box<dyn RetryStrategy>,
+    decode: DecodeLevel,
+    listener: Box<dyn Listener<PortState>>,
+) -> Channel {
+    let (handle, task) = create_rtu_channel(
+        path,
+        serial_settings,
+        max_queued_requests,
+        retry,
+        decode,
+        listener,
+    );
+    tokio::spawn(
+        task.run()
+            .instrument(tracing::info_span!("Modbus-Client-RTU", "port" = ?path)),
+    );
+    handle
+}
+
+/// Create a channel and the task that serves it, opening the serial port at `path`
+pub(crate) fn create_rtu_channel(
+    path: &str,
+    serial_settings: SerialSettings,
+    max_queued_requests: usize,
+    retry: Box<dyn RetryStrategy>,
+    decode: DecodeLevel,
+    listener: Box<dyn Listener<PortState>>,
+) -> (Channel, ClientTask) {
+    let (tx, rx) = crate::channel::bounded(max_queued_requests);
+    let (shutdown, signal) = crate::common::cancellation::pair();
+    let task = SerialChannelTask::new(path, serial_settings, rx, retry, decode, listener);
+    (Channel { tx, shutdown }, ClientTask::serial(task, signal))
+}
 
 pub(crate) struct SerialChannelTask {
     path: String,
@@ -46,8 +89,15 @@ impl SerialChannelTask {
         }
     }
 
+    /// Run until every handle is dropped or shutdown is requested, then fail everything still
+    /// queued and report the terminal state
+    pub(crate) async fn run_until_shutdown(mut self, shutdown: ShutdownSignal) {
+        shutdown.run_until_cancelled(self.run()).await;
+        self.shutdown().await;
+    }
+
     /// Run until every handle is dropped. Cancellation is applied by the caller.
-    pub(crate) async fn run(&mut self) -> Shutdown {
+    async fn run(&mut self) -> Shutdown {
         self.listener.update(PortState::Disabled).get().await;
         loop {
             // wait for the channel to be enabled
@@ -67,14 +117,14 @@ impl SerialChannelTask {
 
     /// Fail everything still queued and report the terminal state. Called after `run` completes or
     /// is cancelled.
-    pub(crate) async fn shutdown(&mut self) {
+    async fn shutdown(&mut self) {
         self.client_loop.shutdown().await;
         self.listener.update(PortState::Shutdown).get().await;
     }
 
     /// Open the port and run a session, then wait out any retry delay. `Ok` means open it again;
     /// `Err` is what stopped the channel meanwhile.
-    pub(crate) async fn try_open_and_run(&mut self) -> Result<(), StateChange> {
+    async fn try_open_and_run(&mut self) -> Result<(), StateChange> {
         match crate::serial::open(self.path.as_str(), self.serial_settings) {
             Err(err) => {
                 let delay = self.retry.after_failed_connect();
@@ -154,13 +204,13 @@ mod tests {
     async fn enabled_unopenable_port() -> UnopenablePort {
         let (states_tx, states) = tokio::sync::mpsc::unbounded_channel();
         let (calls, retry) = tokio::sync::mpsc::unbounded_channel();
-        let (channel, task) = Channel::create_rtu_handle_and_task(
+        let (channel, task) = create_rtu_channel(
             UNOPENABLE,
             SerialSettings::default(),
             16,
             Box::new(RecordingRetry { calls }),
             DecodeLevel::nothing(),
-            Some(Box::new(StateRecorder { states: states_tx })),
+            Box::new(StateRecorder { states: states_tx }),
         );
         let task = tokio::spawn(task.run());
         let mut port = UnopenablePort {
@@ -299,7 +349,7 @@ mod tests {
         watchdog(async {
             let (_tx, rx) = crate::channel::bounded(1);
             let (states, mut state_rx) = tokio::sync::mpsc::unbounded_channel();
-            let mut task = SerialChannelTask::new(
+            let task = SerialChannelTask::new(
                 "unused",
                 SerialSettings::default(),
                 rx,
@@ -308,10 +358,7 @@ mod tests {
                 Box::new(BlockingDisabledListener { states }),
             );
             let (cancellation, signal) = crate::common::cancellation::pair();
-            let task = tokio::spawn(async move {
-                signal.run_until_cancelled(task.run()).await;
-                task.shutdown().await
-            });
+            let task = tokio::spawn(task.run_until_shutdown(signal));
 
             assert_eq!(state_rx.recv().await, Some(PortState::Disabled));
             cancellation.cancel();
@@ -352,16 +399,16 @@ mod tests {
         watchdog(async {
             let (states_tx, mut states) = tokio::sync::mpsc::unbounded_channel();
             let (release_tx, release_rx) = tokio::sync::oneshot::channel();
-            let (channel, task) = Channel::create_rtu_handle_and_task(
+            let (channel, task) = create_rtu_channel(
                 UNOPENABLE,
                 SerialSettings::default(),
                 16,
                 default_retry_strategy(),
                 DecodeLevel::nothing(),
-                Some(Box::new(HoldingListener {
+                Box::new(HoldingListener {
                     states: states_tx,
                     release: Some(release_rx),
-                })),
+                }),
             );
             let task = tokio::spawn(task.run());
             // the task is held in its first notification, so requests stay queued

@@ -219,6 +219,21 @@ mod tests {
     }
 
     #[test]
+    fn more_than_65535_values_are_rejected_with_their_count() {
+        assert_eq!(
+            WriteMultiple::from(0, vec![0u16; 65535]).map(|write| write.range),
+            Ok(AddressRange {
+                start: 0,
+                count: 65535
+            })
+        );
+        assert_eq!(
+            WriteMultiple::from(0, vec![0u16; 65536]),
+            Err(InvalidRequest::CountTooBigForU16(65536))
+        );
+    }
+
+    #[test]
     fn values_at_the_top_of_the_address_space() {
         let request = WriteMultiple::from(0xFFFE, vec![0x1234u16, 0x5678]).unwrap();
         let request = LimitedWrite::registers(request).unwrap();

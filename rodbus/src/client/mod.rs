@@ -206,13 +206,13 @@ pub fn spawn_rtu_client_task(
     decode: DecodeLevel,
     listener: Option<Box<dyn Listener<PortState>>>,
 ) -> Channel {
-    Channel::spawn_rtu(
+    crate::serial::client::spawn_rtu_channel(
         path,
         serial_settings,
         max_queued_requests,
         retry,
         decode,
-        listener,
+        listener.unwrap_or_else(|| NullListener::create()),
     )
 }
 
@@ -242,13 +242,13 @@ pub fn create_rtu_client_task(
     decode: DecodeLevel,
     listener: Option<Box<dyn Listener<PortState>>>,
 ) -> (Channel, ClientTask) {
-    Channel::create_rtu_handle_and_task(
+    crate::serial::client::create_rtu_channel(
         path,
         serial_settings,
         max_queued_requests,
         retry,
         decode,
-        listener,
+        listener.unwrap_or_else(|| NullListener::create()),
     )
 }
 
