@@ -132,8 +132,62 @@ async fn an_rtu_request_answered_only_by_another_unit_times_out() {
     .await;
 }
 
+// Serial Line V1.02 2.1, 2.4.1: nothing answers a broadcast, and the master waits the turnaround
+// delay, here the request's timeout, before its next request
 #[tokio::test(start_paused = true)]
-async fn a_broadcast_goes_to_address_zero_and_no_reply_completes_it() {
+async fn a_broadcast_write_succeeds_with_what_it_wrote_once_its_timeout_passes() {
+    watchdog(async {
+        let (channel, mut session) = Setup::rtu().spawn();
+        let param = RequestParam::new(UnitId::broadcast(), TIMEOUT);
+
+        let start = Instant::now();
+        let (result, ()) = tokio::join!(
+            channel.write_single_coil(param, Indexed::new(0x10, true)),
+            async {
+                session
+                    .expect(&rtu(0, &[0x05, 0x00, 0x10, 0xFF, 0x00]))
+                    .await;
+                // a stray frame during the delay doesn't end it
+                session.send(&rtu(1, &[0x05, 0x00, 0x10, 0xFF, 0x00])).await;
+            }
+        );
+        assert_eq!(result, Ok(Indexed::new(0x10, true)));
+        assert_eq!(start.elapsed(), TIMEOUT);
+
+        let start = Instant::now();
+        let request = rtu(0, &[0x06, 0x00, 0x10, 0x12, 0x34]);
+        let (result, ()) = tokio::join!(
+            channel.write_single_register(param, Indexed::new(0x10, 0x1234)),
+            session.expect(&request)
+        );
+        assert_eq!(result, Ok(Indexed::new(0x10, 0x1234)));
+        assert_eq!(start.elapsed(), TIMEOUT);
+
+        let start = Instant::now();
+        let coils = WriteMultiple::from(0x10, vec![true, false]).unwrap();
+        let request = rtu(0, &[0x0F, 0x00, 0x10, 0x00, 0x02, 0x01, 0x01]);
+        let (result, ()) = tokio::join!(
+            channel.write_multiple_coils(param, coils),
+            session.expect(&request)
+        );
+        assert_eq!(result, Ok(AddressRange::try_from(0x10, 2).unwrap()));
+        assert_eq!(start.elapsed(), TIMEOUT);
+
+        let start = Instant::now();
+        let registers = WriteMultiple::from(0x10, vec![0x1234]).unwrap();
+        let request = rtu(0, &[0x10, 0x00, 0x10, 0x00, 0x01, 0x02, 0x12, 0x34]);
+        let (result, ()) = tokio::join!(
+            channel.write_multiple_registers(param, registers),
+            session.expect(&request)
+        );
+        assert_eq!(result, Ok(AddressRange::try_from(0x10, 1).unwrap()));
+        assert_eq!(start.elapsed(), TIMEOUT);
+    })
+    .await;
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_broadcast_read_goes_to_address_zero_and_times_out() {
     watchdog(async {
         let (channel, mut session) = Setup::rtu().spawn();
         let start = Instant::now();

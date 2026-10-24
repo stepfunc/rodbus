@@ -197,6 +197,12 @@ impl ClientFraming {
         }
     }
 
+    /// Whether a request to `unit_id` is a broadcast, which nothing answers: address 0 on a serial
+    /// line. TCP has no broadcast
+    fn is_broadcast(&self, unit_id: UnitId) -> bool {
+        unit_id == UnitId::broadcast() && !matches!(self.format, RequestFormat::Tcp)
+    }
+
     /// The header of a request to `unit_id`
     fn header(&self, unit_id: UnitId, tx_id: TxId) -> FrameHeader {
         match self.format {
@@ -376,6 +382,13 @@ impl ClientLoop {
         let response = loop {
             let frame = tokio::select! {
                 _ = deadline.as_mut() => {
+                    // the timeout of a broadcast is its turnaround delay (Serial Line V1.02
+                    // 2.4.1), after which a write is done
+                    if self.framing.is_broadcast(request.id)
+                        && request.details.complete_unanswered_write()
+                    {
+                        return Ok(());
+                    }
                     return Err(ExchangeError::Timeout);
                 }
                 frame = self.framing.reader.next_frame(io, self.decode) => {

@@ -146,6 +146,7 @@ ambiguous, we record how we read it. Examples of how it validates the frames it 
 | On a serial line, a frame is accepted only with a valid CRC. Bytes that can't start a valid frame, by their function code, length or CRC, are dropped one at a time until one does, and a partial frame is dropped once the line has been silent for 3.5 character times or 50 ms, whichever is longer. Neither ends the session | Serial Line 2.5.1.1, 2.5.1.2 |
 | On a serial line, the library waits 3.5 character times (1.75 ms above 19200 baud) before it transmits, counted from the latest of opening the port, its last completed read and the estimated end of its own last transmission. These are times seen by the host, and the end of a transmission is estimated from the baud rate, so buffering in a driver or adapter can still shorten the silence on the line | Serial Line 2.5.1.1 |
 | A broadcast (address 0 on a serial line) is executed by the server only for writes, and never answered | Serial Line 2.1 |
+| A client completes a broadcast write once the request's timeout, used as the turnaround delay, has passed, and ignores any frame meanwhile; a broadcast read times out | Serial Line 2.1, 2.4.1 |
 
 Property tests check the request parser, the response handling, the frame readers, and client and server sessions
 against independent models of these specifications and of the library's documented behavior, for generated requests,
