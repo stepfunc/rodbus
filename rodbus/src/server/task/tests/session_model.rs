@@ -39,8 +39,7 @@ use proptest::strategy::ValueTree;
 use proptest::test_runner::TestRunner;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
-use super::serve;
-use crate::common::frame::{FrameWriter, FramedReader};
+use super::{serve, unauthorized};
 #[cfg(feature = "enable-tls")]
 use crate::common::function::FunctionCode;
 use crate::common::test_support::{frame, watchdog, Link};
@@ -48,7 +47,8 @@ use crate::exception::ExceptionCode;
 #[cfg(feature = "enable-tls")]
 use crate::server::handler::test_util::{Check, Recorder, Target};
 use crate::server::handler::{RequestHandler, ServerHandlerMap};
-use crate::server::task::AuthorizationType;
+#[cfg(feature = "enable-tls")]
+use crate::server::task::{AuthorizationType, SessionTask};
 use crate::server::{WriteCoils, WriteRegisters};
 use crate::types::strategies::{packed_bits, packed_registers};
 #[cfg(feature = "enable-tls")]
@@ -794,24 +794,20 @@ async fn execute_case(link: Link, auth: Auth, case: &Case) -> Seen {
     }
     #[cfg(feature = "enable-tls")]
     let mut recorded = None;
-    let auth = match auth {
-        Auth::None => AuthorizationType::None,
+    let peer = match auth {
+        Auth::None => serve(|commands| unauthorized(link, handlers, commands)),
         #[cfg(feature = "enable-tls")]
         Auth::Denying(denied) => {
+            // only TCP sessions authorize their requests
+            assert_eq!(link, Link::Tcp);
             let (authorizer, checks) = Recorder::denying(denied);
             recorded = Some(checks);
-            AuthorizationType::Handler(authorizer, ROLE.to_string())
+            let auth = AuthorizationType::Handler(authorizer, ROLE.to_string());
+            serve(|commands| {
+                SessionTask::tcp(handlers, auth, commands, crate::DecodeLevel::nothing())
+            })
         }
     };
-    let (writer, reader) = match link {
-        Link::Tcp => (FrameWriter::tcp(), FramedReader::tcp()),
-        #[cfg(feature = "serial")]
-        Link::Rtu => (
-            FrameWriter::rtu(),
-            FramedReader::rtu_request(crate::serial::SerialSettings::default().baud_rate),
-        ),
-    };
-    let peer = serve(handlers, auth, writer, reader);
 
     // write every request, then end the session, while reading all it writes until it ends
     let requests: Vec<u8> = case

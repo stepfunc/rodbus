@@ -11,7 +11,7 @@ use crate::server::AuthorizationHandler;
 use crate::{DecodeLevel, UnitId};
 
 use crate::common::frame::{
-    ExceptionFor, Frame, FrameDestination, FrameHeader, FrameWriter, FramedReader,
+    ExceptionFor, Frame, FrameDestination, FrameHeader, FrameWriter, FramedReader, ReadError,
 };
 use crate::common::function::FunctionCode;
 use crate::error::*;
@@ -48,11 +48,11 @@ impl<T> SessionTask<T>
 where
     T: RequestHandler,
 {
-    pub(crate) fn new(
+    /// A session over TCP or TLS, which frames requests with MBAP headers and whose requests
+    /// `auth` authorizes
+    pub(crate) fn tcp(
         handlers: ServerHandlerMap<T>,
         auth: AuthorizationType,
-        writer: FrameWriter,
-        reader: FramedReader,
         commands: tokio::sync::mpsc::Receiver<ServerCommand>,
         decode: DecodeLevel,
     ) -> Self {
@@ -60,23 +60,41 @@ where
             handlers,
             auth,
             commands,
-            writer,
-            reader,
+            writer: FrameWriter::tcp(),
+            reader: FramedReader::tcp(),
+            decode,
+        }
+    }
+
+    /// A session reading the requests on a serial line at `baud_rate`, which nothing authorizes
+    #[cfg(feature = "serial")]
+    pub(crate) fn rtu(
+        handlers: ServerHandlerMap<T>,
+        baud_rate: u32,
+        commands: tokio::sync::mpsc::Receiver<ServerCommand>,
+        decode: DecodeLevel,
+    ) -> Self {
+        Self {
+            handlers,
+            auth: AuthorizationType::None,
+            commands,
+            writer: FrameWriter::rtu(),
+            reader: FramedReader::rtu_request(baud_rate),
             decode,
         }
     }
 
     /// Serve requests over `io` until the session ends, leaving no partial frame behind for the
     /// next
-    pub(crate) async fn run(&mut self, io: &mut PhysLayer) -> RequestError {
-        let err = loop {
-            if let Err(err) = self.run_one(io).await {
-                tracing::warn!("session error: {}", err);
-                break err;
+    pub(crate) async fn run(&mut self, io: &mut PhysLayer) -> SessionEnd {
+        let end = loop {
+            if let Err(end) = self.run_one(io).await {
+                tracing::warn!("session error: {}", end);
+                break end;
             }
         };
         self.reader.reset();
-        err
+        end
     }
 
     #[cfg(feature = "serial")]
@@ -102,15 +120,15 @@ where
         }
     }
 
-    async fn run_one(&mut self, io: &mut PhysLayer) -> Result<(), RequestError> {
+    async fn run_one(&mut self, io: &mut PhysLayer) -> Result<(), SessionEnd> {
         tokio::select! {
             frame = self.reader.next_frame(io, self.decode) => {
-                let frame = frame?;
+                let frame = frame.map_err(SessionEnd::Read)?;
                 self.handle_frame(io, frame).await
             }
             cmd = self.commands.recv() => {
                match cmd {
-                    None => Err(crate::error::RequestError::Shutdown),
+                    None => Err(SessionEnd::Shutdown),
                     Some(command) => {
                         self.apply_command(command);
                         Ok(())
@@ -128,7 +146,7 @@ where
 
     /// Answers a request to a unit this session serves; executes a broadcast write without a
     /// reply; ignores everything else, whatever it holds
-    async fn handle_frame(&mut self, io: &mut PhysLayer, frame: Frame) -> Result<(), RequestError> {
+    async fn handle_frame(&mut self, io: &mut PhysLayer, frame: Frame) -> Result<(), SessionEnd> {
         let mut pdu = ReadCursor::new(frame.payload());
         match frame.header.destination() {
             FrameDestination::UnitId(unit_id) => {
@@ -151,20 +169,23 @@ where
                         lock_handler(handler).as_mut(),
                         &mut self.writer,
                         self.decode,
-                    )?,
+                    ),
                     Err(Refusal::Empty) => return Ok(()),
                     Err(Refusal::Exception(function, ex)) => {
                         self.writer
-                            .format_ex(frame.header, function, ex, self.decode)?
+                            .format_ex(frame.header, function, ex, self.decode)
                     }
-                };
-                io.write(reply, self.decode.physical).await?;
+                }
+                .map_err(SessionEnd::Reply)?;
+                io.write(reply, self.decode.physical)
+                    .await
+                    .map_err(|err| SessionEnd::Write(err.kind()))?;
             }
-            // nothing answers a broadcast, so a refused one is only dropped
+            // nothing answers a broadcast, so a refused one is only dropped; only RTU sessions
+            // receive one, and nothing authorizes their requests
             #[cfg(feature = "serial")]
             FrameDestination::Broadcast => {
-                let Ok(request) = accept(&self.auth, UnitId::broadcast(), &mut pdu, self.decode)
-                else {
+                let Ok(request) = parse(&mut pdu, self.decode) else {
                     return Ok(());
                 };
                 match request {
@@ -186,6 +207,30 @@ where
     }
 }
 
+/// Why a session ended
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) enum SessionEnd {
+    /// The server's handle was dropped
+    Shutdown,
+    /// Reading a request failed
+    Read(ReadError),
+    /// Writing a reply failed
+    Write(std::io::ErrorKind),
+    /// A reply couldn't be formatted
+    Reply(RequestError),
+}
+
+impl std::fmt::Display for SessionEnd {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Self::Shutdown => f.write_str("channel shutdown"),
+            Self::Read(err) => RequestError::from(*err).fmt(f),
+            Self::Write(kind) => std::io::Error::from(*kind).fmt(f),
+            Self::Reply(err) => err.fmt(f),
+        }
+    }
+}
+
 /// Why a request is refused before any handler sees it
 enum Refusal {
     /// The frame holds no function code, so there is nothing to answer
@@ -201,6 +246,18 @@ fn accept<'a>(
     pdu: &'a mut ReadCursor,
     decode: DecodeLevel,
 ) -> Result<Request<'a>, Refusal> {
+    let request = parse(pdu, decode)?;
+    match auth.is_authorized(unit_id, &request) {
+        Authorization::Allow => Ok(request),
+        Authorization::Deny => Err(Refusal::Exception(
+            ExceptionFor::Function(request.get_function()),
+            ExceptionCode::IllegalFunction,
+        )),
+    }
+}
+
+/// Parses the request in a frame's `pdu`
+fn parse<'a>(pdu: &'a mut ReadCursor, decode: DecodeLevel) -> Result<Request<'a>, Refusal> {
     let Ok(value) = pdu.read_u8() else {
         tracing::warn!("received an empty frame");
         return Err(Refusal::Empty);
@@ -228,13 +285,7 @@ fn accept<'a>(
         tracing::info!("PDU RX - {}", RequestDisplay::new(decode.app, &request));
     }
 
-    match auth.is_authorized(unit_id, &request) {
-        Authorization::Allow => Ok(request),
-        Authorization::Deny => Err(Refusal::Exception(
-            ExceptionFor::Function(function),
-            ExceptionCode::IllegalFunction,
-        )),
-    }
+    Ok(request)
 }
 
 /// Determines how authorization of user defined requests are handled
@@ -304,8 +355,7 @@ mod tests {
     use std::sync::{Arc, Mutex};
 
     use super::*;
-    use crate::common::frame::{FrameWriter, FramedReader};
-    use crate::common::test_support::mbap;
+    use crate::common::test_support::{mbap, Link};
     use crate::server::handler::ServerHandlerMap;
     use crate::server::{WriteCoils, WriteRegisters};
     use crate::Indexed;
@@ -421,13 +471,8 @@ mod tests {
         }
     }
 
-    /// A session serving `units` over a pipe; returns the peer and the handlers' calls
-    fn spawn_session(
-        units: &[u8],
-        auth: AuthorizationType,
-        writer: FrameWriter,
-        reader: FramedReader,
-    ) -> (tokio::io::DuplexStream, Calls) {
+    /// A [`Unit`] for each of `units`, and the calls they all record
+    fn unit_handlers(units: &[u8]) -> (ServerHandlerMap<Unit>, Calls) {
         let calls = Calls::default();
         let mut handlers = ServerHandlerMap::new();
         for unit in units {
@@ -437,25 +482,49 @@ mod tests {
             };
             assert!(handlers.add(UnitId::new(*unit), handler.wrap()).is_none());
         }
-        (serve(handlers, auth, writer, reader), calls)
+        (handlers, calls)
     }
 
-    /// A session serving `handlers` over a pipe, until the peer closes it; returns the peer
-    fn serve<T: RequestHandler>(
+    /// A session over `link` serving `units` over a pipe, which authorizes nothing; returns the
+    /// peer and the handlers' calls
+    fn spawn_session(units: &[u8], link: Link) -> (tokio::io::DuplexStream, Calls) {
+        let (handlers, calls) = unit_handlers(units);
+        (
+            serve(|commands| unauthorized(link, handlers, commands)),
+            calls,
+        )
+    }
+
+    /// A session over `link` serving `handlers`, which authorizes nothing
+    fn unauthorized<T: RequestHandler>(
+        link: Link,
         handlers: ServerHandlerMap<T>,
-        auth: AuthorizationType,
-        writer: FrameWriter,
-        reader: FramedReader,
+        commands: tokio::sync::mpsc::Receiver<ServerCommand>,
+    ) -> SessionTask<T> {
+        match link {
+            Link::Tcp => SessionTask::tcp(
+                handlers,
+                AuthorizationType::None,
+                commands,
+                DecodeLevel::nothing(),
+            ),
+            #[cfg(feature = "serial")]
+            Link::Rtu => SessionTask::rtu(
+                handlers,
+                crate::serial::SerialSettings::default().baud_rate,
+                commands,
+                DecodeLevel::nothing(),
+            ),
+        }
+    }
+
+    /// The session `new` makes from its commands, run over a pipe until the peer closes it;
+    /// returns the peer
+    fn serve<T: RequestHandler>(
+        new: impl FnOnce(tokio::sync::mpsc::Receiver<ServerCommand>) -> SessionTask<T>,
     ) -> tokio::io::DuplexStream {
         let (commands_tx, commands) = tokio::sync::mpsc::channel(1);
-        let mut session = SessionTask::new(
-            handlers,
-            auth,
-            writer,
-            reader,
-            commands,
-            DecodeLevel::nothing(),
-        );
+        let mut session = new(commands);
         let (local, peer) = tokio::io::duplex(1024);
         tokio::spawn(async move {
             let _commands_tx = commands_tx;
@@ -489,12 +558,7 @@ mod tests {
     }
 
     fn tcp_session(units: &[u8]) -> (tokio::io::DuplexStream, Calls) {
-        spawn_session(
-            units,
-            AuthorizationType::None,
-            FrameWriter::tcp(),
-            FramedReader::tcp(),
-        )
+        spawn_session(units, Link::Tcp)
     }
 
     #[tokio::test]
@@ -799,11 +863,9 @@ mod tests {
     async fn a_decode_level_command_reaches_a_running_session() {
         crate::common::test_support::watchdog(async {
             let (commands, rx) = tokio::sync::mpsc::channel(1);
-            let mut session = SessionTask::new(
+            let mut session = SessionTask::tcp(
                 ServerHandlerMap::<Unit>::new(),
                 AuthorizationType::None,
-                FrameWriter::tcp(),
-                FramedReader::tcp(),
                 rx,
                 DecodeLevel::nothing(),
             );
@@ -821,7 +883,7 @@ mod tests {
             // the session receives the buffered command before it sees the handle is gone
             drop(commands);
             let (ended, session) = task.await.unwrap();
-            assert_eq!(ended, RequestError::Shutdown);
+            assert_eq!(ended, SessionEnd::Shutdown);
             assert_eq!(session.decode, level);
         })
         .await;
@@ -940,6 +1002,19 @@ mod tests {
             FunctionCode::WriteMultipleRegisters,
         ];
 
+        /// A TCP session serving [`UNIT`] over a pipe, whose requests `authorizer` authorizes for
+        /// [`ROLE`]; returns the peer and the handler's calls
+        fn authorized_session(
+            authorizer: Arc<dyn AuthorizationHandler>,
+        ) -> (tokio::io::DuplexStream, Calls) {
+            let (handlers, calls) = unit_handlers(&[UNIT]);
+            let auth = AuthorizationType::Handler(authorizer, ROLE.to_string());
+            let peer = serve(|commands| {
+                SessionTask::tcp(handlers, auth, commands, DecodeLevel::nothing())
+            });
+            (peer, calls)
+        }
+
         /// Empties `calls`, returning what it held
         fn take<T>(calls: &Mutex<Vec<T>>) -> Vec<T> {
             std::mem::take(&mut *calls.lock().unwrap())
@@ -951,12 +1026,7 @@ mod tests {
                 // each function is denied in one session and allowed in the other
                 for denied in [&DENIED, &ALLOWED] {
                     let (authorizer, checks) = Recorder::denying(denied);
-                    let (mut peer, calls) = spawn_session(
-                        &[UNIT],
-                        AuthorizationType::Handler(authorizer, ROLE.to_string()),
-                        FrameWriter::tcp(),
-                        FramedReader::tcp(),
-                    );
+                    let (mut peer, calls) = authorized_session(authorizer);
                     for (tx_id, request) in (1..).zip(&REQUESTS) {
                         let is_denied = denied.contains(&request.function);
                         let reply = if is_denied {
@@ -991,12 +1061,7 @@ mod tests {
                 let [denied, allowed, ..] = &REQUESTS;
                 for request in [denied, allowed] {
                     let (authorizer, checks) = Recorder::denying(&DENIED);
-                    let (mut peer, calls) = spawn_session(
-                        &[UNIT],
-                        AuthorizationType::Handler(authorizer, ROLE.to_string()),
-                        FrameWriter::tcp(),
-                        FramedReader::tcp(),
-                    );
+                    let (mut peer, calls) = authorized_session(authorizer);
                     peer.write_all(&mbap(1, UNSERVED, request.request))
                         .await
                         .unwrap();

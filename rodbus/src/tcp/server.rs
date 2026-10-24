@@ -9,7 +9,6 @@ use std::collections::BTreeMap;
 use tracing::Instrument;
 
 use crate::common::cancellation::ShutdownSignal;
-use crate::common::frame::{FrameWriter, FramedReader};
 use crate::common::phys::{PhysLayer, Socket};
 use crate::decode::DecodeLevel;
 use crate::server::handler::{RequestHandler, ServerHandlerMap};
@@ -290,14 +289,8 @@ where
         let shutdown = self.shutdown.clone();
 
         let session = async move {
-            let mut task = crate::server::task::SessionTask::new(
-                handler_map,
-                auth,
-                FrameWriter::tcp(),
-                FramedReader::tcp(),
-                rx,
-                decode_level,
-            );
+            let mut task =
+                crate::server::task::SessionTask::tcp(handler_map, auth, rx, decode_level);
             shutdown.run_until_cancelled(task.run(&mut phys)).await;
 
             // unless the server ended the session, tell it the session is over

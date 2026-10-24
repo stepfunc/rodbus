@@ -27,11 +27,9 @@ fn rtu_values_session() -> (
     SessionTask<Values>,
 ) {
     let (commands, rx) = tokio::sync::mpsc::channel(1);
-    let session = SessionTask::new(
+    let session = SessionTask::rtu(
         ServerHandlerMap::single(UnitId::new(1), Values.wrap()),
-        AuthorizationType::None,
-        FrameWriter::rtu(),
-        FramedReader::rtu_request(crate::serial::SerialSettings::default().baud_rate),
+        crate::serial::SerialSettings::default().baud_rate,
         rx,
         DecodeLevel::nothing(),
     );
@@ -73,11 +71,11 @@ async fn a_request_begun_on_a_closed_port_isnt_completed_on_the_reopened_one() {
         let (first_ended, second_ended) = task.await.unwrap();
         assert_eq!(
             first_ended,
-            RequestError::Io(std::io::ErrorKind::UnexpectedEof)
+            SessionEnd::Read(ReadError::Io(std::io::ErrorKind::UnexpectedEof))
         );
         assert_eq!(
             second_ended,
-            RequestError::Io(std::io::ErrorKind::UnexpectedEof)
+            SessionEnd::Read(ReadError::Io(std::io::ErrorKind::UnexpectedEof))
         );
     })
     .await;
@@ -109,7 +107,7 @@ async fn an_rtu_session_answers_requests_after_bytes_that_cant_start_a_frame() {
         assert_nothing_more_was_sent(peer).await;
         assert_eq!(
             task.await.unwrap(),
-            RequestError::Io(std::io::ErrorKind::UnexpectedEof)
+            SessionEnd::Read(ReadError::Io(std::io::ErrorKind::UnexpectedEof))
         );
     })
     .await;
@@ -132,7 +130,7 @@ async fn an_rtu_session_drops_a_partial_request_once_the_line_is_silent() {
         assert_nothing_more_was_sent(peer).await;
         assert_eq!(
             task.await.unwrap(),
-            RequestError::Io(std::io::ErrorKind::UnexpectedEof)
+            SessionEnd::Read(ReadError::Io(std::io::ErrorKind::UnexpectedEof))
         );
     })
     .await;
@@ -149,7 +147,7 @@ async fn an_rtu_session_ends_when_the_handle_is_dropped() {
         // let the session wait for a request first
         tokio::time::sleep(Duration::from_secs(1)).await;
         drop(commands);
-        assert_eq!(task.await.unwrap(), RequestError::Shutdown);
+        assert_eq!(task.await.unwrap(), SessionEnd::Shutdown);
     })
     .await;
 }
@@ -199,19 +197,14 @@ async fn a_retry_sleep_ends_when_the_handle_is_dropped() {
     .await;
 }
 
-fn rtu_session(units: &[u8], auth: AuthorizationType) -> (tokio::io::DuplexStream, Calls) {
-    spawn_session(
-        units,
-        auth,
-        FrameWriter::rtu(),
-        FramedReader::rtu_request(crate::serial::SerialSettings::default().baud_rate),
-    )
+fn rtu_session(units: &[u8]) -> (tokio::io::DuplexStream, Calls) {
+    spawn_session(units, Link::Rtu)
 }
 
 #[tokio::test]
 async fn rtu_replies_carry_the_unit_address_and_exceptions() {
     crate::common::test_support::watchdog(async {
-        let (mut peer, _) = rtu_session(&[1, 0xFF], AuthorizationType::None);
+        let (mut peer, _) = rtu_session(&[1, 0xFF]);
         for unit in [1, 0xFF] {
             let request = with_crc(&[unit, 0x03, 0x00, 0x10, 0x00, 0x01]);
             assert_eq!(
@@ -231,7 +224,7 @@ async fn rtu_replies_carry_the_unit_address_and_exceptions() {
 #[tokio::test]
 async fn rtu_checks_a_requests_values_before_its_address_and_calls_no_handler() {
     crate::common::test_support::watchdog(async {
-        let (mut peer, calls) = rtu_session(&[1], AuthorizationType::None);
+        let (mut peer, calls) = rtu_session(&[1]);
         for (request, reply) in REFUSED {
             let request = rtu(1, request);
             assert_eq!(exchange(&mut peer, &request, 5).await, rtu(1, reply));
@@ -247,7 +240,7 @@ async fn rtu_checks_a_requests_values_before_its_address_and_calls_no_handler() 
 #[tokio::test]
 async fn rtu_writes_of_more_than_1968_coils_are_refused_with_03() {
     crate::common::test_support::watchdog(async {
-        let (mut peer, calls) = rtu_session(&[1], AuthorizationType::None);
+        let (mut peer, calls) = rtu_session(&[1]);
         for (request, reply) in coil_write_limits() {
             let reply = rtu(1, &reply);
             let request = rtu(1, &request);
@@ -272,7 +265,7 @@ async fn assert_nothing_was_sent(peer: &mut tokio::io::DuplexStream) {
 async fn rtu_requests_to_a_unit_not_served_get_no_reply_whatever_they_hold() {
     crate::common::test_support::watchdog(async {
         for request in TO_AN_UNSERVED_UNIT {
-            let (mut peer, calls) = rtu_session(&[1], AuthorizationType::None);
+            let (mut peer, calls) = rtu_session(&[1]);
             peer.write_all(&rtu(UNSERVED, request)).await.unwrap();
             assert_nothing_was_sent(&mut peer).await;
             assert_nothing_more_was_sent(peer).await;
@@ -286,7 +279,7 @@ async fn rtu_requests_to_a_unit_not_served_get_no_reply_whatever_they_hold() {
 #[tokio::test]
 async fn an_rtu_broadcast_write_reaches_every_unit_without_a_reply() {
     crate::common::test_support::watchdog(async {
-        let (mut peer, calls) = rtu_session(&[1, 2], AuthorizationType::None);
+        let (mut peer, calls) = rtu_session(&[1, 2]);
         let broadcasts: [&[u8]; 4] = [
             &[0, 0x05, 0x00, 0x40, 0xFF, 0x00],
             &[0, 0x06, 0x00, 0x20, 0x12, 0x34],
@@ -324,7 +317,7 @@ async fn an_rtu_broadcast_write_reaches_every_unit_without_a_reply() {
 #[tokio::test]
 async fn rtu_broadcasts_that_are_not_writes_or_dont_parse_get_no_reply() {
     crate::common::test_support::watchdog(async {
-        let (mut peer, calls) = rtu_session(&[1, 2], AuthorizationType::None);
+        let (mut peer, calls) = rtu_session(&[1, 2]);
         // a read
         peer.write_all(&with_crc(&[0, 0x03, 0x00, 0x10, 0x00, 0x01]))
             .await
