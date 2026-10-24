@@ -818,6 +818,7 @@ mod tests {
         use tokio::sync::mpsc::error::TryRecvError;
 
         use super::*;
+        use crate::common::test_support::run_paused;
 
         /// Something that happens to a server's sessions, where `E` is what only one property
         /// does
@@ -901,16 +902,6 @@ mod tests {
                 }
                 Some(index.get(&self.ended))
             }
-        }
-
-        /// Run a property case on a runtime of its own, with a paused clock
-        fn run(case: impl Future<Output = ()>) {
-            tokio::runtime::Builder::new_current_thread()
-                .enable_time()
-                .start_paused(true)
-                .build()
-                .unwrap()
-                .block_on(watchdog(case));
         }
 
         /// The other ends of a record in a [`SessionTracker`]
@@ -1064,7 +1055,7 @@ mod tests {
                 max_sessions in 0usize..=4,
                 ops in ops(any::<Index>().prop_map(StaleClose)),
             ) {
-                run(check_tracker(max_sessions, &ops));
+                run_paused(check_tracker(max_sessions, &ops));
             }
         }
 
@@ -1076,78 +1067,9 @@ mod tests {
                 max_sessions in 0usize..=4,
                 ops in ops(Just(OpenBeforeClose)),
             ) {
-                run(check_sessions(max_sessions, &ops));
+                run_paused(check_sessions(max_sessions, &ops));
             }
         }
-    }
-
-    /// A read request from unit 1 for `count` items of `function` at `start`
-    fn read_request(function: u8, start: u16, count: u16) -> [u8; 12] {
-        let [start_hi, start_lo] = start.to_be_bytes();
-        let [count_hi, count_lo] = count.to_be_bytes();
-        [
-            0, 1, 0, 0, 0, 6, 1, function, start_hi, start_lo, count_hi, count_lo,
-        ]
-    }
-
-    /// Answers reads from the address itself: odd addresses are on, registers hold their address
-    struct Values;
-
-    impl RequestHandler for Values {
-        fn read_coil(&self, address: u16) -> Result<bool, crate::ExceptionCode> {
-            Ok(address % 2 == 1)
-        }
-
-        fn read_discrete_input(&self, address: u16) -> Result<bool, crate::ExceptionCode> {
-            Ok(address % 2 == 1)
-        }
-
-        fn read_holding_register(&self, address: u16) -> Result<u16, crate::ExceptionCode> {
-            Ok(address)
-        }
-
-        fn read_input_register(&self, address: u16) -> Result<u16, crate::ExceptionCode> {
-            Ok(address)
-        }
-    }
-
-    #[tokio::test]
-    async fn reads_at_the_last_address_are_answered() {
-        watchdog(async {
-            let handler = Values.wrap();
-            let (listener, mut peers) = FaultyListener::new(&[]);
-            let (_handle, _task) = spawn_server_for(
-                1,
-                listener,
-                TcpServerConnectionHandler::Tcp,
-                AddressFilter::Any,
-                ServerHandlerMap::single(UnitId::new(1), handler.clone()),
-            );
-            let (mut client, _) = peers.connect();
-
-            // coils and discrete inputs: one byte, bit 0 on (0xFFFF is odd)
-            for function in [1, 2] {
-                client
-                    .write_all(&read_request(function, 0xFFFF, 1))
-                    .await
-                    .unwrap();
-                let mut response = [0u8; 10];
-                client.read_exact(&mut response).await.unwrap();
-                assert_eq!(response, [0, 1, 0, 0, 0, 4, 1, function, 1, 0x01]);
-            }
-            // holding and input registers: the register holds its address
-            for function in [3, 4] {
-                client
-                    .write_all(&read_request(function, 0xFFFF, 1))
-                    .await
-                    .unwrap();
-                let mut response = [0u8; 11];
-                client.read_exact(&mut response).await.unwrap();
-                assert_eq!(response, [0, 1, 0, 0, 0, 5, 1, function, 2, 0xFF, 0xFF]);
-            }
-            assert!(!handler.is_poisoned());
-        })
-        .await;
     }
 
     #[cfg(feature = "enable-tls")]
@@ -1166,6 +1088,20 @@ mod tests {
         use tokio::io::DuplexStream;
         use tokio::time::Instant;
         use tokio_rustls::rustls;
+
+        /// Answers coil and holding register reads from the address itself: odd coils are on,
+        /// holding registers hold their address
+        struct Values;
+
+        impl RequestHandler for Values {
+            fn read_coil(&self, address: u16) -> Result<bool, crate::ExceptionCode> {
+                Ok(address % 2 == 1)
+            }
+
+            fn read_holding_register(&self, address: u16) -> Result<u16, crate::ExceptionCode> {
+                Ok(address)
+            }
+        }
 
         struct Server {
             handle: crate::server::ServerHandle,

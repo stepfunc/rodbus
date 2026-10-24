@@ -47,7 +47,7 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use super::{serve, unauthorized};
 #[cfg(feature = "enable-tls")]
 use crate::common::function::FunctionCode;
-use crate::common::test_support::{frame, watchdog, Link};
+use crate::common::test_support::{frame, run_paused, Link};
 use crate::exception::ExceptionCode;
 #[cfg(feature = "enable-tls")]
 use crate::server::handler::test_util::{Check, Recorder, Target};
@@ -853,14 +853,7 @@ fn check(link: Link, auth: Auth, case: &Case) -> (Seen, Vec<Kind>) {
         "the probe is answered"
     );
     // on the paused clock the RTU reader's silence timer can't expire while bytes are in flight
-    let runtime = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .start_paused(true)
-        .build()
-        .unwrap();
-    runtime.block_on(watchdog(async {
-        assert_eq!(execute_case(link, auth, case).await, expected);
-    }));
+    assert_eq!(run_paused(execute_case(link, auth, case)), expected);
     (expected, kinds)
 }
 

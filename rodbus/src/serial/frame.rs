@@ -1531,6 +1531,7 @@ mod tests {
         use proptest::prelude::*;
 
         use super::*;
+        use crate::common::test_support::run_paused;
 
         /// The largest RTU frame: the address, the largest PDU and the CRC
         const MAX_RTU_FRAME_LENGTH: usize = 256;
@@ -2023,16 +2024,6 @@ mod tests {
             )
         }
 
-        /// Run `check` in a runtime of its own whose clock is paused, as the readers' timers need
-        fn paused<T>(check: impl std::future::Future<Output = T>) -> T {
-            tokio::runtime::Builder::new_current_thread()
-                .enable_time()
-                .start_paused(true)
-                .build()
-                .unwrap()
-                .block_on(check)
-        }
-
         /// The frames of `records`, each formatted by `format_rtu_pdu`, with the corrupted one
         /// changed in a byte other than its function code and byte count, and its index
         fn formatted(
@@ -2229,7 +2220,8 @@ mod tests {
             .concat();
             let unknown = started(bad_frame(FrameParseError::UnknownFunctionCode(0xA5)));
             for reads in [Reads::Whole, Reads::ByteByByte] {
-                let reports = paused(async { check_stream(Direction::Request, &stream, &reads) });
+                let reports =
+                    run_paused(async { check_stream(Direction::Request, &stream, &reads) });
                 assert_eq!(
                     reports.unwrap(),
                     [unknown, ended(6), unknown, ended(2)],
@@ -2247,7 +2239,7 @@ mod tests {
                 corruption in prop::option::of(corruption()),
                 reads in reads(),
             ) {
-                paused(async { check_frames(direction, &records, corruption, &reads) })?;
+                run_paused(async { check_frames(direction, &records, corruption, &reads) })?;
             }
 
             #[test]
@@ -2255,7 +2247,7 @@ mod tests {
                 (direction, records) in frames(),
                 corruption in prop::option::of(corruption()),
             ) {
-                paused(check_silences(direction, &records, corruption))?;
+                run_paused(check_silences(direction, &records, corruption))?;
             }
 
             #[test]
@@ -2263,7 +2255,7 @@ mod tests {
                 bytes in stream(),
                 reads in reads(),
             ) {
-                paused(async { check_chunking(&bytes, &reads) })?;
+                run_paused(async { check_chunking(&bytes, &reads) })?;
             }
         }
     }

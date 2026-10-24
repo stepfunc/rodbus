@@ -777,12 +777,7 @@ mod tests {
 
         #[test]
         fn the_channel_follows_the_reconnect_model((transport, outcomes) in reconnects()) {
-            tokio::runtime::Builder::new_current_thread()
-                .enable_all()
-                .start_paused(true)
-                .build()
-                .unwrap()
-                .block_on(crate::common::test_support::watchdog(check(transport, &outcomes)));
+            crate::common::test_support::run_paused(check(transport, &outcomes));
         }
     }
 
