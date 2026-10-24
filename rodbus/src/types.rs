@@ -535,9 +535,9 @@ impl UnitId {
 
     /// Broadcast address (only in RTU)
     ///
-    /// Nothing answers a broadcast, so an RTU client waits the request's response timeout as the
-    /// turnaround delay (Serial Line V1.02 2.4.1) and then completes a write successfully with what
-    /// it wrote; give broadcasts a short timeout, typically 100 to 200 ms. A read can't be
+    /// Nothing answers a broadcast, so once it is sent an RTU client waits the request's response
+    /// timeout as the turnaround delay (Serial Line V1.02 2.4.1) and then completes a write
+    /// successfully with what it wrote; give broadcasts a short timeout, typically 100 to 200 ms. A read can't be
     /// broadcast, and one sent to this address fails with a response timeout. Over TCP, unit id 0
     /// is an ordinary unit id.
     pub fn broadcast() -> Self {

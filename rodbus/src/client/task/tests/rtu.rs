@@ -186,6 +186,38 @@ async fn a_broadcast_write_succeeds_with_what_it_wrote_once_its_timeout_passes()
     .await;
 }
 
+// Serial Line V1.02 2.4.1: the turnaround delay follows the broadcast, so time spent sending it
+// doesn't count against it
+#[tokio::test(start_paused = true)]
+async fn the_next_request_waits_the_turnaround_delay_after_a_broadcast_is_sent() {
+    const SENDING: Duration = Duration::from_millis(300);
+    watchdog(async {
+        let (channel, mut session) = Setup::rtu().capacity(SMALL_PIPE).spawn();
+        let start = Instant::now();
+        let write = {
+            let channel = channel.clone();
+            tokio::spawn(async move {
+                let param = RequestParam::new(UnitId::broadcast(), TIMEOUT);
+                channel
+                    .write_single_register(param, Indexed::new(0x10, 0x1234))
+                    .await
+            })
+        };
+        // the pipe holds only part of the frame, so the write lasts until the peer reads it
+        tokio::time::sleep(SENDING).await;
+        let next = read_register(&channel, 1);
+        session
+            .expect(&rtu(0, &[0x06, 0x00, 0x10, 0x12, 0x34]))
+            .await;
+
+        session.expect(&rtu(1, &READ_REGISTER)).await;
+        assert_eq!(start.elapsed(), SENDING + TIMEOUT);
+        assert_eq!(write.await.unwrap(), Ok(Indexed::new(0x10, 0x1234)));
+        drop(next);
+    })
+    .await;
+}
+
 #[tokio::test(start_paused = true)]
 async fn a_broadcast_read_goes_to_address_zero_and_times_out() {
     watchdog(async {

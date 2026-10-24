@@ -15,7 +15,12 @@ pub(crate) struct Deadline(Option<Instant>);
 impl Deadline {
     /// The deadline `duration` from now
     pub(crate) fn after(duration: Duration) -> Self {
-        Self(Instant::now().checked_add(duration))
+        Self::after_from(Instant::now(), duration)
+    }
+
+    /// The deadline `duration` after `start`
+    pub(crate) fn after_from(start: Instant, duration: Duration) -> Self {
+        Self(start.checked_add(duration))
     }
 
     /// Wait until the deadline, forever if it can't be represented
