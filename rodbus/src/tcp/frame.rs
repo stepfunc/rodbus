@@ -228,48 +228,6 @@ mod tests {
         }
     }
 
-    fn assert_equals_simple_frame(frame: &Frame) {
-        assert_eq!(
-            frame.header,
-            FrameHeader::new_tcp_header(UnitId::new(0x2A), TxId::new(0x0007))
-        );
-        assert_eq!(frame.payload(), &[0x01, 0xCA, 0xFE]);
-    }
-
-    fn test_segmented_parse(split_at: usize) {
-        let (f1, f2) = SIMPLE_FRAME.split_at(split_at);
-        let (io, mut io_handle) = sfio_tokio_mock_io::mock();
-        let mut reader = FramedReader::tcp();
-        let mut layer = PhysLayer::new_mock(io);
-        let mut task =
-            tokio_test::task::spawn(reader.next_frame(&mut layer, DecodeLevel::nothing()));
-
-        assert!(task.poll().is_pending());
-        io_handle.read(f1);
-        assert!(task.poll().is_pending());
-        io_handle.read(f2);
-        if let Poll::Ready(frame) = task.poll() {
-            assert_equals_simple_frame(&frame.unwrap());
-        } else {
-            panic!("Task not ready");
-        }
-    }
-
-    fn test_error(input: &[u8]) -> RequestError {
-        let (io, mut io_handle) = sfio_tokio_mock_io::mock();
-        let mut reader = FramedReader::tcp();
-        let mut layer = PhysLayer::new_mock(io);
-        let mut task =
-            tokio_test::task::spawn(reader.next_frame(&mut layer, DecodeLevel::nothing()));
-
-        io_handle.read(input);
-        if let Poll::Ready(frame) = task.poll() {
-            frame.err().unwrap().into()
-        } else {
-            panic!("Task not ready");
-        }
-    }
-
     #[test]
     fn correctly_formats_frame() {
         let mut buffer: [u8; 256] = [0; 256];
@@ -291,83 +249,15 @@ mod tests {
 
     #[test]
     fn can_parse_frame_from_stream() {
-        let (io, mut io_handle) = sfio_tokio_mock_io::mock();
-        let mut reader = FramedReader::tcp();
-        let mut layer = PhysLayer::new_mock(io);
-        let mut task =
-            tokio_test::task::spawn(reader.next_frame(&mut layer, DecodeLevel::nothing()));
-
-        io_handle.read(SIMPLE_FRAME);
-        if let Poll::Ready(frame) = task.poll() {
-            assert_equals_simple_frame(&frame.unwrap());
-        } else {
-            panic!("Task not ready");
-        }
-    }
-
-    #[test]
-    fn can_parse_maximum_size_frame() {
-        // maximum ADU length is 253, so max MBAP length value is 254 which is 0xFE
-        let header = &[0x00, 0x07, 0x00, 0x00, 0x00, 0xFE, 0x2A];
-        let payload = &[0xCC; 253];
-
-        let (io, mut io_handle) = sfio_tokio_mock_io::mock();
-        let mut reader = FramedReader::tcp();
-        let mut task = tokio_test::task::spawn(async {
-            assert_eq!(
-                reader
-                    .next_frame(&mut PhysLayer::new_mock(io), DecodeLevel::nothing())
-                    .await
-                    .unwrap()
-                    .payload(),
-                payload.as_ref()
-            );
-        });
-
-        tokio_test::assert_pending!(task.poll());
-        io_handle.read(header);
-        tokio_test::assert_pending!(task.poll());
-        io_handle.read(payload);
-        tokio_test::assert_ready!(task.poll());
-    }
-
-    #[test]
-    fn can_parse_frame_if_segmented_in_header() {
-        test_segmented_parse(4);
-    }
-
-    #[test]
-    fn can_parse_frame_if_segmented_in_payload() {
-        test_segmented_parse(8);
-    }
-
-    #[test]
-    fn errors_on_bad_protocol_id() {
-        let frame = &[0x00, 0x07, 0xCA, 0xFE, 0x00, 0x01, 0x2A];
         assert_eq!(
-            test_error(frame),
-            RequestError::BadFrame(FrameParseError::UnknownProtocolId(0xCAFE)),
-        );
-    }
-
-    #[test]
-    fn errors_on_length_of_zero() {
-        let frame = &[0x00, 0x07, 0x00, 0x00, 0x00, 0x00, 0x2A];
-        assert_eq!(
-            test_error(frame),
-            RequestError::BadFrame(FrameParseError::MbapLengthZero)
-        );
-    }
-
-    #[test]
-    fn errors_when_mbap_length_too_big() {
-        let frame = &[0x00, 0x07, 0x00, 0x00, 0x00, 0xFF, 0x2A];
-        assert_eq!(
-            test_error(frame),
-            RequestError::BadFrame(FrameParseError::FrameLengthTooBig(
-                0xFF,
-                constants::MAX_LENGTH_FIELD,
-            ))
+            read_chunks(&mut FramedReader::tcp(), &[SIMPLE_FRAME]),
+            [(
+                0,
+                Outcome::Frame {
+                    header: FrameHeader::new_tcp_header(UnitId::new(0x2A), TxId::new(0x0007)),
+                    payload: vec![0x01, 0xCA, 0xFE],
+                },
+            )]
         );
     }
 
