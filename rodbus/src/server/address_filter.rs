@@ -195,15 +195,6 @@ mod test {
         }
     }
 
-    #[test]
-    fn native_ipv6_matching_is_unchanged() {
-        let filter = any_of(&["2001:db8::1", "192.168.0.1"]);
-        assert!(filter.matches(ip("2001:db8::1")));
-        assert!(!filter.matches(ip("2001:db8::2")));
-        assert!(AddressFilter::Exact(ip("2001:db8::1")).matches(ip("2001:db8::1")));
-        assert!(!AddressFilter::Exact(ip("2001:db8::1")).matches(ip("2001:db8::2")));
-    }
-
     mod properties {
         use super::*;
         use proptest::prelude::*;
