@@ -934,6 +934,45 @@ mod tests {
             }
         }
 
+        #[tokio::test(start_paused = true)]
+        async fn a_decoding_change_reaches_new_sessions_and_each_session_with_room_for_it() {
+            use crate::decode::{AppDecodeLevel, FrameDecodeLevel, PhysDecodeLevel};
+
+            fn level(command: ServerCommand) -> DecodeLevel {
+                match command {
+                    ServerCommand::ChangeDecoding(level) => level,
+                }
+            }
+
+            watchdog(async {
+                let first = DecodeLevel::new(
+                    AppDecodeLevel::DataValues,
+                    FrameDecodeLevel::Nothing,
+                    PhysDecodeLevel::Nothing,
+                );
+                let second = DecodeLevel::new(
+                    AppDecodeLevel::Nothing,
+                    FrameDecodeLevel::Payload,
+                    PhysDecodeLevel::Data,
+                );
+                let mut sessions = sessions(2);
+                let mut full = Tracked::start(&mut sessions.tracker);
+                sessions.apply_command(ServerCommand::ChangeDecoding(first));
+                let mut ready = Tracked::start(&mut sessions.tracker);
+                // `full` hasn't read `first`, so its queue has no room for `second`
+                sessions.apply_command(ServerCommand::ChangeDecoding(second));
+
+                assert_eq!(sessions.decode, second);
+                assert_eq!(ready.commands.try_recv().map(level), Ok(second));
+                assert_eq!(full.commands.try_recv().map(level), Ok(first));
+                assert_eq!(
+                    full.commands.try_recv().map(level),
+                    Err(TryRecvError::Empty)
+                );
+            })
+            .await;
+        }
+
         /// The tracker holds the records of the live sessions, and has aborted the others
         async fn expect_tracked(model: &mut Model<Tracked>) {
             for session in &mut model.live {

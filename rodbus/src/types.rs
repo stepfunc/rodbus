@@ -1128,4 +1128,19 @@ mod tests {
             }
         }
     }
+
+    #[test]
+    fn each_client_option_setter_stores_its_value_and_keeps_the_others() {
+        let decode_level = AppDecodeLevel::DataValues.into();
+        let max_timeouts = NonZeroUsize::new(2);
+        let options = ClientOptions::default()
+            .channel_logging(ChannelLoggingMode::StateChanges)
+            .max_queued_requests(3)
+            .decode_level(decode_level)
+            .max_response_timeouts(max_timeouts);
+        assert_eq!(options.channel_logging, ChannelLoggingMode::StateChanges);
+        assert_eq!(options.max_queued_requests, 3);
+        assert_eq!(options.decode_level, decode_level);
+        assert_eq!(options.max_timeouts, max_timeouts);
+    }
 }

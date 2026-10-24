@@ -531,78 +531,124 @@ mod tests {
         pdu
     }
 
-    // MODBUS Application Protocol Specification V1.1b3 6.1-6.6, 6.11, 6.12: the request examples
+    // MODBUS Application Protocol Specification V1.1b3 6.1-6.6, 6.11, 6.12: the request examples,
+    // which the tests below send in this order
+    const EXAMPLE_PDUS: [&[u8]; 8] = [
+        &[0x01, 0x00, 0x13, 0x00, 0x13],
+        &[0x02, 0x00, 0xC4, 0x00, 0x16],
+        &[0x03, 0x00, 0x6B, 0x00, 0x03],
+        &[0x04, 0x00, 0x08, 0x00, 0x01],
+        &[0x05, 0x00, 0xAC, 0xFF, 0x00],
+        &[0x06, 0x00, 0x01, 0x00, 0x03],
+        &[0x0F, 0x00, 0x13, 0x00, 0x0A, 0x02, 0xCD, 0x01],
+        &[0x10, 0x00, 0x01, 0x00, 0x02, 0x04, 0x00, 0x0A, 0x01, 0x02],
+    ];
+
+    fn example_coils() -> WriteMultiple<bool> {
+        let coils = vec![
+            true, false, true, true, false, false, true, true, true, false,
+        ];
+        WriteMultiple::from(0x13, coils).unwrap()
+    }
+
+    fn example_registers() -> WriteMultiple<u16> {
+        WriteMultiple::from(0x01, vec![0x000A, 0x0102]).unwrap()
+    }
+
     #[tokio::test(start_paused = true)]
     async fn each_method_sends_its_function_and_pdu() {
         watchdog(async {
             let (channel, mut rx) = channel();
-            assert_eq!(
+            let pdus = [
                 sent(channel.read_coils(param(), range(0x13, 0x13)), &mut rx).await,
-                [0x01, 0x00, 0x13, 0x00, 0x13]
-            );
-            assert_eq!(
                 sent(
                     channel.read_discrete_inputs(param(), range(0xC4, 0x16)),
-                    &mut rx
+                    &mut rx,
                 )
                 .await,
-                [0x02, 0x00, 0xC4, 0x00, 0x16]
-            );
-            assert_eq!(
                 sent(
                     channel.read_holding_registers(param(), range(0x6B, 0x03)),
-                    &mut rx
+                    &mut rx,
                 )
                 .await,
-                [0x03, 0x00, 0x6B, 0x00, 0x03]
-            );
-            assert_eq!(
                 sent(
                     channel.read_input_registers(param(), range(0x08, 0x01)),
-                    &mut rx
+                    &mut rx,
                 )
                 .await,
-                [0x04, 0x00, 0x08, 0x00, 0x01]
-            );
-            assert_eq!(
                 sent(
                     channel.write_single_coil(param(), Indexed::new(0xAC, true)),
-                    &mut rx
+                    &mut rx,
                 )
                 .await,
-                [0x05, 0x00, 0xAC, 0xFF, 0x00]
-            );
-            assert_eq!(
                 sent(
                     channel.write_single_register(param(), Indexed::new(0x01, 0x03)),
-                    &mut rx
+                    &mut rx,
                 )
                 .await,
-                [0x06, 0x00, 0x01, 0x00, 0x03]
-            );
-            let coils = vec![
-                true, false, true, true, false, false, true, true, true, false,
+                sent(
+                    channel.write_multiple_coils(param(), example_coils()),
+                    &mut rx,
+                )
+                .await,
+                sent(
+                    channel.write_multiple_registers(param(), example_registers()),
+                    &mut rx,
+                )
+                .await,
             ];
-            assert_eq!(
-                sent(
-                    channel
-                        .write_multiple_coils(param(), WriteMultiple::from(0x13, coils).unwrap()),
-                    &mut rx
-                )
-                .await,
-                [0x0F, 0x00, 0x13, 0x00, 0x0A, 0x02, 0xCD, 0x01]
-            );
-            assert_eq!(
-                sent(
-                    channel.write_multiple_registers(
-                        param(),
-                        WriteMultiple::from(0x01, vec![0x000A, 0x0102]).unwrap()
-                    ),
-                    &mut rx
-                )
-                .await,
-                [0x10, 0x00, 0x01, 0x00, 0x02, 0x04, 0x00, 0x0A, 0x01, 0x02]
-            );
+            assert_eq!(pdus, EXAMPLE_PDUS);
+        })
+        .await;
+    }
+
+    /// The PDU of the request a call already queued; the request is then dropped unanswered
+    fn queued(rx: &mut tokio::sync::mpsc::Receiver<Command>) -> Vec<u8> {
+        let Ok(Command::Request(request)) = rx.try_recv() else {
+            panic!("expected a queued request");
+        };
+        pdu(&request)
+    }
+
+    #[tokio::test(start_paused = true)]
+    #[expect(
+        deprecated,
+        reason = "CallbackSession ships until 2.0, so its requests stay tested until it's removed"
+    )]
+    async fn each_callback_session_method_sends_its_function_and_pdu() {
+        watchdog(async {
+            let (channel, mut rx) = channel();
+            let mut session = CallbackSession::new(channel, param());
+            let mut pdus = Vec::new();
+            session.read_coils(range(0x13, 0x13), |_| {}).await;
+            pdus.push(queued(&mut rx));
+            session
+                .read_discrete_inputs(range(0xC4, 0x16), |_| {})
+                .await;
+            pdus.push(queued(&mut rx));
+            session
+                .read_holding_registers(range(0x6B, 0x03), |_| {})
+                .await;
+            pdus.push(queued(&mut rx));
+            session
+                .read_input_registers(range(0x08, 0x01), |_| {})
+                .await;
+            pdus.push(queued(&mut rx));
+            session
+                .write_single_coil(Indexed::new(0xAC, true), |_| {})
+                .await;
+            pdus.push(queued(&mut rx));
+            session
+                .write_single_register(Indexed::new(0x01, 0x03), |_| {})
+                .await;
+            pdus.push(queued(&mut rx));
+            session.write_multiple_coils(example_coils(), |_| {}).await;
+            pdus.push(queued(&mut rx));
+            session
+                .write_multiple_registers(example_registers(), |_| {})
+                .await;
+            pdus.push(queued(&mut rx));
+            assert_eq!(pdus, EXAMPLE_PDUS);
         })
         .await;
     }
