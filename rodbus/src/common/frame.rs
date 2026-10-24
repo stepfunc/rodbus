@@ -144,21 +144,6 @@ pub(crate) enum FrameDestination {
     Broadcast,
 }
 
-impl FrameDestination {
-    #[cfg(all(test, feature = "serial"))]
-    pub(crate) fn new_unit_id(value: u8) -> Self {
-        Self::UnitId(UnitId::new(value))
-    }
-
-    #[cfg(feature = "serial")]
-    pub(crate) fn value(&self) -> u8 {
-        match self {
-            Self::UnitId(unit_id) => unit_id.value,
-            Self::Broadcast => UnitId::broadcast().value,
-        }
-    }
-}
-
 impl std::fmt::Display for FrameDestination {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -184,11 +169,6 @@ pub(crate) enum FrameHeader {
 impl FrameHeader {
     pub(crate) fn new_tcp_header(unit_id: UnitId, tx_id: TxId) -> Self {
         Self::Tcp { unit_id, tx_id }
-    }
-
-    #[cfg(feature = "serial")]
-    pub(crate) fn new_rtu_header(destination: FrameDestination) -> Self {
-        Self::Rtu(destination)
     }
 
     /// The unit the frame is for, or broadcast (RTU only)
@@ -421,11 +401,6 @@ impl From<ExceptionFor> for FunctionField {
 }
 
 impl FunctionField {
-    #[cfg(test)]
-    pub(crate) fn unknown(fc: u8) -> Self {
-        Self::UnknownFunction(fc)
-    }
-
     pub(crate) fn get_value(&self) -> u8 {
         match self {
             FunctionField::Valid(x) => x.get_value(),
@@ -716,7 +691,7 @@ mod tests {
     #[cfg(feature = "serial")]
     #[test]
     fn format_reply_replaces_a_partial_body_with_an_rtu_exception_frame() {
-        let header = FrameHeader::new_rtu_header(FrameDestination::new_unit_id(1));
+        let header = FrameHeader::new_rtu_header(FrameDestination::UnitId(UnitId::new(1)));
         let error = RequestError::Exception(ExceptionCode::IllegalDataAddress);
         // the CRC of 01 83 02 is 0xF1C0, low byte first
         assert_eq!(

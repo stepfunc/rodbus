@@ -559,7 +559,9 @@ mod tests {
         fn function_field(function: u8) -> Option<FunctionField> {
             match FunctionCode::get(function) {
                 Some(code) => Some(FunctionField::Valid(code)),
-                None if function & 0x80 != 0 => Some(FunctionField::unknown(function & 0x7F)),
+                None if function & 0x80 != 0 => {
+                    Some(FunctionField::UnknownFunction(function & 0x7F))
+                }
                 None => None,
             }
         }
