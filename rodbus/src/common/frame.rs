@@ -10,7 +10,7 @@ use std::ops::Range;
 use crate::common::buffer::ReadBuffer;
 use crate::common::function::{as_exception, FunctionCode};
 use crate::common::traits::{Loggable, LoggableDisplay, Serialize};
-use crate::error::{FrameParseError, InternalError, RequestError};
+use crate::error::{FrameParseError, RequestError};
 use crate::tcp::frame::{MbapDisplay, MbapHeader, MbapParser};
 use crate::types::UnitId;
 use crate::{DecodeLevel, ExceptionCode, FrameDecodeLevel, PhysDecodeLevel};
@@ -36,11 +36,6 @@ pub(crate) enum ReadError {
     Io(std::io::ErrorKind),
     /// The bytes received aren't a valid TCP frame; an RTU reader drops such bytes instead
     BadFrame(FrameParseError),
-    /// A parser's read of bytes it had already checked were buffered failed
-    ///
-    /// Unreachable: each read follows a check that the bytes are there. If one ever failed, the
-    /// reader's position in the stream would be unknown, so it is treated like a bad frame.
-    Internal(InternalError),
 }
 
 impl From<std::io::Error> for ReadError {
@@ -55,49 +50,51 @@ impl From<FrameParseError> for ReadError {
     }
 }
 
-impl From<InternalError> for ReadError {
-    fn from(err: InternalError) -> Self {
-        Self::Internal(err)
-    }
-}
-
 impl From<ReadError> for RequestError {
     fn from(err: ReadError) -> Self {
         match err {
             ReadError::Io(kind) => Self::Io(kind),
             ReadError::BadFrame(err) => Self::BadFrame(err),
-            ReadError::Internal(err) => Self::Internal(err),
         }
     }
 }
 
 /// The length of a PDU, which is never more than [`constants::MAX_PDU_LENGTH`]
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) struct PduLength(usize);
+pub(crate) struct PduLength(u8);
 
 impl PduLength {
     /// The length, or `None` if it is longer than the largest PDU
     pub(crate) fn new(length: usize) -> Option<Self> {
-        (length <= constants::MAX_PDU_LENGTH).then_some(Self(length))
+        u8::try_from(length)
+            .ok()
+            .filter(|_| length <= constants::MAX_PDU_LENGTH)
+            .map(Self)
     }
 
     pub(crate) fn get(self) -> usize {
-        self.0
+        usize::from(self.0)
     }
 
-    /// Read a PDU of this length from the buffer
-    pub(crate) fn read(self, cursor: &mut ReadBuffer) -> Result<Pdu<'_>, InternalError> {
-        Ok(Pdu {
+    /// The PDU of this length that starts `bytes`, or `None` if they are fewer
+    pub(crate) fn pdu(self, bytes: &[u8]) -> Option<Pdu<'_>> {
+        Some(Pdu {
             length: self,
-            bytes: cursor.read(self.0)?,
+            bytes: bytes.get(..self.get())?,
         })
     }
 }
 
-/// A PDU read by its [`PduLength`]
+impl From<PduLength> for u16 {
+    fn from(length: PduLength) -> Self {
+        u16::from(length.0)
+    }
+}
+
+/// A PDU found by its [`PduLength`]
 pub(crate) struct Pdu<'a> {
     length: PduLength,
-    // exactly `length` bytes: a read returns the bytes it asks for
+    // exactly `length` bytes
     bytes: &'a [u8],
 }
 
@@ -219,7 +216,7 @@ impl FrameParser {
     /// Parse bytes using the provided cursor. Advancing the cursor always implies that the bytes
     /// are consumed and can be discarded,
     ///
-    /// `Err` implies the input data is invalid (never [`ReadError::Io`])
+    /// `Err` implies the bytes can't start a valid TCP frame; an RTU parser drops such bytes
     /// `Ok(None)` implies that more data is required to complete parsing
     /// `Ok(Some(..))` will contain a fully parsed frame and will advance the cursor appropriately
     ///
@@ -227,10 +224,10 @@ impl FrameParser {
     pub(crate) fn parse(
         &mut self,
         cursor: &mut ReadBuffer,
-    ) -> Result<Option<(Frame, FrameType)>, ReadError> {
+    ) -> Result<Option<(Frame, FrameType)>, FrameParseError> {
         match self {
             #[cfg(feature = "serial")]
-            FrameParser::Rtu(x) => x.parse(cursor).map_err(ReadError::from),
+            FrameParser::Rtu(x) => Ok(x.parse(cursor)),
             FrameParser::Tcp(x) => x.parse(cursor),
         }
     }
@@ -577,6 +574,7 @@ mod tests {
     #[test]
     fn pdu_length_refuses_a_length_longer_than_the_largest_pdu() {
         assert_eq!(PduLength::new(constants::MAX_PDU_LENGTH + 1), None);
+        assert_eq!(PduLength::new(256), None);
         assert_eq!(PduLength::new(usize::MAX), None);
         assert_eq!(
             PduLength::new(constants::MAX_PDU_LENGTH).map(PduLength::get),
@@ -589,38 +587,26 @@ mod tests {
     fn a_frame_holds_exactly_the_pdu_its_length_reads() {
         let header = FrameHeader::new_tcp_header(UnitId::new(1), TxId::new(7));
         let bytes: Vec<u8> = (0..=u8::try_from(constants::MAX_PDU_LENGTH).unwrap()).collect();
-        let mut buffer = ReadBuffer::new();
-        assert_eq!(buffer.fill(&bytes), constants::MAX_PDU_LENGTH + 1);
-        // more bytes than the largest PDU are buffered, but no length can read them all
-        assert_eq!(PduLength::new(buffer.len()), None);
+        // more bytes than the largest PDU, but no length can read them all
+        assert_eq!(PduLength::new(bytes.len()), None);
 
         let largest = PduLength::new(constants::MAX_PDU_LENGTH).unwrap();
-        let frame = Frame::new(header, largest.read(&mut buffer).unwrap());
+        let frame = Frame::new(header, largest.pdu(&bytes).unwrap());
         assert_eq!(frame.payload(), &bytes[..constants::MAX_PDU_LENGTH]);
-        assert_eq!(buffer.len(), 1);
 
-        let frame = Frame::new(
-            header,
-            PduLength::new(0).unwrap().read(&mut buffer).unwrap(),
-        );
+        let rest = &bytes[constants::MAX_PDU_LENGTH..];
+        let frame = Frame::new(header, PduLength::new(0).unwrap().pdu(rest).unwrap());
         assert_eq!(frame.payload(), []);
-        let frame = Frame::new(
-            header,
-            PduLength::new(1).unwrap().read(&mut buffer).unwrap(),
-        );
+        let frame = Frame::new(header, PduLength::new(1).unwrap().pdu(rest).unwrap());
         assert_eq!(frame.payload(), [0xFD]);
-        assert!(buffer.is_empty());
     }
 
     #[test]
-    fn reading_a_pdu_longer_than_the_buffered_bytes_fails_and_consumes_nothing() {
-        let mut buffer = ReadBuffer::new();
-        buffer.fill(&[0x03, 0x02, 0x00]);
-        assert_eq!(
-            PduLength::new(4).unwrap().read(&mut buffer).err(),
-            Some(InternalError::InsufficientBytesForRead(4, 3))
-        );
-        assert_eq!(buffer.peek(), [0x03, 0x02, 0x00]);
+    fn a_pdu_longer_than_the_bytes_is_not_there() {
+        let bytes = [0x03, 0x02, 0x00];
+        assert!(PduLength::new(4).unwrap().pdu(&bytes).is_none());
+        assert!(PduLength::new(4).unwrap().pdu(&[]).is_none());
+        assert!(PduLength::new(0).unwrap().pdu(&[]).is_some());
     }
 
     #[test]

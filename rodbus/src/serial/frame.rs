@@ -7,7 +7,7 @@
 use crate::common::buffer::ReadBuffer;
 use crate::common::frame::{
     Frame, FrameDestination, FrameHeader, FrameInfo, FrameParser, FrameType, FramedReader,
-    FunctionField, PduLength,
+    FunctionField, Pdu, PduLength,
 };
 use crate::common::function::{is_exception, FunctionCode};
 use crate::common::phys::PhysLayer;
@@ -73,6 +73,22 @@ pub(crate) enum DiscardReport {
     Started(DiscardReason),
     /// A frame followed this many dropped bytes
     Ended(NonZeroUsize),
+}
+
+/// What the bytes at the start of an RTU reader's buffer are
+enum Candidate<'a> {
+    /// They don't tell yet
+    Incomplete,
+    /// The first can't start a valid frame, for this reason; the rest follow it
+    Bad(FrameParseError, &'a [u8]),
+    /// A valid frame
+    Frame {
+        destination: FrameDestination,
+        pdu: Pdu<'a>,
+        crc: u16,
+        /// how many bytes the whole frame takes
+        length: usize,
+    },
 }
 
 /// Bytes an RTU reader dropped since it last read a frame
@@ -195,11 +211,18 @@ impl RtuParser {
             ))
     }
 
-    /// The PDU length and the CRC of the valid frame that starts `bytes`, or `None` until all of
-    /// it is buffered
-    fn candidate(&self, bytes: &[u8]) -> Result<Option<(PduLength, u16)>, FrameParseError> {
-        let Some(pdu_length) = self.pdu_length(bytes)? else {
-            return Ok(None);
+    /// What `bytes` start with
+    fn candidate<'a>(&self, bytes: &'a [u8]) -> Candidate<'a> {
+        let [address, after_address @ ..] = bytes else {
+            return Candidate::Incomplete;
+        };
+        let pdu_length = match self.pdu_length(bytes) {
+            Ok(Some(pdu_length)) => pdu_length,
+            Ok(None) => return Candidate::Incomplete,
+            Err(err) => return Candidate::Bad(err, after_address),
+        };
+        let Some(pdu) = pdu_length.pdu(after_address) else {
+            return Candidate::Incomplete;
         };
         let frame_length = constants::HEADER_LENGTH
             .saturating_add(pdu_length.get())
@@ -208,14 +231,26 @@ impl RtuParser {
             .get(..frame_length)
             .and_then(<[u8]>::split_last_chunk::<{ constants::CRC_LENGTH }>)
         else {
-            return Ok(None);
+            return Candidate::Incomplete;
         };
         let received = u16::from_le_bytes(*received);
         let expected = CRC.checksum(adu);
         if received != expected {
-            return Err(FrameParseError::CrcValidationFailure(received, expected));
+            let err = FrameParseError::CrcValidationFailure(received, expected);
+            return Candidate::Bad(err, after_address);
         }
-        Ok(Some((pdu_length, received)))
+        let unit_id = UnitId::new(*address);
+        let destination = if unit_id == UnitId::broadcast() {
+            FrameDestination::Broadcast
+        } else {
+            FrameDestination::UnitId(unit_id)
+        };
+        Candidate::Frame {
+            destination,
+            pdu,
+            crc: received,
+            length: frame_length,
+        }
     }
 
     /// Read the frame at the start of the buffer once it is complete, first dropping the bytes
@@ -224,32 +259,31 @@ impl RtuParser {
     /// It doesn't log: the reader reports what it dropped through [`Self::read_more`] and
     /// [`Self::received`].
     #[cfg_attr(all(test, rodbus_no_panic), no_panic::no_panic)]
-    pub(crate) fn parse(
-        &mut self,
-        cursor: &mut ReadBuffer,
-    ) -> Result<Option<(Frame, FrameType)>, InternalError> {
+    pub(crate) fn parse(&mut self, cursor: &mut ReadBuffer) -> Option<(Frame, FrameType)> {
+        let mut bytes = cursor.peek();
+        // how many bytes at the start of the buffer can't start a frame
+        let mut dropped: usize = 0;
         loop {
-            match self.candidate(cursor.peek()) {
-                Ok(None) => return Ok(None),
-                Ok(Some((pdu_length, crc))) => {
-                    // the whole frame was checked, so these reads all succeed
-                    let unit_id = UnitId::new(cursor.read_u8()?);
-                    let destination = if unit_id == UnitId::broadcast() {
-                        FrameDestination::Broadcast
-                    } else {
-                        FrameDestination::UnitId(unit_id)
-                    };
-                    let frame = Frame::new(
-                        FrameHeader::new_rtu_header(destination),
-                        pdu_length.read(cursor)?,
-                    );
-                    cursor.read(constants::CRC_LENGTH)?;
-                    return Ok(Some((frame, FrameType::Rtu(destination, crc))));
+            match self.candidate(bytes) {
+                Candidate::Incomplete => {
+                    cursor.consume(dropped);
+                    return None;
                 }
-                Err(err) => {
-                    // a candidate is refused only once two bytes are buffered
-                    cursor.read(1)?;
+                Candidate::Bad(err, rest) => {
+                    bytes = rest;
+                    dropped = dropped.saturating_add(1);
                     self.discard(NonZeroUsize::MIN, DiscardReason::BadFrame(err));
+                }
+                Candidate::Frame {
+                    destination,
+                    pdu,
+                    crc,
+                    length,
+                } => {
+                    // copied before the bytes are consumed
+                    let frame = Frame::new(FrameHeader::new_rtu_header(destination), pdu);
+                    cursor.consume(dropped.saturating_add(length));
+                    return Some((frame, FrameType::Rtu(destination, crc)));
                 }
             }
         }
@@ -1573,7 +1607,6 @@ mod tests {
         enum Parsed {
             Incomplete,
             Frame(ParsedFrame),
-            Error(InternalError),
         }
 
         /// What the bytes at the start of a stream are
@@ -1696,8 +1729,8 @@ mod tests {
                 let mut buffer = ReadBuffer::new();
                 let taken = buffer.fill(bytes);
                 let parsed = match parser.parse(&mut buffer) {
-                    Ok(None) => Parsed::Incomplete,
-                    Ok(Some((frame, frame_type))) => Parsed::Frame(ParsedFrame {
+                    None => Parsed::Incomplete,
+                    Some((frame, frame_type)) => Parsed::Frame(ParsedFrame {
                         header: frame.header,
                         frame_type: match frame_type {
                             FrameType::Rtu(destination, crc) => Some((destination, crc)),
@@ -1705,7 +1738,6 @@ mod tests {
                         },
                         payload: frame.payload().to_vec(),
                     }),
-                    Err(error) => Parsed::Error(error),
                 };
                 let consumed = taken.checked_sub(buffer.len()).unwrap();
                 // a full frame always fits, so a buffer that holds one never waits
