@@ -68,7 +68,7 @@ jobs:
         run: cargo clippy -p rodbus --all-targets ${{ matrix.feature-args }} -- -D warnings
       # rodbus is selected too because the FFI crates don't have every feature (serialization)
       - name: Check the FFI crates with the features
-        run: cargo check -p rodbus -p rodbus-ffi -p rodbus-ffi-java ${{ matrix.feature-args }}
+        run: cargo check -p rodbus -p rodbus-ffi -p rodbus-ffi-c -p rodbus-ffi-java ${{ matrix.feature-args }}
   # Check the workspace with the minimum supported Rust version declared in Cargo.toml
   msrv:
     runs-on: ubuntu-latest
@@ -196,7 +196,7 @@ jobs:
       - name: Install doxygen 1.9.5
         run: wget -q https://github.com/stepfunc/ci-files/raw/main/doxygen/doxygen-1.9.5.linux.bin.tar.gz -O- | sudo tar --strip-components=1 -C /usr -xz doxygen-1.9.5
       - name: Build FFI and JNI
-        run: cargo build --release -p rodbus-ffi -p rodbus-ffi-java
+        run: cargo build --release -p rodbus-ffi-c -p rodbus-ffi-java
       - name: Build Rustdoc
         run: cargo doc -p rodbus --no-deps
       - name: C bindings
@@ -240,7 +240,7 @@ jobs:
         run: mkdir ffi-modules\${{ matrix.target }}
       - name: Build FFI
         shell: bash
-        run: bash .github/scripts/build-evidence.sh evidence/ffi/${{ matrix.target }} cargo -p rodbus-ffi --target ${{ matrix.target }} --no-default-features --features tls-aws-lc,serial
+        run: bash .github/scripts/build-evidence.sh evidence/ffi/${{ matrix.target }} cargo -p rodbus-ffi-c --target ${{ matrix.target }} --no-default-features --features tls-aws-lc,serial
       - name: Build JNI
         shell: bash
         run: bash .github/scripts/build-evidence.sh evidence/java/${{ matrix.target }} cargo -p rodbus-ffi-java --target ${{ matrix.target }} --no-default-features --features tls-aws-lc,serial
@@ -289,7 +289,7 @@ jobs:
       - name: Create FFI modules dir
         run: mkdir -p ffi-modules/${{ matrix.target }}
       - name: Build FFI
-        run: bash .github/scripts/build-evidence.sh evidence/ffi/${{ matrix.target }} cargo -p rodbus-ffi --target ${{ matrix.target }} --no-default-features --features tls-aws-lc,serial
+        run: bash .github/scripts/build-evidence.sh evidence/ffi/${{ matrix.target }} cargo -p rodbus-ffi-c --target ${{ matrix.target }} --no-default-features --features tls-aws-lc,serial
       - name: Build JNI
         run: bash .github/scripts/build-evidence.sh evidence/java/${{ matrix.target }} cargo -p rodbus-ffi-java --target ${{ matrix.target }} --no-default-features --features tls-aws-lc,serial
       - name: Copy the FFI and JNI libs
@@ -349,7 +349,7 @@ jobs:
       - name: Create FFI modules dir
         run: mkdir -p ffi-modules/${{ matrix.cases.target }}
       - name: Build FFI
-        run: bash .github/scripts/build-evidence.sh evidence/ffi/${{ matrix.cases.target }} cross -p rodbus-ffi --target ${{ matrix.cases.target }} --no-default-features --features ${{ matrix.cases.features }}
+        run: bash .github/scripts/build-evidence.sh evidence/ffi/${{ matrix.cases.target }} cross -p rodbus-ffi-c --target ${{ matrix.cases.target }} --no-default-features --features ${{ matrix.cases.features }}
       - name: Build JNI
         run: bash .github/scripts/build-evidence.sh evidence/java/${{ matrix.cases.target }} cross -p rodbus-ffi-java --target ${{ matrix.cases.target }} --no-default-features --features ${{ matrix.cases.features }}
       - name: Copy the FFI and JNI libs
@@ -414,10 +414,10 @@ jobs:
         run: |
           cargo metadata --format-version 1 --all-features --locked > metadata.json
           COMMON="-m metadata.json -c allowed.json"
-          bom-tools licenses -e evidence/ffi --root-package rodbus-ffi $COMMON > third-party-licenses.txt
+          bom-tools licenses -e evidence/ffi --root-package rodbus-ffi-c $COMMON > third-party-licenses.txt
           bom-tools licenses -e evidence/java --root-package rodbus-ffi-java $COMMON > third-party-licenses-java.txt
           mkdir sboms
-          bom-tools sbom -e evidence/ffi --root-package rodbus-ffi $COMMON --lockfile Cargo.lock > sboms/rodbus-ffi.cdx.json
+          bom-tools sbom -e evidence/ffi --root-package rodbus-ffi-c $COMMON --lockfile Cargo.lock > sboms/rodbus-ffi.cdx.json
           bom-tools sbom -e evidence/java --root-package rodbus-ffi-java $COMMON --lockfile Cargo.lock > sboms/rodbus-ffi-java.cdx.json
       - name: Upload SBOMs
         uses: actions/upload-artifact@v7

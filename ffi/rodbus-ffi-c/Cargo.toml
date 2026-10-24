@@ -1,0 +1,33 @@
+[package]
+name = "rodbus-ffi-c"
+version = "1.6.0-M3"
+description = "C library (rodbus_ffi) for the Rodbus C, C++ and .NET bindings"
+readme = "../README.md"
+
+# inherit from workspace
+authors.workspace = true
+rust-version.workspace = true
+edition.workspace = true
+license-file.workspace = true
+homepage.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[lints]
+workspace = true
+
+[lib]
+name = "rodbus_ffi"
+crate-type = ["cdylib"]
+# shares its lib name with rodbus-ffi, so only that one is documented
+doc = false
+
+[dependencies]
+rodbus-ffi-impl = { package = "rodbus-ffi", path = "../rodbus-ffi", default-features = false }
+
+[features]
+default = ["serial", "tls"]
+serial = ["rodbus-ffi-impl/serial"]
+tls = ["rodbus-ffi-impl/tls"]
+tls-aws-lc = ["rodbus-ffi-impl/tls-aws-lc"]

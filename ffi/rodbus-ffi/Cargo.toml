@@ -10,7 +10,7 @@ repository = "https://github.com/stepfunc/rodbus"
 readme = "../README.md"
 
 [lib]
-crate-type = ["rlib", "cdylib"]
+crate-type = ["rlib"]
 
 [dependencies]
 lazy_static = "1.0"
