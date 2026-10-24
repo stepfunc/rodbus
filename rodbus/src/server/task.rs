@@ -795,6 +795,38 @@ mod tests {
         .await;
     }
 
+    #[tokio::test]
+    async fn a_decode_level_command_reaches_a_running_session() {
+        crate::common::test_support::watchdog(async {
+            let (commands, rx) = tokio::sync::mpsc::channel(1);
+            let mut session = SessionTask::new(
+                ServerHandlerMap::<Unit>::new(),
+                AuthorizationType::None,
+                FrameWriter::tcp(),
+                FramedReader::tcp(),
+                rx,
+                DecodeLevel::nothing(),
+            );
+            // the port stays open and quiet, so only the command can end the session
+            let (local, _peer) = tokio::io::duplex(64);
+            let task = tokio::spawn(async move {
+                let ended = session.run(&mut PhysLayer::new_duplex(local)).await;
+                (ended, session)
+            });
+            let level = DecodeLevel::nothing().application(crate::AppDecodeLevel::DataValues);
+            commands
+                .send(ServerCommand::ChangeDecoding(level))
+                .await
+                .unwrap();
+            // the session receives the buffered command before it sees the handle is gone
+            drop(commands);
+            let (ended, session) = task.await.unwrap();
+            assert_eq!(ended, RequestError::Shutdown);
+            assert_eq!(session.decode, level);
+        })
+        .await;
+    }
+
     /// Sessions whose requests a [`Recorder`] authorizes
     #[cfg(feature = "enable-tls")]
     mod authorization {
