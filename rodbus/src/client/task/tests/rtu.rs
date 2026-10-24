@@ -46,7 +46,9 @@ async fn an_rtu_response_after_bytes_that_cant_start_a_frame_is_read() {
         let request = read_register(&channel, 2);
 
         session.read::<8>().await;
-        // 0xA5 isn't a function code, so each of these bytes is dropped on its own
+        // each of these bytes starts a response whose CRC fails, so each is dropped on its own: the
+        // first two read as exception responses (0xA5 has the exception bit set), the last as a
+        // function 0x02 response with byte count 0x03
         session.send(&[0xA5, 0xA5, 0xA5]).await;
         session.send(&rtu(2, &register_value(0x2222))).await;
 
