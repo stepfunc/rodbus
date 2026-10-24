@@ -92,10 +92,7 @@ impl ClientTask {
             #[cfg(test)]
             ClientTaskInner::Memory(task) => task.run_until_shutdown(shutdown).await,
             #[cfg(feature = "serial")]
-            ClientTaskInner::Serial(mut task) => {
-                shutdown.run_until_cancelled(task.run()).await;
-                task.shutdown().await;
-            }
+            ClientTaskInner::Serial(task) => task.run_until_shutdown(shutdown).await,
         }
     }
 }
@@ -133,54 +130,6 @@ impl RequestParam {
 }
 
 impl Channel {
-    #[cfg(feature = "serial")]
-    pub(crate) fn spawn_rtu(
-        path: &str,
-        serial_settings: crate::serial::SerialSettings,
-        max_queued_requests: usize,
-        retry: Box<dyn crate::retry::RetryStrategy>,
-        decode: DecodeLevel,
-        listener: Option<Box<dyn crate::client::Listener<crate::client::PortState>>>,
-    ) -> Self {
-        use tracing::Instrument;
-
-        let (handle, task) = Self::create_rtu_handle_and_task(
-            path,
-            serial_settings,
-            max_queued_requests,
-            retry,
-            decode,
-            listener,
-        );
-        tokio::spawn(
-            task.run()
-                .instrument(tracing::info_span!("Modbus-Client-RTU", "port" = ?path)),
-        );
-        handle
-    }
-
-    #[cfg(feature = "serial")]
-    pub(crate) fn create_rtu_handle_and_task(
-        path: &str,
-        serial_settings: crate::serial::SerialSettings,
-        max_queued_requests: usize,
-        retry: Box<dyn crate::retry::RetryStrategy>,
-        decode: DecodeLevel,
-        listener: Option<Box<dyn crate::client::Listener<crate::client::PortState>>>,
-    ) -> (Self, ClientTask) {
-        let (tx, rx) = crate::channel::bounded(max_queued_requests);
-        let (shutdown, signal) = crate::common::cancellation::pair();
-        let task = crate::serial::client::SerialChannelTask::new(
-            path,
-            serial_settings,
-            rx,
-            retry,
-            decode,
-            listener.unwrap_or_else(|| crate::client::NullListener::create()),
-        );
-        (Channel { tx, shutdown }, ClientTask::serial(task, signal))
-    }
-
     /// Enable communications
     pub async fn enable(&self) -> Result<(), Shutdown> {
         self.send_setting(Setting::Enable).await
