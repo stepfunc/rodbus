@@ -176,8 +176,7 @@ impl<'a> Request<'a> {
                 let unchecked = decode_range(cursor)?;
                 // reading the values checks only the byte count and their length, then their
                 // quantity is checked
-                let values =
-                    BitIterator::parse_counted(unchecked, cursor).map_err(Rejection::Value)?;
+                let values = BitIterator::parse_counted(unchecked, cursor)?;
                 Ok(Request::Write(WriteRequest::MultipleCoils(
                     WriteCoils::new(unchecked.of_write_coils()?.get(), values),
                 )))
@@ -186,8 +185,7 @@ impl<'a> Request<'a> {
                 let unchecked = decode_range(cursor)?;
                 // reading the values checks only the byte count and their length, then their
                 // quantity is checked
-                let values =
-                    RegisterIterator::parse_counted(unchecked, cursor).map_err(Rejection::Value)?;
+                let values = RegisterIterator::parse_counted(unchecked, cursor)?;
                 Ok(Request::Write(WriteRequest::MultipleRegisters(
                     WriteRegisters::new(unchecked.of_write_registers()?.get(), values),
                 )))
@@ -215,9 +213,18 @@ fn read_range(cursor: &mut ReadCursor) -> Result<AddressRange, Rejection> {
 pub(crate) enum Rejection {
     /// A value the request carries isn't valid for its function, or its length doesn't match
     /// its function
-    Value(RequestError),
+    Value(BadValue),
     /// The values are valid, but the range they address runs past address 0xFFFF
     Address { start: u16, count: u16 },
+}
+
+/// What a refused request's values or length got wrong, which [`Rejection::Value`] reports
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) enum BadValue {
+    /// Its quantity is zero or more than the function allows
+    Range(InvalidRange),
+    /// Its length, byte count or coil value doesn't fit its function
+    Format(AduParseError),
 }
 
 impl Rejection {
@@ -236,7 +243,7 @@ impl From<InvalidRange> for Rejection {
         match err {
             InvalidRange::AddressOverflow(start, count) => Rejection::Address { start, count },
             InvalidRange::CountOfZero | InvalidRange::CountTooLargeForType(..) => {
-                Rejection::Value(err.into())
+                Rejection::Value(BadValue::Range(err))
             }
         }
     }
@@ -244,26 +251,27 @@ impl From<InvalidRange> for Rejection {
 
 impl From<AduParseError> for Rejection {
     fn from(err: AduParseError) -> Self {
-        Rejection::Value(err.into())
+        Rejection::Value(BadValue::Format(err))
     }
 }
 
 impl From<scursor::ReadError> for Rejection {
     fn from(err: scursor::ReadError) -> Self {
-        Rejection::Value(err.into())
+        too_short(err).into()
     }
 }
 
 impl From<scursor::TrailingBytes> for Rejection {
     fn from(err: scursor::TrailingBytes) -> Self {
-        Rejection::Value(err.into())
+        too_long(err).into()
     }
 }
 
 impl std::fmt::Display for Rejection {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Rejection::Value(err) => write!(f, "{err}"),
+            Rejection::Value(BadValue::Range(err)) => write!(f, "{err}"),
+            Rejection::Value(BadValue::Format(err)) => write!(f, "{err}"),
             Rejection::Address { start, count } => {
                 write!(f, "{}", InvalidRange::AddressOverflow(*start, *count))
             }
@@ -389,9 +397,9 @@ mod tests {
             let refused = rejection(function, &write_coils(0, 1969));
             assert_eq!(
                 refused,
-                Some(Rejection::Value(
-                    InvalidRange::CountTooLargeForType(1969, 1968).into()
-                ))
+                Some(Rejection::Value(BadValue::Range(
+                    InvalidRange::CountTooLargeForType(1969, 1968)
+                )))
             );
             assert_eq!(
                 refused.map(Rejection::exception),
@@ -410,9 +418,9 @@ mod tests {
             let refused = rejection(function, &write_registers(0, 124));
             assert_eq!(
                 refused,
-                Some(Rejection::Value(
-                    InvalidRange::CountTooLargeForType(124, 123).into()
-                ))
+                Some(Rejection::Value(BadValue::Range(
+                    InvalidRange::CountTooLargeForType(124, 123)
+                )))
             );
             assert_eq!(
                 refused.map(Rejection::exception),
@@ -449,63 +457,63 @@ mod tests {
 
         #[test]
         fn invalid_values_past_0xffff_are_refused_for_their_values_with_03() {
-            let checks: [(FunctionCode, Vec<u8>, RequestError); 10] = [
+            let checks: [(FunctionCode, Vec<u8>, BadValue); 10] = [
                 // one past each read's limit
                 (
                     FunctionCode::ReadCoils,
                     vec![0xFF, 0xF0, 0x07, 0xD1],
-                    InvalidRange::CountTooLargeForType(2001, 2000).into(),
+                    BadValue::Range(InvalidRange::CountTooLargeForType(2001, 2000)),
                 ),
                 (
                     FunctionCode::ReadHoldingRegisters,
                     vec![0xFF, 0xF0, 0x00, 0x7E],
-                    InvalidRange::CountTooLargeForType(126, 125).into(),
+                    BadValue::Range(InvalidRange::CountTooLargeForType(126, 125)),
                 ),
                 // one past each write's limit, with all its values
                 (
                     FunctionCode::WriteMultipleCoils,
                     write_coils(0xFFF0, 1969),
-                    InvalidRange::CountTooLargeForType(1969, 1968).into(),
+                    BadValue::Range(InvalidRange::CountTooLargeForType(1969, 1968)),
                 ),
                 (
                     FunctionCode::WriteMultipleRegisters,
                     write_registers(0xFFF0, 124),
-                    InvalidRange::CountTooLargeForType(124, 123).into(),
+                    BadValue::Range(InvalidRange::CountTooLargeForType(124, 123)),
                 ),
                 // a byte too many after a read
                 (
                     FunctionCode::ReadInputRegisters,
                     from_0xffff(&[0x00]),
-                    AduParseError::TrailingBytes(1).into(),
+                    BadValue::Format(AduParseError::TrailingBytes(1)),
                 ),
                 // one register of the two
                 (
                     FunctionCode::WriteMultipleRegisters,
                     from_0xffff(&[0x04, 0x12, 0x34]),
-                    AduParseError::InsufficientBytesForByteCount(4, 2).into(),
+                    BadValue::Format(AduParseError::InsufficientBytesForByteCount(4, 2)),
                 ),
                 // both values, with a byte count that disagrees with them
                 (
                     FunctionCode::WriteMultipleCoils,
                     from_0xffff(&[0x02, 0b11]),
-                    AduParseError::InsufficientBytesForByteCount(2, 1).into(),
+                    BadValue::Format(AduParseError::InsufficientBytesForByteCount(2, 1)),
                 ),
                 (
                     FunctionCode::WriteMultipleRegisters,
                     from_0xffff(&[0x03, 0x12, 0x34, 0x56, 0x78]),
-                    AduParseError::InsufficientBytesForByteCount(3, 4).into(),
+                    BadValue::Format(AduParseError::InsufficientBytesForByteCount(3, 4)),
                 ),
                 // a byte too many after the coils
                 (
                     FunctionCode::WriteMultipleCoils,
                     from_0xffff(&[0x01, 0b11, 0x00]),
-                    AduParseError::InsufficientBytesForByteCount(1, 2).into(),
+                    BadValue::Format(AduParseError::InsufficientBytesForByteCount(1, 2)),
                 ),
                 // no values, which no range can hold
                 (
                     FunctionCode::ReadDiscreteInputs,
                     vec![0xFF, 0xFF, 0x00, 0x00],
-                    InvalidRange::CountOfZero.into(),
+                    BadValue::Range(InvalidRange::CountOfZero),
                 ),
             ];
             for (function, body, error) in checks {
@@ -523,9 +531,9 @@ mod tests {
             let refused = rejection(FunctionCode::WriteSingleCoil, &[0xFF, 0xFF, 0x12, 0x34]);
             assert_eq!(
                 refused,
-                Some(Rejection::Value(
-                    AduParseError::UnknownCoilState(0x1234).into()
-                ))
+                Some(Rejection::Value(BadValue::Format(
+                    AduParseError::UnknownCoilState(0x1234)
+                )))
             );
             assert_eq!(
                 refused.map(Rejection::exception),

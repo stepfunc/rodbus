@@ -255,7 +255,7 @@ mod tests {
     use crate::common::function::FunctionCode;
     use crate::common::test_support::{SINGLE_COIL_WRITES, SINGLE_REGISTER_WRITE};
     use crate::error::{AduParseError, InternalError, InvalidRange};
-    use crate::server::request::{Rejection, Request, WriteRequest};
+    use crate::server::request::{BadValue, Rejection, Request, WriteRequest};
     use crate::types::strategies::{packed_bits, packed_registers};
 
     fn bytes_of(value: &dyn Serialize) -> Vec<u8> {
@@ -447,7 +447,7 @@ mod tests {
     }
 
     /// The server's parser refuses `body` for `function` for `error`, which is answered with 03
-    fn check_refused(function: FunctionCode, body: &[u8], error: RequestError) {
+    fn check_refused(function: FunctionCode, body: &[u8], error: BadValue) {
         let refused = parse_with(function, body, |_| ()).err();
         assert_eq!(refused, Some(Rejection::Value(error)));
         assert_eq!(
@@ -477,7 +477,7 @@ mod tests {
             let mut body = layout.clone();
             body[4] = wrong;
             let error = AduParseError::InsufficientBytesForByteCount(wrong.into(), correct.into());
-            check_refused(function, &body, error.into());
+            check_refused(function, &body, BadValue::Format(error));
         }
 
         // the quantity is checked before the address, so this is refused for its quantity even
@@ -493,7 +493,7 @@ mod tests {
         check_refused(
             function,
             &multiple_layout(start, over, &too_many),
-            InvalidRange::CountTooLargeForType(over, T::LIMIT).into(),
+            BadValue::Range(InvalidRange::CountTooLargeForType(over, T::LIMIT)),
         );
     }
 
