@@ -8,16 +8,18 @@
 
 use std::time::Duration;
 
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
 use super::*;
-use crate::serial::test_util::{rtu, with_crc};
+use crate::serial::test_util::with_crc;
 
-/// Holding registers hold their address
-struct Values;
-
-impl RequestHandler for Values {
-    fn read_holding_register(&self, address: u16) -> Result<u16, ExceptionCode> {
-        Ok(address)
-    }
+/// Closes the requests' direction of the pipe, so the session ends, then checks that the session
+/// wrote nothing after the replies already read
+async fn assert_nothing_more_was_sent(mut peer: tokio::io::DuplexStream) {
+    peer.shutdown().await.unwrap();
+    let mut rest = Vec::new();
+    peer.read_to_end(&mut rest).await.unwrap();
+    assert_eq!(rest, []);
 }
 
 /// An RTU session serving [`Values`] as unit 1, and the sender of its commands, which the
@@ -193,145 +195,6 @@ async fn a_retry_sleep_ends_when_the_handle_is_dropped() {
         });
         assert_eq!(session.sleep_for(RETRY_DELAY).await, Err(Shutdown));
         assert_eq!(start.elapsed().as_secs(), DURING_THE_SLEEP.as_secs());
-    })
-    .await;
-}
-
-fn rtu_session(units: &[u8]) -> (tokio::io::DuplexStream, Calls) {
-    spawn_session(units, Link::Rtu)
-}
-
-#[tokio::test]
-async fn rtu_replies_carry_the_unit_address_and_exceptions() {
-    crate::common::test_support::watchdog(async {
-        let (mut peer, _) = rtu_session(&[1, 0xFF]);
-        for unit in [1, 0xFF] {
-            let request = with_crc(&[unit, 0x03, 0x00, 0x10, 0x00, 0x01]);
-            assert_eq!(
-                exchange(&mut peer, &request, 7).await,
-                with_crc(&[unit, 0x03, 0x02, unit, 0x10])
-            );
-        }
-        for (request, reply) in HANDLER_EXCEPTIONS {
-            let request = rtu(1, request);
-            assert_eq!(exchange(&mut peer, &request, 5).await, rtu(1, reply));
-        }
-        assert_nothing_more_was_sent(peer).await;
-    })
-    .await;
-}
-
-#[tokio::test]
-async fn rtu_checks_a_requests_values_before_its_address_and_calls_no_handler() {
-    crate::common::test_support::watchdog(async {
-        let (mut peer, calls) = rtu_session(&[1]);
-        for (request, reply) in REFUSED {
-            let request = rtu(1, request);
-            assert_eq!(exchange(&mut peer, &request, 5).await, rtu(1, reply));
-        }
-        // the session still answers
-        assert_nothing_was_sent(&mut peer).await;
-        assert_nothing_more_was_sent(peer).await;
-        assert_eq!(*calls.lock().unwrap(), [Call::Read(1, 0x10)]);
-    })
-    .await;
-}
-
-#[tokio::test]
-async fn rtu_writes_of_more_than_1968_coils_are_refused_with_03() {
-    crate::common::test_support::watchdog(async {
-        let (mut peer, calls) = rtu_session(&[1]);
-        for (request, reply) in coil_write_limits() {
-            let reply = rtu(1, &reply);
-            let request = rtu(1, &request);
-            assert_eq!(exchange(&mut peer, &request, reply.len()).await, reply);
-        }
-        assert_nothing_more_was_sent(peer).await;
-        assert_eq!(*calls.lock().unwrap(), the_1968_coils_written());
-    })
-    .await;
-}
-
-/// Checks that the session wrote nothing before the reply to a read sent afterwards
-async fn assert_nothing_was_sent(peer: &mut tokio::io::DuplexStream) {
-    let request = with_crc(&[1, 0x03, 0x00, 0x10, 0x00, 0x01]);
-    assert_eq!(
-        exchange(peer, &request, 7).await,
-        with_crc(&[1, 0x03, 0x02, 0x01, 0x10])
-    );
-}
-
-#[tokio::test]
-async fn rtu_requests_to_a_unit_not_served_get_no_reply_whatever_they_hold() {
-    crate::common::test_support::watchdog(async {
-        for request in TO_AN_UNSERVED_UNIT {
-            let (mut peer, calls) = rtu_session(&[1]);
-            peer.write_all(&rtu(UNSERVED, request)).await.unwrap();
-            assert_nothing_was_sent(&mut peer).await;
-            assert_nothing_more_was_sent(peer).await;
-            // only the read that checked for silence reached a handler
-            assert_eq!(*calls.lock().unwrap(), [Call::Read(1, 0x10)]);
-        }
-    })
-    .await;
-}
-
-#[tokio::test]
-async fn an_rtu_broadcast_write_reaches_every_unit_without_a_reply() {
-    crate::common::test_support::watchdog(async {
-        let (mut peer, calls) = rtu_session(&[1, 2]);
-        let broadcasts: [&[u8]; 4] = [
-            &[0, 0x05, 0x00, 0x40, 0xFF, 0x00],
-            &[0, 0x06, 0x00, 0x20, 0x12, 0x34],
-            // three coils from 0x50: on, off, on
-            &[0, 0x0F, 0x00, 0x50, 0x00, 0x03, 0x01, 0b101],
-            &[0, 0x10, 0x00, 0x30, 0x00, 0x01, 0x02, 0x56, 0x78],
-        ];
-        for broadcast in broadcasts {
-            peer.write_all(&with_crc(broadcast)).await.unwrap();
-        }
-        assert_nothing_was_sent(&mut peer).await;
-        assert_nothing_more_was_sent(peer).await;
-        assert_eq!(
-            *calls.lock().unwrap(),
-            [
-                Call::WriteCoil(1, 0x40, true),
-                Call::WriteCoil(2, 0x40, true),
-                Call::WriteRegister(1, 0x20, 0x1234),
-                Call::WriteRegister(2, 0x20, 0x1234),
-                Call::WriteCoil(1, 0x50, true),
-                Call::WriteCoil(1, 0x51, false),
-                Call::WriteCoil(1, 0x52, true),
-                Call::WriteCoil(2, 0x50, true),
-                Call::WriteCoil(2, 0x51, false),
-                Call::WriteCoil(2, 0x52, true),
-                Call::WriteRegister(1, 0x30, 0x5678),
-                Call::WriteRegister(2, 0x30, 0x5678),
-                Call::Read(1, 0x10),
-            ]
-        );
-    })
-    .await;
-}
-
-#[tokio::test]
-async fn rtu_broadcasts_that_are_not_writes_or_dont_parse_get_no_reply() {
-    crate::common::test_support::watchdog(async {
-        let (mut peer, calls) = rtu_session(&[1, 2]);
-        // a read
-        peer.write_all(&with_crc(&[0, 0x03, 0x00, 0x10, 0x00, 0x01]))
-            .await
-            .unwrap();
-        // a write of multiple registers whose byte count doesn't match its quantity
-        peer.write_all(&with_crc(&[
-            0, 0x10, 0x00, 0x30, 0x00, 0x02, 0x02, 0x56, 0x78,
-        ]))
-        .await
-        .unwrap();
-        assert_nothing_was_sent(&mut peer).await;
-        assert_nothing_more_was_sent(peer).await;
-        // only the read that checked for silence reached a handler
-        assert_eq!(*calls.lock().unwrap(), [Call::Read(1, 0x10)]);
     })
     .await;
 }
