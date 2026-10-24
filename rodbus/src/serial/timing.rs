@@ -257,9 +257,10 @@ mod tests {
             (Duration::from_nanos(t3_5), Duration::from_nanos(char_time))
         }
 
-        /// Each write starts t3.5 after the last byte on the line, or at once if that has passed,
-        /// where a written frame's last byte ends one character time per byte after it started,
-        /// and the port opening counts as a byte; returns how long each write waited
+        /// Each write starts t3.5 after the last byte on the line, or at once if that has passed (on
+        /// its first poll once a timer tick more has), where a written frame's last byte ends one
+        /// character time per byte after it started, and the port opening counts as a byte;
+        /// returns how long each write waited
         fn check(baud_rate: u32, steps: &[Step]) -> Vec<Duration> {
             let (t3_5, char_time) = model_timing(baud_rate);
             let runtime = tokio::runtime::Builder::new_current_thread()
@@ -285,6 +286,10 @@ mod tests {
                             assert_eq!(gap.ready_at(), ready_at);
                             let now = Instant::now();
                             let wait = ready_at.saturating_duration_since(now);
+                            if ready_at.checked_add(TIMER_RESOLUTION).unwrap() <= now {
+                                let mut write = tokio_test::task::spawn(gap.before_write());
+                                assert!(write.poll().is_ready(), "the write waited");
+                            }
                             assert_write_waits(&gap, wait).await;
                             waits.push(wait);
                             let start = Instant::now();
