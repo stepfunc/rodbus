@@ -4,10 +4,16 @@
 // Text and data mining rights, including for AI training, are reserved under
 // Directive (EU) 2019/790 Art. 4(3), subject to LICENSE.txt Section 3.3.
 
-//! Links the frame readers, the request parsers and the response parsers into the test binary
-//! with input the compiler can't know, so that every function marked `no_panic`, here or in the
-//! crate, is checked for every input. The link fails if the optimizer can't remove every path to
-//! a panic from one of them.
+//! Links the frame readers, the request parsers, the response parsers, the server's answer to a
+//! request, the formatting of requests and the framing of what is sent into the test binary with
+//! input the compiler can't know, so that every function marked `no_panic`, here or in the crate,
+//! is checked for every input. The link fails if the optimizer can't remove every path to a panic
+//! from one of them.
+//!
+//! Generic code is checked for each type the crate uses it with. Where the crate calls code it
+//! doesn't own, the harness passes a stand-in: `InputHandler`, a `RequestHandler` that reads the
+//! input, and `Quiet`, a `TxLog` that drops every frame, since formatting through `tracing` can't
+//! be checked.
 //!
 //! Built by the `no-panic` CI job with `--cfg rodbus_no_panic`, in release with LTO and one
 //! codegen unit, which the optimizer needs to see through calls into other crates

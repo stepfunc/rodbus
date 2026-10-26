@@ -90,6 +90,28 @@ These functions are all that is required for the vast majority of applications u
 Modbus also allows user-defined function codes in the range 65 to 72 and 100 to 110. This library does not currently support user-defined functions,
 but support can be added upon request.
 
+## Conformance
+
+The library implements its function codes from the MODBUS Application Protocol Specification V1.1b3, the Modbus over
+Serial Line Specification V1.02 and the Modbus Messaging on TCP/IP Implementation Guide V1.0b. Where a clause is
+ambiguous, we record how we read it.
+
+* A server checks each request before calling your handler: invalid values are answered with exception 03 (Illegal
+  Data Value), and a range past the end of the address space with 02 (Illegal Data Address).
+* The quantity limits of each function are enforced by the server on the requests it receives, and by the client on
+  the requests it sends.
+* A client checks every response against its request before completing it: the unit and, over TCP, the transaction
+  identifier, then the function code, and as each response requires, the byte count, the length and the echo of a
+  write.
+* A server ignores requests to units it doesn't serve, and executes a broadcast only if it's a write, without
+  answering it.
+* On a serial line, a frame is accepted only with a valid CRC, and bytes that can't start a frame are dropped until
+  one does. Before it transmits, the library waits until the line has been silent for 3.5 character times (a fixed
+  1.75 ms above 19200 baud), as seen from the host.
+
+Property tests check the request parser, the response handling, the frame readers, and the client and server
+sessions against independent models of these specifications and of the library's documented behavior.
+
 ## Exceptions
 
 Modbus servers return an exception code when the request cannot be fulfilled. Here's the complete list of possible exceptions:
