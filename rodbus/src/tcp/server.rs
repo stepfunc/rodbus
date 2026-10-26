@@ -190,8 +190,22 @@ where
 
             socket.set_nodelay();
 
-            // A TLS handshake runs here, one at a time and within its timeout, so that only a
-            // connection that completes it becomes a session and can displace another
+            // A TLS handshake runs here, before the connection becomes a session, so only a
+            // completed handshake can displace a session. Each handshake is limited to
+            // TLS_HANDSHAKE_TIMEOUT.
+            //
+            // Handshakes run one at a time on purpose; don't replace this with a pool of
+            // concurrent handshakes. A Modbus server typically has a handful of known clients,
+            // and while more slots could reduce how long a connection waits, no number of them
+            // guarantees availability when handshakes arrive faster than the server can complete
+            // them. One at a time gives:
+            // - the tightest bound on what handshakes cost: one in progress, with every other
+            //   connection left in the listener's backlog, outside the library
+            // - established sessions are served throughout, even while a handshake stalls
+            // - because of the timeout, a peer that stalls its handshake delays the next
+            //   connection by at most TLS_HANDSHAKE_TIMEOUT
+            // A future version may make the number of simultaneous handshakes configurable; until
+            // then, it stays one.
             let Some(admitted) = self
                 .sessions
                 .serve(
