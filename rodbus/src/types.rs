@@ -706,6 +706,7 @@ pub(crate) mod strategies {
 
 #[cfg(test)]
 mod tests {
+    use crate::common::bits::div_ceil;
     use crate::common::traits::Parse;
     use crate::error::*;
 
@@ -754,7 +755,7 @@ mod tests {
     /// The model of a range checked for a function that carries at most `limit` bits, with the
     /// count of the bytes they take, eight to a byte and the last one partial
     fn model_bits(start: u16, count: u16, limit: u16) -> Result<(AddressRange, u8), InvalidRange> {
-        let bytes = u32::from(count).div_ceil(8);
+        let bytes = div_ceil::<8>(usize::from(count));
         model_limited(start, count, limit).map(|range| (range, u8::try_from(bytes).unwrap()))
     }
 
@@ -1086,7 +1087,7 @@ mod tests {
                 let bits = usize::from(range.count)
                     .checked_mul(bits_per_value)
                     .unwrap();
-                let bytes = prop::collection::vec(any::<u8>(), bits.div_ceil(8));
+                let bytes = prop::collection::vec(any::<u8>(), div_ceil::<8>(bits));
                 (Just(range), bytes)
             })
         }

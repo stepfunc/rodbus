@@ -5,12 +5,20 @@
 // Directive (EU) 2019/790 Art. 4(3), subject to LICENSE.txt Section 3.3.
 
 #![doc = include_str!("../README.md")]
-// deny unwrap, expect, the panic macros, indexing, unchecked arithmetic, as conversions, std
-// methods that panic on their arguments (listed in clippy.toml), output and discarded values;
+// the asserts that panic (listed in clippy.toml) are denied outside of test builds, and check
+// results in them
+#![cfg_attr(not(test), deny(clippy::disallowed_macros))]
+#![cfg_attr(
+    test,
+    expect(clippy::disallowed_macros, reason = "tests check results with asserts")
+)]
+// deny unwrap, expect, the panic macros, indexing, unchecked arithmetic, as conversions, the std
+// methods and types that can panic (listed in clippy.toml), output and discarded values;
 // clippy.toml allows unwrap, expect, panic and indexing in test code
 #![deny(
     clippy::unwrap_used,
     clippy::disallowed_methods,
+    clippy::disallowed_types,
     clippy::expect_used,
     clippy::indexing_slicing,
     clippy::arithmetic_side_effects,

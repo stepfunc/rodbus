@@ -6,7 +6,18 @@
 
 /// The number of bytes `count` bits pack into, eight to a byte
 pub(crate) fn num_bytes_for_bits(count: u16) -> usize {
-    usize::from(count).div_ceil(8)
+    div_ceil::<8>(usize::from(count))
+}
+
+/// `x / N`, rounded up
+#[expect(
+    clippy::disallowed_methods,
+    reason = "the const block rejects N == 0 at compile time"
+)]
+#[expect(clippy::disallowed_macros, reason = "the assert runs at compile time")]
+pub(crate) const fn div_ceil<const N: usize>(x: usize) -> usize {
+    const { assert!(N > 0, "N must be nonzero") };
+    x.div_ceil(N)
 }
 
 #[cfg(test)]

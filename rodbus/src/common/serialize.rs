@@ -669,9 +669,11 @@ mod tests {
             .unwrap()
             .of_read_bits()
             .unwrap();
-        let asked = std::cell::RefCell::new(Vec::new());
+        let asked = std::cell::Cell::new(Vec::new());
         let writer = BitWriter::new(range, |address| {
-            asked.borrow_mut().push(address);
+            let mut log = asked.take();
+            log.push(address);
+            asked.set(log);
             if Some(address) == failing {
                 Err(crate::exception::ExceptionCode::IllegalDataAddress)
             } else {
@@ -730,9 +732,11 @@ mod tests {
             .unwrap()
             .of_read_registers()
             .unwrap();
-        let asked = std::cell::RefCell::new(Vec::new());
+        let asked = std::cell::Cell::new(Vec::new());
         let writer = RegisterWriter::new(range, |address| {
-            asked.borrow_mut().push(address);
+            let mut log = asked.take();
+            log.push(address);
+            asked.set(log);
             if Some(address) == failing {
                 Err(crate::exception::ExceptionCode::ServerDeviceFailure)
             } else {

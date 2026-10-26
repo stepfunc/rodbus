@@ -345,6 +345,7 @@ mod tests {
         use scursor::ReadCursor;
 
         use super::super::*;
+        use crate::common::bits::div_ceil;
 
         const FUNCTIONS: [FunctionCode; 8] = [
             FunctionCode::ReadCoils,
@@ -375,7 +376,7 @@ mod tests {
         fn byte_length(function: FunctionCode, quantity: u16) -> Option<usize> {
             let quantity = usize::from(quantity);
             match function {
-                FunctionCode::WriteMultipleCoils => Some(quantity.div_ceil(8)),
+                FunctionCode::WriteMultipleCoils => Some(div_ceil::<8>(quantity)),
                 FunctionCode::WriteMultipleRegisters => quantity.checked_mul(2),
                 _ => None,
             }
@@ -785,7 +786,7 @@ mod tests {
 
         /// The body of a write of `count` coils from `start`, all off
         fn write_coils(start: u16, count: u16) -> Vec<u8> {
-            write(start, count, usize::from(count).div_ceil(8))
+            write(start, count, div_ceil::<8>(usize::from(count)))
         }
 
         /// The body of a write of `count` registers from `start`, all zero
