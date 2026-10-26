@@ -107,6 +107,9 @@ impl From<MinTlsVersion> for sfio_rustls_config::ProtocolVersions {
 
 /// How long a TLS handshake may take, so that a peer that stalls its handshake can't hold up
 /// whatever is waiting for it
+///
+/// A server runs its handshakes one at a time, so this also bounds how long a stalled handshake
+/// delays the next connection; `ServerTask::run` in `tcp/server.rs` says why there's no pool
 pub(crate) const TLS_HANDSHAKE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
 
 /// Why a TLS handshake didn't produce a session
