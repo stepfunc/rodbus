@@ -26,6 +26,7 @@ pub(crate) mod constants {
 
     // an RTU frame fits in the buffer sized for the larger TCP frame
     #[cfg(feature = "serial")]
+    #[expect(clippy::disallowed_macros, reason = "the assert runs at compile time")]
     const _: () = assert!(crate::serial::frame::constants::MAX_FRAME_LENGTH <= MAX_FRAME_LENGTH);
 }
 

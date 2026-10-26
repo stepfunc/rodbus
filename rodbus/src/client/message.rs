@@ -895,6 +895,7 @@ mod test {
         use scursor::WriteCursor;
 
         use super::*;
+        use crate::common::bits::div_ceil;
         use crate::common::traits::Serialize;
         use crate::server::response::{BitWriter, RegisterWriter};
         use crate::types::strategies::{packed_bits, packed_registers, values};
@@ -1473,7 +1474,7 @@ mod test {
             match &answered.sent {
                 Sent::ReadCoils { start, count } | Sent::ReadDiscreteInputs { start, count } => {
                     let count = usize::from(*count);
-                    let block = read_block(function, count.div_ceil(8), payload)?;
+                    let block = read_block(function, div_ceil::<8>(count), payload)?;
                     let bits = block
                         .iter()
                         .flat_map(|byte| (0..8).map(move |bit| (byte >> bit) & 1 == 1));

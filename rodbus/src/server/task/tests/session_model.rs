@@ -45,6 +45,7 @@ use proptest::test_runner::TestRunner;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 use super::{serve, unauthorized};
+use crate::common::bits::div_ceil;
 #[cfg(feature = "enable-tls")]
 use crate::common::function::FunctionCode;
 use crate::common::test_support::{frame, run_paused, Link};
@@ -463,7 +464,7 @@ fn decode(pdu: &[u8]) -> Decoded {
             }
         }
         0x0F => match counted(function, body, MAX_WRITE_COILS, |count| {
-            usize::from(count.div_ceil(8))
+            div_ceil::<8>(usize::from(count))
         }) {
             Ok((start, count, data)) => Decoded::Valid(Op::WriteCoils {
                 start,
@@ -904,7 +905,7 @@ fn write_multiple() -> impl Strategy<Value = Vec<u8>> {
         (quantity(limit), prop::bool::weighted(0.8), 0..=MAX_DATA).prop_flat_map(
             move |(count, right, other)| {
                 let needed = if function == 0x0F {
-                    usize::from(count.div_ceil(8))
+                    div_ceil::<8>(usize::from(count))
                 } else {
                     usize::from(count).saturating_mul(2)
                 };
@@ -1555,12 +1556,12 @@ fn tcp_writes_whose_byte_count_disagrees_with_their_values_are_refused_with_03()
 
 /// A Write Multiple Coils of `count` coils from `start`, all off
 fn write_coils(start: u16, count: u16) -> Vec<u8> {
-    let len = count.div_ceil(8);
+    let len = div_ceil::<8>(usize::from(count));
     let mut request = vec![0x0F];
     request.extend(start.to_be_bytes());
     request.extend(count.to_be_bytes());
     request.push(u8::try_from(len).unwrap());
-    request.resize(request.len().saturating_add(usize::from(len)), 0);
+    request.resize(request.len().saturating_add(len), 0);
     request
 }
 

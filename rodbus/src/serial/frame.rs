@@ -892,7 +892,9 @@ mod tests {
     ) -> Vec<Outcome> {
         use tokio::io::AsyncWriteExt;
 
-        let capacity: usize = chunks.iter().map(|x| x.len()).sum();
+        let capacity = chunks
+            .iter()
+            .fold(0, |sum: usize, x| sum.saturating_add(x.len()));
         let (local, mut remote) = tokio::io::duplex(capacity.max(1));
         let mut layer = PhysLayer::new_duplex(local);
         let mut outcomes = Vec::new();
