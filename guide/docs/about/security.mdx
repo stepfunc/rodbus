@@ -5,9 +5,9 @@ sidebar_label: Security
 slug: /security
 ---
 
-The library is written in safe Rust, and input can't make it panic: receiving and parsing frames, answering requests,
-and formatting what it sends are proven panic-free for any input. This page describes how that and the library's
-other defenses are checked, and what they don't cover. For how to report a vulnerability, and for how we manage
+The library is written in safe Rust, and the steps that parse frames, answer requests and format what it sends are
+proven not to panic, for any input. This page describes how that and the library's other defenses are checked, and
+what they don't cover. For how to report a vulnerability, and for how we manage
 dependencies, see the [security policy](https://github.com/stepfunc/rodbus/blob/main/SECURITY.md).
 
 ## At a glance
@@ -15,7 +15,7 @@ dependencies, see the [security policy](https://github.com/stepfunc/rodbus/blob/
 | Defense | How | Checked by |
 |---|---|---|
 | [Memory safety](#memory-safety) | `unsafe` code is forbidden in the Rust library | The compiler |
-| [Panic freedom](#panic-freedom) | Handling input is proven not to panic; lints deny common sources of panics throughout the library | A link-time proof and `clippy`, in CI |
+| [Panic freedom](#panic-freedom) | Parsing frames, answering requests and formatting what is sent are proven not to panic; lints deny common sources of panics throughout the library | A link-time proof and `clippy`, in CI |
 | [Bounded resources](#bounded-resources) | Fixed-size buffers, no allocation while answering a request, bounded queues and sessions, and timeouts on handshakes and requests | Tests |
 | [TLS](#tls) | rustls, mutual authentication, only the trust you configure, and optional role-based authorization | rustls, and tests |
 
@@ -30,8 +30,9 @@ parsing is implemented in the safe Rust library, and the bindings adapt its valu
 ## Panic freedom
 
 An uncaught panic can end a task, a thread or, depending on how the application is built, the whole process, so a
-panic that input can trigger is a denial-of-service vulnerability. A proof rules out panics in the code that handles
-input, and lints that deny common sources of panics apply throughout the library.
+panic that input can trigger is a denial-of-service vulnerability. A proof rules out panics in the steps that parse
+what the library receives and format what it sends, and lints that deny common sources of panics apply throughout
+the library.
 
 ### Proven for any input
 

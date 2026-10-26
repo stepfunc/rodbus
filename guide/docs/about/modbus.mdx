@@ -105,8 +105,9 @@ ambiguous, we record how we read it.
   write.
 * A server ignores requests to units it doesn't serve, and executes a broadcast only if it's a write, without
   answering it.
-* On a serial line, a frame is accepted only with a valid CRC, bytes that can't start a frame are dropped until one
-  does, and the library leaves 3.5 character times of silence before it transmits.
+* On a serial line, a frame is accepted only with a valid CRC, and bytes that can't start a frame are dropped until
+  one does. Before it transmits, the library waits until the line has been silent for 3.5 character times (a fixed
+  1.75 ms above 19200 baud), as seen from the host.
 
 Property tests check the request parser, the response handling, the frame readers, and the client and server
 sessions against independent models of these specifications and of the library's documented behavior.
