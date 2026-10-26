@@ -5,8 +5,9 @@ sidebar_label: Security
 slug: /security
 ---
 
-This page describes how the library defends against malformed or malicious input, which of those defenses are proven
-rather than just enforced, and what they don't cover. For how to report a vulnerability, and for how we manage
+The library is written in safe Rust, and input can't make it panic: receiving and parsing frames, answering requests,
+and formatting what it sends are proven panic-free for any input. This page describes how that and the library's
+other defenses are checked, and what they don't cover. For how to report a vulnerability, and for how we manage
 dependencies, see the [security policy](https://github.com/stepfunc/rodbus/blob/main/SECURITY.md).
 
 ## At a glance
@@ -14,10 +15,8 @@ dependencies, see the [security policy](https://github.com/stepfunc/rodbus/blob/
 | Defense | How | Checked by |
 |---|---|---|
 | [Memory safety](#memory-safety) | `unsafe` code is forbidden in the Rust library | The compiler |
-| [Restricted sources of panics](#restricting-sources-of-panics) | Panic-prone constructs are denied, with one documented exception | `clippy`, in CI |
-| [Proven panic-free parsing](#proven-panic-free-parsing) | Framing, request validation, and the parsing of response values can't panic, whatever bytes they receive | A link-time check, in CI |
-| [Bounded resources](#bounded-resources) | Fixed-size buffers, bounded queues and sessions, and timeouts on handshakes and requests | Tests |
-| [Protocol validation](#protocol-validation) | The Modbus specifications, with our reading of ambiguous clauses recorded | Tests, including property tests against models |
+| [Panic freedom](#panic-freedom) | Handling input is proven not to panic; lints deny common sources of panics throughout the library | A link-time proof and `clippy`, in CI |
+| [Bounded resources](#bounded-resources) | Fixed-size buffers, no allocation while answering a request, bounded queues and sessions, and timeouts on handshakes and requests | Tests |
 | [TLS](#tls) | rustls, mutual authentication, only the trust you configure, and optional role-based authorization | rustls, and tests |
 
 ## Memory safety
@@ -28,32 +27,21 @@ C++, .NET and Java are generated from an API schema, with a thin layer of hand-w
 the boundary with the other language, where they trust the pointers and handles your application passes in. Modbus
 parsing is implemented in the safe Rust library, and the bindings adapt its values and iterators for your callbacks.
 
-## Restricting sources of panics
+## Panic freedom
 
 An uncaught panic can end a task, a thread or, depending on how the application is built, the whole process, so a
-panic that input can trigger is a denial-of-service vulnerability. CI runs `clippy` on the library with these lints denied:
+panic that input can trigger is a denial-of-service vulnerability. A proof rules out panics in the code that handles
+input, and lints that deny common sources of panics apply throughout the library.
 
-* `unwrap` and `expect` on `Option` and `Result`
-* indexing and slicing that can go out of bounds
-* arithmetic that can overflow, underflow or divide by zero
-* `panic!`, `unreachable!`, `todo!` and `unimplemented!`
-* slicing a string at a position that may not be a character boundary
+### Proven for any input
 
-Tests may unwrap, panic and index. In the library itself, an exception to these lints is allowed only where it can't
-cause the first panic:
+CI proves, at link time, that the following steps can't panic **for any input**, including in the standard library
+and dependency code they call:
 
-* the invariant that makes it safe is local and trivially true, or
-* it can only fire after another panic has already happened.
-
-There is one such exception today: locking a request handler's mutex expects that the mutex isn't poisoned, which can
-only happen if an earlier panic, in the library or in your code, happened while it was held. Exceptions carry a narrow `#[expect]` with a stated reason, and
-`#[allow]` is denied, so an exception can't be added without being visible in the code.
-
-## Proven panic-free parsing
-
-The lints restrict panics in our own code, but a call into the standard library or a dependency can still panic. So
-CI also proves, at link time, that the following steps can't panic **for any input**: framing, validating requests
-with a supported function code, decoding the values in read responses, and decoding the fields of write echoes:
+* receiving: framing, validating requests with a supported function code, decoding the values in read responses, and
+  decoding the fields of write echoes
+* sending: formatting each request, answering each request (executing a write, reading values, or replying with an
+  exception), and framing what is sent
 
 ```mermaid
 flowchart TD
@@ -64,10 +52,18 @@ flowchart TD
     response["Client: parsing read responses, and the fields of write echoes"]:::proven
     session["Sessions: dispatching requests, matching and checking responses"]:::outside
     handler(["Your RequestHandler and callbacks"]):::user
+    reply["Server: answering each request, by executing a write, reading values, or replying with an exception"]:::proven
+    send["Client: formatting each request"]:::proven
+    framing["Framing what is sent: MBAP headers, and RTU frames with their CRC"]:::proven
+    sent(["Bytes to TCP, TLS or a serial port"]):::outside
     bytes --> buffer --> frames
     frames --> request --> session
     frames --> response --> session
     session --> handler
+    session --> reply --> framing
+    reply -.- handler
+    session --> send --> framing
+    framing --> sent
     classDef proven fill:#d9f2e3,stroke:#1b7f45,color:#0b3d20
     classDef outside fill:#eeeeee,stroke:#888888,color:#333333
     classDef user fill:#ffffff,stroke:#888888,stroke-dasharray:4 4,color:#333333
@@ -75,7 +71,8 @@ flowchart TD
 
 The green steps are proven panic-free. The asynchronous session code and I/O around them aren't part of the proof,
 shown in gray, and neither is the client's handling of a response's function code and exceptions, or comparing a
-write's echo with the request. Your own handlers are code we can't check.
+write's echo with the request. Your own handlers are code we can't check: when the server answers a request, the
+proof covers everything around the calls to your handler, assuming that they return.
 
 <details>
 <summary>How the proof works</summary>
@@ -85,6 +82,12 @@ compiled so that a reachable panic, in them or in anything they call, leaves a r
 exist, and the optimizer removes the reference only if it can prove that no path to a panic exists. A test harness
 calls them with input read at run time, so the optimizer can't specialize them to known values. If the test binary
 links, these steps can't panic.
+
+Generic code is checked for each type the library uses it with. Where a step calls code the library doesn't own, such
+as your `RequestHandler` or the logging of a frame, the harness passes a stand-in, so the proof covers the step around
+the call but not the call itself. The proof is of the release build. A debug build also panics on arithmetic overflow:
+a lint keeps the library's own code to arithmetic that reports, saturates or wraps instead, but the crates it
+depends on aren't held to that.
 
 </details>
 
@@ -103,19 +106,37 @@ The asynchronous session code that dispatches requests and matches and checks re
 handling of function codes and exceptions and its comparison of write echoes, I/O and logging, and code you supply, such as a `RequestHandler`, an `AuthorizationHandler` or a callback.
 :::
 
-## Additional compile-time checks
+### Denied throughout the library
 
-Some lints that don't concern panics are denied because the bugs they catch are silent:
+Each of these `clippy` lints, denied in CI throughout the library, shows only that one kind of construct isn't used.
+None of them proves that the code can't panic, but together they make panics less likely in the code the proof
+doesn't cover, and they help keep the code it does cover in a form the proof can check:
 
-* `as` conversions, which can truncate or change sign without warning. Conversions use `From`, or `TryFrom` with the
-  failure handled.
-* comparing floating-point numbers for equality, and float literals that lose precision
-* binding a value to `_` without naming its type, and discarding a future that way at all
+* `unwrap` and `expect` on `Option` and `Result`
+* indexing and slicing that can go out of bounds
+* arithmetic that can overflow, underflow or divide by zero
+* `panic!`, `unreachable!`, `todo!` and `unimplemented!`
+* slicing a string at a position that may not be a character boundary
+* standard library methods, macros and types that can panic in ways the lints above don't see, such as `split_at` and
+  `copy_from_slice` on a length that doesn't fit, the `assert!` macros, and `RefCell`
+
+Tests may unwrap, panic and index. In the library itself, an exception to these lints is allowed only where it can't
+cause the first panic:
+
+* the invariant that makes it safe is local and trivially true, or
+* it can only fire after another panic has already happened.
+
+Apart from checks that run at compile time, such as an `assert!` in a `const` block, there is one such exception
+today: locking a request handler's mutex expects that the mutex isn't poisoned, which can only happen if an earlier
+panic, in the library or in your code, happened while it was held. Exceptions carry a narrow `#[expect]` with a stated
+reason, and `#[allow]` is denied, so an exception can't be added without being visible in the code.
 
 ## Bounded resources
 
-Each connection's receive buffer is allocated once, at a fixed size that holds the largest Modbus frame, and each
-frame's PDU is copied into a fixed-size buffer, so receiving and framing make no heap allocations per frame.
+Each connection's buffers are allocated once, at a fixed size that holds the largest Modbus frame. A server receives,
+parses and answers each request without allocating in the library's own code: the request's values are read where
+they were received, and the reply is formatted into a fixed-size buffer. Logging, when enabled, and the layers below
+the library, such as Tokio and rustls, may allocate.
 
 | Resource | Bound | Past the bound |
 |---|---|---|
@@ -126,31 +147,7 @@ frame's PDU is copied into a fixed-size buffer, so receiving and framing make no
 
 The server applies the [address filter](../api/server/tcp_server.mdx) before a TLS handshake starts, and completes the
 handshake before the connection counts as a session, so a peer that never completes a handshake can't take a
-session's place. An error from accepting a connection doesn't stop the server: it retries at once after an interrupted call or an
-error that belongs to a single connection, and pauses for a second after other errors, such as running out of file
-descriptors.
-
-## Protocol validation
-
-The library implements its function codes from the MODBUS Application Protocol Specification V1.1b3, the Modbus over
-Serial Line Specification V1.02 and the Modbus Messaging on TCP/IP Implementation Guide V1.0b. Where a clause is
-ambiguous, we record how we read it. Examples of how it validates the frames it receives intact:
-
-| Behavior | Follows |
-|---|---|
-| A client accepts a response only from the unit it asked: over TCP the transaction and unit identifiers must match its request, over a serial line the address. Other frames are ignored and the request's timeout keeps running. On TCP, checking the unit identifier is our reading: the guide has a directly connected server's identifier discarded, and such a server echoes the request's | TCP/IP Implementation Guide 3.1.3, 4.4.1.3; Serial Line 2.1, 2.3, 2.4.1 |
-| A server ignores every request addressed to a unit it doesn't serve, so it never answers for another device on a shared line | Serial Line 2.3, 2.4.2, 2.5.1.1 |
-| For a request with a supported function code addressed to a unit it serves, other than a broadcast, a server checks a request's length, quantity, byte count and values before its address: invalid values are answered with exception 03 (Illegal Data Value), and a range past the end of the address space with 02 (Illegal Data Address), without calling your handler | Application Protocol 6.1-6.6, 6.11, 6.12, 7 |
-| The quantity limits (2000 coils or discrete inputs and 125 registers per read, 1968 coils and 123 registers per write) are enforced by the server on the requests it receives and by the client on the requests it sends | Application Protocol 6.1-6.4, 6.11, 6.12 |
-| A client checks every response against its request before completing it: the function code, and as each response requires, the byte count, the length and the echo of a write | Application Protocol 6.1-6.6, 6.11, 6.12, 7 |
-| On a serial line, a frame is accepted only with a valid CRC. Bytes that can't start a valid frame, by their function code, length or CRC, are dropped one at a time until one does, and a partial frame is dropped once the line has been silent for 3.5 character times or 50 ms, whichever is longer. Neither ends the session | Serial Line 2.5.1.1, 2.5.1.2 |
-| On a serial line, the library waits 3.5 character times (1.75 ms above 19200 baud) before it transmits, counted from the latest of opening the port, its last completed read and the estimated end of its own last transmission. These are times seen by the host, and the end of a transmission is estimated from the baud rate, so buffering in a driver or adapter can still shorten the silence on the line | Serial Line 2.5.1.1 |
-| A broadcast (address 0 on a serial line) is executed by the server only for writes, and never answered | Serial Line 2.1 |
-| A client completes a broadcast write once the request's timeout, used as the turnaround delay, has passed since the end of its transmission, ignoring any frame meanwhile, and sends nothing else until then; a broadcast read times out | Serial Line 2.1, 2.4.1 |
-
-Property tests check the request parser, the response handling, the frame readers, and client and server sessions
-against independent models of these specifications and of the library's documented behavior, for generated requests,
-responses, chunkings and corruptions.
+session's place.
 
 ## TLS
 
@@ -172,16 +169,6 @@ See [TLS](../api/tls.mdx) for configuration.
 
 ## What this doesn't cover
 
-* **Plain TCP and serial lines have no authentication.** Anyone who can reach the port or the bus can send requests.
-  Use TLS with authorization, or restrict who can connect to a TCP server with its address filter and your network.
-* **Slow or stalled peers.** A server session waits on its peer without a deadline: a session that stops reading or
-  sending holds its place until it closes, the server shuts down, or a newer connection replaces it. TLS handshakes
-  are performed one at a time, so a peer that stalls its handshake delays the next connections by up to the 5 second
-  timeout. Establishing a TCP connection relies on the operating system's connect timeout.
-* **Serial line noise.** RTU frames have no start marker, so after noise the library finds the next frame by its
-  function code, length and CRC. A frame that arrives before the line goes silent, behind noise that announces a
-  longer frame, is dropped along with it. And like any receiver that checks a 16-bit CRC, the library can't tell noise
-  from a frame whose CRC happens to match.
 * **Logging.** With protocol decoding enabled, the library logs the bytes and values it sends and receives, including
   traffic that TLS protects on the wire. Decide where those logs go accordingly.
 * **Your code.** Request handlers, authorization handlers and callbacks are called by the library, which validates
@@ -191,5 +178,3 @@ See [TLS](../api/tls.mdx) for configuration.
   how we track their advisories.
 * **The bindings' boundary.** The C, C++, .NET and Java bindings trust the pointers and handles your application
   passes in.
-* **Availability under load.** The bounds above limit what one peer can hold, but a server under a flood of
-  connections or requests still spends time on each.

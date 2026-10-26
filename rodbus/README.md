@@ -17,8 +17,8 @@ A high-performance implementation of the [Modbus](http://modbus.org/) protocol u
 
 # Security
 
-Written in safe Rust, with sources of panics restricted by lints, and framing, request validation and the parsing of
-response values proven panic-free at link time. See the
+Written in safe Rust, with sources of panics restricted by lints, and framing, request validation, the parsing of
+response values, answering requests and formatting what is sent proven panic-free at link time. See the
 [security page](https://docs.stepfunc.io/rodbus/1.6.0-M3/guide/docs/security) of the guide for
 what is enforced and proven, and what isn't covered.
 
