@@ -450,11 +450,11 @@ impl FrameHeader {
     }
 }
 
-pub(crate) fn format_rtu_pdu(
+pub(crate) fn format_rtu_pdu<T: Serialize>(
     cursor: &mut WriteCursor,
     destination: FrameDestination,
     function: FunctionField,
-    msg: &dyn Serialize,
+    msg: &T,
 ) -> Result<FrameInfo, RequestError> {
     let start_frame = cursor.position();
     cursor.write_u8(destination.value())?;

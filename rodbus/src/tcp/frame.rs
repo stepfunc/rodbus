@@ -119,12 +119,12 @@ impl MbapParser {
     }
 }
 
-pub(crate) fn format_mbap(
+pub(crate) fn format_mbap<T: Serialize>(
     cursor: &mut WriteCursor,
     unit_id: UnitId,
     tx_id: TxId,
     function: FunctionField,
-    msg: &dyn Serialize,
+    msg: &T,
 ) -> Result<FrameInfo, RequestError> {
     // Write header
     cursor.write_u16_be(tx_id.to_u16())?;
