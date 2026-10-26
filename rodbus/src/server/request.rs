@@ -4,7 +4,7 @@
 // Text and data mining rights, including for AI training, are reserved under
 // Directive (EU) 2019/790 Art. 4(3), subject to LICENSE.txt Section 3.3.
 
-use crate::common::frame::{ExceptionFor, FrameHeader, FrameWriter};
+use crate::common::frame::{ExceptionFor, FrameHeader, FrameWriter, TxLog};
 use crate::common::function::FunctionCode;
 use crate::common::traits::{Loggable, Serialize};
 use crate::decode::AppDecodeLevel;
@@ -70,26 +70,31 @@ impl<'a> Request<'a> {
         }
     }
 
-    pub(crate) fn get_reply<'b>(
+    pub(crate) fn get_reply<'b, H, L>(
         &self,
         header: FrameHeader,
-        handler: &mut dyn RequestHandler,
+        handler: &mut H,
         writer: &'b mut FrameWriter,
-        level: DecodeLevel,
-    ) -> Result<&'b [u8], RequestError> {
-        fn write_result<T>(
+        log: L,
+    ) -> Result<&'b [u8], RequestError>
+    where
+        H: RequestHandler + ?Sized,
+        L: TxLog,
+    {
+        fn write_result<T, L>(
             function: FunctionCode,
             header: FrameHeader,
             writer: &mut FrameWriter,
             result: Result<T, ExceptionCode>,
-            level: DecodeLevel,
+            log: L,
         ) -> Result<&[u8], RequestError>
         where
             T: Serialize + Loggable,
+            L: TxLog,
         {
             match result {
-                Ok(response) => writer.format_reply(header, function, &response, level),
-                Err(ex) => writer.format_ex(header, ExceptionFor::Function(function), ex, level),
+                Ok(response) => writer.format_reply(header, function, &response, log),
+                Err(ex) => writer.format_ex(header, ExceptionFor::Function(function), ex, log),
             }
         }
 
@@ -99,33 +104,33 @@ impl<'a> Request<'a> {
         match self {
             Request::ReadCoils(range) => {
                 let bits = BitWriter::new(*range, |i| handler.read_coil(i));
-                writer.format_reply(header, function, &bits, level)
+                writer.format_reply(header, function, &bits, log)
             }
             Request::ReadDiscreteInputs(range) => {
                 let bits = BitWriter::new(*range, |i| handler.read_discrete_input(i));
-                writer.format_reply(header, function, &bits, level)
+                writer.format_reply(header, function, &bits, log)
             }
             Request::ReadHoldingRegisters(range) => {
                 let registers = RegisterWriter::new(*range, |i| handler.read_holding_register(i));
-                writer.format_reply(header, function, &registers, level)
+                writer.format_reply(header, function, &registers, log)
             }
             Request::ReadInputRegisters(range) => {
                 let registers = RegisterWriter::new(*range, |i| handler.read_input_register(i));
-                writer.format_reply(header, function, &registers, level)
+                writer.format_reply(header, function, &registers, log)
             }
             // a successful write is answered with what it wrote
             Request::Write(write) => {
                 let result = write.execute(handler);
                 match write {
                     WriteRequest::SingleCoil(x) => {
-                        write_result(function, header, writer, result.map(|_| *x), level)
+                        write_result(function, header, writer, result.map(|_| *x), log)
                     }
                     WriteRequest::SingleRegister(x) => {
-                        write_result(function, header, writer, result.map(|_| *x), level)
+                        write_result(function, header, writer, result.map(|_| *x), log)
                     }
                     WriteRequest::MultipleCoils(WriteCoils { range, .. })
                     | WriteRequest::MultipleRegisters(WriteRegisters { range, .. }) => {
-                        write_result(function, header, writer, result.map(|_| *range), level)
+                        write_result(function, header, writer, result.map(|_| *range), log)
                     }
                 }
             }

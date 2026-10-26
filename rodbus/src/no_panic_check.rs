@@ -23,12 +23,16 @@ use crate::client::requests::write_single::SingleWrite;
 use crate::client::WriteMultiple;
 use crate::common::buffer::ReadBuffer;
 use crate::common::frame::constants::MAX_FRAME_LENGTH;
-use crate::common::frame::{format, FrameHeader, FrameParser, FunctionField, TxId};
+use crate::common::frame::{
+    format, FrameDestination, FrameHeader, FrameParser, FrameType, FrameWriter, FunctionField,
+    TxId, TxLog,
+};
 use crate::common::function::FunctionCode;
-use crate::common::traits::{Parse, Serialize};
+use crate::common::traits::{Loggable, Parse, Serialize};
 use crate::exception::ExceptionCode;
 use crate::server::request::Request;
 use crate::server::response::{BitWriter, RegisterWriter};
+use crate::server::{RequestHandler, WriteCoils, WriteRegisters};
 use crate::tcp::frame::MbapParser;
 use crate::types::{AddressRange, BitIterator, Indexed, RegisterIterator, UnitId};
 
@@ -173,7 +177,18 @@ fn framed<T: Serialize>(
     }
 }
 
-/// a body framed for each transport: TCP, RTU to the unit and RTU broadcast
+/// a header for each transport: TCP, RTU to the unit and RTU broadcast
+fn headers(unit_id: UnitId, tx_id: TxId) -> Vec<FrameHeader> {
+    vec![
+        FrameHeader::new_tcp_header(unit_id, tx_id),
+        #[cfg(feature = "serial")]
+        FrameHeader::new_rtu_header(FrameDestination::UnitId(unit_id)),
+        #[cfg(feature = "serial")]
+        FrameHeader::new_rtu_header(FrameDestination::Broadcast),
+    ]
+}
+
+/// a body framed for each transport
 fn written<T: Serialize>(
     unit_id: UnitId,
     tx_id: TxId,
@@ -181,18 +196,105 @@ fn written<T: Serialize>(
     body: &T,
     len: usize,
 ) {
-    let tcp = FrameHeader::new_tcp_header(unit_id, tx_id);
-    std::hint::black_box(framed(tcp, function, body, len));
-    #[cfg(feature = "serial")]
-    {
-        use crate::common::frame::FrameDestination;
-        for destination in [
-            FrameDestination::UnitId(unit_id),
-            FrameDestination::Broadcast,
-        ] {
-            let rtu = FrameHeader::new_rtu_header(destination);
-            std::hint::black_box(framed(rtu, function, body, len));
+    for header in headers(unit_id, tx_id) {
+        std::hint::black_box(framed(header, function, body, len));
+    }
+}
+
+/// a log that drops every frame: logging is outside the check
+#[derive(Clone, Copy)]
+struct Quiet;
+
+impl TxLog for Quiet {
+    fn sent<T: Loggable>(self, _: FunctionField, _: &T, _: &[u8], _: FrameType, _: &[u8]) {}
+}
+
+/// a handler that reads the input (a register from each two bytes), fails past its end, and
+/// accepts a write to any address it can read
+struct InputHandler {
+    values: Vec<u8>,
+}
+
+impl InputHandler {
+    fn bit(&self, address: u16) -> Result<bool, ExceptionCode> {
+        let value = self.values.get(usize::from(address)).map(|x| x & 1 == 1);
+        value.ok_or(ExceptionCode::IllegalDataAddress)
+    }
+
+    fn register(&self, address: u16) -> Result<u16, ExceptionCode> {
+        let (pairs, _) = self.values.as_chunks::<2>();
+        let value = pairs
+            .get(usize::from(address))
+            .map(|x| u16::from_be_bytes(*x));
+        value.ok_or(ExceptionCode::IllegalDataAddress)
+    }
+}
+
+impl RequestHandler for InputHandler {
+    fn read_coil(&self, address: u16) -> Result<bool, ExceptionCode> {
+        self.bit(address)
+    }
+
+    fn read_discrete_input(&self, address: u16) -> Result<bool, ExceptionCode> {
+        self.bit(address)
+    }
+
+    fn read_holding_register(&self, address: u16) -> Result<u16, ExceptionCode> {
+        self.register(address)
+    }
+
+    fn read_input_register(&self, address: u16) -> Result<u16, ExceptionCode> {
+        self.register(address)
+    }
+
+    fn write_single_coil(&mut self, value: Indexed<bool>) -> Result<(), ExceptionCode> {
+        self.bit(value.index).map(drop)
+    }
+
+    fn write_single_register(&mut self, value: Indexed<u16>) -> Result<(), ExceptionCode> {
+        self.register(value.index).map(drop)
+    }
+
+    fn write_multiple_coils(&mut self, values: WriteCoils) -> Result<(), ExceptionCode> {
+        for value in values.iterator {
+            self.bit(value.index)?;
         }
+        Ok(())
+    }
+
+    fn write_multiple_registers(&mut self, values: WriteRegisters) -> Result<(), ExceptionCode> {
+        for value in values.iterator {
+            self.register(value.index)?;
+        }
+        Ok(())
+    }
+}
+
+/// a request's PDU body parsed and answered as a server does, returning the reply's length
+#[no_panic::no_panic]
+fn answered(
+    writer: &mut FrameWriter,
+    handler: &mut InputHandler,
+    header: FrameHeader,
+    function: FunctionCode,
+    pdu: &[u8],
+) -> usize {
+    let mut cursor = ReadCursor::new(pdu);
+    let Ok(request) = Request::parse(function, &mut cursor) else {
+        return 0;
+    };
+    match request.get_reply(header, handler, writer, Quiet) {
+        Ok(frame) => frame.len(),
+        Err(_) => 0,
+    }
+}
+
+/// a request formatted as a client does, returning its length
+#[no_panic::no_panic]
+fn requested(writer: &mut FrameWriter, header: FrameHeader, details: &RequestDetails) -> usize {
+    match writer.format_request(header, details.function(), details, Quiet) {
+        Ok(frame) => frame.len(),
+        Err(_) => 0,
     }
 }
 
@@ -320,11 +422,26 @@ fn writers_with_unknown_input() {
 
     match FunctionCode::get(*function) {
         Some(function) => {
+            let mut writer = FrameWriter::new();
             if let Some(details) = request_details(function, start, count, values) {
                 let field = FunctionField::Valid(details.function());
                 written(unit_id, tx_id, field, &details, len);
+                for header in headers(unit_id, tx_id) {
+                    std::hint::black_box(requested(&mut writer, header, &details));
+                }
             }
             reply(unit_id, tx_id, function, start, count, values, len);
+            // a server answers only a request to a unit
+            let mut handler = InputHandler {
+                values: values.to_vec(),
+            };
+            let unicast = headers(unit_id, tx_id)
+                .into_iter()
+                .filter(|header| header.destination() == FrameDestination::UnitId(unit_id));
+            for header in unicast {
+                let reply = answered(&mut writer, &mut handler, header, function, values);
+                std::hint::black_box(reply);
+            }
             let field = FunctionField::Exception(function);
             written(unit_id, tx_id, field, &ExceptionCode::from(*exception), len);
         }
@@ -332,5 +449,21 @@ fn writers_with_unknown_input() {
             let field = FunctionField::UnknownFunction(*function);
             written(unit_id, tx_id, field, &ExceptionCode::IllegalFunction, len);
         }
+    }
+}
+
+/// the silence an RTU channel keeps around a frame, for any baud rate
+#[cfg(feature = "serial")]
+#[no_panic::no_panic]
+fn silence(baud_rate: u32) -> std::time::Duration {
+    crate::serial::timing::rtu_silence(baud_rate)
+}
+
+#[cfg(feature = "serial")]
+#[test]
+fn rtu_timing_with_unknown_input() {
+    let data = std::hint::black_box(input());
+    if let [b0, b1, b2, b3, ..] = data.as_slice() {
+        std::hint::black_box(silence(u32::from_be_bytes([*b0, *b1, *b2, *b3])));
     }
 }
