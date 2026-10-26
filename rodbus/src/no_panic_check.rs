@@ -236,7 +236,8 @@ fn request_details(
             ))
         }
         FunctionCode::WriteMultipleRegisters => {
-            let registers = values.iter().map(|x| u16::from(*x)).collect();
+            let (pairs, _) = values.as_chunks::<2>();
+            let registers = pairs.iter().map(|x| u16::from_be_bytes(*x)).collect();
             let write =
                 LimitedWrite::registers(WriteMultiple::from(start, registers).ok()?).ok()?;
             RequestDetails::WriteMultipleRegisters(MultipleWriteRequest::new(
@@ -249,7 +250,7 @@ fn request_details(
 }
 
 /// the reply a server sends to a request for `function`: values from getters that read the input
-/// and fail past its end, or the echo of a write
+/// (a register from each two bytes) and fail past its end, or the echo of a write
 fn reply(
     unit_id: UnitId,
     tx_id: TxId,
@@ -263,22 +264,23 @@ fn reply(
         let value = values.get(usize::from(address)).map(|x| x & 1 == 1);
         value.ok_or(ExceptionCode::IllegalDataAddress)
     };
+    let (pairs, _) = values.as_chunks::<2>();
     let register = |address: u16| {
-        let value = values.get(usize::from(address)).map(|x| u16::from(*x));
+        let value = pairs
+            .get(usize::from(address))
+            .map(|x| u16::from_be_bytes(*x));
         value.ok_or(ExceptionCode::IllegalDataAddress)
     };
     let field = FunctionField::Valid(function);
-    let Ok(range) = AddressRange::try_from(start, count) else {
-        return;
-    };
+    let range = AddressRange::try_from(start, count);
     match function {
         FunctionCode::ReadCoils | FunctionCode::ReadDiscreteInputs => {
-            if let Ok(range) = range.of_read_bits() {
+            if let Ok(range) = range.and_then(AddressRange::of_read_bits) {
                 written(unit_id, tx_id, field, &BitWriter::new(range, bit), len);
             }
         }
         FunctionCode::ReadHoldingRegisters | FunctionCode::ReadInputRegisters => {
-            if let Ok(range) = range.of_read_registers() {
+            if let Ok(range) = range.and_then(AddressRange::of_read_registers) {
                 written(
                     unit_id,
                     tx_id,
@@ -295,7 +297,9 @@ fn reply(
             written(unit_id, tx_id, field, &Indexed::new(start, count), len)
         }
         FunctionCode::WriteMultipleCoils | FunctionCode::WriteMultipleRegisters => {
-            written(unit_id, tx_id, field, &range, len)
+            if let Ok(range) = range {
+                written(unit_id, tx_id, field, &range, len);
+            }
         }
     }
 }
