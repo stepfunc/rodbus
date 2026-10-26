@@ -318,11 +318,11 @@ impl FrameInfo {
     }
 }
 
-fn format(
+pub(crate) fn format<T: Serialize>(
     cursor: &mut WriteCursor,
     header: FrameHeader,
     function: FunctionField,
-    body: &dyn Serialize,
+    body: &T,
 ) -> Result<FrameInfo, RequestError> {
     match header {
         FrameHeader::Tcp { unit_id, tx_id } => {
