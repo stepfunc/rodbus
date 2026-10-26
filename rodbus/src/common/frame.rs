@@ -335,6 +335,44 @@ pub(crate) fn format<T: Serialize>(
     }
 }
 
+/// Logs each frame a [`FrameWriter`] formats
+pub(crate) trait TxLog: Copy {
+    /// Log a frame of `function` with `body`, whose serialized body is `pdu_body` and whose
+    /// bytes are `frame`
+    fn sent<T: Loggable>(
+        self,
+        function: FunctionField,
+        body: &T,
+        pdu_body: &[u8],
+        frame_type: FrameType,
+        frame: &[u8],
+    );
+}
+
+/// A session's decode level logs its frames as it is configured to
+impl TxLog for DecodeLevel {
+    fn sent<T: Loggable>(
+        self,
+        function: FunctionField,
+        body: &T,
+        pdu_body: &[u8],
+        frame_type: FrameType,
+        frame: &[u8],
+    ) {
+        if self.app.enabled() {
+            tracing::info!(
+                "PDU TX - {} {}",
+                function,
+                LoggableDisplay::new(body, pdu_body, self.app)
+            );
+        }
+
+        if self.frame.enabled() {
+            frame_type.log("TX", self.frame, frame);
+        }
+    }
+}
+
 /// Formats frames for whichever transport each one's header names: a reply is framed by its
 /// request's header, and a request by the header its client chose
 pub(crate) struct FrameWriter {
@@ -398,49 +436,50 @@ impl FrameWriter {
         }
     }
 
-    pub(crate) fn format_reply<T>(
+    pub(crate) fn format_reply<T, L>(
         &mut self,
         header: FrameHeader,
         function: FunctionCode,
         body: &T,
-        decode_level: DecodeLevel,
+        log: L,
     ) -> Result<&[u8], RequestError>
     where
         T: Serialize + Loggable,
+        L: TxLog,
     {
-        match self.format_generic(header, FunctionField::Valid(function), body, decode_level) {
+        match self.format_generic(header, FunctionField::Valid(function), body, log) {
             Ok(len) => Ok(self.frame(len)),
             Err(RequestError::Exception(ex)) => {
-                self.format_ex(header, ExceptionFor::Function(function), ex, decode_level)
+                self.format_ex(header, ExceptionFor::Function(function), ex, log)
             }
             Err(err) => Err(err),
         }
     }
 
     /// Format a request with `header`, returning its bytes
-    pub(crate) fn format_request<T>(
+    pub(crate) fn format_request<T, L>(
         &mut self,
         header: FrameHeader,
         function: FunctionCode,
         body: &T,
-        decode_level: DecodeLevel,
+        log: L,
     ) -> Result<&[u8], RequestError>
     where
         T: Serialize + Loggable,
+        L: TxLog,
     {
-        let len =
-            self.format_generic(header, FunctionField::Valid(function), body, decode_level)?;
+        let len = self.format_generic(header, FunctionField::Valid(function), body, log)?;
         Ok(self.frame(len))
     }
 
-    pub(crate) fn format_ex(
+    pub(crate) fn format_ex<L: TxLog>(
         &mut self,
         header: FrameHeader,
         function: ExceptionFor,
         ex: ExceptionCode,
-        decode_level: DecodeLevel,
+        log: L,
     ) -> Result<&[u8], RequestError> {
-        let len = self.format_generic(header, function.into(), &ex, decode_level)?;
+        let len = self.format_generic(header, function.into(), &ex, log)?;
 
         Ok(self.frame(len))
     }
@@ -450,15 +489,16 @@ impl FrameWriter {
         self.buffer.get(..len).unwrap_or_default()
     }
 
-    fn format_generic<T>(
+    fn format_generic<T, L>(
         &mut self,
         header: FrameHeader,
         function: FunctionField,
         body: &T,
-        decode_level: DecodeLevel,
+        log: L,
     ) -> Result<usize, RequestError>
     where
         T: Serialize + Loggable,
+        L: TxLog,
     {
         let (frame_type, len, pdu_body) = {
             let mut cursor = WriteCursor::new(self.buffer.as_mut());
@@ -468,17 +508,7 @@ impl FrameWriter {
             (info.frame_type, end, pdu_body)
         };
 
-        if decode_level.app.enabled() {
-            tracing::info!(
-                "PDU TX - {} {}",
-                function,
-                LoggableDisplay::new(body, pdu_body, decode_level.app)
-            );
-        }
-
-        if decode_level.frame.enabled() {
-            frame_type.log("TX", decode_level.frame, self.frame(len));
-        }
+        log.sent(function, body, pdu_body, frame_type, self.frame(len));
 
         Ok(len)
     }
