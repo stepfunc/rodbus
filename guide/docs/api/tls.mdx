@@ -81,11 +81,7 @@ A client configured with a server name checks that the server's certificate is v
 (`None` in Rust, or `*` with `allow_server_name_wildcard` in the bindings) skips the name check, but the server's certificate
 must still chain to a configured authority. The server doesn't check the client's name.
 
-A valid name has the same requirements as a DNS name. This is defined in
-[RFC 1034 Section 3.5](https://datatracker.ietf.org/doc/html/rfc1034#section-3.5),
-updated by [RFC1123 Section 2.1](https://datatracker.ietf.org/doc/html/rfc1123#section-2),
-with the additional exception that underscores `_` are allowed. A brief (but incomplete)
-definition of a valid name includes:
+A valid name follows the rules for DNS names, except that underscores `_` are also allowed. In short:
 
 - One or more labels separated by a single period
 - Labels are made of alphanumeric characters `[A-Za-z0-9]`, hyphens `-`, and underscores `_`

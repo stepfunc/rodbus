@@ -53,3 +53,4 @@ written license terms and authorizations govern.
 - Its rules for maintaining that repository (such as committing straight to `main`) apply only there, not here
 - If it isn't checked out, ask the user for it rather than working from memory of the spec
 - **Keep it private**: its contents are not public. Never copy text, tables, or figures from it into code, comments, docs, commit messages, issues, PRs, or attachments here. Cite by document and clause instead (e.g. "MODBUS Application Protocol Specification V1.1b3 6.3")
+- **Citations stay in code**: cite clauses, sections and tables in code comments and crate-private docs, where they help maintainers. User-facing docs (the guide, `CHANGELOG.md`, rustdoc on public items and the FFI schema's doc strings) describe the behavior plainly without citing them; at most they say the library implements the Modbus specifications
