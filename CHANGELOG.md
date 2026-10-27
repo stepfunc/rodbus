@@ -1,5 +1,4 @@
 ### 1.6.0 ###
-* :shield: rodbus is not affected by [GHSA-qwgh-2vcv-g2f7](https://github.com/advisories/GHSA-qwgh-2vcv-g2f7), which scanners report against `block-buffer` 0.10.4. The inline cursor the advisory describes doesn't exist in 0.10, and rodbus reaches `block-buffer` only when TLS decrypts a password-protected private key file. OSV-Scanner now ignores it with this reasoning. See [#354](https://github.com/stepfunc/rodbus/pull/354).
 
 ### 1.6.0-M3 ###
 * :bell: **License update.** The license now prohibits using the library, including its source, documentation, tests and binaries, to design, develop, specify, test or improve any other implementation of the protocol, whether commercial or open source, and reserves text and data mining, including AI training. AI-assisted evaluation and integration remain welcome. Coding agents get the policy from the new `AGENTS.md`. See [#224](https://github.com/stepfunc/rodbus/pull/224).
