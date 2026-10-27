@@ -1,4 +1,5 @@
 ### 1.6.0 ###
+* :wrench: The prebuilt bindings use the AWS-LC crypto provider for TLS on every platform. The musl and 32-bit ARM Linux libraries used *ring* before; they now also offer the `X25519MLKEM768` hybrid key exchange, and are 0.7 to 2.2 MB larger.
 
 ### 1.6.0-M3 ###
 * :bell: **License update.** The license now prohibits using the library, including its source, documentation, tests and binaries, to design, develop, specify, test or improve any other implementation of the protocol, whether commercial or open source, and reserves text and data mining, including AI training. AI-assisted evaluation and integration remain welcome. Coding agents get the policy from the new `AGENTS.md`. See [#224](https://github.com/stepfunc/rodbus/pull/224).
