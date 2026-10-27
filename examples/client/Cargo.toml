@@ -19,11 +19,6 @@ workspace = true
 rodbus = { path = "../../rodbus", features = ["tls", "serial"] }
 tokio = { workspace = true, features = ["net", "sync", "io-util", "io-std", "time", "rt", "rt-multi-thread", "macros"] }
 tokio-stream = { workspace = true }
-tokio-util = { workspace = true }
+tokio-util = { workspace = true, features = ["codec"] }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
-
-[features]
-default = ["tls", "serial"]
-tls = []
-serial = []
