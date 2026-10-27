@@ -20,7 +20,7 @@ However, in most cases, you would just store the values in a `Vec` or `HashMap`.
 All modifications to the internal database are done inside a transaction. All the changes are applied atomically at the end of the
 transaction. This makes it impossible for clients to read inconsistent state in a single request.
 
-A transaction can be started on a running server with the `update` method. Inside the transaction, any operations can be performed.
+A transaction can be started on a running server with the `update_database` method. Inside the transaction, any operations can be performed.
 They will be executed in sequence.
 
 :::warning

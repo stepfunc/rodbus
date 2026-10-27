@@ -68,11 +68,13 @@ Each channel sends one request at a time and has a fixed-length buffer of reques
 
 ## Endpoint Configuration
 
-The argument for the remote endpoint is a string in format the `<host>:<port>` where "host" must be one of the following:
+The remote endpoint is a host and a port, where the host is one of the following:
 
 * IPv4 address
 * IPv6 address
-* DNS name (library will perform DNS name resolution internally)
+* DNS name (the library resolves it)
+
+In Rust, pass a `HostAddr`, created with `HostAddr::ip` or `HostAddr::dns`.
 
 ## Retry Strategy
 
@@ -88,3 +90,8 @@ The `RetryStrategy` sets these waits:
 ## Decode Level
 
 See [logging configuration page](../logging.mdx#protocol-decoding) for more details.
+
+## ClientStateListener
+
+The `ClientStateListener` interface (`Listener<ClientState>` in Rust) has a single callback that informs your code about the state of
+the connection: disabled, connecting, connected, waiting to retry after a failed connection attempt or a disconnection, and shut down.

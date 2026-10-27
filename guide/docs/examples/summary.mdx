@@ -21,6 +21,25 @@ code that configures the logging ...
 
 We extract these code blocks from example programs during guide generation, ensuring all documentation snippets are syntactically valid and current.
 
+## Running the examples
+
+Each language has a client and a server example that behave the same way and accept the same commands. Run them from the
+root of the repository, so that they find the TLS certificates in `./certs`. Both take the transport as their first
+argument, `tcp`, `rtu`, `tls-ca` or `tls-self-signed`, and an optional second argument: the endpoint to listen on or connect
+to, or the serial port. Defaults such as the unit ID are constants at the top of each program.
+
+The servers listen on the standard Modbus ports, 502 for TCP and 802 for TLS, which on Linux need elevated privileges.
+To run without them, give both programs another endpoint:
+
+```
+cargo run -p example-server -- tcp 127.0.0.1:10502
+cargo run -p example-client -- tcp 127.0.0.1:10502
+```
+
+Then type `help` in either one to list the commands that change the server's values or send requests from the client.
+For RTU, the client opens `/dev/ttySIM0` and the server `/dev/ttySIM1`; pass the paths of any two connected serial ports
+instead, such as a pair of virtual ports.
+
 ## Links
 
 The following links redirect to language-specific examples for the current version on Github:
