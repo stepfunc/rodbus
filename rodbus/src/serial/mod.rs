@@ -10,6 +10,7 @@ pub use tokio_serial::{DataBits, FlowControl, Parity, StopBits};
 use crate::common::phys::PhysLayer;
 
 pub(crate) mod client;
+pub(crate) mod crc;
 pub(crate) mod frame;
 pub(crate) mod server;
 pub(crate) mod timing;
@@ -103,8 +104,8 @@ pub(crate) mod test_util {
 
     /// `frame` followed by its CRC-16/MODBUS, low byte first, as an RTU frame ends
     ///
-    /// This builds its own CRC rather than using the one the RTU framing does, so tests don't
-    /// check the framing against itself.
+    /// This builds its CRC with the crc crate rather than the one the RTU framing uses, so tests
+    /// don't check the framing against itself.
     pub(crate) fn with_crc(frame: &[u8]) -> Vec<u8> {
         let crc = crc::Crc::<u16>::new(&crc::CRC_16_MODBUS).checksum(frame);
         frame.iter().copied().chain(crc.to_le_bytes()).collect()

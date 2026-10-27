@@ -18,7 +18,6 @@ categories.workspace = true
 workspace = true
 
 [dependencies]
-crc = { version = "3", optional = true }
 scursor = "0.5.0"
 tokio = { workspace = true, features = ["net", "sync", "io-util", "io-std", "time", "rt", "rt-multi-thread", "macros"] }
 tokio-util = { workspace = true }
@@ -40,6 +39,8 @@ serde = { version = "1.0", default-features = false, features = ["derive", "std"
 no-panic = "0.1"
 
 [dev-dependencies]
+# an independent CRC for the tests to check ours against
+crc = "3"
 proptest = { version = "1.12", default-features = false, features = ["std"] }
 tokio-test = "0.4"
 sfio-tokio-mock-io = "0.2"
@@ -52,4 +53,6 @@ enable-tls = ["rx509", "tokio-rustls"]
 tls = ["enable-tls", "sfio-rustls-config/crypto-ring"]
 tls-aws-lc = ["enable-tls", "sfio-rustls-config/crypto-aws-lc"]
 serial = ["crc", "tokio-serial"]
+# Does nothing: the crc dependency it enabled is gone, and the feature stays so that the feature set is unchanged
+crc = []
 serialization = ["serde"]
