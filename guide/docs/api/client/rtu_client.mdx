@@ -102,3 +102,8 @@ The `RetryStrategy` sets how long to wait before reopening it:
 ## Decode Level
 
 See [logging configuration page](../logging.mdx#protocol-decoding) for more details.
+
+## PortStateListener
+
+The `PortStateListener` interface (`Listener<PortState>` in Rust) has a single callback that informs your code about the state of
+the serial port: disabled, waiting to retry opening it, open, and shut down.

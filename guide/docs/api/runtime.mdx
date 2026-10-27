@@ -42,6 +42,7 @@ values={[
 {{#include ../examples/client/src/main.rs:runtime_init}}
     // do things within the context of the runtime
     // it is automatically shut down when this async fn returns
+    Ok(())
 }
 ```
 
@@ -49,14 +50,14 @@ values={[
 <TabItem value="C">
 
 ```c
-{{#include ../ffi/bindings/c/client_example.c:runtime_create}}
+{{#include ../ffi/bindings/c/client_example.c:runtime_init}}
 ```
 
 </TabItem>
 <TabItem value="C++">
 
 ```cpp
-{{#include ../ffi/bindings/c/client_example.cpp:runtime_create}}
+{{#include ../ffi/bindings/c/client_example.cpp:runtime_init}}
 ```
 
 </TabItem>

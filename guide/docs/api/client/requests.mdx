@@ -46,7 +46,7 @@ The library fails a read request with an error, without sending it, when:
 * `count` exceeds the most one request can read: 2000 coils or discrete inputs, or 125 registers
 :::
 
-The asynchronous response contains an iterator over the retrieved values. A successful response always contains exactly `count` values
+The asynchronous response contains the retrieved values. A successful response always contains exactly `count` values
 in ascending, contiguous address order beginning at `start`. A response containing too few or too many values, or whose byte count
 doesn't match the bytes that follow it, fails the request.
 
@@ -77,6 +77,8 @@ values={[
 <TabItem value="C">
 
 ```c
+{{#include ../ffi/bindings/c/client_example.c:read_context}}
+
 {{#include ../ffi/bindings/c/client_example.c:bit_read_callback}}
 
 {{#include ../ffi/bindings/c/client_example.c:request_param}}

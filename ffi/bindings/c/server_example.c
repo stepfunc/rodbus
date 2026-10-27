@@ -4,89 +4,315 @@
 // Text and data mining rights, including for AI training, are reserved under
 // Directive (EU) 2019/790 Art. 4(3), subject to LICENSE.txt Section 3.3.
 
+// Server example for Rodbus library
+//
+// usage: server <tcp|rtu|tls-ca|tls-self-signed> [endpoint|serial-port]
+//
+// Run it from the repository root so the TLS certificate paths resolve.
+
 #include "rodbus.h"
 
-#include <inttypes.h>
+#include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
-void on_log_message(rodbus_log_level_t level, const char *message, void *ctx) { printf("%s \n", message); }
+#define USAGE "usage: server <tcp|rtu|tls-ca|tls-self-signed> [endpoint|serial-port]"
+#define UNIT_ID 1
+#define TCP_ENDPOINT "127.0.0.1:502"
+#define TLS_ENDPOINT "127.0.0.1:802"
+#define SERIAL_PORT "/dev/ttySIM1"
+#define MAX_SESSIONS 10
+#define POINT_COUNT 10
 
-// ANCHOR: write_handler
-rodbus_write_result_t on_write_single_coil(uint16_t index, bool value, rodbus_database_t *db, void *ctx)
-{
-    if (rodbus_database_update_coil(db, index, value)) {
-        return rodbus_write_result_success_init();
-    }
-    else {
-        return rodbus_write_result_exception_init(RODBUS_MODBUS_EXCEPTION_ILLEGAL_DATA_ADDRESS);
-    }
-}
+// size of the buffers for a console line and for the host of an endpoint
+#define LINE_SIZE 256
 
-rodbus_write_result_t on_write_single_register(uint16_t index, uint16_t value, rodbus_database_t *db, void *ctx)
-{
-    if (rodbus_database_update_holding_register(db, index, value)) {
-        return rodbus_write_result_success_init();
-    }
-    else {
-        return rodbus_write_result_exception_init(RODBUS_MODBUS_EXCEPTION_ILLEGAL_DATA_ADDRESS);
-    }
-}
+rodbus_server_t *create_server(rodbus_runtime_t *runtime, const char *transport, const char *argument);
+rodbus_device_map_t *create_device_map(void);
+rodbus_server_t *create_tcp_server(rodbus_runtime_t *runtime, const char *host, uint16_t port);
+rodbus_server_t *create_rtu_server(rodbus_runtime_t *runtime, const char *path);
+rodbus_server_t *create_tls_server(rodbus_runtime_t *runtime, const char *host, uint16_t port, rodbus_tls_server_config_t tls_config);
+rodbus_tls_server_config_t get_ca_chain_config(void);
+rodbus_tls_server_config_t get_self_signed_config(void);
+void run_server(rodbus_server_t *server);
+void print_help(void);
+void run_command(rodbus_server_t *server, const char *cmd);
+rodbus_logger_t get_logger(void);
+void configure_db(rodbus_database_t *db, void *ctx);
+rodbus_write_handler_t get_write_handler(void);
+rodbus_authorization_handler_t get_auth_handler(void);
+void toggle_coils(rodbus_database_t *db, void *ctx);
+void toggle_discrete_inputs(rodbus_database_t *db, void *ctx);
+void increment_holding_registers(rodbus_database_t *db, void *ctx);
+void increment_input_registers(rodbus_database_t *db, void *ctx);
+void print_requested(const char *cmd, rodbus_param_error_t err);
+void print_result(const char *cmd, rodbus_param_error_t err);
+bool read_line(char *line, size_t size);
+bool split_endpoint(const char *endpoint, char *host, size_t host_size, uint16_t *port);
+const char *default_argument(const char *transport);
+void print_usage(void);
 
-rodbus_write_result_t on_write_multiple_coils(uint16_t start, rodbus_bit_value_iterator_t *it, rodbus_database_t *db, void *ctx)
+int main(int argc, char *argv[])
 {
-    rodbus_write_result_t result = rodbus_write_result_success_init();
-    rodbus_bit_value_t *bit = NULL;
-    while ((bit = rodbus_bit_value_iterator_next(it))) {
-        if (!rodbus_database_update_coil(db, bit->index, bit->value)) {
-            result = rodbus_write_result_exception_init(RODBUS_MODBUS_EXCEPTION_ILLEGAL_DATA_ADDRESS);
-        }
+    // the transport, then optionally the endpoint or serial port
+    const char *argument = (argc == 2 || argc == 3) ? default_argument(argv[1]) : NULL;
+    if (!argument) {
+        print_usage();
+        return EXIT_FAILURE;
     }
+    const char *transport = argv[1];
+    if (argc == 3) {
+        argument = argv[2];
+    }
+
+    // initialize logging with the default configuration
+    rodbus_param_error_t logging_err = rodbus_configure_logging(rodbus_logging_config_init(), get_logger());
+    if (logging_err) {
+        printf("unable to configure logging: %s\n", rodbus_param_error_to_string(logging_err));
+        return EXIT_FAILURE;
+    }
+
+    rodbus_runtime_t *runtime = NULL;
+    rodbus_runtime_config_t runtime_config = rodbus_runtime_config_init();
+    runtime_config.num_core_threads = 4;
+    rodbus_param_error_t err = rodbus_runtime_create(runtime_config, &runtime);
+    if (err) {
+        printf("unable to create runtime: %s\n", rodbus_param_error_to_string(err));
+        return EXIT_FAILURE;
+    }
+
+    int result = EXIT_FAILURE;
+    rodbus_server_t *server = create_server(runtime, transport, argument);
+    if (server) {
+        run_server(server);
+        rodbus_server_destroy(server);
+        result = EXIT_SUCCESS;
+    }
+
+    rodbus_runtime_destroy(runtime);
+
     return result;
 }
 
-rodbus_write_result_t on_write_multiple_registers(uint16_t start, rodbus_register_value_iterator_t *it, rodbus_database_t *db, void *ctx)
+// create the server for the transport, or print the error and return NULL
+rodbus_server_t *create_server(rodbus_runtime_t *runtime, const char *transport, const char *argument)
 {
-    rodbus_write_result_t result = rodbus_write_result_success_init();
-    rodbus_register_value_t *reg = NULL;
-    while ((reg = rodbus_register_value_iterator_next(it))) {
-        if (!rodbus_database_update_holding_register(db, reg->index, reg->value)) {
-            result = rodbus_write_result_exception_init(RODBUS_MODBUS_EXCEPTION_ILLEGAL_DATA_ADDRESS);
+    if (strcmp(transport, "rtu") == 0) {
+        return create_rtu_server(runtime, argument);
+    }
+
+    // the other transports listen on an endpoint
+    char host[LINE_SIZE];
+    uint16_t port = 0;
+    if (!split_endpoint(argument, host, sizeof(host), &port)) {
+        printf("invalid endpoint: %s\n", argument);
+        return NULL;
+    }
+
+    if (strcmp(transport, "tcp") == 0) {
+        return create_tcp_server(runtime, host, port);
+    }
+    else if (strcmp(transport, "tls-ca") == 0) {
+        return create_tls_server(runtime, host, port, get_ca_chain_config());
+    }
+    else {
+        // main only accepts known transports, so this is tls-self-signed
+        return create_tls_server(runtime, host, port, get_self_signed_config());
+    }
+}
+
+rodbus_device_map_t *create_device_map(void)
+{
+    // ANCHOR: device_map_init
+    rodbus_device_map_t *map = rodbus_device_map_create();
+    rodbus_device_map_add_endpoint(map,
+        UNIT_ID,                                                 // unit id
+        get_write_handler(),                                     // handler for write requests
+        (rodbus_database_callback_t){.callback = &configure_db} // callback for the initial state of the database
+    );
+    // ANCHOR_END: device_map_init
+
+    return map;
+}
+
+rodbus_server_t *create_tcp_server(rodbus_runtime_t *runtime, const char *host, uint16_t port)
+{
+    rodbus_device_map_t *map = create_device_map();
+
+    // ANCHOR: tcp_server_create
+    rodbus_server_t *server = NULL;
+    rodbus_decode_level_t decode_level = rodbus_decode_level_build(RODBUS_APP_DECODE_LEVEL_DATA_HEADERS, RODBUS_FRAME_DECODE_LEVEL_NOTHING, RODBUS_PHYS_DECODE_LEVEL_NOTHING);
+    rodbus_address_filter_t *filter = rodbus_address_filter_any();
+    rodbus_param_error_t err = rodbus_server_create_tcp(runtime, host, port, filter, MAX_SESSIONS, map, decode_level, &server);
+    rodbus_address_filter_destroy(filter);
+    rodbus_device_map_destroy(map);
+    if (err) {
+        printf("unable to create server: %s\n", rodbus_param_error_to_string(err));
+        return NULL;
+    }
+    // ANCHOR_END: tcp_server_create
+
+    return server;
+}
+
+rodbus_server_t *create_rtu_server(rodbus_runtime_t *runtime, const char *path)
+{
+    rodbus_device_map_t *map = create_device_map();
+
+    // ANCHOR: rtu_server_create
+    rodbus_server_t *server = NULL;
+    rodbus_decode_level_t decode_level = rodbus_decode_level_build(RODBUS_APP_DECODE_LEVEL_DATA_HEADERS, RODBUS_FRAME_DECODE_LEVEL_NOTHING, RODBUS_PHYS_DECODE_LEVEL_NOTHING);
+    rodbus_param_error_t err = rodbus_server_create_rtu(runtime, path, rodbus_serial_port_settings_init(), rodbus_retry_strategy_init(), map, decode_level, &server);
+    rodbus_device_map_destroy(map);
+    if (err) {
+        printf("unable to create server: %s\n", rodbus_param_error_to_string(err));
+        return NULL;
+    }
+    // ANCHOR_END: rtu_server_create
+
+    return server;
+}
+
+rodbus_server_t *create_tls_server(rodbus_runtime_t *runtime, const char *host, uint16_t port, rodbus_tls_server_config_t tls_config)
+{
+    rodbus_device_map_t *map = create_device_map();
+
+    // ANCHOR: tls_server_create
+    rodbus_server_t *server = NULL;
+    rodbus_decode_level_t decode_level = rodbus_decode_level_build(RODBUS_APP_DECODE_LEVEL_DATA_HEADERS, RODBUS_FRAME_DECODE_LEVEL_NOTHING, RODBUS_PHYS_DECODE_LEVEL_NOTHING);
+    rodbus_address_filter_t *filter = rodbus_address_filter_any();
+    rodbus_param_error_t err = rodbus_server_create_tls_with_authz(runtime, host, port, filter, MAX_SESSIONS, map, tls_config, get_auth_handler(), decode_level, &server);
+    rodbus_address_filter_destroy(filter);
+    rodbus_device_map_destroy(map);
+    if (err) {
+        printf("unable to create server: %s\n", rodbus_param_error_to_string(err));
+        return NULL;
+    }
+    // ANCHOR_END: tls_server_create
+
+    return server;
+}
+
+rodbus_tls_server_config_t get_ca_chain_config(void)
+{
+    // ANCHOR: tls_ca_chain_config
+    rodbus_tls_server_config_t tls_config = rodbus_tls_server_config_init(
+        "./certs/ca_chain/ca_cert.pem",     // CA certificate
+        "./certs/ca_chain/server_cert.pem", // server certificate
+        "./certs/ca_chain/server_key.pem",  // server private key
+        ""                                  // no password
+    );
+    tls_config.min_tls_version = RODBUS_MIN_TLS_VERSION_V12;
+    // ANCHOR_END: tls_ca_chain_config
+
+    return tls_config;
+}
+
+rodbus_tls_server_config_t get_self_signed_config(void)
+{
+    // ANCHOR: tls_self_signed_config
+    rodbus_tls_server_config_t tls_config = rodbus_tls_server_config_init(
+        "./certs/self_signed/entity1_cert.pem", // client certificate
+        "./certs/self_signed/entity2_cert.pem", // server certificate
+        "./certs/self_signed/entity2_key.pem",  // server private key
+        ""                                      // no password
+    );
+    tls_config.min_tls_version = RODBUS_MIN_TLS_VERSION_V12;
+    tls_config.certificate_mode = RODBUS_CERTIFICATE_MODE_SELF_SIGNED;
+    // ANCHOR_END: tls_self_signed_config
+
+    return tls_config;
+}
+
+// run the console until "x" or the end of input
+void run_server(rodbus_server_t *server)
+{
+    print_help();
+
+    char line[LINE_SIZE];
+    while (read_line(line, sizeof(line))) {
+        if (strcmp(line, "x") == 0) {
+            return;
+        }
+        else if (strcmp(line, "help") == 0) {
+            print_help();
+        }
+        else {
+            run_command(server, line);
         }
     }
-    return result;
 }
-// ANCHOR_END: write_handler
 
-// ANCHOR: auth_handler
-rodbus_authorization_t auth_read(uint8_t unit_id, rodbus_address_range_t range, const char* role, void* ctx)
+void print_help(void)
 {
-    return RODBUS_AUTHORIZATION_ALLOW;
+    printf("Commands:\n");
+    printf("  help - print this list\n");
+    printf("  x - exit\n");
+    printf("  ed - enable protocol decoding\n");
+    printf("  dd - disable protocol decoding\n");
+    printf("  uc - toggle every coil\n");
+    printf("  udi - toggle every discrete input\n");
+    printf("  uhr - increment every holding register\n");
+    printf("  uir - increment every input register\n");
 }
 
-rodbus_authorization_t auth_single_write(uint8_t unit_id, uint16_t idx, const char *role, void *ctx)
+void run_command(rodbus_server_t *server, const char *cmd)
 {
-    return RODBUS_AUTHORIZATION_DENY;
+    // the decode level commands only queue the change
+    if (strcmp(cmd, "ed") == 0) {
+        rodbus_decode_level_t level = rodbus_decode_level_build(RODBUS_APP_DECODE_LEVEL_DATA_VALUES, RODBUS_FRAME_DECODE_LEVEL_HEADER, RODBUS_PHYS_DECODE_LEVEL_LENGTH);
+        print_requested(cmd, rodbus_server_set_decode_level(server, level));
+    }
+    else if (strcmp(cmd, "dd") == 0) {
+        print_requested(cmd, rodbus_server_set_decode_level(server, rodbus_decode_level_nothing()));
+    }
+    else if (strcmp(cmd, "uc") == 0) {
+        // ANCHOR: update_coil
+        rodbus_database_callback_t transaction = {.callback = &toggle_coils};
+        rodbus_param_error_t err = rodbus_server_update_database(server, UNIT_ID, transaction);
+        // ANCHOR_END: update_coil
+        print_result(cmd, err);
+    }
+    else if (strcmp(cmd, "udi") == 0) {
+        rodbus_database_callback_t transaction = {.callback = &toggle_discrete_inputs};
+        print_result(cmd, rodbus_server_update_database(server, UNIT_ID, transaction));
+    }
+    else if (strcmp(cmd, "uhr") == 0) {
+        rodbus_database_callback_t transaction = {.callback = &increment_holding_registers};
+        print_result(cmd, rodbus_server_update_database(server, UNIT_ID, transaction));
+    }
+    else if (strcmp(cmd, "uir") == 0) {
+        rodbus_database_callback_t transaction = {.callback = &increment_input_registers};
+        print_result(cmd, rodbus_server_update_database(server, UNIT_ID, transaction));
+    }
+    else {
+        printf("%s: unknown command, type help for a list\n", cmd);
+    }
 }
 
-rodbus_authorization_t auth_multiple_writes(uint8_t unit_id, rodbus_address_range_t range, const char *role, void *ctx)
+// callback which will receive log messages: each one already ends in a newline
+void on_log_message(rodbus_log_level_t level, const char *message, void *ctx)
 {
-    return RODBUS_AUTHORIZATION_DENY;
+    printf("%s", message);
 }
-// ANCHOR_END: auth_handler
 
-typedef struct state_t {
-    bool coil_value;
-    bool discrete_input_value;
-    uint16_t holding_register_value;
-    uint16_t input_register_value;
-} state_t;
+rodbus_logger_t get_logger(void)
+{
+    return (rodbus_logger_t){
+        .on_message = &on_log_message,
+        .on_destroy = NULL,
+        .ctx = NULL,
+    };
+}
 
 // ANCHOR: configure_db
+// POINT_COUNT points of each type, starting at index 0
 void configure_db(rodbus_database_t *db, void *ctx)
 {
-    for (uint16_t i = 0; i < 10; ++i) {
+    for (uint16_t i = 0; i < POINT_COUNT; ++i) {
         rodbus_database_add_coil(db, i, false);
         rodbus_database_add_discrete_input(db, i, false);
         rodbus_database_add_holding_register(db, i, 0);
@@ -95,269 +321,248 @@ void configure_db(rodbus_database_t *db, void *ctx)
 }
 // ANCHOR_END: configure_db
 
-// ANCHOR: update_coil_callback
-void update_coil(rodbus_database_t *db, void *ctx)
+// ANCHOR: write_handler
+// the most values one Modbus request can write: the library rejects longer requests,
+// so the multiple write buffers never fill
+#define MAX_WRITE_COILS 1968
+#define MAX_WRITE_REGISTERS 123
+
+rodbus_write_result_t on_write_single_coil(uint16_t index, bool value, rodbus_database_t *db, void *ctx)
 {
-    state_t *state = (state_t *)ctx;
+    if (!rodbus_database_update_coil(db, index, value)) {
+        return rodbus_write_result_exception_init(RODBUS_MODBUS_EXCEPTION_ILLEGAL_DATA_ADDRESS);
+    }
+    printf("write coil %u: %s\n", index, value ? "true" : "false");
+    return rodbus_write_result_success_init();
+}
 
-    state->coil_value = !state->coil_value;
+rodbus_write_result_t on_write_single_register(uint16_t index, uint16_t value, rodbus_database_t *db, void *ctx)
+{
+    if (!rodbus_database_update_holding_register(db, index, value)) {
+        return rodbus_write_result_exception_init(RODBUS_MODBUS_EXCEPTION_ILLEGAL_DATA_ADDRESS);
+    }
+    printf("write holding register %u: %u\n", index, value);
+    return rodbus_write_result_success_init();
+}
 
-    for (uint16_t i = 0; i < 10; ++i) {
-        rodbus_database_update_coil(db, i, state->coil_value);
+rodbus_write_result_t on_write_multiple_coils(uint16_t start, rodbus_bit_value_iterator_t *it, rodbus_database_t *db, void *ctx)
+{
+    // buffer the values, checking every coil exists, before changing any
+    rodbus_bit_value_t values[MAX_WRITE_COILS];
+    size_t count = 0;
+    rodbus_bit_value_t *bit = NULL;
+    while ((bit = rodbus_bit_value_iterator_next(it))) {
+        bool current = false;
+        if (count == MAX_WRITE_COILS || rodbus_database_get_coil(db, bit->index, &current) != RODBUS_PARAM_ERROR_OK) {
+            return rodbus_write_result_exception_init(RODBUS_MODBUS_EXCEPTION_ILLEGAL_DATA_ADDRESS);
+        }
+        values[count++] = *bit;
+    }
+
+    for (size_t i = 0; i < count; ++i) {
+        rodbus_database_update_coil(db, values[i].index, values[i].value);
+        printf("write coil %u: %s\n", values[i].index, values[i].value ? "true" : "false");
+    }
+    return rodbus_write_result_success_init();
+}
+
+rodbus_write_result_t on_write_multiple_registers(uint16_t start, rodbus_register_value_iterator_t *it, rodbus_database_t *db, void *ctx)
+{
+    // buffer the values, checking every register exists, before changing any
+    rodbus_register_value_t values[MAX_WRITE_REGISTERS];
+    size_t count = 0;
+    rodbus_register_value_t *reg = NULL;
+    while ((reg = rodbus_register_value_iterator_next(it))) {
+        uint16_t current = 0;
+        if (count == MAX_WRITE_REGISTERS || rodbus_database_get_holding_register(db, reg->index, &current) != RODBUS_PARAM_ERROR_OK) {
+            return rodbus_write_result_exception_init(RODBUS_MODBUS_EXCEPTION_ILLEGAL_DATA_ADDRESS);
+        }
+        values[count++] = *reg;
+    }
+
+    for (size_t i = 0; i < count; ++i) {
+        rodbus_database_update_holding_register(db, values[i].index, values[i].value);
+        printf("write holding register %u: %u\n", values[i].index, values[i].value);
+    }
+    return rodbus_write_result_success_init();
+}
+
+rodbus_write_handler_t get_write_handler(void)
+{
+    return (rodbus_write_handler_t){
+        .write_single_coil = &on_write_single_coil,
+        .write_single_register = &on_write_single_register,
+        .write_multiple_coils = &on_write_multiple_coils,
+        .write_multiple_registers = &on_write_multiple_registers,
+        .on_destroy = NULL,
+        .ctx = NULL,
+    };
+}
+// ANCHOR_END: write_handler
+
+// ANCHOR: auth_handler
+// allows any role to read, and only the "operator" role to write
+rodbus_authorization_t authorize_read(uint8_t unit_id, rodbus_address_range_t range, const char *role, void *ctx)
+{
+    return RODBUS_AUTHORIZATION_ALLOW;
+}
+
+rodbus_authorization_t authorize_write(uint8_t unit_id, const char *role)
+{
+    if (strcmp(role, "operator") == 0) {
+        return RODBUS_AUTHORIZATION_ALLOW;
+    }
+    printf("denied write to unit %u for role '%s'\n", unit_id, role);
+    return RODBUS_AUTHORIZATION_DENY;
+}
+
+rodbus_authorization_t authorize_single_write(uint8_t unit_id, uint16_t index, const char *role, void *ctx)
+{
+    return authorize_write(unit_id, role);
+}
+
+rodbus_authorization_t authorize_multiple_write(uint8_t unit_id, rodbus_address_range_t range, const char *role, void *ctx)
+{
+    return authorize_write(unit_id, role);
+}
+// ANCHOR_END: auth_handler
+
+// ANCHOR: auth_handler_init
+rodbus_authorization_handler_t get_auth_handler(void)
+{
+    return (rodbus_authorization_handler_t){
+        .read_coils = &authorize_read,
+        .read_discrete_inputs = &authorize_read,
+        .read_holding_registers = &authorize_read,
+        .read_input_registers = &authorize_read,
+        .write_single_coil = &authorize_single_write,
+        .write_single_register = &authorize_single_write,
+        .write_multiple_coils = &authorize_multiple_write,
+        .write_multiple_registers = &authorize_multiple_write,
+        .on_destroy = NULL,
+        .ctx = NULL,
+    };
+}
+// ANCHOR_END: auth_handler_init
+
+// ANCHOR: update_coil_callback
+// runs while the database is locked, so client writes in between aren't lost
+void toggle_coils(rodbus_database_t *db, void *ctx)
+{
+    for (uint16_t i = 0; i < POINT_COUNT; ++i) {
+        bool value = false;
+        if (rodbus_database_get_coil(db, i, &value) == RODBUS_PARAM_ERROR_OK) {
+            rodbus_database_update_coil(db, i, !value);
+        }
     }
 }
 // ANCHOR_END: update_coil_callback
 
-void update_discrete_input(rodbus_database_t *db, void *ctx)
+void toggle_discrete_inputs(rodbus_database_t *db, void *ctx)
 {
-    state_t *state = (state_t *)ctx;
+    for (uint16_t i = 0; i < POINT_COUNT; ++i) {
+        bool value = false;
+        if (rodbus_database_get_discrete_input(db, i, &value) == RODBUS_PARAM_ERROR_OK) {
+            rodbus_database_update_discrete_input(db, i, !value);
+        }
+    }
+}
 
-    state->discrete_input_value = !state->discrete_input_value;
-
-    for (uint16_t i = 0; i < 10; ++i) {
-        rodbus_database_update_discrete_input(db, i, state->discrete_input_value);
+void increment_holding_registers(rodbus_database_t *db, void *ctx)
+{
+    for (uint16_t i = 0; i < POINT_COUNT; ++i) {
+        uint16_t value = 0;
+        if (rodbus_database_get_holding_register(db, i, &value) == RODBUS_PARAM_ERROR_OK) {
+            rodbus_database_update_holding_register(db, i, (uint16_t)(value + 1)); // 65535 wraps to 0
+        }
     }
 }
 
-void update_holding_register(rodbus_database_t *db, void *ctx)
+void increment_input_registers(rodbus_database_t *db, void *ctx)
 {
-    state_t *state = (state_t *)ctx;
-
-    ++state->holding_register_value;
-
-    for (uint16_t i = 0; i < 10; ++i) {
-        rodbus_database_update_holding_register(db, i, state->holding_register_value);
+    for (uint16_t i = 0; i < POINT_COUNT; ++i) {
+        uint16_t value = 0;
+        if (rodbus_database_get_input_register(db, i, &value) == RODBUS_PARAM_ERROR_OK) {
+            rodbus_database_update_input_register(db, i, (uint16_t)(value + 1)); // 65535 wraps to 0
+        }
     }
 }
 
-void update_input_register(rodbus_database_t *db, void *ctx)
+void print_requested(const char *cmd, rodbus_param_error_t err)
 {
-    state_t *state = (state_t *)ctx;
-
-    ++state->input_register_value;
-
-    for (uint16_t i = 0; i < 10; ++i) {
-        rodbus_database_update_input_register(db, i, state->input_register_value);
-    }
-}
-
-int run_server(rodbus_server_t* server)
-{
-    // state passed to the update callbacks
-    state_t state = {
-        .coil_value = false,
-        .discrete_input_value = false,
-        .holding_register_value = 0,
-        .input_register_value = 0,
-    };
-
-    char cbuf[10];
-    while (true) {
-        fgets(cbuf, 10, stdin);
-
-        if (strcmp(cbuf, "x\n") == 0) {
-            break;
-        }
-        else if (strcmp(cbuf, "uc\n") == 0) {
-            // ANCHOR: update_coil
-            rodbus_server_update_database(server, 1, (rodbus_database_callback_t) {
-                .callback = update_coil,
-                .ctx = &state,
-            });
-            // ANCHOR_END: update_coil
-        }
-        else if (strcmp(cbuf, "udi\n") == 0) {
-            rodbus_server_update_database(server, 1, (rodbus_database_callback_t){.callback = update_discrete_input, .ctx = &state});
-        }
-        else if (strcmp(cbuf, "uhr\n") == 0) {
-            rodbus_server_update_database(server, 1, (rodbus_database_callback_t){.callback = update_holding_register, .ctx = &state});
-        }
-        else if (strcmp(cbuf, "uir\n") == 0) {
-            rodbus_server_update_database(server, 1, (rodbus_database_callback_t){.callback = update_input_register, .ctx = &state});
-        }
-        else {
-            printf("Unknown command\n");
-        }
-    }
-
-    rodbus_server_destroy(server);
-
-    return 0;
-}
-
-rodbus_device_map_t* build_device_map()
-{
-    // ANCHOR: device_map_init
-    rodbus_write_handler_t write_handler = {
-        .write_single_coil = on_write_single_coil,
-        .write_single_register = on_write_single_register,
-        .write_multiple_coils = on_write_multiple_coils,
-        .write_multiple_registers = on_write_multiple_registers,
-    };        
-    rodbus_device_map_t* map = rodbus_device_map_create();
-    rodbus_device_map_add_endpoint(map,
-                                   1,                                                      // Unit ID
-                                   write_handler,                                          // Handler for write requests
-                                   (rodbus_database_callback_t){.callback = configure_db } // Callback for the initial state of the database
-    );
-    // ANCHOR_END: device_map_init
-
-    return map;
-}
-
-int run_tcp_channel(rodbus_runtime_t* runtime)
-{
-    // ANCHOR: tcp_server_create
-    rodbus_server_t* server = NULL;
-    rodbus_device_map_t* map = build_device_map();
-    rodbus_decode_level_t decode_level = rodbus_decode_level_nothing();
-    rodbus_address_filter_t* filter = rodbus_address_filter_any();
-    rodbus_param_error_t err = rodbus_server_create_tcp(runtime, "127.0.0.1", 502, filter, 100, map, decode_level, &server);
-    rodbus_address_filter_destroy(filter);
-    rodbus_device_map_destroy(map);
-
     if (err) {
-        printf("Unable to initialize server: %s\n", rodbus_param_error_to_string(err));
-        return -1;
-    }
-    // ANCHOR_END: tcp_server_create
-
-    return run_server(server);
-}
-
-int run_rtu_channel(rodbus_runtime_t* runtime)
-{
-    // ANCHOR: rtu_server_create
-    rodbus_server_t* server = NULL;
-    rodbus_device_map_t* map = build_device_map();
-    rodbus_decode_level_t decode_level = rodbus_decode_level_nothing();
-    rodbus_param_error_t err = rodbus_server_create_rtu(runtime, "/dev/ttySIM1", rodbus_serial_port_settings_init(), rodbus_retry_strategy_init(), map, decode_level, &server);
-    rodbus_device_map_destroy(map);
-
-    if (err) {
-        printf("Unable to initialize server: %s\n", rodbus_param_error_to_string(err));
-        return -1;
-    }
-    // ANCHOR_END: rtu_server_create
-
-    return run_server(server);
-}
-
-rodbus_authorization_handler_t get_auth_handler()
-{
-    // ANCHOR: auth_handler_init
-    rodbus_authorization_handler_t auth_handler = {
-        .read_coils = auth_read,
-        .read_discrete_inputs = auth_read,
-        .read_holding_registers = auth_read,
-        .read_input_registers = auth_read,
-        .write_single_coil = auth_single_write,
-        .write_single_register = auth_single_write,
-        .write_multiple_coils = auth_multiple_writes,
-        .write_multiple_registers = auth_multiple_writes,
-    };
-    // ANCHOR_END: auth_handler_init
-
-    return auth_handler;
-}
-
-rodbus_tls_server_config_t get_self_signed_tls_config()
-{
-    // ANCHOR: tls_self_signed_config
-    rodbus_tls_server_config_t tls_config = rodbus_tls_server_config_init(
-        "./certs/self_signed/entity1_cert.pem",
-        "./certs/self_signed/entity2_cert.pem",
-        "./certs/self_signed/entity2_key.pem",
-        "" // no password
-    );
-    tls_config.certificate_mode = RODBUS_CERTIFICATE_MODE_SELF_SIGNED;
-    // ANCHOR_END: tls_self_signed_config
-
-    return tls_config;
-}
-
-rodbus_tls_server_config_t get_ca_tls_config()
-{
-    // ANCHOR: tls_ca_chain_config
-    rodbus_tls_server_config_t tls_config = rodbus_tls_server_config_init(
-        "./certs/ca_chain/ca_cert.pem",
-        "./certs/ca_chain/server_cert.pem",
-        "./certs/ca_chain/server_key.pem",
-        "" // no password
-    );
-    // ANCHOR_END: tls_ca_chain_config
-
-    return tls_config;
-}
-
-int run_tls_channel(rodbus_runtime_t* runtime, rodbus_tls_server_config_t tls_config)
-{
-    // ANCHOR: tls_server_create
-    rodbus_server_t* server = NULL;
-    rodbus_device_map_t* map = build_device_map();
-    rodbus_authorization_handler_t auth_handler = get_auth_handler();
-    rodbus_decode_level_t decode_level = rodbus_decode_level_nothing();
-    rodbus_address_filter_t* filter = rodbus_address_filter_any();
-    rodbus_param_error_t err = rodbus_server_create_tls_with_authz(runtime, "127.0.0.1", 802, filter, 100, map, tls_config, auth_handler, decode_level, &server);
-    rodbus_address_filter_destroy(filter);
-    rodbus_device_map_destroy(map);
-
-    if (err) {
-        printf("Unable to initialize server: %s\n", rodbus_param_error_to_string(err));
-        return -1;
-    }
-    // ANCHOR_END: tls_server_create
-
-    return run_server(server);
-}
-
-// create a channel based on the command line arguments
-int create_and_run_channel(int argc, char *argv[], rodbus_runtime_t *runtime)
-{
-    if(argc != 2) {
-        printf("you must specify a transport type\n");
-        printf("usage: server_example <channel> (tcp, rtu, tls-ca, tls-self-signed)\n");
-        return -1;
-    }
-
-    if (strcmp(argv[1], "tcp") == 0) {
-        return run_tcp_channel(runtime);
-    }
-    else if (strcmp(argv[1], "rtu") == 0) {
-        return run_rtu_channel(runtime);
-    }
-    else if (strcmp(argv[1], "tls-ca") == 0) {
-        return run_tls_channel(runtime, get_ca_tls_config());
-    }
-    else if (strcmp(argv[1], "tls-self-signed") == 0) {
-        return run_tls_channel(runtime, get_self_signed_tls_config());
+        printf("%s: %s\n", cmd, rodbus_param_error_to_string(err));
     }
     else {
-        printf("unknown channel type: %s\n", argv[1]);
-        return -1;
+        printf("%s: requested\n", cmd);
     }
 }
 
-int main(int argc, char* argv[])
+void print_result(const char *cmd, rodbus_param_error_t err)
 {
-    // initialize logging with the default configuration
-    rodbus_logger_t logger = {.on_message = on_log_message};
-    rodbus_configure_logging(rodbus_logging_config_init(), logger);
-
-    // Create runtime
-    rodbus_runtime_t *runtime = NULL;
-    rodbus_runtime_config_t runtime_config = rodbus_runtime_config_init();
-    runtime_config.num_core_threads = 4;
-    rodbus_param_error_t err = rodbus_runtime_create(runtime_config, &runtime);
     if (err) {
-        printf("Unable to initialize runtime: %s\n", rodbus_param_error_to_string(err));
-        return -1;
+        printf("%s: %s\n", cmd, rodbus_param_error_to_string(err));
+    }
+    else {
+        printf("%s: success\n", cmd);
+    }
+}
+
+// read one line into the buffer without its line ending, or return false at the end of input;
+// a line longer than the buffer is truncated and the rest skipped, so it stays one command
+bool read_line(char *line, size_t size)
+{
+    if (!fgets(line, (int)size, stdin)) {
+        return false;
+    }
+    if (!strchr(line, '\n')) {
+        int c = 0;
+        while ((c = getchar()) != EOF && c != '\n') {
+            // skip the rest of the line
+        }
+    }
+    line[strcspn(line, "\r\n")] = '\0';
+    return true;
+}
+
+// split "host:port" at the last ':', since the bindings take the host and port separately
+bool split_endpoint(const char *endpoint, char *host, size_t host_size, uint16_t *port)
+{
+    const char *colon = strrchr(endpoint, ':');
+    if (!colon || (size_t)(colon - endpoint) >= host_size) {
+        return false;
     }
 
-    // create a channel based on the cmd line arguments and run it
-    int res = create_and_run_channel(argc, argv, runtime);
+    char *end = NULL;
+    unsigned long value = strtoul(colon + 1, &end, 10);
+    if (end == colon + 1 || *end != '\0' || value > UINT16_MAX) {
+        return false;
+    }
 
-    rodbus_runtime_destroy(runtime);
+    memcpy(host, endpoint, (size_t)(colon - endpoint));
+    host[colon - endpoint] = '\0';
+    *port = (uint16_t)value;
+    return true;
+}
 
-    return res;
+// the default endpoint or serial port of a transport, or NULL if the transport is unknown
+const char *default_argument(const char *transport)
+{
+    if (strcmp(transport, "tcp") == 0) {
+        return TCP_ENDPOINT;
+    }
+    else if (strcmp(transport, "rtu") == 0) {
+        return SERIAL_PORT;
+    }
+    else if (strcmp(transport, "tls-ca") == 0 || strcmp(transport, "tls-self-signed") == 0) {
+        return TLS_ENDPOINT;
+    }
+    else {
+        return NULL;
+    }
+}
+
+void print_usage(void)
+{
+    fprintf(stderr, "%s\n", USAGE);
 }
