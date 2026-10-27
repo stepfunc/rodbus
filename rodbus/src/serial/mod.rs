@@ -47,11 +47,13 @@ impl SerialSettings {
     }
 }
 
+// MODBUS over Serial Line Specification and Implementation Guide V1.02 2.5.1 makes even parity
+// the default and requires two stop bits without parity
 /// 9600 baud, 8 data bits, no parity, one stop bit and no flow control
 ///
-/// MODBUS over Serial Line Specification and Implementation Guide V1.02 2.5.1 specifies even parity
-/// by default, and two stop bits when no parity is used. Set [`SerialSettings::parity`] or
-/// [`SerialSettings::stop_bits`] explicitly where devices on the line expect a compliant format.
+/// The Modbus serial line specification makes even parity the default, and calls for two stop
+/// bits when no parity is used. Set [`SerialSettings::parity`] or [`SerialSettings::stop_bits`]
+/// explicitly where devices on the line expect that format.
 impl Default for SerialSettings {
     fn default() -> Self {
         Self {
