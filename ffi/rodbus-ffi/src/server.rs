@@ -77,13 +77,7 @@ impl RequestHandler for RequestHandlerWrapper {
             .write_handler
             .write_single_coil(value.index, value.value, &mut self.database)
         {
-            Some(x) => {
-                if x.success() {
-                    Ok(())
-                } else {
-                    Err(ExceptionCode::IllegalDataAddress)
-                }
-            }
+            Some(x) => x.convert_to_result(),
             None => Err(ExceptionCode::IllegalFunction),
         }
     }
