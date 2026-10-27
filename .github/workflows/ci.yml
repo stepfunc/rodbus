@@ -151,7 +151,8 @@ jobs:
           baseline-rev: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}
   # Check that reading and parsing frames, answering requests, and formatting requests and replies
   # can't panic for any input
-  # (rodbus/src/no_panic_check.rs). The proof comes from the optimizer, so the toolchain is pinned:
+  # (rodbus/src/no_panic_check.rs), with arithmetic overflow checks off as in release and on as in
+  # debug. The proof comes from the optimizer, so the toolchain is pinned:
   # a new one can lose an optimization and fail the link without any change to the code. Raise it
   # deliberately.
   no-panic:
@@ -173,6 +174,13 @@ jobs:
           RUSTFLAGS: --cfg rodbus_no_panic
           CARGO_PROFILE_RELEASE_LTO: thin
           CARGO_PROFILE_RELEASE_CODEGEN_UNITS: "1"
+      - name: Link it again with overflow checks on
+        run: cargo test -p rodbus --lib --release --no-run
+        env:
+          RUSTFLAGS: --cfg rodbus_no_panic
+          CARGO_PROFILE_RELEASE_LTO: thin
+          CARGO_PROFILE_RELEASE_CODEGEN_UNITS: "1"
+          CARGO_PROFILE_RELEASE_OVERFLOW_CHECKS: "true"
   # The check branch protection requires: passes only if every job a PR runs passed
   ci-ok:
     needs: [linting, features, msrv, test, semver, no-panic]
