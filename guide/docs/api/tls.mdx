@@ -46,7 +46,7 @@ Rustls has been [reviewed](https://github.com/rustls/rustls/raw/main/audit/TLS-0
   - *ring*, with the `tls` Cargo feature (the default)
   - AWS-LC, with the `tls-aws-lc` Cargo feature, which also offers the `X25519MLKEM768` hybrid key exchange
 
-  The prebuilt bindings use one provider or the other depending on the target platform.
+  The prebuilt bindings use AWS-LC on every platform.
 - Server name validation through the Subject Alternative Name (SAN) extension or the Common Name (CN).
 - Self-signed certificates (with a special configuration).
 

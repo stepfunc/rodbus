@@ -322,23 +322,15 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        cases:
-          - target: x86_64-unknown-linux-gnu # 64-bit Linux (kernel 2.6.32+, glibc 2.11+)
-            features: tls-aws-lc,serial
-          - target: x86_64-unknown-linux-musl # 64-bit Linux with MUSL
-            features: tls,serial
-          - target: arm-unknown-linux-gnueabihf # ARMv6 Linux, hardfloat (kernel 3.2, glibc 2.17)
-            features: tls,serial
-          - target: arm-unknown-linux-musleabihf # ARMv6 Linux with MUSL, hardfloat
-            features: tls,serial
-          - target: aarch64-unknown-linux-gnu # ARM64 Linux (kernel 4.2, glibc 2.17+)
-            features: tls-aws-lc,serial
-          - target: aarch64-unknown-linux-musl # ARM64 Linux with MUSL
-            features: tls,serial
-          - target: armv7-unknown-linux-gnueabihf # ARMv7 Linux, hardfloat (kernel 3.2, glibc 2.17)
-            features: tls,serial
-          - target: arm-unknown-linux-gnueabi # ARMv6 Linux (kernel 3.2, glibc 2.17)
-            features: tls,serial
+        target:
+          - x86_64-unknown-linux-gnu # 64-bit Linux (kernel 2.6.32+, glibc 2.11+)
+          - x86_64-unknown-linux-musl # 64-bit Linux with MUSL
+          - arm-unknown-linux-gnueabihf # ARMv6 Linux, hardfloat (kernel 3.2, glibc 2.17)
+          - arm-unknown-linux-musleabihf # ARMv6 Linux with MUSL, hardfloat
+          - aarch64-unknown-linux-gnu # ARM64 Linux (kernel 4.2, glibc 2.17+)
+          - aarch64-unknown-linux-musl # ARM64 Linux with MUSL
+          - armv7-unknown-linux-gnueabihf # ARMv7 Linux, hardfloat (kernel 3.2, glibc 2.17)
+          - arm-unknown-linux-gnueabi # ARMv6 Linux (kernel 3.2, glibc 2.17)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -348,24 +340,24 @@ jobs:
       - name: Install Rust Cross
         run: cargo install cross
       - name: Create FFI modules dir
-        run: mkdir -p ffi-modules/${{ matrix.cases.target }}
+        run: mkdir -p ffi-modules/${{ matrix.target }}
       - name: Build FFI
-        run: bash .github/scripts/build-evidence.sh evidence/ffi/${{ matrix.cases.target }} cross -p rodbus-ffi-c --target ${{ matrix.cases.target }} --no-default-features --features ${{ matrix.cases.features }}
+        run: bash .github/scripts/build-evidence.sh evidence/ffi/${{ matrix.target }} cross -p rodbus-ffi-c --target ${{ matrix.target }} --no-default-features --features tls-aws-lc,serial
       - name: Build JNI
-        run: bash .github/scripts/build-evidence.sh evidence/java/${{ matrix.cases.target }} cross -p rodbus-ffi-java --target ${{ matrix.cases.target }} --no-default-features --features ${{ matrix.cases.features }}
+        run: bash .github/scripts/build-evidence.sh evidence/java/${{ matrix.target }} cross -p rodbus-ffi-java --target ${{ matrix.target }} --no-default-features --features tls-aws-lc,serial
       - name: Copy the FFI and JNI libs
         run: |
-          cp ./target/${{ matrix.cases.target }}/release/librodbus_ffi.so ./ffi-modules/${{ matrix.cases.target }}
-          cp ./target/${{ matrix.cases.target }}/release/librodbus_ffi_java.so ./ffi-modules/${{ matrix.cases.target }}
+          cp ./target/${{ matrix.target }}/release/librodbus_ffi.so ./ffi-modules/${{ matrix.target }}
+          cp ./target/${{ matrix.target }}/release/librodbus_ffi_java.so ./ffi-modules/${{ matrix.target }}
       - name: Upload compiled FFI modules
         uses: actions/upload-artifact@v7
         with:
-          name: ffi-modules-${{ matrix.cases.target }}
+          name: ffi-modules-${{ matrix.target }}
           path: ffi-modules
       - name: Upload build evidence
         uses: actions/upload-artifact@v7
         with:
-          name: evidence-${{ matrix.cases.target }}
+          name: evidence-${{ matrix.target }}
           path: evidence
   guide:
     if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
