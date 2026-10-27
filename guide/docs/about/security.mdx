@@ -5,6 +5,9 @@ sidebar_label: Security
 slug: /security
 ---
 
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
 The library is written in safe Rust, and the steps that parse frames, answer requests and format what it sends are
 proven not to panic, for any input. This page describes how that and the library's other defenses are checked, and
 what they don't cover. For how to report a vulnerability, and for how we manage
@@ -44,31 +47,72 @@ and dependency code they call:
 * sending: formatting each request, answering each request (executing a write, reading values, or replying with an
   exception), and framing what is sent
 
+<Tabs
+groupId="role"
+defaultValue="client"
+values={[
+{label: 'Client', value: 'client'},
+{label: 'Server', value: 'server'},
+]}>
+<TabItem value="client">
+
 ```mermaid
-flowchart TD
-    bytes(["Bytes from TCP, TLS or a serial port"]):::outside
-    buffer["Buffering received bytes"]:::proven
-    frames["Framing: MBAP headers, and RTU frames with their CRC"]:::proven
-    request["Server: parsing and validating each request"]:::proven
-    response["Client: parsing read responses, and the fields of write echoes"]:::proven
-    session["Sessions: dispatching requests, matching and checking responses"]:::outside
-    handler(["Your RequestHandler and callbacks"]):::user
-    reply["Server: answering each request, by executing a write, reading values, or replying with an exception"]:::proven
-    send["Client: formatting each request"]:::proven
-    framing["Framing what is sent: MBAP headers, and RTU frames with their CRC"]:::proven
-    sent(["Bytes to TCP, TLS or a serial port"]):::outside
-    bytes --> buffer --> frames
-    frames --> request --> session
-    frames --> response --> session
-    session --> handler
-    session --> reply --> framing
-    reply -.- handler
-    session --> send --> framing
-    framing --> sent
+flowchart TB
+    subgraph receiving [Receiving]
+        rx(["Bytes from TCP, TLS or a serial port"]):::outside
+        rframe["Framing: buffering bytes into MBAP frames, or RTU frames with their CRC checked"]:::proven
+        rpdu["Parsing the values in read responses, and the fields of write echoes"]:::proven
+    end
+    subgraph sending [Sending]
+        tx(["Bytes to TCP, TLS or a serial port"]):::outside
+        sframe["Framing: MBAP headers, or RTU frames with their CRC"]:::proven
+        spdu["Formatting each request"]:::proven
+    end
+    session["Session: matching responses to requests, and checking their function codes, exceptions and write echoes"]:::outside
+    user(["Your application, through request results and callbacks"]):::user
+    rx --> rframe --> rpdu --> session
+    tx <--> sframe
+    sframe <--> spdu
+    spdu <--> session
+    session --- user
+    %% each sending link is listed from the step above to the one below, so the column rises; only its upper arrowhead is drawn
+    linkStyle 3,4,5 marker-end:none
     classDef proven fill:#d9f2e3,stroke:#1b7f45,color:#0b3d20
     classDef outside fill:#eeeeee,stroke:#888888,color:#333333
     classDef user fill:#ffffff,stroke:#888888,stroke-dasharray:4 4,color:#333333
 ```
+
+</TabItem>
+<TabItem value="server">
+
+```mermaid
+flowchart TB
+    subgraph receiving [Receiving]
+        rx(["Bytes from TCP, TLS or a serial port"]):::outside
+        rframe["Framing: buffering bytes into MBAP frames, or RTU frames with their CRC checked"]:::proven
+        rpdu["Parsing and validating each request"]:::proven
+    end
+    subgraph sending [Sending]
+        tx(["Bytes to TCP, TLS or a serial port"]):::outside
+        sframe["Framing: MBAP headers, or RTU frames with their CRC"]:::proven
+        spdu["Answering each request: executing a write, reading values, or replying with an exception"]:::proven
+    end
+    session["Session: dispatching each request to the handler for its unit"]:::outside
+    user(["Your RequestHandler"]):::user
+    rx --> rframe --> rpdu --> session
+    tx <--> sframe
+    sframe <--> spdu
+    spdu <--> session
+    session --- user
+    %% each sending link is listed from the step above to the one below, so the column rises; only its upper arrowhead is drawn
+    linkStyle 3,4,5 marker-end:none
+    classDef proven fill:#d9f2e3,stroke:#1b7f45,color:#0b3d20
+    classDef outside fill:#eeeeee,stroke:#888888,color:#333333
+    classDef user fill:#ffffff,stroke:#888888,stroke-dasharray:4 4,color:#333333
+```
+
+</TabItem>
+</Tabs>
 
 The green steps are proven panic-free. The asynchronous session code and I/O around them aren't part of the proof,
 shown in gray, and neither is the client's handling of a response's function code and exceptions, or comparing a
