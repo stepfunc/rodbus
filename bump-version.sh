@@ -27,14 +27,10 @@ if ! [[ "$NEW" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]]; then
 fi
 cd "$(dirname "$0")"
 
-# The files that hard-code the version. This list is the source of truth.
+# The files that hard-code the version. This list is the source of truth. The examples,
+# integration tests and rodbus-client are never published and stay at 0.1.0.
 FILES=(
   rodbus/Cargo.toml
-  rodbus-client/Cargo.toml
-  integration/Cargo.toml
-  examples/client/Cargo.toml
-  examples/perf/Cargo.toml
-  examples/server/Cargo.toml
   ffi/rodbus-ffi/Cargo.toml
   ffi/rodbus-ffi-c/Cargo.toml
   ffi/rodbus-ffi-java/Cargo.toml
@@ -78,8 +74,7 @@ for f in "${FILES[@]}"; do
 done
 
 echo "refreshing Cargo.lock"
-cargo update -p rodbus -p rodbus-client -p integration -p example-client -p example-perf -p example-server \
-  -p rodbus-ffi -p rodbus-ffi-c -p rodbus-ffi-java -p rodbus-schema -p rodbus-bindings --precise "$NEW"
+cargo update -p rodbus -p rodbus-ffi -p rodbus-ffi-c -p rodbus-ffi-java -p rodbus-schema -p rodbus-bindings --precise "$NEW"
 
 echo "verifying no '$OLD' references remain in the bumped files"
 stray=()
