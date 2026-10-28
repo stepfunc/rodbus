@@ -6,7 +6,7 @@ on:
   pull_request:
   # The merge queue runs the required checks on each queued merge result
   merge_group:
-  # Runs everything a release tag builds, without publishing (see RELEASING.md)
+  # Runs everything a release tag builds, without publishing (see RELEASE.md)
   workflow_dispatch:
 # Jobs that write with GITHUB_TOKEN ask for it themselves
 permissions:
@@ -146,7 +146,7 @@ jobs:
           feature-group: only-explicit-features
           features: default,ffi,serialization
           # every change must be at most a minor release; derived from a pre-release version
-          # (1.6.0-M3) the tool would skip every check
+          # (such as X.Y.Z-M3) the tool would skip every check
           release-type: minor
           baseline-rev: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}
   # Check that reading and parsing frames, answering requests, and formatting requests and replies
