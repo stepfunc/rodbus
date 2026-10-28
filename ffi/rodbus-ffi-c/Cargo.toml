@@ -1,6 +1,6 @@
 [package]
 name = "rodbus-ffi-c"
-version = "1.6.0-M3"
+version = "1.6.0-RC1"
 description = "C library (rodbus_ffi) for the Rodbus C, C++ and .NET bindings"
 readme = "../README.md"
 
