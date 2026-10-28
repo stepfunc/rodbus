@@ -8,8 +8,8 @@ slug: /modbus
 import useBaseUrl from '@docusaurus/useBaseUrl';
 
 Modbus is a ubiquitous communication protocol used to communicate with various industrial devices, most notably PLCs. Its simplicity and versatility make
-it popular in numerous applications. The standard itself is freely available from the [Modbus Organization](https://modbus.org/). It supports both TCP/IP
-and serial communication, and more recently, has been defined for secure operation over TLS. Modbus is sometimes referred to as "Modicon Modbus" or just
+it popular in numerous applications. It supports both TCP/IP and serial communication, and more recently, has been defined for secure operation over
+[TLS](../api/tls.mdx#modbus-security). Modbus is sometimes referred to as "Modicon Modbus" or just
 "Modicon" for historical reasons.
 
 Modbus is a simple request-response protocol, and the server component is completely stateless. A client issues a request to the server, then the server
@@ -74,43 +74,25 @@ The endianness of how compound values are laid out in registers may also vary fr
 
 The following table lists the functions currently supported by our library:
 
-| Code | Description                   | Support |
-| ---- | ----------------------------- | ------- |
-| 0x01 | Read coils                    | ✔️    |
-| 0x02 | Read discrete inputs          | ✔️    |
-| 0x03 | Read holding registers        | ✔️    |
-| 0x04 | Read input registers          | ✔️    |
-| 0x05 | Write single coil             | ✔️    |
-| 0x06 | Write single register         | ✔️    |
-| 0x0F | Write multiple coils          | ✔️    |
-| 0x10 | Write multiple registers      | ✔️    |
+| Code | Description                   |
+| ---- | ----------------------------- |
+| 0x01 | Read coils                    |
+| 0x02 | Read discrete inputs          |
+| 0x03 | Read holding registers        |
+| 0x04 | Read input registers          |
+| 0x05 | Write single coil             |
+| 0x06 | Write single register         |
+| 0x0F | Write multiple coils          |
+| 0x10 | Write multiple registers      |
 
-These functions are all that is required for the vast majority of applications using Modbus. Additional function codes can be added upon request.
-
-Modbus also allows user-defined function codes in the range 65 to 72 and 100 to 110. This library does not currently support user-defined functions,
-but support can be added upon request.
+These functions are all that is required for the vast majority of applications using Modbus. The library doesn't support other function codes,
+including the user-defined ones in the ranges 65 to 72 and 100 to 110, but support can be added upon request.
 
 ## Conformance
 
-The library implements its function codes from the MODBUS Application Protocol Specification V1.1b3, the Modbus over
-Serial Line Specification V1.02 and the Modbus Messaging on TCP/IP Implementation Guide V1.0b. Where a clause is
-ambiguous, we record how we read it.
-
-* A server checks each request before calling your handler: invalid values are answered with exception 03 (Illegal
-  Data Value), and a range past the end of the address space with 02 (Illegal Data Address).
-* The quantity limits of each function are enforced by the server on the requests it receives, and by the client on
-  the requests it sends.
-* A client checks every response against its request before completing it: the unit and, over TCP, the transaction
-  identifier, then the function code, and as each response requires, the byte count, the length and the echo of a
-  write.
-* A server ignores requests to units it doesn't serve, and executes a broadcast only if it's a write, without
-  answering it.
-* On a serial line, a frame is accepted only with a valid CRC, and bytes that can't start a frame are dropped until
-  one does. Before it transmits, the library waits until the line has been silent for 3.5 character times (a fixed
-  1.75 ms above 19200 baud), as seen from the host.
-
-Property tests check the request parser, the response handling, the frame readers, and the client and server
-sessions against independent models of these specifications and of the library's documented behavior.
+The library follows the MODBUS Application Protocol Specification V1.1b3, the Modbus over Serial Line Specification V1.02
+and the Modbus Messaging on TCP/IP Implementation Guide V1.0b for the functions above. [Security](security.mdx#protocol-validation)
+describes how it validates what it receives, and how that is tested.
 
 ## Exceptions
 

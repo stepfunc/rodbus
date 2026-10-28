@@ -491,6 +491,12 @@ jobs:
           cp -a ../artifacts/doc-guide/* ./rodbus/${{github.ref_name}}
           # Remove versions superseded under the docs repo's retention policy
           ./scripts/prune.sh
+          # Send docs.stepfunc.io/rodbus/ to the guide of the newest full release (not milestones or RCs),
+          # chosen from the published versions so that releasing an older maintenance version doesn't move it back
+          latest=$(ls ./rodbus | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n 1 || true)
+          if [[ -n "$latest" ]]; then
+            echo "<!DOCTYPE html><meta charset=\"utf-8\"><title>Rodbus documentation</title><meta http-equiv=\"refresh\" content=\"0; url=./$latest/guide/\"><link rel=\"canonical\" href=\"./$latest/guide/\">" > ./rodbus/index.html
+          fi
           # Check if there are actual changes to commit
           git add -A
           if git diff --staged --quiet; then

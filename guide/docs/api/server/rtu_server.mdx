@@ -1,75 +1,27 @@
 ---
 id: rtu_server
-title: Serial RTU Server
-sidebar_label: Serial RTU Server
+title: Serial RTU server
+sidebar_label: Serial RTU server
 slug: /api/server/rtu_server
 ---
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
-The library supports serial communication using the RTU transmission mode. RTU uses a similar Modbus addressing scheme but adds
-a CRC to each transmitted frame.
+The library supports serial communication using the RTU transmission mode. Several servers can share one serial line, each
+answering for its own unit IDs, and a client can broadcast writes to all of them at once.
 
-Multi-drop communications allow a single client to communicate with multiple servers sharing the same serial channel. Use broadcast messages to write requests simultaneously to all servers on a channel.
-
-## Receiving frames
-
-RTU frames have no start marker. When the bytes received can't start a valid frame, because of their function code,
-their length or their CRC, the library drops them one at a time until a valid frame starts. A partial frame is dropped
-once the line has been silent for 3.5 character times or 50 ms, whichever is longer. Neither ends the session or
-reopens the port; the library logs a warning when it starts dropping bytes, and again when a frame follows them.
-Clients and servers both receive frames this way.
-
-## Sending frames
-
-Before sending a frame, the library waits until the line has been silent for 3.5 character times since the last byte it
-received or sent, including right after the port opens. A character time is 11 bits at the configured baud rate; above
-19200 baud the gap is fixed at 1.75 ms. Clients and servers both send frames this way.
-
-## Special addresses
-
-### Broadcast
-
-When a write request is received with the broadcast unit ID (`0x00`), it is automatically forwarded to all registered
-handlers. No response is returned, so an exception from a handler goes nowhere. A broadcast that isn't a valid write request,
-such as a read, is ignored.
-
-### Other unit IDs
-
-The server doesn't reply to a request for a unit ID that isn't in its map, since another server on the line may own it.
-
-### Reserved addresses
-
-Do not use addresses 248 (`0xF8`) to 255 (`0xFF`), which are reserved by the specification. The library does not enforce this
-requirement: it processes such frames like any other, and logs one warning, the first time a frame uses a reserved address after the
-port opens, as a reminder of potential interoperability issues.
+The library handles RTU framing for clients and servers alike: it derives the frame timing from the baud rate, and after line
+noise or a partial frame it discards bytes until a valid frame starts, logging a warning, without closing the port.
 
 ## Creating a server
 
-To create a RTU server, first build a `DeviceMap` for each unit ID to which the server will respond. This is similar to how it is done in the [TCP server](./tcp_server).
-Then use the `create_rtu` static method of the `Server` class (`spawn_rtu_server_task` in Rust) to create the background task.
+First build a `DeviceMap` for each unit ID to which the server will respond, as for a [TCP server](./tcp_server.mdx).
+Then use the `create_rtu` static method of the `Server` class (`spawn_rtu_server_task` in Rust). It takes the same serial port
+path and settings as an [RTU client](../client/rtu_client.mdx#serial-port), and a `RetryStrategy`.
 
-The `create_rtu` method takes the following arguments:
-
-- `runtime`: tokio runtime used to drive the async process. See [Runtime](../runtime.mdx) for more details.
-- `path`: path of the serial device.
-  - On Windows, it's generally something like `COM3`
-  - On Linux, it's generally something like `/dev/ttyS3`. You need to have the adequate permissions
-    to access these devices.
-- `serial_params`: structure with various serial port settings:
-  - Baud rate in bits per second; the RTU frame timing is computed from it
-  - Data bits. Note that Modbus should use 8 data bits.
-  - Stop bits
-  - Parity
-  - Flow control
-- `retry`: retry strategy setting how long to wait before reopening the port after a failed open or a port error.
-- `endpoints`: Map of unit ids and their corresponding callback handlers.
-- `decode_level`: Initial decoding level for the port, which can be adjusted later via the returned server.
-
-:::tip
-The task handles dynamic hardware changes, such as USB-to-serial adapter insertion and removal.
-:::
+The server opens the port in the background. If the port can't be opened, or fails later, for example when a USB-to-serial
+adapter is unplugged, the server reopens it, waiting as the `RetryStrategy` sets.
 
 <Tabs
 groupId="language"
@@ -127,3 +79,13 @@ values={[
 
 </TabItem>
 </Tabs>
+
+## Broadcast
+
+The server applies a write request sent to the broadcast unit ID (`0x00`) to every unit in its map, and doesn't reply, so an
+exception returned by your handler goes nowhere. It ignores any other broadcast, such as a read.
+
+## Reserved addresses
+
+Don't use unit IDs 248 (`0xF8`) to 255 (`0xFF`), which the specification reserves. The library processes them like any other
+unit ID, but logs a warning as a reminder of potential interoperability issues.

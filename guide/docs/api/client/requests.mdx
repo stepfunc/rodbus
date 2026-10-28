@@ -10,19 +10,15 @@ import TabItem from '@theme/TabItem';
 
 ## Request parameters
 
-All requests take a `RequestParam` structure with the following fields:
+All requests take a `RequestParam` with two values:
 
-- `UnitId`: A single Modbus channel can communicate with many devices. The 8-bit unit
-  ID specifies the device for which the request is intended. On a serial line, this is used
-  to implement a multi-drop scheme. On TCP/IP, it is used when communicating with
-  a gateway that relays the requests to multiple devices, or a single device that supports
-  multiple virtual sub-devices.
-- `Timeout`: The time allowed for sending the request and receiving its response. A response that doesn't arrive in time
-  fails the request with a response timeout. A request that can't be sent in time fails with an I/O error, and the
-  connection (or serial port) is closed and reopened. On a serial port, the wait between frames is part of sending.
+- `UnitId`: the device the request is for. On a serial line, it selects one of the servers sharing the line, and `0x00` is a [broadcast](./rtu_client.mdx#broadcast). On TCP, it
+  matters when talking to a gateway that relays requests to several devices, or to a device that hosts several units.
+- `Timeout`: the time allowed to send the request and receive its response. A request whose response doesn't arrive in
+  time fails with a response timeout. One that couldn't even be sent in time fails with an I/O error, and the library
+  closes and reopens the connection or serial port.
 
-A common pattern is to create a `RequestParam` for each device you communicate with
-and reuse it on every request.
+A common pattern is to create a `RequestParam` for each device you communicate with and reuse it on every request.
 
 ## Read requests
 
@@ -35,23 +31,12 @@ The library supports four read requests:
 | `read_holding_registers` | 16-bit registers |
 | `read_input_registers`   | 16-bit registers |
 
-Each read request takes an `AddressRange` parameter specifying which values to retrieve.
-It has a 16-bit `start` index and a 16-bit `count` value.
+Each read request takes an `AddressRange`: a 16-bit `start` address and a `count` of values to read. One request can read up to
+2000 coils or discrete inputs, or 125 registers. The library fails a request whose range is empty, runs past address 65535, or
+exceeds that limit, without sending it; split larger reads into several requests.
 
-:::warning
-The library fails a read request with an error, without sending it, when:
-
-* `count` is zero
-* the sum of `start` and `count` **exceeds 65,536**
-* `count` exceeds the most one request can read: 2000 coils or discrete inputs, or 125 registers
-:::
-
-The asynchronous response contains the retrieved values. A successful response always contains exactly `count` values
-in ascending, contiguous address order beginning at `start`. A response containing too few or too many values, or whose byte count
-doesn't match the bytes that follow it, fails the request.
-
-Each value is paired with its address as a convenience. Modbus read responses don't encode per-value addresses, only the values in
-address order, so the library computes each address from `start` and the value's position.
+The response contains exactly the values you asked for, in address order, each paired with its address. The library fails the
+request if the server's response doesn't match it.
 
 The following example demonstrates reading the first 5 coils from a device:
 
@@ -129,24 +114,18 @@ values={[
 
 The library supports four write requests:
 
-- `write_single_coil`
-- `write_single_register`
-- `write_multiple_coils`
-- `write_multiple_registers`
+| Request name               | Writes                                 |
+| -------------------------- | -------------------------------------- |
+| `write_single_coil`        | One coil                               |
+| `write_single_register`    | One holding register                   |
+| `write_multiple_coils`     | Contiguous coils                       |
+| `write_multiple_registers` | Contiguous holding registers           |
 
-:::note
-The registers that are written using the `write_single_register` and `write_multiple_registers`
-are *holding registers*.
-:::
+The "multiple" requests write **contiguous** points of the same type in one message,
+up to 1968 coils or 123 registers. As with reads, the library fails an empty or larger write without sending it, and fails the
+request if the server's reply doesn't match it.
 
-Single requests write one point at a time.
-The "multiple" requests write multiple **contiguous** points of the same type in a single message: at most 1968 coils or 123
-registers, and at least one. The library fails a larger or empty write with an error without sending it.
-
-A server answers a successful single write with its address and value, and a successful multiple write with its starting
-address and quantity. The library fails the request when that reply doesn't match the request.
-
-To write discontinuous points, perform multiple requests. Modbus lacks a transaction mechanism, so device state may change between requests.
+To write discontinuous points, make several requests. Modbus lacks a transaction mechanism, so device state may change between requests.
 
 The following example demonstrates how to write a coil:
 
@@ -210,7 +189,7 @@ values={[
 </TabItem>
 </Tabs>
 
-The following example demonstrates writing the multiple registers:
+The following example demonstrates writing multiple registers:
 
 <Tabs
 groupId="language"

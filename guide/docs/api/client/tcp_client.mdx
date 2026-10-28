@@ -1,7 +1,7 @@
 ---
 id: tcp_client
-title: TCP Client
-sidebar_label: TCP Client
+title: TCP client
+sidebar_label: TCP client
 slug: /api/client/tcp_client
 ---
 
@@ -62,34 +62,30 @@ values={[
 </TabItem>
 </Tabs>
 
-## Maximum Queued Requests
-
-Each channel sends one request at a time and has a fixed-length buffer of requests to send.
-
-## Endpoint Configuration
-
-The remote endpoint is a host and a port, where the host is one of the following:
-
-* IPv4 address
-* IPv6 address
-* DNS name (the library resolves it)
-
-In Rust, pass a `HostAddr`, created with `HostAddr::ip` or `HostAddr::dns`.
-
-## Retry Strategy
+## Enabling
 
 The channel is created disabled: it doesn't connect until you call `enable`, and requests made while it has no connection fail
-with a `NoConnection` error. Once enabled, it keeps a connection open and waits between attempts to avoid flooding the network.
+with a `NoConnection` error. Once enabled, it keeps a connection open, reconnecting when it fails. Call `disable` to close the
+connection and stop communicating.
 
-The `RetryStrategy` sets these waits:
+## Endpoint
 
-* After a failed connection attempt, the client waits `min_delay`, and the wait doubles after each further failure, up to `max_delay`.
-* After an established connection closes, the client waits `min_delay` before reconnecting.
-* A successful connection resets the wait to `min_delay`.
+The remote endpoint is a host and a port, where the host is an IPv4 address, an IPv6 address, or a DNS name that the library
+resolves. In Rust, pass a `HostAddr`, created with `HostAddr::ip` or `HostAddr::dns`.
 
-## Decode Level
+## Retry strategy
 
-See [logging configuration page](../logging.mdx#protocol-decoding) for more details.
+The `RetryStrategy` controls how often the client retries. After each failed connection attempt it waits, doubling the
+wait from `min_delay` up to `max_delay`; after an established connection closes, it waits `min_delay`.
+
+## Maximum queued requests
+
+The channel sends one request at a time and queues the rest, up to `max_queued_requests`. When the queue is full, a request
+made in the bindings fails with the `TOO_MANY_REQUESTS` error, while one made in Rust waits for room.
+
+## Decode level
+
+See the [logging page](../logging.mdx#protocol-decoding).
 
 ## ClientStateListener
 

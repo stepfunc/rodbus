@@ -1,27 +1,19 @@
 ---
 id: rtu_client
-title: Serial RTU Client
-sidebar_label: Serial RTU Client
+title: Serial RTU client
+sidebar_label: Serial RTU client
 slug: /api/client/rtu_client
 ---
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
-Create an RTU client channel using the `create_rtu` method. The channel is created disabled: it doesn't open the serial port
-until you call `enable`. It receives and sends frames as described in [Receiving frames](../server/rtu_server.mdx#receiving-frames)
-and [Sending frames](../server/rtu_server.mdx#sending-frames).
+Create an RTU client channel using the `create_rtu` method. Like a [TCP client](./tcp_client.mdx), the channel is created
+disabled: it doesn't open the serial port until you call `enable`.
 
 :::note
 In Rust, you can use `spawn_rtu_client_task` to create a channel and spawn its task in the current runtime.
 Otherwise, `create_rtu_client_task` returns the `Channel` and a `ClientTask`; spawn `task.run()` when ready.
-:::
-
-:::info
-A request to unit ID `0x00` is sent as a broadcast. Servers apply a broadcast write without replying, so once it is sent the
-client waits the request's response timeout as the turnaround delay that lets every server process it, and then completes the write
-successfully with the value or range it wrote. Give broadcasts a short timeout, typically 100 to 200 ms. A read can't be
-broadcast: one sent to `0x00` ends with a response timeout.
 :::
 
 <Tabs
@@ -71,37 +63,25 @@ values={[
 </TabItem>
 </Tabs>
 
-## Path
+## Serial port
 
-A path to the serial device must be supplied. On Windows, it's generally something like `COM3`. On Linux, it's
-generally something like `/dev/ttyS3`. You need to have the adequate permissions to access these devices.
+Supply the path of the serial device, such as `COM3` on Windows or `/dev/ttyS3` on Linux, where your program needs permission
+to open it. The serial port settings are the baud rate, data bits, stop bits, parity and flow control; the API docs describe
+each one. Modbus RTU uses 8 data bits.
 
-## Serial Port settings
+Once enabled, the channel keeps the port open. If the port can't be opened, or fails later, for example when a USB-to-serial
+adapter is unplugged, the channel reopens it, waiting as the `RetryStrategy` sets, the same way a TCP client reconnects.
+Requests made while the port isn't open fail with a `NoConnection` error.
 
-The serial port settings are the following:
+## Broadcast
 
-- Baud rate in bits per second; the RTU frame timing is computed from it
-- Data bits. Note that Modbus should use 8 data bits.
-- Stop bits
-- Parity
-- Flow control
+A request to unit ID `0x00` is a broadcast. Servers apply a broadcast write without replying, so the client waits the request's
+timeout to give them time to process it, and then completes the write successfully. Give broadcasts a short timeout, typically 100 to 200 ms.
+A read can't be broadcast: one sent to `0x00` fails with a response timeout.
 
-## Maximum Queued Requests
+## Other settings
 
-Each channel sends one request at a time and has a fixed-length buffer of requests to send.
-
-## Retry Strategy
-
-Once enabled, the channel opens the port and keeps it open. Requests made while the port isn't open fail with a `NoConnection` error.
-The `RetryStrategy` sets how long to wait before reopening it:
-
-* After a failed attempt to open the port, the channel waits `min_delay`, and the wait doubles after each further failure, up to `max_delay`.
-* After an open port fails, the channel waits `min_delay` before reopening it.
-* Opening the port successfully resets the wait to `min_delay`.
-
-## Decode Level
-
-See [logging configuration page](../logging.mdx#protocol-decoding) for more details.
+The request queue and decode level work as for a [TCP client](./tcp_client.mdx#maximum-queued-requests).
 
 ## PortStateListener
 

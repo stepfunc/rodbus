@@ -8,29 +8,28 @@ slug: /api/server/database
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
-Use the `Database` class to manipulate the point values that the server exposes to clients. Although called a "database", this is a thread-safe in-memory data structure.
+In the bindings, use the `Database` class to manage the point values that the server exposes to clients. Despite the name, it's
+just an in-memory data structure protected by a mutex. The server answers reads from it, and passes writes to your
+[WriteHandler](./write_handler.mdx).
 
 :::note
-For maximum versatility, the Rust interface does not provide a database implementation. The generic `RequestHandler` trait is used to get the values to return to the client.
-However, in most cases, you would just store the values in a `Vec` or `HashMap`.
+The Rust interface does not provide a database. Your `RequestHandler` returns the values to read, which you would usually
+store in a `Vec` or `HashMap`.
 :::
 
 ## Transactions
 
-All modifications to the internal database are done inside a transaction. All the changes are applied atomically at the end of the
-transaction. This makes it impossible for clients to read inconsistent state in a single request.
-
-A transaction can be started on a running server with the `update_database` method. Inside the transaction, any operations can be performed.
-They will be executed in sequence.
+All changes to the database are made inside a transaction, so a client request never sees a partially applied one. Start one
+on a running server with the `update_database` method, giving it the unit ID.
 
 :::warning
-The transaction mechanism acquires a mutex lock, so keep transactions short. Never perform blocking operations inside a database transaction.
+A transaction holds the database's lock, which client requests also need, so keep transactions short and never block inside one.
 :::
 
-## Database Initialization
+## Database initialization
 
-When adding a device to the `DeviceMap`, an initialization transaction must be specified. This is usually used to add the points
-to the database so that when the server is actually created, it can immediately report valid values.
+When adding a device to the `DeviceMap`, you also give it an initialization transaction. Use it to add the points, so that the server
+reports valid values as soon as it starts. A client that reads an address you haven't added gets an Illegal Data Address exception.
 
 <Tabs
 groupId="language"
@@ -44,7 +43,6 @@ values={[
 <TabItem value="C">
 
 ```c
-// initialize 10 of every point type
 {{#include ../ffi/bindings/c/server_example.c:configure_db}}
 
 {{#include ../ffi/bindings/c/server_example.c:device_map_init}}
@@ -54,7 +52,6 @@ values={[
 <TabItem value="C++">
 
 ```cpp
-// initialize 10 of every point type
 {{#include ../ffi/bindings/c/server_example.cpp:device_map_init}}
 ```
 
@@ -75,10 +72,10 @@ values={[
 </TabItem>
 </Tabs>
 
-## Updating Points
+## Updating points
 
-You can update a point value by calling one of the `update_xxx` method on the `Database` object inside a transaction. The returned boolean
-indicates if the update was successful (i.e. the point existed).
+Update a point value by calling one of the `update_xxx` methods on the `Database` inside a transaction. The returned boolean
+indicates whether the point exists.
 
 <Tabs
 groupId="language"
@@ -121,16 +118,12 @@ values={[
 </TabItem>
 </Tabs>
 
-## Getting Point Values
+## Getting point values
 
 You can also use the `Database` as a cache of the most recent values. Each type has a getter method to retrieve the most recently assigned value.
+Since the point may not be defined, the getters can fail. If you try to retrieve a point that doesn't exist using C++, Java or .NET, an exception is thrown.
 
-:::note
-Since the point may not be defined, the getters can fail. If you try to retrieve a point that doesn't exist using Java and C#, an exception will be thrown.
-:::
+## Removing points
 
-## Removing Points
-
-Few applications need to remove points, but this capability exists for dynamic scenarios.
-There is a type-specific function for removing every point type given its index. The returned boolean indicates if the point
-was defined prior to the call to remove it.
+Few applications need to remove points, but you can remove one from a running server. There is a type-specific function for
+removing every point type given its index. The returned boolean indicates whether the point existed.

@@ -8,8 +8,8 @@ slug: /cpp_bindings
 import useBaseUrl from '@docusaurus/useBaseUrl';
 import sitedata from '../../sitedata.json'
 
-Each [C package distribution](./c_lang.mdx) also includes a C++ API that fully wraps the C API. The `rodbus.hpp` file includes the public API
-and a `src/rodbus.cpp` contains the companion code which maps the C++ API to the underlying C API.
+Each [C package distribution](./c_lang.mdx) also includes a C++ API that fully wraps the C API. The `rodbus.hpp` defines the public API
+and a `src/rodbus.cpp` maps this API to the underlying C API.
 
 ```mermaid
 graph TD
@@ -27,7 +27,7 @@ A -- link --> F
 C -- compile --> F
 ```
 
-## CMake Usage
+## CMake usage
 
 The CMake package script includes a `rodbus_cpp` target that automatically links with the C bindings and builds the C++ wrapper code.
 
@@ -43,19 +43,17 @@ set(CMAKE_PREFIX_PATH ${DISTRIBUTION_PATH}/cmake)
 set(RODBUS_RUST_TARGET x86_64-unknown-linux-gnu)
 find_package(rodbus REQUIRED)
 
-# Create and link the executable w/ the c++ library
+# Create and link the executable
 add_executable(my_awesome_project main.cpp)
 target_link_libraries(my_awesome_project PRIVATE rodbus_cpp)
 ```
 
-:::note
 The `rodbus_cpp` CMake target is made available only if the `CXX` language is enabled. Languages can be enabled in the
 [project()](https://cmake.org/cmake/help/latest/command/project.html) command or with a separate
 [enable_language()](https://cmake.org/cmake/help/latest/command/enable_language.html) command.
-:::
 
 :::tip
-Just like with the C library, it's easy compile and link a program from the command line without CMake:
+Just like with the C library, you can compile and link a program from the command line without CMake:
 
 ```
 > g++ main.cpp c-bindings/src/rodbus.cpp -I ./c-bindings/include/ -lrodbus_ffi
@@ -70,17 +68,17 @@ Most of the abstract concepts in the binding generator map directly to C++.
 
 ### Errors
 
-The code generator transforms all C API errors into C++ exceptions containing the error enum. All exceptions derive from `std::logic_error`.
+All C API errors are transformed into C++ exceptions containing the error enum. All exceptions derive from `std::logic_error`.
 
-Additional validations, such as detecting use-after-move, throw `std::logic_error`.
+Other validations (e.g. checking that a moved class isn't used after the move) also throw `std::logic_error`.
 
 :::warning
-Uncaught callback exceptions terminate the program. Always wrap callback logic with `try/catch` syntax to prevent uncaught exceptions.
+Uncaught exceptions thrown in callbacks will terminate the program. Always wrap your callback logic using `try/catch` syntax if there's a possibility the callback will throw.
 :::
 
 ### Iterators
 
-Iterators are wrapped in a class for easier manipulation. Iterating on them should done like so:
+Iterators are wrapped in a class for easier manipulation. Iterating on them should be done like so:
 
 ```cpp
 while(iter.next()) {
@@ -88,36 +86,38 @@ while(iter.next()) {
 }
 ```
 
-The `next()` method advances the iterator and returns `true` if a value exists. The `get()` method returns the current value, or throws
+The `next()` advances the iterator and returns `true` if a value is available. The `get()` returns the current value, or throws
 `std::logic_error` if the end was reached.
 
 :::warning
-The iterator wrapper does **not** copy and accumulate values like in C# or Java. Never use an iterator outside its callback. The iterator typically references stack memory, causing undefined behavior if used after callback completion.
+The iterator wrapper does **not** copy and accumulate the values like in .NET or Java. Therefore, an iterator should **never** be used outside of the callback.
+Frequently, the iterator points to memory on the stack and will result in undefined behavior if it is used after the callback is complete.
 :::
 
 ### Collections
 
-Collections pass by constant reference to `std::vector`. Elements are copied internally.
+Collections are taken through a constant reference to a `std::vector`. The elements will be copied internally.
 
 ### Classes
 
 Classes have an opaque pointer inside and therefore cannot be copied. They can be moved around with `std::move`. If a method
-is called on a moved class it throws a `std::logic_error`.
+is called on a moved class it will throw a `std::logic_error`.
 
 The class destructor will call the underlying C destructor automatically.
 
 ### Interfaces
 
-Interfaces are abstract classes containing only pure virtual functions where every callback must be implemented. The destructor is virtual to allow proper cleanup.
+Interfaces are abstract classes containing pure virtual functions, so you implement every callback. The destructor is virtual to allow proper cleanup.
 
 Owned interfaces that are invoked asynchronously by the library are passed into the API as a `std::unique_ptr<T>`. Use `std::make_unique` to create these smart pointers.
 
 Non-owned (synchronous) interfaces are passed by reference. There are also functional wrappers that take a lambda
-function as an argument available in the `dnp3::functional` namespace.
+function as an argument available in the `rodbus::functional` namespace.
 
 ### Async methods
 
-The C++ standard library lacks comprehensive asynchronous computation support. You can only extract a value from `std::future` using the blocking `get` method, with no way to chain futures asynchronously.
+C++ doesn't have a robust model for asynchronous computations in the standard library (yet). You can only extract a value
+from a C++ `std::future` using the blocking `get` method and there is no way to asynchronously chain futures.
 
 Asynchronous methods are mapped to callback interfaces with two methods:
 
