@@ -1,5 +1,5 @@
 ### 1.6.0 ###
-* :shield: **Hardened against panics.** Lints deny common sources of panics, and CI proves that parsing, answering requests and formatting replies can't panic for any input. The [security page](https://docs.stepfunc.io/rodbus/1.6.0/guide/docs/security) has the details. See [#244](https://github.com/stepfunc/rodbus/pull/244), [#349](https://github.com/stepfunc/rodbus/pull/349), [#350](https://github.com/stepfunc/rodbus/pull/350) and [#365](https://github.com/stepfunc/rodbus/pull/365).
+* :shield: **Hardened against panics.** Lints deny common sources of panics, and CI proves that parsing, answering requests and formatting replies can't panic for any input.
 * :bell: **License update.** The license now prohibits using the library to build or test other implementations of the protocol, including by mining it with AI tools or using it as an oracle, and reserves AI training. See [#224](https://github.com/stepfunc/rodbus/pull/224).
 * :bell: **`MinTlsVersion` is a minimum.** `V1_2` now allows TLS 1.3, and `V1_3` no longer allows TLS 1.2. See [#212](https://github.com/stepfunc/rodbus/pull/212).
 * :bell: A request's timeout covers sending it; one that can't be sent in time fails with `Io(TimedOut)` and the connection is reopened. See [#215](https://github.com/stepfunc/rodbus/pull/215).
