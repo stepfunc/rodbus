@@ -23,15 +23,10 @@ changed, refresh `allowed.json` so the packaging license check passes, and
 verify any dependency/security claims in the changelog against the actual
 `Cargo.lock` versions.
 
-Pull request CI doesn't build the bindings or their packages; only release tags
-and manual runs do. Run them on the `prepare` branch, so a broken cross-compile
-or license check shows up there rather than on the tag:
-
-```bash
-gh workflow run ci.yml --ref <prepare-branch>
-```
-
-Merge the PR to `main` only once that run is green on its latest revision.
+The merge queue builds the bindings and their packages and runs the packaging
+license check, so a broken cross-compile or license check stops the PR before it
+reaches `main`. To see them before queueing, run `gh workflow run ci.yml --ref
+<prepare-branch>`.
 
 ## 2. Tag on `main` and push
 
