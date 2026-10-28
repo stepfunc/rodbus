@@ -113,7 +113,10 @@ jobs:
         with:
           save-if: ${{ github.event_name == 'pull_request' }}
       - name: Run Rust unit tests
-        run: cargo test
+        run: cargo test --workspace --features rodbus/ffi,rodbus/serialization
+      - name: Run the core crate's tests with the AWS-LC TLS backend
+        if: matrix.os == 'ubuntu-latest'
+        run: cargo test -p rodbus --no-default-features --features ffi,serial,tls-aws-lc,serialization
   # Check that a change keeps the core crate's public API semver compatible with the revision it
   # merges into. Tag pushes and manual runs have no such revision, so only the checkout runs there.
   # The toolchain and the checker are pinned so an upstream release can't fail an unchanged PR
@@ -181,21 +184,12 @@ jobs:
           CARGO_PROFILE_RELEASE_LTO: thin
           CARGO_PROFILE_RELEASE_CODEGEN_UNITS: "1"
           CARGO_PROFILE_RELEASE_OVERFLOW_CHECKS: "true"
-  # The check branch protection requires: passes only if every job a PR runs passed
-  ci-ok:
-    needs: [linting, features, msrv, test, semver, no-panic]
-    if: always()
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check the CI jobs
-        run: |
-          echo '${{ toJSON(needs) }}'
-          [ "${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') || contains(needs.*.result, 'skipped') }}" = "false" ]
-  # Everything below builds the bindings and their packages: only for release tags and manual runs.
+  # Everything below builds the bindings and their packages: in the merge queue, for release tags and
+  # manual runs, not on a PR's own pushes.
   # A PR's FFI changes are compiled by the linting job's clippy on the workspace
   # Build API documentation packages
   documentation:
-    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -230,7 +224,7 @@ jobs:
           path: ~/doc
   # Build bindings on Windows x64 [64-bit MSVC (Windows 10+) (x86_64-pc-windows-msvc)] and x86 [32-bit MSVC (Windows 10+) (i686-pc-windows-msvc)]
   bindings-windows:
-    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+    if: github.event_name != 'pull_request'
     runs-on: windows-latest
     strategy:
       fail-fast: false
@@ -280,7 +274,7 @@ jobs:
         run: cargo run --bin rodbus-bindings -- --java -r ${{ matrix.target }} -a ./target/${{ matrix.target }}/release
   # Build bindings on MacOS [64-bit macOS (10.7+, Lion+) (x86_64-apple-darwin)]
   bindings-macos:
-    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+    if: github.event_name != 'pull_request'
     strategy:
       fail-fast: false
       matrix:
@@ -321,7 +315,7 @@ jobs:
         run: cargo run --bin rodbus-bindings -- --java -r ${{ matrix.target }} -a ./target/${{ matrix.target }}/release
   # Cross-compilation for Linux to produce portable C and JNI libraries
   bindings-linux:
-    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+    if: github.event_name != 'pull_request'
     env:
       # By default, MUSL will not produce a cdylib with dynamic linkage to MUSL LIB C
       CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_RUSTFLAGS: "-C target-feature=-crt-static"
@@ -369,7 +363,7 @@ jobs:
           name: evidence-${{ matrix.target }}
           path: evidence
   guide:
-    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -391,7 +385,7 @@ jobs:
   # Package all the generated bindings
   packaging:
     needs: [documentation, bindings-windows, bindings-macos, bindings-linux]
-    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - name: Install Rust
@@ -452,14 +446,24 @@ jobs:
         with:
           name: java-bindings-pom
           path: ffi/bindings/java/rodbus/pom.xml
-  # Quality gate to ensure all tests pass before releases
+  # The one roll-up check: branch protection and the merge queue require it, and the release jobs
+  # wait on it. It passes only if every job the event runs passed. Packaging (with the
+  # documentation and platform builds it needs) is skipped on a PR's own pushes; that skip is the
+  # only one that passes
   quality-gate:
-    needs: [linting, features, msrv, test]
+    needs: [linting, features, msrv, test, semver, no-panic, packaging]
+    if: always()
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
     steps:
-      - name: Quality checks passed
-        run: echo "✅ All quality checks passed successfully"
+      - name: Check the CI jobs
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          echo "$NEEDS"
+          echo "$NEEDS" | jq -e --arg event "$EVENT" 'to_entries | all(
+            .value.result == "success"
+            or (.value.result == "skipped" and .key == "packaging" and $event == "pull_request"))'
 
   # Release jobs - each can run independently and is idempotent
   release-docs:
