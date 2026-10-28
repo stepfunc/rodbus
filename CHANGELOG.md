@@ -10,6 +10,7 @@
 * :bell: Ordinary traffic no longer logs warnings; received frames log under `rodbus::common::frame`. See [#242](https://github.com/stepfunc/rodbus/pull/242), [#243](https://github.com/stepfunc/rodbus/pull/243) and [#346](https://github.com/stepfunc/rodbus/pull/346).
 * :shield: TLS client handshakes time out after 5 seconds, and a request's write is bounded by its timeout. See [#215](https://github.com/stepfunc/rodbus/pull/215).
 * :shield: Bindings: a TLS server without an authorization handler applies its address filter, and roles containing NUL are refused. See [#220](https://github.com/stepfunc/rodbus/pull/220) and [#221](https://github.com/stepfunc/rodbus/pull/221).
+* :shield: Each file attached to a GitHub release has a build provenance attestation that `gh attestation verify` checks, and the jars on Maven Central are signed with a new key, `DFD7 6A43 C349 DBF5 46AB 9033 C6FB 909E 94CB 1619`. See [#384](https://github.com/stepfunc/rodbus/pull/384).
 * :star: `Channel::shutdown()` and `ServerHandle::shutdown()` end a task while handles are still alive. See [#198](https://github.com/stepfunc/rodbus/pull/198).
 * :star: Non-spawning `create_*_server_task()` functions return a `ServerTask` for the caller to spawn. See [#188](https://github.com/stepfunc/rodbus/pull/188).
 * :star: Configuration and task types implement `Debug`, without key material. See [#240](https://github.com/stepfunc/rodbus/pull/240).
