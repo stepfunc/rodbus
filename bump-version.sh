@@ -20,6 +20,11 @@ if [ $# -ne 1 ]; then
 fi
 
 NEW="$1"
+# X.Y.Z with an optional pre-release suffix; no build metadata, whose '+' the matching below can't handle
+if ! [[ "$NEW" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]]; then
+  echo "not a version: $NEW (expected X.Y.Z or X.Y.Z-PRERELEASE)" >&2
+  exit 1
+fi
 cd "$(dirname "$0")"
 
 # The files that hard-code the version. This list is the source of truth.
