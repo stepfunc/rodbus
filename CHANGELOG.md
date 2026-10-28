@@ -1,15 +1,27 @@
 ### 1.6.0 ###
-* :wrench: The prebuilt bindings use the AWS-LC crypto provider for TLS on every platform. The musl and 32-bit ARM Linux libraries used *ring* before; they now also offer the `X25519MLKEM768` hybrid key exchange, and are 0.7 to 2.2 MB larger.
-
-### 1.6.0-M3 ###
+* :shield: **Hardened against panics.** Lints deny common sources of panics, and CI proves that parsing, answering requests and formatting replies can't panic for any input.
 * :bell: **License update.** The license now prohibits using the library to build or test other implementations of the protocol, including by mining it with AI tools or using it as an oracle, and reserves AI training. See [#224](https://github.com/stepfunc/rodbus/pull/224).
-* :star: Add `Channel::shutdown()` and `ServerHandle::shutdown()` to immediately terminate the associated task while handles are still alive. See [#198](https://github.com/stepfunc/rodbus/pull/198).
-
-### 1.6.0-M2 ###
-* :wrench: Client `Channel` read/write methods and `set_decode_level()` now take `&self` instead of `&mut self`. These methods only send a command on an internal `mpsc::Sender` and mutate nothing, so the exclusive borrow overstated what the API actually requires. This is source-compatible for existing callers. See [#191](https://github.com/stepfunc/rodbus/pull/191).
-
-### 1.6.0-M1 ###
-* :star: Add non-spawning `create_tcp_server_task()`, `create_rtu_server_task()`, `create_tls_server_task()`, and `create_tls_server_task_with_authz()` that return a `ServerTask` for the caller to spawn, enabling custom task instrumentation. See [#188](https://github.com/stepfunc/rodbus/pull/188).
+* :bell: **`MinTlsVersion` is a minimum.** `V1_2` now allows TLS 1.3, and `V1_3` no longer allows TLS 1.2. See [#212](https://github.com/stepfunc/rodbus/pull/212).
+* :bell: A request's timeout covers sending it; one that can't be sent in time fails with `Io(TimedOut)` and the connection is reopened. See [#215](https://github.com/stepfunc/rodbus/pull/215).
+* :bell: A read whose range is empty or runs past address 0xFFFF fails with `InvalidRange` before anything is sent. See [#235](https://github.com/stepfunc/rodbus/pull/235).
+* :bell: Out-of-range settings, such as a zero timeout or queue size or reversed retry bounds, are adjusted to valid values. See [#236](https://github.com/stepfunc/rodbus/pull/236), [#241](https://github.com/stepfunc/rodbus/pull/241) and [#302](https://github.com/stepfunc/rodbus/pull/302).
+* :bell: Servers ignore requests for units they don't serve and validate requests as the standard requires. See [#274](https://github.com/stepfunc/rodbus/pull/274), [#277](https://github.com/stepfunc/rodbus/pull/277), [#280](https://github.com/stepfunc/rodbus/pull/280) and [#284](https://github.com/stepfunc/rodbus/pull/284).
+* :bell: RTU readers resynchronize after a bad frame instead of reopening the port, and frames are separated by the required silence. See [#269](https://github.com/stepfunc/rodbus/pull/269), [#297](https://github.com/stepfunc/rodbus/pull/297) and [#345](https://github.com/stepfunc/rodbus/pull/345).
+* :bell: Ordinary traffic no longer logs warnings; received frames log under `rodbus::common::frame`. See [#242](https://github.com/stepfunc/rodbus/pull/242), [#243](https://github.com/stepfunc/rodbus/pull/243) and [#346](https://github.com/stepfunc/rodbus/pull/346).
+* :shield: TLS client handshakes time out after 5 seconds, and a request's write is bounded by its timeout. See [#215](https://github.com/stepfunc/rodbus/pull/215).
+* :shield: Bindings: a TLS server without an authorization handler applies its address filter, and roles containing NUL are refused. See [#220](https://github.com/stepfunc/rodbus/pull/220) and [#221](https://github.com/stepfunc/rodbus/pull/221).
+* :star: `Channel::shutdown()` and `ServerHandle::shutdown()` end a task while handles are still alive. See [#198](https://github.com/stepfunc/rodbus/pull/198).
+* :star: Non-spawning `create_*_server_task()` functions return a `ServerTask` for the caller to spawn. See [#188](https://github.com/stepfunc/rodbus/pull/188).
+* :star: Configuration and task types implement `Debug`, without key material. See [#240](https://github.com/stepfunc/rodbus/pull/240).
+* :star: Prebuilt C/C++ bindings for 32-bit x86 Linux (`i686-unknown-linux-gnu`). See [#370](https://github.com/stepfunc/rodbus/pull/370).
+* :bug: The client ignores responses from a unit it didn't address. See [#223](https://github.com/stepfunc/rodbus/pull/223).
+* :bug: IPv4 address filters match IPv4-mapped peers on dual-stack servers. See [#260](https://github.com/stepfunc/rodbus/pull/260).
+* :bug: Bindings: a single coil write returns the `WriteHandler`'s exception instead of always `ILLEGAL_DATA_ADDRESS`. See [#364](https://github.com/stepfunc/rodbus/pull/364).
+* :bug: Other fixes. See [#218](https://github.com/stepfunc/rodbus/pull/218), [#222](https://github.com/stepfunc/rodbus/pull/222) and [#247](https://github.com/stepfunc/rodbus/pull/247).
+* :wrench: `Channel` request methods take `&self`. See [#191](https://github.com/stepfunc/rodbus/pull/191).
+* :wrench: The prebuilt C/C++ and .NET library is about 25% smaller. See [#298](https://github.com/stepfunc/rodbus/pull/298) and [#319](https://github.com/stepfunc/rodbus/pull/319).
+* :wrench: The prebuilt bindings use AWS-LC for TLS on every platform, which adds post-quantum key exchange to the musl and 32-bit ARM libraries. See [#359](https://github.com/stepfunc/rodbus/pull/359).
+* :book: The guide is reorganized and corrected, with the same examples in every language. See [#362](https://github.com/stepfunc/rodbus/pull/362) and [#366](https://github.com/stepfunc/rodbus/pull/366).
 
 ### 1.5.0 ###
 * :star: Add non-spawning `create_tcp_client_task_with_options()`, `create_tls_client_task_with_options()`, and `create_rtu_client_task()` that return a `ClientTask` for the caller to spawn, enabling custom task instrumentation. See [#180](https://github.com/stepfunc/rodbus/pull/180).
