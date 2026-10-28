@@ -197,3 +197,7 @@ mod tcp;
 
 #[cfg(all(test, rodbus_no_panic))]
 mod no_panic_check;
+
+// The serial tests check the CRC against this dev-dependency; builds without them don't use it
+#[cfg(test)]
+use ::crc as _;

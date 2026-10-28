@@ -388,36 +388,6 @@
         }
       ]
     },
-    "crc": {
-      "id": "crc",
-      "source": "crates.io",
-      "licenses": [
-        {
-          "MIT": {
-            "copyright": {
-              "Lines": [
-                "Copyright (c) 2017 crc-rs Developers"
-              ]
-            }
-          }
-        }
-      ]
-    },
-    "crc-catalog": {
-      "id": "crc-catalog",
-      "source": "crates.io",
-      "licenses": [
-        {
-          "MIT": {
-            "copyright": {
-              "Lines": [
-                "Copyright (c) 2019 Akhil Velagapudi"
-              ]
-            }
-          }
-        }
-      ]
-    },
     "crypto-common": {
       "id": "crypto-common",
       "source": "crates.io",

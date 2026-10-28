@@ -14,6 +14,7 @@ use crate::common::phys::PhysLayer;
 use crate::common::traits::Serialize;
 use crate::decode::{FrameDecodeLevel, PhysDecodeLevel};
 use crate::error::{FrameParseError, InternalError, RequestError};
+use crate::serial::crc::crc;
 use crate::types::UnitId;
 
 use std::num::NonZeroUsize;
@@ -28,9 +29,6 @@ pub(crate) mod constants {
     pub(crate) const MAX_FRAME_LENGTH: usize =
         HEADER_LENGTH + crate::common::frame::constants::MAX_PDU_LENGTH + CRC_LENGTH;
 }
-
-/// precomputes the CRC table as a constant!
-const CRC: crc::Crc<u16> = crc::Crc::<u16>::new(&crc::CRC_16_MODBUS);
 
 /// How to find the length of a PDU from its leading bytes
 #[derive(Clone, Copy)]
@@ -237,7 +235,7 @@ impl RtuParser {
             return Candidate::Incomplete;
         };
         let received = u16::from_le_bytes(*received);
-        let expected = CRC.checksum(adu);
+        let expected = crc(adu);
         if received != expected {
             let err = FrameParseError::CrcValidationFailure(received, expected);
             return Candidate::Bad(err, after_address);
@@ -463,11 +461,9 @@ pub(crate) fn format_rtu_pdu<T: Serialize>(
     msg.serialize(cursor)?;
     let end_pdu_body = cursor.position();
     // Write the CRC
-    let crc = CRC.checksum(
-        cursor
-            .get(start_frame..end_pdu_body)
-            .ok_or(InternalError::BadSeekOperation)?,
-    );
+    let crc = crc(cursor
+        .get(start_frame..end_pdu_body)
+        .ok_or(InternalError::BadSeekOperation)?);
     cursor.write_u16_le(crc)?;
 
     Ok(FrameInfo::new(
