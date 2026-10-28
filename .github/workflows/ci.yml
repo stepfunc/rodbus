@@ -512,10 +512,32 @@ jobs:
             or (.value.result == "skipped" and .key == "packaging" and $event == "pull_request"))'
 
   # Release jobs - each can run independently and is idempotent
-  release-docs:
-    needs: [packaging, guide, quality-gate]
+  # Everything a release needs that a publisher would otherwise find out only after others published
+  release-check:
+    needs: [quality-gate]
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install Rust from rust-toolchain.toml
+        run: rustup toolchain install
+      - name: Check the tag matches the crate version
+        run: |
+          VERSION=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[] | select(.name == "rodbus") | .version')
+          if [ "$VERSION" != "${GITHUB_REF_NAME}" ]; then
+            echo "❌ tag ${GITHUB_REF_NAME} doesn't match the crate version $VERSION"
+            exit 1
+          fi
+
+  release-docs:
+    # the guide is built outside the packaging the quality gate waits for
+    needs: [release-check, guide]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    environment: release
     steps:
       - name: Download documentation artifacts
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
@@ -560,9 +582,10 @@ jobs:
           fi
 
   release-maven:
-    needs: [packaging, quality-gate]
+    needs: [release-check]
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    environment: release
     steps:
       - name: Download Java artifacts
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
@@ -575,6 +598,7 @@ jobs:
         with:
           gpg_private_key: ${{ secrets.SFIO_PGP_PRIVATE_KEY }}
           passphrase: ${{ secrets.SFIO_PGP_PRIVATE_KEY_PASSPHRASE }}
+      # Succeeds only once the version is published on Maven Central, not when the upload is accepted
       - name: Deploy Java to Maven Central
         shell: bash
         working-directory: artifacts
@@ -584,81 +608,94 @@ jobs:
           GPG_FINGERPRINT: ${{ steps.import_gpg.outputs.fingerprint }}
           GPG_PASSPHRASE: ${{ secrets.SFIO_PGP_PRIVATE_KEY_PASSPHRASE }}
         run: |
-          # Check if artifact already exists or is being published
-          if curl -f -s -o /dev/null "https://repo1.maven.org/maven2/io/stepfunc/rodbus/${GITHUB_REF_NAME}/rodbus-${GITHUB_REF_NAME}.jar"; then
-            echo "✅ Artifact io.stepfunc:rodbus:${GITHUB_REF_NAME} already exists in Maven Central - skipping deployment"
-          else
-            echo "Artifact not found in Maven Central - checking if deployment is in progress..."
+          V="${GITHUB_REF_NAME}"
+          CENTRAL="https://repo1.maven.org/maven2/io/stepfunc/rodbus/$V"
+          FILES="rodbus-$V.pom rodbus-$V.jar rodbus-$V-sources.jar rodbus-$V-javadoc.jar"
+          on_central() {
+            for file in $FILES; do
+              curl -f -s -I -o /dev/null "$CENTRAL/$file" || return 1
+            done
+          }
+          # about 30 minutes; RC1 took 8
+          wait_for_central() {
+            for _ in $(seq 60); do
+              on_central && return 0
+              sleep 30
+            done
+            echo "::error::io.stepfunc:rodbus:$V isn't on Maven Central after 30 minutes"
+            return 1
+          }
 
-            # Create base64 encoded token for Authorization header
-            AUTH_TOKEN=$(echo -n "$MAVEN_CENTRAL_USERNAME:$MAVEN_CENTRAL_TOKEN" | base64 -w 0)
+          if curl -f -s -I -o /dev/null "$CENTRAL/rodbus-$V.jar"; then
+            if on_central; then
+              echo "✅ io.stepfunc:rodbus:$V is already on Maven Central"
+              exit 0
+            fi
+            echo "::error::io.stepfunc:rodbus:$V is on Maven Central without all of: $FILES"
+            exit 1
+          fi
 
-            # Try to upload - if it fails due to duplicate, that means it's already being processed
-            echo "Attempting to upload to Central Portal..."
-
-            # Create Maven repository structure (starting from groupId)
-            mkdir -p io/stepfunc/rodbus/${GITHUB_REF_NAME}
-
-            # Copy artifacts to bundle directory
-            cp java-bindings-pom/pom.xml io/stepfunc/rodbus/${GITHUB_REF_NAME}/rodbus-${GITHUB_REF_NAME}.pom
-            cp java-bindings-jar/rodbus-${GITHUB_REF_NAME}.jar io/stepfunc/rodbus/${GITHUB_REF_NAME}/
-            cp java-bindings-jar/rodbus-${GITHUB_REF_NAME}-sources.jar io/stepfunc/rodbus/${GITHUB_REF_NAME}/
-            cp java-bindings-jar/rodbus-${GITHUB_REF_NAME}-javadoc.jar io/stepfunc/rodbus/${GITHUB_REF_NAME}/
-
-            # Sign all files. v7 of ghaction-import-gpg does not configure a default
-            # signing key, so select it explicitly by fingerprint (the action's
-            # recommended user ID) to avoid "no default secret key" errors.
-            cd io/stepfunc/rodbus/${GITHUB_REF_NAME}
+          # Maven repository layout from the groupId down, each file signed and checksummed
+          mkdir -p "io/stepfunc/rodbus/$V"
+          cp java-bindings-pom/pom.xml "io/stepfunc/rodbus/$V/rodbus-$V.pom"
+          cp "java-bindings-jar/rodbus-$V.jar" "java-bindings-jar/rodbus-$V-sources.jar" \
+            "java-bindings-jar/rodbus-$V-javadoc.jar" "io/stepfunc/rodbus/$V/"
+          (
+            cd "io/stepfunc/rodbus/$V"
             for file in *.jar *.pom; do
               gpg --batch --yes --pinentry-mode loopback --local-user "$GPG_FINGERPRINT" --passphrase "$GPG_PASSPHRASE" --armor --detach-sign "$file"
-            done
-
-            # Generate checksums
-            for file in *.jar *.pom; do
               md5sum "$file" | cut -d' ' -f1 > "$file.md5"
               sha1sum "$file" | cut -d' ' -f1 > "$file.sha1"
             done
+          )
+          zip -r bundle.zip io/
 
-            # Create bundle zip
-            cd ../../../..
-            zip -r bundle.zip io/
+          AUTH="Authorization: Bearer $(echo -n "$MAVEN_CENTRAL_USERNAME:$MAVEN_CENTRAL_TOKEN" | base64 -w 0)"
+          RESPONSE=$(curl -s -X POST \
+            "https://central.sonatype.com/api/v1/publisher/upload?publishingType=AUTOMATIC" \
+            -H "$AUTH" \
+            -F "bundle=@bundle.zip;type=application/octet-stream" \
+            -w "\nHTTP_STATUS:%{http_code}")
+          HTTP_STATUS=$(echo "$RESPONSE" | grep "HTTP_STATUS:" | cut -d: -f2)
+          BODY=$(echo "$RESPONSE" | sed '$d')
+          echo "Upload: HTTP $HTTP_STATUS $BODY"
 
-            # Upload bundle to Central Portal
-            echo "Uploading bundle to Central Portal..."
-            RESPONSE=$(curl -X POST \
-              "https://central.sonatype.com/api/v1/publisher/upload?publishingType=AUTOMATIC" \
-              -H "Authorization: Bearer $AUTH_TOKEN" \
-              -H "Content-Type: multipart/form-data" \
-              -F "bundle=@bundle.zip;type=application/octet-stream" \
-              -w "\nHTTP_STATUS:%{http_code}" \
-              -s)
-
-            # Extract HTTP status code
-            HTTP_STATUS=$(echo "$RESPONSE" | grep "HTTP_STATUS:" | cut -d: -f2)
-            BODY=$(echo "$RESPONSE" | sed '$d')  # Remove last line with status code
-
-            echo "Response: $BODY"
-            echo "HTTP Status: $HTTP_STATUS"
-
-            # Handle response
-            if [[ $HTTP_STATUS -ge 200 && $HTTP_STATUS -lt 300 ]]; then
-              # The API returns the deployment ID as plain text, not JSON
-              DEPLOYMENT_ID=$(echo "$BODY" | tr -d '[:space:]')
-              echo "✅ Upload successful! Deployment ID: $DEPLOYMENT_ID"
-              echo "The deployment will be automatically published to Maven Central after validation."
-            elif [[ $HTTP_STATUS -eq 400 ]] && [[ "$BODY" =~ "duplicate" || "$BODY" =~ "already exists" || "$BODY" =~ "PUBLISHED" ]]; then
-              echo "✅ Version ${GITHUB_REF_NAME} is already uploaded or being processed - skipping deployment"
-            else
-              echo "❌ Upload failed with status $HTTP_STATUS"
-              echo "Error details: $BODY"
-              exit 1
-            fi
+          if [[ $HTTP_STATUS -eq 400 ]] && [[ "$BODY" =~ "duplicate" || "$BODY" =~ "already exists" || "$BODY" =~ "PUBLISHED" ]]; then
+            # an earlier attempt uploaded it; there's no deployment id to poll, so wait for the files
+            wait_for_central
+            exit $?
           fi
+          if [[ $HTTP_STATUS -lt 200 || $HTTP_STATUS -ge 300 ]]; then
+            echo "::error::upload failed with HTTP $HTTP_STATUS"
+            exit 1
+          fi
+
+          # the upload returns the deployment id as plain text
+          DEPLOYMENT_ID=$(echo "$BODY" | tr -d '[:space:]')
+          for _ in $(seq 60); do
+            STATUS=$(curl -s -X POST -H "$AUTH" \
+              "https://central.sonatype.com/api/v1/publisher/status?id=$DEPLOYMENT_ID")
+            STATE=$(echo "$STATUS" | jq -r '.deploymentState // "UNKNOWN"')
+            echo "Deployment $DEPLOYMENT_ID: $STATE"
+            case "$STATE" in
+              PUBLISHED)
+                echo "✅ io.stepfunc:rodbus:$V is published"
+                exit 0
+                ;;
+              FAILED)
+                echo "::error::Maven Central rejected the deployment: $(echo "$STATUS" | jq -c '.errors')"
+                exit 1
+                ;;
+            esac
+            sleep 30
+          done
+          echo "::error::deployment $DEPLOYMENT_ID isn't published after 30 minutes"
+          exit 1
 
   # Release jobs that publish to crates.io and nuget.org. Both registries trust this workflow in
   # these environments (trusted publishing), so neither needs a stored API key
   release-nuget:
-    needs: [packaging, quality-gate]
+    needs: [release-check]
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
     environment: nuget
@@ -689,7 +726,7 @@ jobs:
             --skip-duplicate
 
   release-crates-io:
-    needs: [quality-gate]
+    needs: [release-check]
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
     environment: crates-io
@@ -703,13 +740,6 @@ jobs:
           persist-credentials: false
       - name: Install Rust from rust-toolchain.toml
         run: rustup toolchain install
-      - name: Check the tag matches the crate version
-        run: |
-          VERSION=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[] | select(.name == "rodbus") | .version')
-          if [ "$VERSION" != "${GITHUB_REF_NAME}" ]; then
-            echo "❌ tag ${GITHUB_REF_NAME} doesn't match the crate version $VERSION"
-            exit 1
-          fi
       - name: Check whether this version is already published
         id: published
         run: |
@@ -743,28 +773,51 @@ jobs:
     needs: [release-docs, release-maven, release-nuget, release-crates-io]
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
-    # creates the draft release and uploads its assets
+    environment: release
+    # attests the release files and creates the draft release with them; Adam reviews and publishes it
     permissions:
       contents: write
+      id-token: write
+      attestations: write
     steps:
       - name: Download all release artifacts
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           path: artifacts
-      - name: Package C Bindings
+      - name: Assemble the release files
         run: |
+          V="${GITHUB_REF_NAME}"
           mkdir release
-          cd artifacts/c-bindings
-          zip -r ../../release/rodbus-${GITHUB_REF_NAME}.zip .
-      - name: Create GitHub release
-        # zizmor: ignore[superfluous-actions] until this step moves to the gh CLI
-        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
+          (cd artifacts/c-bindings && zip -r "../../release/rodbus-$V.zip" .)
+          cp artifacts/dotnet-bindings/rodbus.*nupkg artifacts/java-bindings-jar/*.jar artifacts/sboms/*.cdx.json release/
+          # exactly these, so the upload and the attestation cover the same complete set
+          expected="rodbus-$V.zip rodbus.$V.nupkg rodbus.$V.snupkg rodbus-$V.jar
+            rodbus-$V-sources.jar rodbus-$V-javadoc.jar rodbus-ffi.cdx.json rodbus-ffi-java.cdx.json"
+          diff <(printf '%s\n' $expected | sort) <(ls release | sort)
+      - name: Attest the release files
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
-          draft: true
-          files: |
-            release/*.zip
-            artifacts/dotnet-bindings/rodbus*
-            artifacts/java-bindings-jar/*.jar
-            artifacts/sboms/*.cdx.json
+          subject-path: release/*
+      - name: Create the draft release
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          V="${GITHUB_REF_NAME}"
+          # a rerun replaces its own draft whole; a release Adam already published is left alone
+          if DRAFT=$(gh release view "$V" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft 2>err); then
+            if [ "$DRAFT" != "true" ]; then
+              echo "::error::release $V is already published"
+              exit 1
+            fi
+            gh release delete "$V" --repo "$GITHUB_REPOSITORY" --yes
+          elif ! grep -q "release not found" err; then
+            cat err
+            exit 1
+          fi
+          # milestones and release candidates (X.Y.Z-Mn, X.Y.Z-RCn) are pre-releases
+          PRERELEASE=()
+          if [[ "$V" == *-* ]]; then
+            PRERELEASE=(--prerelease)
+          fi
+          gh release create "$V" release/* --repo "$GITHUB_REPOSITORY" --draft --verify-tag \
+            --title "$V" --notes "" "${PRERELEASE[@]}"
