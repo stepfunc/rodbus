@@ -427,7 +427,7 @@ jobs:
           path: ~/doc
   # Package all the generated bindings
   packaging:
-    needs: [documentation, bindings-windows, bindings-macos, bindings-linux]
+    needs: [documentation, guide, bindings-windows, bindings-macos, bindings-linux]
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     steps:
@@ -533,8 +533,7 @@ jobs:
           fi
 
   release-docs:
-    # the guide is built outside the packaging the quality gate waits for
-    needs: [release-check, guide]
+    needs: [release-check]
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
     environment: release
