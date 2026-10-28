@@ -8,7 +8,7 @@ A user guide and documentation may be found [here](https://stepfunc.io/products/
 
 Refer to the [CHANGELOG](CHANGELOG.md) for a release history.
 
-Maintainers: see [RELEASING.md](RELEASING.md) for how to cut a release.
+Maintainers: see [RELEASE.md](RELEASE.md) for how to cut a release.
 
 # License
 
