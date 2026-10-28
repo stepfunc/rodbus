@@ -1,35 +1,19 @@
 ---
 id: summary
-title: Example Programs
-sidebar_label: Links
+title: Example programs
+sidebar_label: Examples
 slug: /examples/summary
 ---
 
 import sitedata from '../../sitedata.json'
 
-The source repository contains example programs you can compile and run interactively. Each program demonstrates various API features using interactive console input.
+The quickest way to see the library work is to run its example programs: a client and a server in each language,
+which you drive interactively from the console.
 
-As you read through the examples, you may notice blocks of code surrounded by `ANCHOR` tags.
+## Run a server and a client
 
-```c
-// ANCHOR: logging
-
-code that configures the logging ...
-
-// ANCHOR_END: logging
-```
-
-We extract these code blocks from example programs during guide generation, ensuring all documentation snippets are syntactically valid and current.
-
-## Running the examples
-
-Each language has a client and a server example that behave the same way and accept the same commands. Run them from the
-root of the repository, so that they find the TLS certificates in `./certs`. Both take the transport as their first
-argument, `tcp`, `rtu`, `tls-ca` or `tls-self-signed`, and an optional second argument: the endpoint to listen on or connect
-to, or the serial port. Defaults such as the unit ID are constants at the top of each program.
-
-The servers listen on the standard Modbus ports, 502 for TCP and 802 for TLS, which on Linux need elevated privileges.
-To run without them, give both programs another endpoint:
+Clone the repository, check out the tag for this version (<code>{sitedata.version}</code>), and from its root start a
+server and a client on the same machine. In Rust:
 
 ```
 cargo run -p example-server -- tcp 127.0.0.1:10502
@@ -37,14 +21,33 @@ cargo run -p example-client -- tcp 127.0.0.1:10502
 ```
 
 Then type `help` in either one to list the commands that change the server's values or send requests from the client.
+
+The C, C++, Java and .NET examples build with each language's usual tools (CMake, Maven, and the .NET SDK) against
+the published library for the tag's version, so you don't need to build the library from source.
+
+## Transports and arguments
+
+Each language's client and server behave the same way and accept the same commands. Run them from the root of the
+repository, so that they find the TLS certificates in `./certs`. Both take the transport as their first argument, `tcp`,
+`rtu`, `tls-ca` or `tls-self-signed`, and an optional second argument: the endpoint to listen on or connect to, or the
+serial port. Defaults such as the unit ID are constants at the top of each program.
+
+Without an endpoint, the servers listen on the standard Modbus ports, 502 for TCP and 802 for TLS, which on Linux need
+elevated privileges; that's why the commands above pass another one.
+
 For RTU, the client opens `/dev/ttySIM0` and the server `/dev/ttySIM1`; pass the paths of any two connected serial ports
 instead, such as a pair of virtual ports.
 
-## Links
+## Source
 
-The following links redirect to language-specific examples for the current version on Github:
+The examples for each language, for this version:
 
-* <a href={`${sitedata.github_url}/tree/${sitedata.version}/examples`}>Rust</a>
-* <a href={`${sitedata.github_url}/tree/${sitedata.version}/ffi/bindings/c`}>C and C++</a>
-* <a href={`${sitedata.github_url}/tree/${sitedata.version}/ffi/bindings/dotnet/examples`}>C#</a>
-* <a href={`${sitedata.github_url}/tree/${sitedata.version}/ffi/bindings/java/examples/src/main/java/io/stepfunc/rodbus/examples`}>Java</a>
+<div style={{display: 'flex', flexWrap: 'wrap', gap: '0.75rem', marginBottom: 'var(--ifm-paragraph-margin-bottom)'}}>
+  <a className="button button--outline button--primary" style={{textDecoration: 'none'}} href={`${sitedata.github_url}/tree/${sitedata.version}/examples`}>Rust</a>
+  <a className="button button--outline button--primary" style={{textDecoration: 'none'}} href={`${sitedata.github_url}/tree/${sitedata.version}/ffi/bindings/c`}>C and C++</a>
+  <a className="button button--outline button--primary" style={{textDecoration: 'none'}} href={`${sitedata.github_url}/tree/${sitedata.version}/ffi/bindings/java/examples/src/main/java/io/stepfunc/rodbus/examples`}>Java</a>
+  <a className="button button--outline button--primary" style={{textDecoration: 'none'}} href={`${sitedata.github_url}/tree/${sitedata.version}/ffi/bindings/dotnet/examples`}>.NET</a>
+</div>
+
+The code snippets throughout this guide are pulled from these programs when the guide is built, so they always compile
+and stay up to date.

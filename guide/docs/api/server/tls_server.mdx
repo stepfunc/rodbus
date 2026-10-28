@@ -1,7 +1,7 @@
 ---
 id: tls_server
-title: TLS Server
-sidebar_label: TLS Server
+title: TLS server
+sidebar_label: TLS server
 slug: /api/server/tls_server
 ---
 
@@ -9,22 +9,19 @@ import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
 Creating a TLS server is the same process as creating a [TCP server](./tcp_server.mdx),
-except that an extra `TlsServerConfig` and an `AuthorizationHandler` are required. For more details about TLS
-support and the configuration options, check the [TLS general information](../tls.mdx) page.
+except that an extra `TlsServerConfig` is required. For more details about TLS support and the configuration options,
+check the [TLS general information](../tls.mdx) page.
 
-Connections are admitted differently: a connection counts toward `max_sessions` only once its TLS handshake completes, and
-handshakes run one at a time, each limited to 5 seconds.
+There are two kinds of TLS server:
 
-:::tip
-A server mode of operation is also supported which does not require the client certificate to contain the role extension.
+* `create_tls_with_authz` (`spawn_tls_server_task_with_authz` in Rust) implements Modbus Security: each client certificate
+  must carry a role, and your [`AuthorizationHandler`](../tls.mdx#modbus-security) decides which requests that role may make.
+* `create_tls` (`spawn_tls_server_task` in Rust) takes no `AuthorizationHandler`, doesn't require the role, and lets any
+  authenticated client perform any Modbus operation.
 
-The example only demonstrates the `Server.CreateTlsWithAuthz` method, but there is a `Server.CreateTls` which does NOT take an `AuthorizationHandler` parameter
-and allows an authenticated client to perform any Modbus operation.
-:::
+## Authorization handler
 
-## Examples
-
-### Certificate chain configuration
+The examples on this page use this `AuthorizationHandler`:
 
 <Tabs
 groupId="language"
@@ -40,7 +37,56 @@ values={[
 
 ```rust
 {{#include ../examples/server/src/main.rs:auth_handler}}
+```
 
+</TabItem>
+<TabItem value="C">
+
+```c
+{{#include ../ffi/bindings/c/server_example.c:auth_handler}}
+
+{{#include ../ffi/bindings/c/server_example.c:auth_handler_init}}
+```
+
+</TabItem>
+<TabItem value="C++">
+
+```cpp
+{{#include ../ffi/bindings/c/server_example.cpp:auth_handler}}
+```
+
+</TabItem>
+<TabItem value="Java">
+
+```java
+{{#include ../ffi/bindings/java/examples/src/main/java/io/stepfunc/rodbus/examples/ServerExample.java:auth_handler}}
+```
+
+</TabItem>
+<TabItem value="C#">
+
+```csharp
+{{#include ../ffi/bindings/dotnet/examples/server/Program.cs:auth_handler}}
+```
+
+</TabItem>
+</Tabs>
+
+## Certificate chain configuration
+
+<Tabs
+groupId="language"
+defaultValue="Rust"
+values={[
+{label: 'Rust', value: 'Rust'},
+{label: 'C', value: 'C'},
+{label: 'C++', value: 'C++'},
+{label: 'Java', value: 'Java'},
+{label: 'C#', value: 'C#'},
+]}>
+<TabItem value="Rust">
+
+```rust
 {{#include ../examples/server/src/main.rs:handler_map_create}}
 
 {{#include ../examples/server/src/main.rs:tls_ca_chain_config}}
@@ -52,10 +98,6 @@ values={[
 <TabItem value="C">
 
 ```c
-{{#include ../ffi/bindings/c/server_example.c:auth_handler}}
-
-{{#include ../ffi/bindings/c/server_example.c:auth_handler_init}}
-
 {{#include ../ffi/bindings/c/server_example.c:device_map_init}}
 
 {{#include ../ffi/bindings/c/server_example.c:tls_ca_chain_config}}
@@ -67,8 +109,6 @@ values={[
 <TabItem value="C++">
 
 ```cpp
-{{#include ../ffi/bindings/c/server_example.cpp:auth_handler}}
-
 {{#include ../ffi/bindings/c/server_example.cpp:device_map_init}}
 
 {{#include ../ffi/bindings/c/server_example.cpp:tls_ca_chain_config}}
@@ -80,8 +120,6 @@ values={[
 <TabItem value="Java">
 
 ```java
-{{#include ../ffi/bindings/java/examples/src/main/java/io/stepfunc/rodbus/examples/ServerExample.java:auth_handler}}
-
 {{#include ../ffi/bindings/java/examples/src/main/java/io/stepfunc/rodbus/examples/ServerExample.java:device_map_init}}
 
 {{#include ../ffi/bindings/java/examples/src/main/java/io/stepfunc/rodbus/examples/ServerExample.java:tls_ca_chain_config}}
@@ -93,8 +131,6 @@ values={[
 <TabItem value="C#">
 
 ```csharp
-{{#include ../ffi/bindings/dotnet/examples/server/Program.cs:auth_handler}}
-
 {{#include ../ffi/bindings/dotnet/examples/server/Program.cs:device_map_init}}
 
 {{#include ../ffi/bindings/dotnet/examples/server/Program.cs:tls_ca_chain_config}}
@@ -105,7 +141,9 @@ values={[
 </TabItem>
 </Tabs>
 
-### Self-signed certificate configuration
+## Self-signed certificate configuration
+
+Only the `TlsServerConfig` differs from the certificate chain example:
 
 <Tabs
 groupId="language"
@@ -120,10 +158,6 @@ values={[
 <TabItem value="Rust">
 
 ```rust
-{{#include ../examples/server/src/main.rs:auth_handler}}
-
-{{#include ../examples/server/src/main.rs:handler_map_create}}
-
 {{#include ../examples/server/src/main.rs:tls_self_signed_config}}
 
 {{#include ../examples/server/src/main.rs:tls_server_create}}
@@ -133,12 +167,6 @@ values={[
 <TabItem value="C">
 
 ```c
-{{#include ../ffi/bindings/c/server_example.c:auth_handler}}
-
-{{#include ../ffi/bindings/c/server_example.c:auth_handler_init}}
-
-{{#include ../ffi/bindings/c/server_example.c:device_map_init}}
-
 {{#include ../ffi/bindings/c/server_example.c:tls_self_signed_config}}
 
 {{#include ../ffi/bindings/c/server_example.c:tls_server_create}}
@@ -148,10 +176,6 @@ values={[
 <TabItem value="C++">
 
 ```cpp
-{{#include ../ffi/bindings/c/server_example.cpp:auth_handler}}
-
-{{#include ../ffi/bindings/c/server_example.cpp:device_map_init}}
-
 {{#include ../ffi/bindings/c/server_example.cpp:tls_self_signed_config}}
 
 {{#include ../ffi/bindings/c/server_example.cpp:tls_server_create}}
@@ -161,10 +185,6 @@ values={[
 <TabItem value="Java">
 
 ```java
-{{#include ../ffi/bindings/java/examples/src/main/java/io/stepfunc/rodbus/examples/ServerExample.java:auth_handler}}
-
-{{#include ../ffi/bindings/java/examples/src/main/java/io/stepfunc/rodbus/examples/ServerExample.java:device_map_init}}
-
 {{#include ../ffi/bindings/java/examples/src/main/java/io/stepfunc/rodbus/examples/ServerExample.java:tls_self_signed_config}}
 
 {{#include ../ffi/bindings/java/examples/src/main/java/io/stepfunc/rodbus/examples/ServerExample.java:tls_server_create}}
@@ -174,10 +194,6 @@ values={[
 <TabItem value="C#">
 
 ```csharp
-{{#include ../ffi/bindings/dotnet/examples/server/Program.cs:auth_handler}}
-
-{{#include ../ffi/bindings/dotnet/examples/server/Program.cs:device_map_init}}
-
 {{#include ../ffi/bindings/dotnet/examples/server/Program.cs:tls_self_signed_config}}
 
 {{#include ../ffi/bindings/dotnet/examples/server/Program.cs:tls_server_create}}

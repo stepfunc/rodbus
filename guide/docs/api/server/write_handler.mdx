@@ -1,6 +1,6 @@
 ---
 id: write_handler
-title: WriteHandler Interface
+title: WriteHandler interface
 sidebar_label: WriteHandler
 slug: /api/server/write_handler
 ---
@@ -8,27 +8,32 @@ slug: /api/server/write_handler
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
-The `WriteHandler` interface processes write requests in your application code. Each callback receives a `Database`
-object for applying changes. Typically, update the internal database when values are written.
+The `WriteHandler` interface is how the server passes client writes to your code. The server answers reads itself:
+
+| Request | Handled by | What your code does |
+|---------|------------|---------------------|
+| Read coils, discrete inputs, holding registers or input registers | The server, from the [Database](./database.mdx) | Keeps the values current with `update_database` |
+| Write a single coil or register | `write_single_coil` or `write_single_register`, with the index and value | Checks them, applies the write, updates the `Database` it receives, and returns the result |
+| Write multiple coils or registers | `write_multiple_coils` or `write_multiple_registers`, once per request, with the start index and an iterator over the values | The same, for every value |
+
+Callbacks run on the runtime's threads, so [don't block in them](../runtime.mdx#callbacks). Update the database through the
+`Database` the callback receives: the server holds the database's lock during the callback, so calling `update_database` from
+one can deadlock.
 
 :::note
-In Rust, the `WriteHandler` does not exist, it is merged with the `RequestHandler` trait.
-:::
-
-:::warning
-Never block in callback functions; they execute on the Runtime thread.
+In Rust, there is no `WriteHandler` or `Database`: the `RequestHandler` trait has a method for each read and write. A read
+calls its method once per address, and a method you don't implement answers with an Illegal Function exception.
 :::
 
 ## Return value
 
-The return value of each callback function determines what is returned by the server. Here are the most common use cases:
+The return value of each callback determines how the server answers. The most common cases are:
 
-- The received index and value are valid, the database is updated and a success value is returned.
-- If the requested index doesn't exist, then an `ILLEGAL_DATA_ADDRESS` Modbus exception should be returned.
-- If the requested value is not allowed for the point, then a `ILLEGAL_DATA_VALUE` Modbus exception should be returned.
+- The index and value are valid: update the database and return success.
+- The index doesn't exist: return an `ILLEGAL_DATA_ADDRESS` exception.
+- The value isn't allowed for the point: return an `ILLEGAL_DATA_VALUE` exception.
 
-The library automatically responds to improperly formatted requests such as ones containing invalid start/count combinations. Such invalid
-requests are never forwarded to your application code.
+The library answers malformed requests itself, such as one with an invalid start and count, without calling your code.
 
 Use the `WriteResult` value to return exceptions. It has three static methods: `success_init` creates a success result, `exception_init` creates a standard Modbus exception, and `raw_exception_init` creates a non-standard Modbus exception.
 

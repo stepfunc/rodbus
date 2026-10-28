@@ -52,7 +52,12 @@ module.exports = {
           actorTextColor: '#004e98',
           signalColor: '#004e98',
           signalTextColor: '#004e98',
+
+          // Groups (subgraphs)
+          clusterBkg: '#f9f9fa',
+          clusterBorder: '#9db7d5',
         },
+        sequence: {mirrorActors: false},
       },
     },
     navbar: {
@@ -62,12 +67,28 @@ module.exports = {
         src: 'images/brand/logo.svg',
         href: '/docs/guide'
       },
-      items: [],
+      items: [
+        {
+          type: 'dropdown',
+          label: 'API docs',
+          position: 'right',
+          items: [
+            {label: 'Rust', href: `https://docs.stepfunc.io/rodbus/${sitedata.version}/rust/rodbus/`},
+            {label: 'C', href: `https://docs.stepfunc.io/rodbus/${sitedata.version}/c/rodbus_8h.html`},
+            {label: 'C++', href: `https://docs.stepfunc.io/rodbus/${sitedata.version}/cpp/rodbus_8hpp.html`},
+            {label: 'Java', href: `https://docs.stepfunc.io/rodbus/${sitedata.version}/java/`},
+            {label: '.NET', href: `https://docs.stepfunc.io/rodbus/${sitedata.version}/dotnet/namespacerodbus.html`},
+          ],
+        },
+        {label: 'stepfunc.io', href: 'https://stepfunc.io/products/libraries/modbus/', position: 'right'},
+        {label: 'GitHub', href: sitedata.github_url, position: 'right'},
+      ],
     },
     footer: {
+      style: 'dark',
       logo: {
         alt: 'Step Function',
-        src: 'images/brand/footer-logo.svg',
+        src: 'images/brand/logo.svg',
       },
       links: [
         {
@@ -109,6 +130,9 @@ module.exports = {
       copyright: `Copyright © ${new Date().getFullYear()} Step Function I/O LLC`,
     },
   },
+  stylesheets: [
+    'https://fonts.googleapis.com/css2?family=Barlow:wght@500;600&display=swap',
+  ],
   presets: [
     [
       '@docusaurus/preset-classic',

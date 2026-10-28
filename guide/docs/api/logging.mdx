@@ -8,7 +8,7 @@ slug: /api/logging
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
-The library provides highly-contextual logging using the [tracing](https://crates.io/crates/tracing) crate. If you're using Rust, refer to the
+The library uses the [tracing](https://crates.io/crates/tracing) crate for contextual logging. Rust users should refer to the
 tracing documentation for details.
 
 The bindings provide a single callback method for logging messages. Configurable options include:
@@ -20,7 +20,7 @@ The bindings provide a single callback method for logging messages. Configurable
 :::note
 The LogLevel defaults to Info, recording Info, Warn, and Error messages. Use Debug and Trace levels only when debugging runtime issues.
 
-Protocol decoding is always logged at the Info level and is configured separately on a per channel basis.
+Protocol decoding is always logged at the Info level and is configured separately for each client channel and server.
 :::
 
 ## Configuration
@@ -85,16 +85,16 @@ The bindings use the [tracing_subscriber](https://crates.io/crates/tracing-subsc
 use.
 :::
 
-## Example Output
+## Example output
 
-The logs provide rich contextual metadata, allowing you to:
+Logs include contextual metadata so you can:
 
 * Determine which communication session produced the message
 * Understand what state the software was in when the event occurred
 
 Here is the example server, with data values, MBAP headers and physical-layer lengths decoded, answering one read from a client that then disconnects:
 
-```
+```text
 2026-10-23T23:03:53.225466Z  INFO Modbus-Server-TCP{listen=127.0.0.1:502}: accepted connection from: 127.0.0.1:34736 - assigned session id: 0
 2026-10-23T23:03:54.222005Z  INFO Modbus-Server-TCP{listen=127.0.0.1:502}:Session{id=0 remote=127.0.0.1:34736}: PHYS RX - 12 bytes
 2026-10-23T23:03:54.222256Z  INFO Modbus-Server-TCP{listen=127.0.0.1:502}:Session{id=0 remote=127.0.0.1:34736}: MBAP RX - tx_id: 0x00 unit: 0x01 len: 6
@@ -112,19 +112,16 @@ idx: 0x0004 value: 0
 2026-10-23T23:03:55.224340Z  INFO Modbus-Server-TCP{listen=127.0.0.1:502}:Session{id=0 remote=127.0.0.1:34736}: session shutdown
 ```
 
-## Protocol Decoding
+## Protocol decoding
 
-Protocol decoding is configurable on a per-communication channel basis, such as all of the traffic on a TCP socket or a serial port. You can specify the
-`DecodeLevel` when you create a client or a server. This struct controls the level of decoding (including none) that takes place for each layer of the
-protocol stack, including:
+Set the `DecodeLevel` when you create a client channel or a server, and change it at runtime with `set_decode_level`. It
+controls decoding for each layer of the protocol stack:
 
-* Protocol Data Unit (PDU) function code, data headers, and data values
-* Application Data Unit (ADU) transport-dependent logging. On TCP channels, this controls the MBAP decoding
-* Physical-layer length and data bytes
+* Application layer (PDU): the function code, the request or response header, and the data values
+* Frame (ADU): the MBAP header on TCP and TLS, or the serial frame on RTU
+* Physical layer: the length and bytes of data sent and received
 
-Refer to the language-specific API documentation for the meaning of each enumeration value.
+See the language-specific API documentation for the meaning of each enumeration value.
 
-:::note
-Protocol decoding outputs at the Info log level and can generate excessive output in production systems. When debugging communication issues, adjust application-layer decoding first to gain visibility into messages on one channel at a time.
-:::
-
+Protocol decoding is always output at the Info log level and can be too verbose for a production system. When you're debugging
+a communication issue, try application-layer decoding first.

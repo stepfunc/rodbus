@@ -1,7 +1,7 @@
 ---
 id: tcp_server
-title: TCP Server
-sidebar_label: TCP Server
+title: TCP server
+sidebar_label: TCP server
 slug: /api/server/tcp_server
 ---
 
@@ -11,7 +11,7 @@ import TabItem from '@theme/TabItem';
 Each TCP server processes requests for one or more unit IDs from multiple external clients.
 
 ```mermaid
-graph TD
+graph LR
 A[Client #1] --> D[Modbus TCP Server]
 B[Client #2] --> D
 C[Client #3] --> D
@@ -21,26 +21,26 @@ D --> F[UNIT ID 0x02]
 end
 ```
 
-The `DeviceMap` class is used to build the association between unit IDs and the custom read/write functionality you wish to provide to clients.
-The server doesn't reply to a request for a unit ID that isn't in the map, whatever the request contains.
+The `DeviceMap` class (`ServerHandlerMap` in Rust) associates each unit ID with the data and write handling you provide to
+clients. The server doesn't reply to a request for a unit ID that isn't in the map.
 
 ## Creating a server
 
-To create a server, first build a `DeviceMap` for each unit ID the server must support. Then use the `create_tcp` static method of the `Server` class (`spawn_tcp_server_task` in Rust).
-The server starts listening on the port immediately.
+First build a `DeviceMap` for each unit ID the server must support. Then use the `create_tcp` static method of the `Server`
+class (`spawn_tcp_server_task` in Rust). The server starts listening immediately, and creation fails if it can't bind the port,
+for example when another process already uses it.
 
-The `create_tcp` method takes the following arguments:
+You also choose the local address to listen on, such as:
 
-- `runtime`: tokio runtime used to drive the async process. See [Runtime](../runtime.mdx) for more details.
-- `address`: IP address of the adapter on which to listen. Specify any valid IPv4 or IPv6 local endpoint, such as:
-    - `127.0.0.1` for localhost only
-    - `0.0.0.0` for all adapters
-    - The IP address for a particular adapter
-- `port`: port on which to listen for connection
-- `filter`: `AddressFilter` which can be used to limit which external IPs may connect.
-- `max_sessions`: maximum concurrent sessions allowed by the server. When the server reaches maximum sessions, new connections terminate the oldest session to limit resource usage.
-- `endpoints`: Map of unit ids and their corresponding callback handlers.
-- `decode_level`: Initial decoding level for the server, which can be adjusted later via the returned server.
+* `127.0.0.1` for localhost only
+* `0.0.0.0` for all adapters
+* The IP address of a particular adapter
+
+The other arguments are the `AddressFilter`, the maximum number of sessions and the decode level; the API docs describe each one.
+The `AddressFilter` limits which client IP addresses may connect; `AddressFilter.any()` allows all of them, and the filter also
+accepts IPv4 wildcards such as `192.168.0.*`.
+
+When a new connection would exceed the maximum number of sessions, the server closes the oldest session to make room.
 
 <Tabs
 groupId="language"
@@ -99,6 +99,4 @@ values={[
 </TabItem>
 </Tabs>
 
-:::tip
-In Rust, you can easily wrap your `RequestHandler` implementation in a `Arc<Mutex>` using the `wrap()` default implementation.
-:::
+In Rust, the `wrap()` method of `RequestHandler` moves your handler into the `Arc<Mutex>` that the `ServerHandlerMap` holds.
