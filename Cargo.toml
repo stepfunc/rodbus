@@ -19,10 +19,10 @@ members = [
 ]
 
 [workspace.dependencies]
-oo-bindgen = "0.8.7"
+oo-bindgen = "0.8.8"
 sfio-tokio-ffi = "0.9.0"
 sfio-tracing-ffi = "0.9.0"
-tokio = "1.37"
+tokio = "1"
 tokio-util = "0.7"
 tokio-stream = "0.1"
 tracing = "0.1"
