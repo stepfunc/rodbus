@@ -11,6 +11,10 @@ on:
 # Jobs that write with GITHUB_TOKEN ask for it themselves
 permissions:
   contents: read
+# what the rust-toolchain action set before the jobs installed Rust with rustup
+env:
+  CARGO_INCREMENTAL: 0
+  CARGO_TERM_COLOR: always
 # A newer push to a PR cancels its older run
 concurrency:
   group: ci-${{ github.event.pull_request.number || github.ref }}
@@ -24,11 +28,8 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
-        with:
-          toolchain: stable
-          components: rustfmt, clippy
+      - name: Install Rust from rust-toolchain.toml
+        run: rustup toolchain install
       - name: Cache the build
         # only PR runs cache, so tag and merge-queue builds never restore one a PR wrote, and this
         # job builds nothing that ships
@@ -59,11 +60,8 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
-        with:
-          toolchain: stable
-          components: clippy
+      - name: Install Rust from rust-toolchain.toml
+        run: rustup toolchain install
       - name: Cache the build
         # only PR runs cache, so tag and merge-queue builds never restore one a PR wrote, and this
         # job builds nothing that ships
@@ -91,19 +89,27 @@ jobs:
           version=$(sed -n 's/^rust-version = "\(.*\)"/\1/p' Cargo.toml)
           if [[ "$version" =~ ^[0-9]+\.[0-9]+$ ]]; then version="$version.0"; fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
+      # rust-toolchain.toml selects the newer toolchain, so every command here names this one
       - name: Install Rust ${{ steps.msrv.outputs.version }}
-        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
-        with:
-          toolchain: ${{ steps.msrv.outputs.version }}
+        env:
+          MSRV: ${{ steps.msrv.outputs.version }}
+        run: rustup toolchain install "$MSRV" --profile minimal
       - name: Cache the build
         # only PR runs cache, so tag and merge-queue builds never restore one a PR wrote, and this
         # job builds nothing that ships
         if: github.event_name == 'pull_request' # zizmor: ignore[cache-poisoning]
         uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        # the action runs rustc and cargo to key the cache, so they must be this toolchain too
+        env:
+          RUSTUP_TOOLCHAIN: ${{ steps.msrv.outputs.version }}
       - name: Check the workspace
-        run: cargo check --locked --workspace --all-targets
+        env:
+          MSRV: ${{ steps.msrv.outputs.version }}
+        run: cargo "+$MSRV" check --locked --workspace --all-targets
       - name: Check the AWS-LC TLS backend
-        run: cargo check --locked -p rodbus --no-default-features --features ffi,serial,tls-aws-lc,serialization
+        env:
+          MSRV: ${{ steps.msrv.outputs.version }}
+        run: cargo "+$MSRV" check --locked -p rodbus --no-default-features --features ffi,serial,tls-aws-lc,serialization
   # Run the unit tests on Linux; Windows too in the merge queue and for releases
   test:
     # a test that hangs fails the job instead of holding it for GitHub's six-hour default
@@ -118,10 +124,8 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
-        with:
-          toolchain: stable
+      - name: Install Rust from rust-toolchain.toml
+        run: rustup toolchain install
       - name: Cache the build
         # only PR runs cache, so tag and merge-queue builds never restore one a PR wrote, and this
         # job builds nothing that ships
@@ -134,8 +138,9 @@ jobs:
         run: cargo test -p rodbus --no-default-features --features ffi,serial,tls-aws-lc,serialization
   # Check that a change keeps the core crate's public API semver compatible with the revision it
   # merges into. Tag pushes and manual runs have no such revision, so only the checkout runs there.
-  # The toolchain and the checker are pinned so an upstream release can't fail an unchanged PR
-  # (the checker reads rustdoc's JSON, whose format changes with the toolchain); raise them together
+  # The checker is pinned, like the toolchain in rust-toolchain.toml, so an upstream release can't
+  # fail an unchanged PR (the checker reads rustdoc's JSON, whose format changes with the toolchain);
+  # raise them together
   semver:
     runs-on: ubuntu-latest
     steps:
@@ -144,11 +149,9 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0
-      - name: Install Rust
+      - name: Install Rust from rust-toolchain.toml
         if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
-        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
-        with:
-          toolchain: "1.99"
+        run: rustup toolchain install
       - name: Install cargo-binstall
         if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
         uses: cargo-bins/cargo-binstall@8a2045612414e945291083f820cd50b4d8fc2218 # v1.26.0
@@ -171,9 +174,8 @@ jobs:
   # Check that reading and parsing frames, answering requests, and formatting requests and replies
   # can't panic for any input
   # (rodbus/src/no_panic_check.rs), with arithmetic overflow checks off as in release and on as in
-  # debug. The proof comes from the optimizer, so the toolchain is pinned:
-  # a new one can lose an optimization and fail the link without any change to the code. Raise it
-  # deliberately.
+  # debug. The proof comes from the optimizer, so it depends on the toolchain rust-toolchain.toml
+  # pins: a new one can lose an optimization and fail the link without any change to the code.
   no-panic:
     runs-on: ubuntu-latest
     steps:
@@ -181,10 +183,8 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
-        with:
-          toolchain: "1.99"
+      - name: Install Rust from rust-toolchain.toml
+        run: rustup toolchain install
       - name: Cache the build
         # only PR runs cache, so tag and merge-queue builds never restore one a PR wrote, and this
         # job builds nothing that ships
@@ -215,10 +215,8 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
-        with:
-          toolchain: stable
+      - name: Install Rust from rust-toolchain.toml
+        run: rustup toolchain install
       - name: Install doxygen 1.9.5
         run: |
           wget -q https://github.com/stepfunc/ci-files/raw/2440f58201959ddfd6bca2597b48d3948bb08948/doxygen/doxygen-1.9.5.linux.bin.tar.gz -O doxygen.tar.gz
@@ -266,10 +264,13 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
-        with:
-          toolchain: stable
+      - name: Install Rust from rust-toolchain.toml
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          rustup toolchain install
+          rustup target add "$TARGET"
       - name: Create the FFI modules dir
         run: mkdir ffi-modules\${{ matrix.target }}
       - name: Build FFI
@@ -320,10 +321,8 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
-        with:
-          toolchain: stable
+      - name: Install Rust from rust-toolchain.toml
+        run: rustup toolchain install
       - name: Create FFI modules dir
         run: mkdir -p ffi-modules/${{ matrix.target }}
       - name: Build FFI
@@ -375,10 +374,13 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
-        with:
-          toolchain: stable
+      - name: Install Rust from rust-toolchain.toml
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          rustup toolchain install
+          rustup target add "$TARGET"
       - name: Install Rust Cross
         run: cargo install cross --version 0.2.5 --locked
       - name: Create FFI modules dir
@@ -429,17 +431,15 @@ jobs:
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     steps:
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
-        with:
-          toolchain: stable
-      - name: Install bom-tools
-        # 0.3.0
-        run: cargo install --locked --git https://github.com/stepfunc/bom-tools.git --rev a5c5797217b26f74f5682c0551daaffa501f7fd6
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: Install Rust from rust-toolchain.toml
+        run: rustup toolchain install
+      - name: Install bom-tools
+        # 0.3.0
+        run: cargo install --locked --git https://github.com/stepfunc/bom-tools.git --rev a5c5797217b26f74f5682c0551daaffa501f7fd6
       - name: Download compiled FFI
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
@@ -701,10 +701,8 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
-        with:
-          toolchain: stable
+      - name: Install Rust from rust-toolchain.toml
+        run: rustup toolchain install
       - name: Check the tag matches the crate version
         run: |
           VERSION=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[] | select(.name == "rodbus") | .version')
