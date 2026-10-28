@@ -175,7 +175,7 @@ class IntegrationTest {
         assertThatThrownBy(() -> {
             range.start = ushort(10);
             range.count = ushort(1);
-            client.readDiscreteInputs(param, range).toCompletableFuture().get();
+            client.readInputRegisters(param, range).toCompletableFuture().get();
         }).isInstanceOf(ExecutionException.class).extracting("getCause.error").isEqualTo(RequestError.MODBUS_EXCEPTION_ILLEGAL_DATA_ADDRESS);
     }
 
