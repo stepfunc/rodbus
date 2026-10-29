@@ -1,4 +1,5 @@
 ### 1.6.0 ###
+* :rotating_light: **Security advisory:** an unauthenticated peer could make a TCP or TLS server unavailable. Affects 0.9.0 through 1.5.0. See [GHSA-x8fh-359r-wgxm](https://github.com/stepfunc/rodbus/security/advisories/GHSA-x8fh-359r-wgxm), [#213](https://github.com/stepfunc/rodbus/pull/213) and [#214](https://github.com/stepfunc/rodbus/pull/214).
 * :shield: **Hardened against panics.** Lints deny common sources of panics, and CI proves that parsing, answering requests and formatting replies can't panic for any input.
 * :bell: **License update.** The license now prohibits using the library to build or test other implementations of the protocol, including by mining it with AI tools or using it as an oracle, and reserves AI training. See [#224](https://github.com/stepfunc/rodbus/pull/224).
 * :bell: **`MinTlsVersion` is a minimum.** `V1_2` now allows TLS 1.3, and `V1_3` no longer allows TLS 1.2. See [#212](https://github.com/stepfunc/rodbus/pull/212).
