@@ -1,0 +1,5 @@
+# Advisories osv-scanner reports that we accept, each with the reason.
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0543"
+reason = "chrono is unmaintained (informational, no vulnerability). It comes only from the FFI's RFC 3339 log timer (tracing-subscriber ChronoUtc in the code sfio-tracing-ffi generates); remove this once that moves off chrono (stepfunc/dnp3#886)."
