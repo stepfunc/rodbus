@@ -35,3 +35,6 @@ ffi/bindings/java/**/target
 
 # property-test failures become example tests; seed files are not committed
 proptest-regressions/
+
+# ephemeral local notes, plans and scratch files
+.scratch/
