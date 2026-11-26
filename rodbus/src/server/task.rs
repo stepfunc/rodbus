@@ -81,14 +81,13 @@ where
     /// Serve requests over `io` until the session ends, leaving no partial frame behind for the
     /// next
     pub(crate) async fn run(&mut self, io: &mut PhysLayer) -> SessionEnd {
-        let end = loop {
+        loop {
             if let Err(end) = self.run_one(io).await {
                 tracing::warn!("session error: {}", end);
-                break end;
+                self.reader.reset();
+                return end;
             }
-        };
-        self.reader.reset();
-        end
+        }
     }
 
     #[cfg(feature = "serial")]
