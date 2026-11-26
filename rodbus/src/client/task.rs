@@ -279,14 +279,13 @@ impl ClientLoop {
     /// Run requests over `io` until the session ends, leaving no partial frame behind for the next
     pub(crate) async fn run(&mut self, io: &mut PhysLayer) -> SessionEnd {
         self.timeout_counter.reset();
-        let err = loop {
+        loop {
             if let Err(err) = self.poll(io).await {
                 tracing::warn!("ending session: {err}");
-                break err;
+                self.framing.reader.reset();
+                return err;
             }
-        };
-        self.framing.reader.reset();
-        err
+        }
     }
 
     async fn poll(&mut self, io: &mut PhysLayer) -> Result<(), SessionEnd> {
@@ -387,7 +386,7 @@ impl ClientLoop {
         }
 
         // loop until we get the response to this request or we timeout
-        let response = loop {
+        loop {
             let frame = tokio::select! {
                 _ = deadline.as_mut() => {
                     // after the turnaround delay a broadcast write is done
@@ -401,25 +400,22 @@ impl ClientLoop {
                 }
             };
 
-            // a late answer to an earlier request, whose timeout was already reported
-            if !answers(frame.header, header) {
-                tracing::debug!(
-                    "ignoring {:?} while expecting a response from unit {} with {:?}",
-                    frame.header,
-                    request.id,
-                    tx_id
-                );
-                continue;
+            if answers(frame.header, header) {
+                // once we have a response, handle it. This may complete a promise
+                // successfully or bubble up an error
+                return request
+                    .handle_response(frame.payload(), self.decode.app)
+                    .map_err(ExchangeError::Rejected);
             }
 
-            break frame;
-        };
-
-        // once we have a response, handle it. This may complete a promise
-        // successfully or bubble up an error
-        request
-            .handle_response(response.payload(), self.decode.app)
-            .map_err(ExchangeError::Rejected)
+            // a late answer to an earlier request, whose timeout was already reported
+            tracing::debug!(
+                "ignoring {:?} while expecting a response from unit {} with {:?}",
+                frame.header,
+                request.id,
+                tx_id
+            );
+        }
     }
 
     pub(crate) fn change_setting(&mut self, setting: Setting) {

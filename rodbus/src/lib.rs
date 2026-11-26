@@ -36,6 +36,7 @@
     clippy::print_stderr,
     clippy::dbg_macro,
     clippy::infinite_loop,
+    clippy::needless_continue,
     clippy::large_futures,
     clippy::large_stack_arrays,
     clippy::iter_over_hash_type,
